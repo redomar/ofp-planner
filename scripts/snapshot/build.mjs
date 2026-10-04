@@ -1,5 +1,6 @@
 // Build stage: cached tracks + reference data (+ optional timetables) → public/data/.
 import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { writeRouteIndex } from "./route-index.mjs";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 import { createReadStream } from "node:fs";
@@ -398,6 +399,7 @@ export function writeOutput({ fileFlights, usedRyanair, dates }, airports, sourc
     counts: { airlines: airlineInfos.length, flights: total, airports: Object.keys(rows).length, routes: routes.size },
   };
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 1));
+  writeRouteIndex(OUT);
   log(`wrote ${airlineInfos.length} airlines, ${total} flights, ${Object.keys(rows).length} airports, ${routes.size} routes`);
   return manifest;
 }

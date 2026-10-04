@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { airportLabel } from "@/lib/data/flight";
-import { findFlight, useDataset, type FlightRow } from "@/lib/data/load";
+import { findFlight, loadRoutes, useDataset, type FlightRow } from "@/lib/data/load";
 import {
   EMPTY_QUERY,
   enrich,
   filterRows,
   groupByOtherEnd,
   pickNextLeg,
+  placeMatches,
   queryFromParams,
   queryToParams,
   roll,
@@ -136,13 +137,48 @@ export function FinderApp() {
     return out;
   }, [rows, airports]);
 
-  const airlineOptions = useMemo<MultiOption[]>(
-    () =>
-      (manifest?.airlines ?? [])
-        .map((a) => ({ value: a.icao, label: a.name, detail: [a.iata, a.icao].filter(Boolean).join(" / "), swatch: routeColor(a), count: a.flights }))
-        .sort((a, b) => a.label.localeCompare(b.label)),
-    [manifest],
-  );
+  // With an airport (or country) chosen, count each airline's flights for that selection from the
+  // route index, so the dropdown shows who actually flies there (fetched once, ~60 KB).
+  const [routes, setRoutes] = useState<Awaited<ReturnType<typeof loadRoutes>> | null>(null);
+  const wantRoutes = !!(q.dep || q.arr);
+  useEffect(() => {
+    if (!wantRoutes || routes) return;
+    let live = true;
+    loadRoutes().then((r) => live && setRoutes(r), () => undefined);
+    return () => {
+      live = false;
+    };
+  }, [wantRoutes, routes]);
+  const placeCounts = useMemo(() => {
+    if (!wantRoutes || !routes || !airports) return null;
+    const counts = new Map<string, number>();
+    const origins = q.dep && !q.dep.startsWith("C:") ? [q.dep] : Object.keys(routes);
+    for (const o of origins) {
+      if (!placeMatches(q.dep, o, airports)) continue;
+      for (const [d, byAl] of Object.entries(routes[o] ?? {})) {
+        if (!placeMatches(q.arr, d, airports)) continue;
+        for (const [al, n] of Object.entries(byAl)) counts.set(al, (counts.get(al) ?? 0) + n);
+      }
+    }
+    return counts;
+  }, [wantRoutes, routes, airports, q.dep, q.arr]);
+
+  const airlineOptions = useMemo<MultiOption[]>(() => {
+    const opts = (manifest?.airlines ?? []).map((a) => ({
+      value: a.icao,
+      label: a.name,
+      detail: [a.iata, a.icao].filter(Boolean).join(" / "),
+      swatch: routeColor(a),
+      count: placeCounts ? (placeCounts.get(a.icao) ?? 0) : a.flights,
+      dim: placeCounts ? !placeCounts.get(a.icao) : false,
+    }));
+    // flying here first (most flights first), then the rest alphabetically
+    return placeCounts
+      ? opts.sort((a, b) => Number(a.dim) - Number(b.dim) || (a.dim ? a.label.localeCompare(b.label) : b.count - a.count))
+      : opts.sort((a, b) => a.label.localeCompare(b.label));
+  }, [manifest, placeCounts]);
+  const placeName = (p: string | null) => (p ? (p.startsWith("C:") ? countryName(p.slice(2)) : (airports?.get(p)?.iata ?? p)) : null);
+  const routeLabel = [placeName(q.dep), placeName(q.arr)].filter(Boolean).join(" → ");
 
   const typeOptions = useMemo<MultiOption[]>(() => {
     const fam = new Map<string, number>();
@@ -234,9 +270,8 @@ export function FinderApp() {
   ) : !ready || !manifest ? (
     <span className="muted">Loading schedule snapshot…</span>
   ) : data.loading.length ? (
-    <span className="muted">
-      Loading {data.loading.map((a) => airlines.get(a)?.name ?? a).join(", ")}… {data.flights.length.toLocaleString("en-GB")} flights so far
-    </span>
+    // fixed text while loading (the bar under the line shows progress), so nothing on the line moves
+    <span className="muted">Loading schedule snapshot…</span>
   ) : (
     <span>
       <b>{alNames}</b> · {rows.length.toLocaleString("en-GB")} flights · snapshot{" "}
@@ -245,7 +280,8 @@ export function FinderApp() {
     </span>
   );
 
-  const nothingYet = !ready || !manifest || !airports;
+  // The list appears once every requested airline has loaded (all at once), so rows don't shuffle in.
+  const nothingYet = !ready || !manifest || !airports || data.loading.length > 0;
 
   return (
     <>
@@ -254,7 +290,16 @@ export function FinderApp() {
       <div className="finder">
         <section className="panel filters" aria-label="Filters">
           <div className="filters-grid">
-            <MultiPicker label="Airline" values={q.al} options={airlineOptions} onChange={setAirlines} allLabel="All airlines" searchable />
+            <MultiPicker
+              label="Airline"
+              values={q.al}
+              options={airlineOptions}
+              onChange={setAirlines}
+              allLabel="All airlines"
+              searchable
+              note={placeCounts ? `Flights ${q.dep && !q.arr ? "from" : q.arr && !q.dep ? "to" : "on"} ${routeLabel}` : "Flights in the snapshot"}
+              restLabel={placeCounts ? `Not flying ${q.dep && !q.arr ? "from" : q.arr && !q.dep ? "to" : "on"} ${routeLabel}` : undefined}
+            />
             <PlacePicker label="From" value={q.dep} options={placeOptions} onChange={(dep) => update({ dep })} />
             <button
               type="button"

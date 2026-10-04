@@ -102,3 +102,9 @@ export interface Flight {
   /** Number of observed operations behind the OOOI medians. */
   samples: number;
 }
+
+/** public/data/routes.json — flights per airline on every route: routes[orig][dest][brand] = flights. */
+export interface RoutesFile {
+  schema: 1;
+  routes: Record<string, Record<string, Record<string, number>>>;
+}

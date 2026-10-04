@@ -442,7 +442,7 @@ select.ctl-input {
 }
 .multi-pop {
   padding: 8px;
-  width: 300px;
+  width: 330px;
 }
 .multi-head {
   display: flex;
@@ -632,6 +632,9 @@ select.ctl-input {
   gap: 8px;
 }
 .tab .mono {
+  display: inline-block;
+  min-width: 5ch;
+  text-align: left;
   font-size: 12px;
   font-weight: 500;
   letter-spacing: 0;
@@ -1976,4 +1979,39 @@ select.ctl-input {
 }
 .place-al {
   cursor: help;
+}
+
+/* airline dropdown with an airport chosen: who flies there, then a dashed rule, then the rest */
+.multi-note {
+  display: flex;
+  justify-content: space-between;
+  margin: 2px 6px 4px;
+  font-family: var(--font-cond);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.multi-pop li.first-dim {
+  margin-top: 8px;
+  padding-top: 4px;
+  border-top: 1.5px dashed var(--rule-strong);
+}
+.multi-pop li.first-dim::before {
+  content: attr(data-rest);
+  display: block;
+  padding: 2px 6px 4px;
+  font-family: var(--font-cond);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.multi-pop li.dim .multi-label {
+  color: var(--ink-2);
+}
+.multi-pop li.dim .swatch {
+  opacity: 0.55;
 }

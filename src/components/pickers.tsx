@@ -178,6 +178,8 @@ export interface MultiOption {
   detail?: string;
   swatch?: string;
   count?: number;
+  /** Listed after a dashed divider (e.g. airlines not flying the chosen airport). */
+  dim?: boolean;
 }
 
 export function MultiPicker({
@@ -188,6 +190,8 @@ export function MultiPicker({
   allLabel,
   summary,
   searchable,
+  note,
+  restLabel,
 }: {
   label: string;
   values: string[];
@@ -196,6 +200,10 @@ export function MultiPicker({
   allLabel: string;
   summary?: ReactNode;
   searchable?: boolean;
+  /** Small heading over the counts ("Flights to DLM"). */
+  note?: string;
+  /** Label on the dashed divider before the dimmed options. */
+  restLabel?: string;
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -251,9 +259,15 @@ export function MultiPicker({
               {allLabel}
             </button>
           </div>
+          {note && (
+            <p className="multi-note">
+              <span>{note}</span>
+              <span>flights</span>
+            </p>
+          )}
           <ul>
-            {shown.map((o) => (
-              <li key={o.value}>
+            {shown.map((o, i) => (
+              <li key={o.value} className={cx(o.dim && "dim", o.dim && !shown[i - 1]?.dim && "first-dim")} data-rest={o.dim && !shown[i - 1]?.dim ? restLabel : undefined}>
                 <label>
                   <input type="checkbox" checked={values.includes(o.value)} onChange={() => toggle(o.value)} />
                   {o.swatch && <span className="swatch" style={{ background: o.swatch }} aria-hidden="true" />}
