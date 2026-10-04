@@ -1836,14 +1836,31 @@ select.ctl-input {
 .flights .ident {
   display: inline-block;
   min-width: var(--id-w);
+  text-align: left;
 }
+/* --al-w is the widest airline name in the result, measured in the tag's font */
 .flights .al-tag,
 .flights .split-al {
-  width: calc(var(--al-w) + 16px);
+  width: calc(var(--al-w) + 14px);
   max-width: none;
+  box-sizing: content-box;
+  padding-left: 0;
+  padding-right: 0;
+  justify-content: center;
+}
+.flights .al-edge {
+  width: var(--al-w);
+  padding: 0 7px;
+  justify-content: flex-start;
 }
 .flights .al-tint {
-  width: calc(var(--al-w) + 31px);
+  width: calc(var(--al-w) + 15px);
+  padding: 0 7px 0 4px;
+  justify-content: flex-start;
+}
+.flights .split-al {
+  width: var(--al-w);
+  padding: 0 8px;
 }
 .flights .split-pill .ident {
   min-width: calc(var(--id-w) + 16px);
@@ -1933,4 +1950,30 @@ select.ctl-input {
 .leg-dest {
   padding: 0 9px;
   font-size: 14px;
+}
+
+/* Lists scroll inside the panel and fill the screen height, so "Show more" stays in view at the
+   bottom once the list is scrolled to the top (top bar 57 + tabs 45 + footer 55 + margins). */
+.results .tbl-wrap {
+  max-height: calc(100dvh - 180px);
+  overflow: auto;
+}
+.place-list {
+  max-height: calc(100dvh - 140px);
+  overflow-y: auto;
+}
+.more {
+  background: var(--sheet);
+}
+#ofp-tip .tip-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+#ofp-tip .tip-chips .tip-chip {
+  margin: 0;
+}
+.place-al {
+  cursor: help;
 }
