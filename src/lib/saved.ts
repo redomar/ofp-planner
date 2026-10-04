@@ -70,7 +70,7 @@ export interface Prefs {
   airlines: string[];
   /** null = unsorted: the order the snapshot lists flights in. */
   sort: Sort | null;
-  view: "flights" | "places";
+  view: "flights" | "places" | "map";
   /** Spread random rolls across destinations rather than flights. */
   spread: boolean;
 }

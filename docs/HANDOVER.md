@@ -69,7 +69,7 @@ lib:
 styles: src/app/base.css (sections lifted from OFP Reader) + planner.css (app) + wx.css (weather agent)
 ids_and_urls:
   flight_id: "<brand>:<op><fn|callsign>:<orig>-<dest>:<days>" (+"~n" if duplicate), e.g. EZY:EJU54LH:LEMD-LFSB:4
-  finder_url: ?al=EZY,RYR (empty = all) &dep=LEMD|C:ES &arr= &type= &len=60-180 &days=1,5 &q= &after=1803&ref=out|off|on|in&sched=1 &view=places &f=<id>
+  finder_url: ?al=EZY,RYR (empty = all) &dep=LEMD|C:ES &arr= &type= &len=60-180 &days=1,5 &q= &after=1803&ref=out|off|on|in&sched=1 &view=places|map &f=<id>
   brief_url: /brief?f=<id>   (else the saved "ready" flight)
 
 ## 4. Data: what exists and why
@@ -136,6 +136,8 @@ server_latch: |
   - Brief: "A sample next leg" previews the pick (airline | destination badge) under the button and takes it,
     dated the first operating day after landing; "Next leg: all flights from X" opens the finder (all airlines).
     Airports on the brief link to the finder with that airport as origin.
+  - Map tab (view=map): groupRoutes(filtered) → RoutesView (map of ≤400 busiest routes + paged route table);
+    picking a route sets dep/arr and returns to Flights. RouteMap's hub = an end shared by every route.
   - Airline dropdown counts flights for the chosen airports (routes.json), flying airlines first, then a dashed
     "Not flying to X" group at 0.
   - After (Z) filter (blank by default: no reference, Scheduled unticked; no reference = compare OUT): OUT/OFF/ON/IN switch + Scheduled preference; missing times estimated from the neighbour
