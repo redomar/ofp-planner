@@ -11,7 +11,7 @@ const Q = 100;
 
 // Only the EMEA region is ever drawn, so lines are cut to this box (with a margin so
 // projected edges stay filled). Keeps the file a fraction of the world's size.
-const BOX = { w: -40, e: 75, s: 5, n: 78 };
+const BOX = { w: -75, e: 115, s: -12, n: 86 };
 const inBox = ([lon, lat]) => lon >= BOX.w && lon <= BOX.e && lat >= BOX.s && lat <= BOX.n;
 function clip(lines) {
   const out = [];

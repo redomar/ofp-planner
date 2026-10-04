@@ -292,6 +292,18 @@ function DisplayPrefs({ manifest }: { manifest: Manifest | null }) {
           <span className="muted small"> Hover a badge for its manufacturer and full name.</span>
         </p>
       </fieldset>
+      <fieldset className="opt-group">
+        <legend className="ctl-label">Maps</legend>
+        <label className="opt opt-check">
+          <input type="checkbox" checked={d.mapCodes} onChange={(e) => writeDisplay({ mapCodes: e.target.checked })} />
+          <span className="opt-body">
+            <span className="opt-title">
+              Destination codes <span className="muted">(default on)</span>
+            </span>
+            <span className="opt-note">IATA codes beside every destination on the destinations map, busiest first; codes that would overlap are left out. Hovering a destination always shows its code.</span>
+          </span>
+        </label>
+      </fieldset>
       <button type="button" className="chip" onClick={() => writeDisplay(DEFAULT_DISPLAY)}>
         Reset display to defaults
       </button>
@@ -415,6 +427,20 @@ function DataInfo({ manifest, error }: { manifest: Manifest | null; error: strin
               <td>Forecasts and current METARs on the Brief page, fetched live when you open it</td>
               <td className="hide-s">CC BY 4.0 · VATSIM data</td>
               <td className="mono hide-xs">live</td>
+            </tr>
+            <tr>
+              <td>
+                <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank" rel="noopener noreferrer">
+                  AWS Terrain Tiles
+                </a>{" "}
+                ·{" "}
+                <a href="https://www.naturalearthdata.com/" target="_blank" rel="noopener noreferrer">
+                  Natural Earth
+                </a>
+              </td>
+              <td>Map elevation (height and depth contours) and land, coastlines and borders, built into the site</td>
+              <td className="hide-s">Open data (SRTM, GMTED2010, ETOPO1…) · public domain</td>
+              <td className="mono hide-xs">build</td>
             </tr>
           </tbody>
         </table>

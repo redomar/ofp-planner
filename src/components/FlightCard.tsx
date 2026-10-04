@@ -156,7 +156,7 @@ export function FlightCard({
       {from && to && (
         <RouteMap
           routes={[{ key: f.id, from, to, color, active: true }]}
-          height={230}
+          height={250}
           label={`Map: great-circle route from ${airportLabel(from)} to ${airportLabel(to)}, ${nm ?? "?"} nautical miles.`}
         />
       )}

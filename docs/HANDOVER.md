@@ -45,7 +45,13 @@ pages:        # all client components; one shared TopBar (Finder · Brief · Set
 components:
   FlightCard.tsx:  sticky foldable header (bg sunk), split-flap codes, RouteMap, OOOI table, facts, SimBrief dispatch
   Results.tsx:     FlightTable (sortable, paged 80, scroll box) and PlacesView (fan map + airport rows)
-  RouteMap.tsx:    d3-geo azimuthal-equidistant map, Natural Earth outlines clipped to EMEA (public/geo, built at predev)
+  RouteMap.tsx:    d3-geo azimuthal-equidistant chart (user's pick "48" from the map previews): depth bands + dashed depth
+                   contours, parchment land + height bands/contours, 10°/5° grid, edge degrees (no shading behind),
+                   sea/country/range lettering placed with collision boxes, routes (hover = looping draw-in), dots,
+                   optional destination codes (Settings → Display → Maps). Drawn at the measured pixel width.
+  terrain:         public/geo/terrain.json (committed, ~470 KB / 166 KB gz) from `pnpm map:terrain`
+                   (scripts/build-terrain.mjs: AWS Terrain Tiles z5 → 0.1° grid → d3-contour bands; Natural Earth land),
+                   loaded by src/lib/terrain.ts; outlines-50m.json still built at predev (box w-75 e115 s-12 n86).
   pickers.tsx:     PlacePicker (ARIA combobox, airports + countries "C:ES"), MultiPicker, DayPicker, LengthPicker, AfterPicker
   badges.tsx:      FlightIdent/AirlineTag (4 styles), TypeBadge (maker tooltip), MoreTypes (card pile), WeekStrip
   wx/:             RouteWeather + SVG graphics (Open-Meteo forecast, VATSIM METAR)

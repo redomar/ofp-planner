@@ -261,7 +261,7 @@ export function PlacesView({
       {hubAirport && routes.length > 0 && (
         <RouteMap
           routes={routes}
-          height={360}
+          height={440}
           onPick={onPick}
           label={`Map of ${places.length} ${what} ${side === "d" ? "from" : "to"} ${airportLabel(hubAirport)}. Select an airport to see its flights.`}
         />

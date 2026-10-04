@@ -1248,33 +1248,139 @@ select.ctl-input {
   margin: 8px 0 0;
 }
 
-/* ---------- map ---------- */
+/* ---------- map (chart style: depth, land tint, contours, grid, lettering) ---------- */
+
+:root {
+  --m-sea: #d8e7ef;
+  --m-d0: #c9dde8;
+  --m-d1: #bad3e2;
+  --m-d2: #adc8da;
+  --m-d3: #a0bdd1;
+  --m-land: #f3ecd9;
+  --m-h0: #ede2c6;
+  --m-h1: #e8dbbb;
+  --m-h2: #e4d4b0;
+  --m-h3: #ddcaa4;
+  --m-h4: #d9c6a0;
+  --m-h5: #d2bd97;
+  --m-contour: rgba(120, 98, 58, 0.5);
+  --m-depth-line: rgba(70, 110, 140, 0.42);
+  --m-grat: rgba(70, 84, 108, 0.42);
+  --m-grat-minor: rgba(70, 84, 108, 0.16);
+  --m-sea-text: #2f5672;
+  --m-cty-text: #4a5468;
+  --m-rng-text: #5e4a26;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --m-sea: #0f1b28;
+    --m-d0: #0c1722;
+    --m-d1: #09141f;
+    --m-d2: #08121c;
+    --m-d3: #060f19;
+    --m-land: #1f2735;
+    --m-h0: #232a36;
+    --m-h1: #262c36;
+    --m-h2: #2a2f38;
+    --m-h3: #2e3138;
+    --m-h4: #33353a;
+    --m-h5: #3a3a3d;
+    --m-contour: rgba(186, 172, 140, 0.5);
+    --m-depth-line: rgba(120, 160, 195, 0.45);
+    --m-grat: rgba(160, 176, 200, 0.38);
+    --m-grat-minor: rgba(160, 176, 200, 0.13);
+    --m-sea-text: #86aecb;
+    --m-cty-text: #a3aec0;
+    --m-rng-text: #c4ad80;
+  }
+}
+:root[data-theme="dark"] {
+  --m-sea: #0f1b28;
+  --m-d0: #0c1722;
+  --m-d1: #09141f;
+  --m-d2: #08121c;
+  --m-d3: #060f19;
+  --m-land: #1f2735;
+  --m-h0: #232a36;
+  --m-h1: #262c36;
+  --m-h2: #2a2f38;
+  --m-h3: #2e3138;
+  --m-h4: #33353a;
+  --m-h5: #3a3a3d;
+  --m-contour: rgba(186, 172, 140, 0.5);
+  --m-depth-line: rgba(120, 160, 195, 0.45);
+  --m-grat: rgba(160, 176, 200, 0.38);
+  --m-grat-minor: rgba(160, 176, 200, 0.13);
+  --m-sea-text: #86aecb;
+  --m-cty-text: #a3aec0;
+  --m-rng-text: #c4ad80;
+}
 
 .map {
+  position: relative;
   margin: 0;
+  width: 100%;
   border: 1px solid var(--rule);
   border-radius: 2px;
-  background: var(--sea);
+  background: var(--m-sea);
   overflow: hidden;
 }
 .map svg {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
 }
 .map-empty {
+  position: absolute;
+  inset: 0;
   display: grid;
   place-items: center;
   color: var(--ink-2);
   font-size: 13px;
 }
 .map-sea {
-  fill: var(--sea);
+  fill: var(--m-sea);
+}
+.map-depth,
+.map-land,
+.map-height {
+  fill-rule: evenodd;
+  pointer-events: none;
+}
+.map-depth {
+  stroke: var(--m-depth-line);
+  stroke-width: 0.7;
+  stroke-dasharray: 3 2;
+}
+.map-depth.d0 { fill: var(--m-d0); }
+.map-depth.d1 { fill: var(--m-d1); }
+.map-depth.d2 { fill: var(--m-d2); }
+.map-depth.d3 { fill: var(--m-d3); }
+.map-land {
+  fill: var(--m-land);
+}
+.map-height {
+  stroke: var(--m-contour);
+  stroke-width: 0.6;
+}
+.map-height.h0 { fill: var(--m-h0); }
+.map-height.h1 { fill: var(--m-h1); }
+.map-height.h2 { fill: var(--m-h2); stroke-width: 0.95; }
+.map-height.h3 { fill: var(--m-h3); }
+.map-height.h4 { fill: var(--m-h4); stroke-width: 0.95; }
+.map-height.h5 { fill: var(--m-h5); stroke-width: 0.95; }
+.map-grat,
+.map-grat-minor {
+  fill: none;
+  pointer-events: none;
 }
 .map-grat {
-  fill: none;
-  stroke: var(--grid);
-  stroke-width: 0.8;
+  stroke: var(--m-grat);
+  stroke-width: 1;
+}
+.map-grat-minor {
+  stroke: var(--m-grat-minor);
+  stroke-width: 0.7;
 }
 .map-coast,
 .map-border {
@@ -1292,6 +1398,46 @@ select.ctl-input {
   stroke-dasharray: 3 2.5;
   opacity: 0.7;
 }
+.map-letters text {
+  paint-order: stroke;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+.l-sea {
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-weight: 500;
+  fill: var(--m-sea-text);
+  stroke: var(--m-sea);
+  stroke-width: 3px;
+}
+.l-cty {
+  font-family: var(--font-cond);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  fill: var(--m-cty-text);
+  stroke: var(--m-land);
+  stroke-width: 3px;
+}
+.l-rng {
+  font-family: var(--font-sans);
+  font-style: italic;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  fill: var(--m-rng-text);
+  stroke: var(--m-land);
+  stroke-width: 3px;
+}
+.map-degs text {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  fill: var(--ink-2);
+  paint-order: stroke;
+  stroke: var(--m-sea);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
 .map-route path {
   fill: none;
   stroke-linecap: round;
@@ -1304,6 +1450,11 @@ select.ctl-input {
 .map-line {
   stroke-width: 1.8;
 }
+.map-route-hit {
+  stroke: transparent;
+  stroke-width: 12;
+  pointer-events: stroke;
+}
 .map-route.on .map-casing {
   stroke-width: 6;
   opacity: 0.9;
@@ -1313,6 +1464,10 @@ select.ctl-input {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
   animation: map-draw 1.4s cubic-bezier(0.3, 0.6, 0.2, 1) forwards;
+}
+/* hovering a line replays its draw-in, again each time it reaches the end */
+.map-route.hover .map-line {
+  animation-iteration-count: infinite;
 }
 @keyframes map-draw {
   to {
@@ -1327,6 +1482,7 @@ select.ctl-input {
 }
 .map-plane {
   animation: map-fade 0.5s 1.1s both;
+  pointer-events: none;
 }
 @keyframes map-fade {
   from {
@@ -1360,7 +1516,7 @@ select.ctl-input {
   font-size: 11.5px;
   font-weight: 600;
   fill: var(--ink);
-  stroke: var(--sea);
+  stroke: var(--m-land);
   stroke-width: 3.5px;
   paint-order: stroke;
   stroke-linejoin: round;
@@ -1371,7 +1527,8 @@ select.ctl-input {
   stroke-width: 5px;
 }
 @media (prefers-reduced-motion: reduce) {
-  .map-route.on .map-line {
+  .map-route.on .map-line,
+  .map-route.hover .map-line {
     animation: none;
     stroke-dasharray: none;
     stroke-dashoffset: 0;
@@ -2129,4 +2286,7 @@ select.ctl-input {
 .flights th:first-child,
 .flights td:first-child {
   width: 1%;
+}
+.opt-check {
+  max-width: 640px;
 }

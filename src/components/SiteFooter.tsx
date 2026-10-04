@@ -25,7 +25,7 @@ export function SiteFooter() {
           <a href="https://adsb.lol" rel="noopener noreferrer" target="_blank">
             adsb.lol
           </a>{" "}
-          contributors (ODbL), VRS standing data, OurAirports; weather by{" "}
+          contributors (ODbL), VRS standing data, OurAirports; maps from Natural Earth and AWS Terrain Tiles; weather by{" "}
           <a href="https://open-meteo.com" rel="noopener noreferrer" target="_blank">
             Open-Meteo
           </a>

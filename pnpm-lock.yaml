@@ -24,6 +24,9 @@ importers:
         specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
     devDependencies:
+      '@types/d3-contour':
+        specifier: ^3.0.6
+        version: 3.0.6
       '@types/d3-geo':
         specifier: ^3.1.1
         version: 3.1.1
@@ -36,6 +39,12 @@ importers:
       '@types/react-dom':
         specifier: ^19.3.0
         version: 19.3.0(@types/react@19.3.0)
+      d3-array:
+        specifier: ^3.2.4
+        version: 3.2.4
+      d3-contour:
+        specifier: ^4.0.2
+        version: 4.0.2
       eslint:
         specifier: ^9.39.5
         version: 9.39.5
@@ -45,6 +54,9 @@ importers:
       playwright:
         specifier: ^1.63.0
         version: 1.63.0
+      pngjs:
+        specifier: ^7.0.0
+        version: 7.0.0
       topojson-client:
         specifier: ^3.1.0
         version: 3.1.0
@@ -448,6 +460,12 @@ packages:
   '@tybys/wasm-util@0.10.4':
     resolution: {integrity: sha512-W3c4gRigFS0T/Ma4qIYF3GDAc5AQdHb1yL5znJT1Zv1YaD9Kitx656wBjvr19qbiosmZT8lWDM5BEMynUqX65A==}
 
+  '@types/d3-array@3.2.2':
+    resolution: {integrity: sha512-hOLWVbm7uRza0BYXpIIW5pxfrKe0W+D5lrFiAEYR+pb6w3N2SwSMaJbXdUfSEv+dT4MfHBLtn5js0LAWaO6otw==}
+
+  '@types/d3-contour@3.0.6':
+    resolution: {integrity: sha512-BjzLgXGnCWjUSYGfH1cpdo41/hgdWETu4YxpezoztawmqsvCeep+8QGfiY6YbDvfgHz/DkjeIkkZVJavB4a3rg==}
+
   '@types/d3-geo@3.1.1':
     resolution: {integrity: sha512-65Emv9fQiQQqphLlRkuQ5ypPsOmWPhtBGCMv61JDPEPMvsx+gzhGf74yw1a78xFKPj6zw4AgQICJoQv0vK9M2w==}
 
@@ -797,6 +815,10 @@ packages:
 
   d3-array@3.2.4:
     resolution: {integrity: sha512-tdQAmyA18i4J7wprpYq8ClcxZy3SC31QMeByyCFyRt7BVHdREQZ5lpzoe5mFEYZUWe+oq8HBvk9JjpibyEV4Jg==}
+    engines: {node: '>=12'}
+
+  d3-contour@4.0.2:
+    resolution: {integrity: sha512-4EzFTRIikzs47RGmdxbeUvLWtGedDUNkTcmzoeyg4sP/dvCexO47AaQL7VKy/gul85TOxw+IBgA8US2xwbToNA==}
     engines: {node: '>=12'}
 
   d3-geo@3.1.1:
@@ -1524,6 +1546,10 @@ packages:
     engines: {node: '>=20'}
     hasBin: true
 
+  pngjs@7.0.0:
+    resolution: {integrity: sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==}
+    engines: {node: '>=14.19.0'}
+
   possible-typed-array-names@1.1.0:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
     engines: {node: '>= 0.4'}
@@ -2217,6 +2243,13 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
+  '@types/d3-array@3.2.2': {}
+
+  '@types/d3-contour@3.0.6':
+    dependencies:
+      '@types/d3-array': 3.2.2
+      '@types/geojson': 7946.0.16
+
   '@types/d3-geo@3.1.1':
     dependencies:
       '@types/geojson': 7946.0.16
@@ -2580,6 +2613,10 @@ snapshots:
   d3-array@3.2.4:
     dependencies:
       internmap: 2.0.3
+
+  d3-contour@4.0.2:
+    dependencies:
+      d3-array: 3.2.4
 
   d3-geo@3.1.1:
     dependencies:
@@ -3457,6 +3494,8 @@ snapshots:
   playwright@1.63.0:
     dependencies:
       playwright-core: 1.63.0
+
+  pngjs@7.0.0: {}
 
   possible-typed-array-names@1.1.0: {}
 
