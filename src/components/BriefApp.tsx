@@ -7,6 +7,7 @@ import { findFlight, loadAirports, loadManifest, type Airport } from "@/lib/data
 import { enrich, type Row } from "@/lib/data/query";
 import type { Manifest } from "@/lib/data/types";
 import { readReady, setReady, updateReady, useSaved } from "@/lib/saved";
+import { KEYS, removeKey } from "@/lib/storage";
 import { StatusLine, TopBar } from "./chrome";
 import { CollapseProvider } from "./collapse";
 import { FlightCard } from "./FlightCard";
@@ -127,7 +128,16 @@ export function BriefApp() {
         {f && row && (
           <>
             <Section id="flight" no={1} title="Flight" meta={<span className="mono">{flightNo(f, airline?.iata ?? null)}</span>}>
-              <FlightCard key={row.f.id} row={row} airline={airline} airports={airports} />
+              <FlightCard
+                key={row.f.id}
+                closeLabel="Clear the brief"
+                onClose={() => {
+                  removeKey(KEYS.ready);
+                  window.history.replaceState(null, "", "/brief");
+                  setState((s) => ({ ...s, row: null, error: null }));
+                  setDate(null);
+                }}
+                row={row} airline={airline} airports={airports} />
             </Section>
 
             <Section id="when" no={2} title="When you fly" meta={<span className="mono">{date ?? ""}</span>}>

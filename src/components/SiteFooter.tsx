@@ -20,7 +20,7 @@ export function SiteFooter() {
             GitHub
           </a>
         </nav>
-        <p className="site-footer-copy">
+        <p className="site-footer-data">
           Flight data ©{" "}
           <a href="https://adsb.lol" rel="noopener noreferrer" target="_blank">
             adsb.lol

@@ -21,6 +21,8 @@ export function FlightCard({
   airports,
   onContinue,
   onPlace,
+  onClose,
+  closeLabel = "Close this flight",
 }: {
   row: Row;
   airline: AirlineInfo | undefined;
@@ -29,6 +31,9 @@ export function FlightCard({
   onContinue?: () => void;
   /** Set the origin/destination filter to an airport. */
   onPlace?: (side: "dep" | "arr", icao: string) => void;
+  /** Deselect the flight (back to the empty state). */
+  onClose?: () => void;
+  closeLabel?: string;
 }) {
   const { f, nm, block } = row;
   const from = airports?.get(f.o);
@@ -93,6 +98,13 @@ export function FlightCard({
             <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" />
           </svg>
         </button>
+        {onClose && (
+          <button type="button" className="btn btn-icon" aria-label={closeLabel} title={closeLabel} onClick={onClose}>
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+              <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
       </header>
 
       <div className="fcard-route">
