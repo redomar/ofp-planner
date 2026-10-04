@@ -192,6 +192,14 @@ async function run() {
     });
     box.sh > box.ch && box.ch <= box.vh ? pass(`finder: table scrolls in a ${box.ch}px box`) : fail(`finder: table box ${JSON.stringify(box)}`);
 
+    // sorting by a column shows Reset sort; it returns to departure time, earliest first
+    await page.locator("table.flights thead button.th-sort", { hasText: "Block" }).click();
+    const shown = await page.getByRole("button", { name: "Reset sort" }).isVisible();
+    await page.getByRole("button", { name: "Reset sort" }).click();
+    const back = await page.locator("table.flights thead th[aria-sort]").first().innerText();
+    const gone = await page.getByRole("button", { name: "Reset sort" }).count();
+    shown && gone === 0 && /DEP/i.test(back) ? pass("finder: Reset sort appears after sorting and restores Dep Z ascending") : fail(`finder: reset sort (shown ${shown}, gone ${gone}, ${back})`);
+
     // filter: from LGW via the combobox
     await page.getByLabel("From", { exact: true }).fill("LGW");
     await page.keyboard.press("Enter");
