@@ -20,6 +20,17 @@ export function SiteFooter() {
             GitHub
           </a>
         </nav>
+        <p className="site-footer-copy">
+          Flight data ©{" "}
+          <a href="https://adsb.lol" rel="noopener noreferrer" target="_blank">
+            adsb.lol
+          </a>{" "}
+          contributors (ODbL), VRS standing data, OurAirports; weather by{" "}
+          <a href="https://open-meteo.com" rel="noopener noreferrer" target="_blank">
+            Open-Meteo
+          </a>
+          . <Link href="/settings#data">All sources</Link>
+        </p>
         <p className="site-footer-build" aria-label="Build information">
           <span>v{b.version}</span>
           <span>

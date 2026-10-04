@@ -14,7 +14,7 @@ import { chromium } from "playwright";
 
 const OUT = resolve("out");
 const SHOTS = process.argv.includes("--shots");
-const SHOT_DIR = resolve("..", "ofp-planner-previews", process.env.SHOT_SET ?? "release");
+const SHOT_DIR = process.env.SHOT_DIR ?? resolve("..", "ofp-planner-previews", process.env.SHOT_SET ?? "release");
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".svg": "image/svg+xml", ".woff2": "font/woff2", ".ico": "image/x-icon", ".txt": "text/plain" };
 
 function serve() {
