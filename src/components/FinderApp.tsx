@@ -290,11 +290,9 @@ export function FinderApp() {
             <span className="rollbar-count mono" aria-live="polite">
               {nothingYet ? "" : `${filtered.length.toLocaleString("en-GB")} ${filtered.length === 1 ? "match" : "matches"}`}
             </span>
-            {filtersOn && (
-              <button type="button" className="chip" onClick={reset}>
-                Clear filters
-              </button>
-            )}
+            <button type="button" className="chip" onClick={reset} hidden={!filtersOn}>
+              Clear filters
+            </button>
           </div>
         </section>
 

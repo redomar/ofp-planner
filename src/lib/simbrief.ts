@@ -7,7 +7,7 @@
  * ("276565_1790212659311"), which loads that airframe's registration, weights and engines.
  */
 import { useMemo } from "react";
-import { familyOf } from "./data/flight";
+import { familyOf, fltnum, plannedOut } from "./data/flight";
 import type { FlightRow } from "./data/load";
 import { KEYS, readJSON, useStorageVersion, writeJSON } from "./storage";
 
@@ -53,7 +53,12 @@ export interface TypeChoice {
 }
 
 export function typeChoices(f: FlightRow, prefs: AirframePrefs | null): TypeChoice[] {
-  const sched = (f.types.length ? f.types : ["A320"]).map((t) => ({ value: `type:${t}`, label: `${t} · as scheduled`, sbType: t, icao: t }));
+  const sched = (f.types.length ? f.types : ["A320"]).map((t) => ({
+    value: `type:${t}`,
+    label: `${t} · ${f.typeGuessed ? "airline's usual type" : f.samples ? "as flown" : "as scheduled"}`,
+    sbType: t,
+    icao: t,
+  }));
   const mine = (prefs?.list ?? []).map((a) => ({ value: `af:${a.id}`, label: `${a.name} · ${a.icao} (my airframe)`, sbType: a.sbType, icao: a.icao }));
   return [...mine, ...sched];
 }
@@ -93,5 +98,5 @@ export function simbriefUrl(d: DispatchInput): string {
 
 /** Dispatch for a scheduled flight: the operating airline and its own callsign. */
 export function flightDispatch(f: FlightRow, sbType: string): DispatchInput {
-  return { airline: f.op, fltnum: f.fn, orig: f.o, dest: f.d, type: sbType, callsign: f.cs, dep: f.std ?? f.out };
+  return { airline: f.op, fltnum: fltnum(f), orig: f.o, dest: f.d, type: sbType, callsign: f.cs, dep: plannedOut(f) };
 }

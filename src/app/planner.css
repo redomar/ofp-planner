@@ -182,6 +182,8 @@
     "list detail";
   gap: 18px;
   align-items: start;
+  /* spare height stays below the content instead of stretching the rows (which moved the list) */
+  align-content: start;
 }
 .filters {
   grid-area: filters;
@@ -551,6 +553,17 @@ select.ctl-input {
   padding: 0 16px;
   font-size: 15px;
 }
+/* fits the longest label, so switching between "Random flight" and "Random destination" moves nothing */
+.rollbar .btn-roll {
+  min-width: 270px;
+  justify-content: center;
+}
+@media (max-width: 480px) {
+  .rollbar .btn-roll {
+    width: 100%;
+    min-width: 0;
+  }
+}
 .btn-roll:hover {
   background: color-mix(in srgb, var(--magenta) 86%, var(--ink));
 }
@@ -569,6 +582,13 @@ select.ctl-input {
   font-size: 13px;
   color: var(--ink-2);
   margin-left: auto;
+  min-width: 15ch;
+  text-align: right;
+}
+/* the chip keeps its place when hidden, so the bar never re-wraps */
+.rollbar .chip[hidden] {
+  display: inline-flex;
+  visibility: hidden;
 }
 
 /* ---------- results ---------- */
@@ -1373,4 +1393,13 @@ select.ctl-input {
 }
 .device .btn {
   align-self: flex-start;
+}
+
+/* a typical (tracked) time standing in for an unpublished schedule */
+.obs {
+  text-decoration: underline dotted var(--ink-3);
+  text-underline-offset: 3px;
+}
+.af-id {
+  word-break: break-all;
 }

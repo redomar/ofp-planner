@@ -1,0 +1,7 @@
+node_modules
+.next
+out
+data/raw
+data/cache
+*.tsbuildinfo
+.DS_Store

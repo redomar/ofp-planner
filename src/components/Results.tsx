@@ -16,8 +16,8 @@ const COLS: [SortKey, string, string | null, string?][] = [
   ["flight", "Flight", null],
   ["dep", "From", null],
   ["arr", "To", null],
-  ["std", "STD", GLOSSARY.std],
-  ["sta", "STA", GLOSSARY.sta, "hide-s"],
+  ["std", "Dep Z", GLOSSARY.depCol],
+  ["sta", "Arr Z", GLOSSARY.arrCol, "hide-s"],
   ["block", "Block", GLOSSARY.block],
   ["dist", "Dist", GLOSSARY.distance, "hide-s"],
   ["type", "Type", GLOSSARY.types, "hide-xs"],
@@ -92,12 +92,9 @@ export function FlightTable({
                   <td>
                     <button type="button" className="row-btn" aria-pressed={sel} onClick={(e) => (e.stopPropagation(), onSelect(r))}>
                       <span className="al-dot" style={{ background: routeColor(al) }} aria-hidden="true" />
-                      <span className="mono">
-                        {al?.iata ?? f.al}
-                        {f.fn}
-                      </span>
+                      <span className="mono">{f.fn ? `${al?.iata ?? f.al}${f.fn}` : (f.cs ?? `${f.op} —`)}</span>
                     </button>
-                    {f.cs && <small className="mono muted cs">{f.cs}</small>}
+                    {f.fn && f.cs && <small className="mono muted cs">{f.cs}</small>}
                   </td>
                   <td>
                     <span className="mono">{f.o}</span> <small className="muted">{name(f.o)}</small>
@@ -105,8 +102,12 @@ export function FlightTable({
                   <td>
                     <span className="mono">{f.d}</span> <small className="muted">{name(f.d)}</small>
                   </td>
-                  <td className="mono num">{hhmm(f.std) ?? <span className="muted">—</span>}</td>
-                  <td className="mono num hide-s">{hhmm(f.sta) ?? <span className="muted">—</span>}</td>
+                  <td className="mono num">
+                    <Clock sched={f.std} obs={f.out ?? f.off} kind={f.out != null ? "OUT" : "OFF"} />
+                  </td>
+                  <td className="mono num hide-s">
+                    <Clock sched={f.sta} obs={f.in ?? f.on} kind={f.in != null ? "IN" : "ON"} />
+                  </td>
                   <td className="mono num">
                     {dur(r.block?.min) ?? "—"}
                     {r.block?.source === "estimated" && (
@@ -139,6 +140,18 @@ export function FlightTable({
       )}
     </div>
   );
+}
+
+/** A scheduled time, or a typical tracked one (marked, with its OOOI kind in the tooltip). */
+function Clock({ sched, obs, kind }: { sched: number | null; obs: number | null; kind: string }) {
+  if (sched != null) return <>{hhmm(sched)}</>;
+  if (obs != null)
+    return (
+      <span className="obs" title={`Typical ${kind} time from tracked flights (no published schedule)`}>
+        {hhmm(obs)}
+      </span>
+    );
+  return <span className="muted">—</span>;
 }
 
 type PlaceSort = "weekly" | "name" | "block" | "dist";

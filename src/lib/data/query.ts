@@ -106,7 +106,8 @@ export function filterRows(rows: Row[], q: Query, airports: Map<string, Airport>
     if (q.maxLen != null && (block == null || block.min > q.maxLen)) return false;
     if (q.days.length && f.days.length && !q.days.some((d) => f.days.includes(d))) return false;
     if (text) {
-      const hay = `${f.al}${f.fn} ${f.op}${f.fn} ${f.cs ?? ""} ${f.o} ${f.d} ${f.fn}`;
+      const n = f.fn ?? "";
+      const hay = `${f.al}${n} ${f.op}${n} ${f.cs ?? ""} ${f.o} ${f.d} ${n}`;
       if (!hay.includes(text)) return false;
     }
     return true;
@@ -121,7 +122,7 @@ export function sortRows(rows: Row[], s: Sort, airportName: (icao: string) => st
   const val = (r: Row): number | string => {
     switch (k) {
       case "flight":
-        return `${r.f.al}${r.f.fn.padStart(5, "0")}`;
+        return r.f.fn ? `${r.f.al}${r.f.fn.padStart(5, "0")}` : `${r.f.al}~${r.f.cs ?? ""}`;
       case "dep":
         return airportName(r.f.o);
       case "arr":

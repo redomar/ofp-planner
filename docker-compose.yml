@@ -1,0 +1,20 @@
+# Site + the schedule-snapshot maintenance job.
+#   docker compose up -d web                                  serve the site on :8080
+#   docker compose --profile maintenance run --rm snapshot    rebuild the snapshot (minutes to hours)
+# The job writes into the "live" volume, which nginx serves at /data/ over the baked copy.
+services:
+  web:
+    build: { context: ., target: web }
+    ports: ["8080:80"]
+    volumes:
+      - live:/usr/share/nginx/html/live:ro
+    restart: unless-stopped
+  snapshot:
+    build: { context: ., target: snapshot }
+    profiles: ["maintenance"]
+    volumes:
+      - live:/live
+      - cache:/cache
+volumes:
+  live:
+  cache:

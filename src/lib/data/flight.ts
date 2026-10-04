@@ -97,9 +97,31 @@ export function nextDeparture(f: FlightRow, from: Date = new Date()): Date {
   return new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate() + 1, 0, std));
 }
 
-/** "EZY 1016" style marketing number, using the IATA code when known ("U2 1016"). */
+/**
+ * How a flight is named: the marketing number when the snapshot has one ("U2 1016"),
+ * else its ATC callsign ("EJU54LH"), which is how most tracked flights are known.
+ */
 export function flightNo(f: FlightRow, iata: string | null): string {
-  return `${iata ?? f.al} ${f.fn}`;
+  if (f.fn) return `${iata ?? f.al} ${f.fn}`;
+  return f.cs ?? `${f.op} —`;
+}
+
+/**
+ * SimBrief's flight-number field: the real number, or the callsign's suffix ("54LH" from
+ * EJU54LH), which SimBrief accepts and which keeps the OFP's flight id equal to the callsign.
+ */
+export function fltnum(f: FlightRow): string {
+  if (f.fn) return f.fn;
+  if (f.cs && f.cs.startsWith(f.op)) return f.cs.slice(f.op.length);
+  return f.cs ?? "";
+}
+
+/** Planned off-block (UTC min): scheduled, observed OUT, or observed OFF less typical taxi-out. */
+export function plannedOut(f: FlightRow): number | null {
+  if (f.std != null) return f.std;
+  if (f.out != null) return f.out;
+  if (f.off != null) return (f.off - 12 + 1440) % 1440;
+  return null;
 }
 
 /** Aircraft type families, so a saved airframe can stand in for its siblings. */

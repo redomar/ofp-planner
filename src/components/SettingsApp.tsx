@@ -34,6 +34,8 @@ export function SettingsApp() {
         <span className="muted">Everything here is stored in this browser only. Nothing is sent anywhere.</span>
       </StatusLine>
       <main className="settings">
+        {v >= 0 && (
+          <>
         <Section id="airframes" no={1} title="Airframes" meta={<span>Used for SimBrief links</span>}>
           <Airframes />
         </Section>
@@ -49,6 +51,8 @@ export function SettingsApp() {
         <Section id="device" no={5} title="Appearance & storage">
           <Device key={v} />
         </Section>
+          </>
+        )}
       </main>
     </CollapseProvider>
   );
@@ -82,6 +86,7 @@ function Airframes() {
         A saved airframe replaces the scheduled type in the SimBrief link, so SimBrief loads your registration, engines and weights. The{" "}
         <b>preferred</b> one is picked automatically when a flight’s type is in the same family (an A20N stands in for any A320-family flight).
       </p>
+      <div className="tbl-wrap">
       <table className="tbl">
         <thead>
           <tr>
@@ -111,7 +116,7 @@ function Airframes() {
               </td>
               <td className="mono">{a.name}</td>
               <td className="mono">{a.icao}</td>
-              <td className="mono small">{a.sbType}</td>
+              <td className="mono small af-id">{a.sbType}</td>
               <td className="hide-s">{a.note}</td>
               <td>
                 <button
@@ -141,6 +146,7 @@ function Airframes() {
           </tr>
         </tbody>
       </table>
+      </div>
       <form className="af-form" onSubmit={add}>
         <label>
           <span className="ctl-label">Name</span>
@@ -205,13 +211,13 @@ function Saved({ kind }: { kind: "favourites" | "history" }) {
           <li key={s.id}>
             <a href={`/?al=${s.al}&dep=${s.o}&arr=${s.d}&f=${encodeURIComponent(s.id)}`}>
               <span className="mono">
-                {s.al} {s.fn}
+                {s.fn ? `${s.al} ${s.fn}` : (s.cs ?? s.al)}
               </span>{" "}
               <span className="mono">
                 {s.o} → {s.d}
               </span>
               {s.std != null && <span className="muted mono"> {hhmm(s.std)}Z</span>}
-              {s.cs && <span className="muted mono"> · {s.cs}</span>}
+              {s.fn && s.cs && <span className="muted mono"> · {s.cs}</span>}
             </a>
             <a className="chip" href={`/brief?f=${encodeURIComponent(s.id)}`}>
               Brief

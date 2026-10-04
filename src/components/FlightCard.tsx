@@ -65,10 +65,19 @@ export function FlightCard({
           <h2 className="fcard-no">
             <span>{flightNo(f, iata)}</span>
             <small>
-              <Tip tip={GLOSSARY.callsign} title="Callsign">
-                <span className="mono">{f.cs ?? `${f.op}${f.fn}`}</span>
-              </Tip>
-              {!f.cs && <span className="muted"> (no filed callsign in the snapshot)</span>}
+              {f.fn ? (
+                f.cs ? (
+                  <Tip tip={GLOSSARY.callsign} title="Callsign">
+                    <span className="mono">{f.cs}</span>
+                  </Tip>
+                ) : (
+                  <span className="muted">no callsign in the snapshot</span>
+                )
+              ) : (
+                <Tip tip={GLOSSARY.noFn} title="Flight number">
+                  <span>callsign · no public flight number</span>
+                </Tip>
+              )}
             </small>
           </h2>
         </div>
@@ -87,7 +96,7 @@ export function FlightCard({
       </header>
 
       <div className="fcard-route">
-        <End a={from} icao={f.o} side="dep" onPlace={onPlace} sched={f.std} label="Departs" />
+        <End a={from} icao={f.o} side="dep" onPlace={onPlace} sched={f.std} obs={f.out ?? f.off} obsKind={f.out != null ? "OUT" : "OFF"} label="Departs" />
         <div className="fcard-mid" aria-hidden="true">
           <span className="mono">{dur(block?.min) ?? "—"}</span>
           <svg viewBox="0 0 100 10" preserveAspectRatio="none">
@@ -96,7 +105,7 @@ export function FlightCard({
           </svg>
           <span className="mono">{nm != null ? `${nm.toLocaleString("en-GB")} NM` : "—"}</span>
         </div>
-        <End a={to} icao={f.d} side="arr" onPlace={onPlace} sched={f.sta} label="Arrives" />
+        <End a={to} icao={f.d} side="arr" onPlace={onPlace} sched={f.sta} obs={f.in ?? f.on} obsKind={f.in != null ? "IN" : "ON"} label="Arrives" />
       </div>
 
       {from && to && (
@@ -116,7 +125,10 @@ export function FlightCard({
               Aircraft
             </Tip>
           </dt>
-          <dd className="mono">{f.types.length ? f.types.join(" · ") : <V v={null} w={5} />}</dd>
+          <dd className="mono">
+            {f.types.length ? f.types.join(" · ") : <V v={null} w={5} />}
+            {f.typeGuessed && <small className="muted"> airline’s usual type</small>}
+          </dd>
         </div>
         <div>
           <dt>
@@ -186,6 +198,8 @@ function End({
   icao,
   side,
   sched,
+  obs,
+  obsKind,
   label,
   onPlace,
 }: {
@@ -193,9 +207,12 @@ function End({
   icao: string;
   side: "dep" | "arr";
   sched: number | null;
+  obs: number | null;
+  obsKind: string;
   label: string;
   onPlace?: (side: "dep" | "arr", icao: string) => void;
 }) {
+  const t = sched ?? obs;
   return (
     <div className={`fcard-end ${side}`}>
       <span className="ctl-label">{label}</span>
@@ -208,12 +225,21 @@ function End({
         </span>
       </p>
       <p className="fcard-time">
-        <span className="mono">{hhmm(sched) ? `${hhmm(sched)}Z` : "—"}</span>
-        {sched != null && a?.tz && (
-          <span className="muted">
-            {" "}
-            {localHHMM(sched, a.tz)} local ({tzLabel(a.tz)})
-          </span>
+        {t != null ? (
+          <>
+            <span className={sched == null ? "mono obs" : "mono"} title={sched == null ? `Typical ${obsKind} from tracked flights` : "Scheduled"}>
+              {hhmm(t)}Z
+            </span>
+            {sched == null && <span className="muted small"> {obsKind.toLowerCase()}</span>}
+            {a?.tz && (
+              <span className="muted">
+                {" "}
+                {localHHMM(t, a.tz)} local ({tzLabel(a.tz)})
+              </span>
+            )}
+          </>
+        ) : (
+          <span className="mono muted">—</span>
         )}
       </p>
       {onPlace && (
