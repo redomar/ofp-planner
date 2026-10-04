@@ -612,11 +612,24 @@ select.ctl-input {
 
 /* ---------- results ---------- */
 
+.tabs-bar {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 3px double var(--rule-strong);
+  padding-right: 10px;
+}
 .tabs {
   display: flex;
   gap: 0;
-  border-bottom: 3px double var(--rule-strong);
   padding: 0 10px;
+}
+.sort-reset {
+  align-self: center;
+  height: 30px;
+  padding: 0 10px;
+  font-size: 13px;
 }
 .tab {
   height: 42px;
@@ -632,6 +645,7 @@ select.ctl-input {
   cursor: pointer;
   border-bottom: 3px solid transparent;
   margin-bottom: -3px;
+  align-self: stretch;
   display: inline-flex;
   align-items: center;
   gap: 8px;

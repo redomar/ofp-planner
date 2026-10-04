@@ -355,6 +355,7 @@ export function FinderApp() {
         </section>
 
         <section className="panel list" aria-label="Results">
+          <div className="tabs-bar">
           <div className="tabs" role="tablist" aria-label="Show">
             <button type="button" role="tab" aria-selected={view === "flights"} className="tab" onClick={() => changeView("flights")}>
               Flights <span className="mono">{nothingYet ? "" : filtered.length.toLocaleString("en-GB")}</span>
@@ -370,6 +371,12 @@ export function FinderApp() {
             >
               {placeSide === "d" ? "Destinations" : q.arr ? "Origins" : "Airports"} <span className="mono">{places && !nothingYet ? places.length : ""}</span>
             </button>
+          </div>
+          {view === "flights" && (sort.key !== DEFAULT_PREFS.sort.key || sort.dir !== DEFAULT_PREFS.sort.dir) && (
+            <button type="button" className="btn sort-reset" onClick={() => onSort(DEFAULT_PREFS.sort)} title="Back to departure time, earliest first">
+              Reset sort
+            </button>
+          )}
           </div>
           <div role="tabpanel" className={cx("list-body", nothingYet && "is-loading")}>
             {nothingYet ? (
