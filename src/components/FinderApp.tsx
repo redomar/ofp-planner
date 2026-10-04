@@ -23,7 +23,7 @@ import { DEFAULT_PREFS, readPrefs, writePrefs } from "@/lib/saved";
 import { routeColor } from "@/lib/colors";
 import { StatusLine, TopBar } from "./chrome";
 import { FlightCard } from "./FlightCard";
-import { DayPicker, LengthPicker, MultiPicker, PlacePicker, type MultiOption, type PlaceOption } from "./pickers";
+import { AfterPicker, DayPicker, LengthPicker, MultiPicker, PlacePicker, type MultiOption, type PlaceOption } from "./pickers";
 import { FlightTable, PlacesView } from "./Results";
 import { cx } from "./ui";
 
@@ -255,7 +255,7 @@ export function FinderApp() {
     setQ({ ...EMPTY_QUERY, al: [] });
     writePrefs({ airlines: [] });
   };
-  const filtersOn = !!(q.al.length || q.dep || q.arr || q.types.length || q.minLen != null || q.maxLen != null || q.days.length || q.text);
+  const filtersOn = !!(q.al.length || q.dep || q.arr || q.types.length || q.minLen != null || q.maxLen != null || q.days.length || q.text || q.after != null);
 
   /* ---------- status ---------- */
 
@@ -316,6 +316,7 @@ export function FinderApp() {
             <MultiPicker label="Aircraft" values={q.types} options={typeOptions} onChange={(types) => update({ types })} allLabel="Any type" searchable />
             <LengthPicker min={q.minLen} max={q.maxLen} onChange={(minLen, maxLen) => update({ minLen, maxLen })} />
             <DayPicker values={q.days} onChange={(days) => update({ days })} />
+            <AfterPicker after={q.after} oooi={q.ref} sched={q.sched} onChange={(p) => update(p)} />
             <label className="search">
               <span className="ctl-label">Flight or callsign</span>
               <input

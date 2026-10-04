@@ -298,6 +298,24 @@ async function run() {
     await ctx.close();
   });
 
+  /* ---------- After (Z) filter ---------- */
+  await section("after filter", async () => {
+    const { ctx, page, errors } = await open("/?al=EZY&dep=EGKK&after=1200&ref=out");
+    await page.waitForSelector("table.flights tbody tr");
+    const deps = await page.$$eval("table.flights tbody tr td:nth-child(4)", (tds) => tds.map((t) => t.textContent.trim()));
+    const early = deps.filter((d) => !/^\d\d:\d\d$/.test(d) || d < "12:00");
+    deps.length && !early.length ? pass(`after: ${deps.length} flights all off-block ≥ 12:00Z (first ${deps[0]})`) : fail(`after: early or blank rows ${JSON.stringify(early.slice(0, 5))}`);
+    const total = await page.locator(".rollbar-count").innerText();
+    // typing a time and switching to ON
+    await page.getByLabel("After (Z)").fill("2000");
+    await page.getByRole("radio", { name: "ON" }).click();
+    await page.waitForTimeout(200);
+    const u = new URL(page.url()).searchParams;
+    u.get("after") === "2000" && u.get("ref") === "on" ? pass(`after: typed 2000 + ON → URL after=2000&ref=on (${await page.locator(".rollbar-count").innerText()} vs ${total} at 12:00 OUT)`) : fail(`after: URL ${u}`);
+    await checkPage("after filter 1280 light", page, errors);
+    await ctx.close();
+  });
+
   /* ---------- every page × width × theme ---------- */
   const pages = ["/?al=EZY&dep=EGKK", "/?al=EZY&dep=EGKK&view=places", "/brief", "/settings"];
   for (const theme of ["light", "dark"])
