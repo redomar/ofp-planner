@@ -234,6 +234,19 @@ async function run() {
     const dn = await page.locator(".place-list li").count();
     dn > 3 ? pass(`finder: ${dn} destinations from EGKK`) : fail(`finder: only ${dn} destinations`);
     await shot(page, "destinations-day");
+    // map: hovering a route loops its draw animation; destination codes shown (setting on by default)
+    const mbox = await page.locator(".places .map").boundingBox();
+    let loop = null;
+    for (let i = 0; i < 40 && !loop; i++) {
+      await page.mouse.move(mbox.x + mbox.width * (0.15 + i * 0.015), mbox.y + mbox.height * 0.6);
+      loop = await page.evaluate(() => { const el = document.querySelector(".places .map-route.hover .map-line"); return el ? getComputedStyle(el).animationIterationCount : null; });
+    }
+    loop === "infinite" ? pass("map: hovered route replays its draw-in on a loop") : fail(`map: hover loop ${loop}`);
+    await page.mouse.move(0, 0);
+    const codesOn = await page.locator(".places .map-port:not(.hub) text").count();
+    codesOn > 10 ? pass(`map: ${codesOn} destination codes shown`) : fail(`map: only ${codesOn} codes`);
+    const terrainBands = await page.locator(".places .map-height, .places .map-depth").count();
+    terrainBands >= 8 ? pass(`map: terrain drawn (${terrainBands} height/depth bands)`) : fail(`map: terrain bands ${terrainBands}`);
     await page.locator(".place-list .place-main").first().click({ position: { x: 40, y: 12 } });
     const arr = new URL(page.url()).searchParams.get("arr");
     arr ? pass(`finder: picking a destination sets To=${arr}`) : fail("finder: destination pick didn't set To");
@@ -408,10 +421,15 @@ async function run() {
     await page.getByRole("radio", { name: /Split pill/ }).check();
     await page.getByRole("radio", { name: /Airline, then flight/ }).check();
     await page.getByRole("radio", { name: /Coloured edge/ }).check();
+    await page.getByRole("checkbox", { name: /Destination codes/ }).uncheck();
     await page.goto(page.url().replace(/\/settings.*$/, "/?al=EZY&dep=EGKK"), { waitUntil: "networkidle" });
     await page.waitForSelector("table.flights tbody tr");
     const split = await page.locator("table.flights tbody tr").first().locator(".split-pill > *").first().getAttribute("class");
     const side = await page.locator("table.flights tbody .tbadge.tb-side").count();
+    await page.getByRole("tab", { name: /Destinations/ }).click();
+    await page.waitForSelector(".places .map svg");
+    const codesOff = await page.locator(".places .map-port:not(.hub):not(.on) text").count();
+    codesOff === 0 ? pass("settings: Destination codes off hides map codes") : fail(`settings: ${codesOff} codes still shown`);
     split?.includes("split-al") && side > 0 ? pass("settings: display choices apply (split pill, airline first, edge badges)") : fail(`settings: display not applied (${split}, ${side})`);
     await checkPage("finder with alt display 1280 light", page, errors);
     await page.goto(page.url().replace(/\/\?.*$/, "/settings"), { waitUntil: "networkidle" });

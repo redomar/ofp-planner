@@ -14,9 +14,11 @@ export interface Display {
   typeColour: "maker" | "airline";
   /** Aircraft badge theme: a coloured edge on the side, or fully coloured. */
   typeTheme: "side" | "full";
+  /** Destination IATA codes on the destinations map (codes that would overlap are skipped). */
+  mapCodes: boolean;
 }
 
-export const DEFAULT_DISPLAY: Display = { airlineTag: "solid", flightFirst: true, typeColour: "maker", typeTheme: "full" };
+export const DEFAULT_DISPLAY: Display = { airlineTag: "solid", flightFirst: true, typeColour: "maker", typeTheme: "full", mapCodes: true };
 
 export const readDisplay = (): Display => ({ ...DEFAULT_DISPLAY, ...readJSON<Partial<Display>>(KEYS.display, {}) });
 export function writeDisplay(p: Partial<Display>) {
