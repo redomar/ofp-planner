@@ -1395,6 +1395,23 @@ select.ctl-input {
   align-self: flex-start;
 }
 
+/* footer: data and licence credits on their own line, between copyright and build info */
+.site-footer-data {
+  flex-basis: 100%;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+/* split-flap codes take their size and metrics from a mono face, so tiles are even */
+.fcard .flap {
+  font: 700 28px/1 var(--font-mono);
+}
+@media (max-width: 420px) {
+  .fcard .flap {
+    font-size: 23px;
+  }
+}
+
 /* a typical (tracked) time standing in for an unpublished schedule */
 .obs {
   text-decoration: underline dotted var(--ink-3);

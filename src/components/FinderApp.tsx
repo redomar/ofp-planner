@@ -171,6 +171,18 @@ export function FinderApp() {
       requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }, []);
 
+  // Escape closes the flight card (unless typing in a field or a picker is open).
+  useEffect(() => {
+    if (!selId) return;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (e.key !== "Escape" || t?.closest("input, select, textarea, .multi.open, .combo.open")) return;
+      select(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [selId, select]);
+
   const rollLabel = q.dep && q.arr ? "Random flight on this route" : q.dep ? "Random destination" : q.arr ? "Random origin" : "Random flight";
   const doRoll = () => {
     const by = spread ? (q.dep && !q.arr ? "d" : q.arr && !q.dep ? "o" : null) : null;
@@ -206,8 +218,12 @@ export function FinderApp() {
     else update({ dep: icao });
     changeView("flights");
   };
-  const reset = () => setQ({ ...EMPTY_QUERY, al: q.al });
-  const filtersOn = !!(q.dep || q.arr || q.types.length || q.minLen != null || q.maxLen != null || q.days.length || q.text);
+  // Everything back to the start, including the airline (all airlines).
+  const reset = () => {
+    setQ({ ...EMPTY_QUERY, al: [] });
+    writePrefs({ airlines: [] });
+  };
+  const filtersOn = !!(q.al.length || q.dep || q.arr || q.types.length || q.minLen != null || q.maxLen != null || q.days.length || q.text);
 
   /* ---------- status ---------- */
 
@@ -304,6 +320,7 @@ export function FinderApp() {
               airline={airlines.get(selected.f.al)}
               airports={airports}
               onContinue={nextLeg}
+              onClose={() => select(null)}
               onPlace={(side, icao) => {
                 update(side === "dep" ? { dep: icao, arr: null } : { arr: icao, dep: null });
                 changeView("places");
