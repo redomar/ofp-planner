@@ -196,9 +196,9 @@ async function run() {
     await page.locator("table.flights thead button.th-sort", { hasText: "Block" }).click();
     const shown = await page.getByRole("button", { name: "Reset sort" }).isVisible();
     await page.getByRole("button", { name: "Reset sort" }).click();
-    const back = await page.locator("table.flights thead th[aria-sort]").first().innerText();
+    const sortedCols = await page.locator("table.flights thead th[aria-sort]").count();
     const gone = await page.getByRole("button", { name: "Reset sort" }).count();
-    shown && gone === 0 && /DEP/i.test(back) ? pass("finder: Reset sort appears after sorting and restores Dep Z ascending") : fail(`finder: reset sort (shown ${shown}, gone ${gone}, ${back})`);
+    shown && gone === 0 && sortedCols === 0 ? pass("finder: Reset sort appears after sorting and clears it (data order, no column sorted)") : fail(`finder: reset sort (shown ${shown}, gone ${gone}, sorted cols ${sortedCols})`);
 
     // filter: from LGW via the combobox
     await page.getByLabel("From", { exact: true }).fill("LGW");
@@ -313,6 +313,8 @@ async function run() {
     const deps = await page.$$eval("table.flights tbody tr td:nth-child(4)", (tds) => tds.map((t) => t.textContent.trim()));
     const early = deps.filter((d) => !/^\d\d:\d\d$/.test(d) || d < "12:00");
     deps.length && !early.length ? pass(`after: ${deps.length} flights all off-block ≥ 12:00Z (first ${deps[0]})`) : fail(`after: early or blank rows ${JSON.stringify(early.slice(0, 5))}`);
+    // layout checks on load, before the scripted typing (programmatic input isn't "recent input" for CLS)
+    await checkPage("after filter 1280 light", page, errors);
     const total = await page.locator(".rollbar-count").innerText();
     // typing a time and switching to ON
     await page.getByLabel("After (Z)").fill("2000");
@@ -329,7 +331,6 @@ async function run() {
       sched: document.querySelector(".after-sched input").checked,
     }));
     !blank.time && !blank.checked && !blank.sched ? pass("after: Clear filters leaves time, OUT/OFF/ON/IN and Scheduled unselected") : fail(`after: not blank after clear ${JSON.stringify(blank)}`);
-    await checkPage("after filter 1280 light", page, errors);
     await ctx.close();
   });
 

@@ -172,7 +172,9 @@ export function filterRows(rows: Row[], q: Query, airports: Map<string, Airport>
 /* ---------- sorting ---------- */
 
 const num = (v: number | null | undefined) => (v == null ? Number.POSITIVE_INFINITY : v);
-export function sortRows(rows: Row[], s: Sort, airportName: (icao: string) => string): Row[] {
+/** null keeps the data's own order (as the snapshot lists the flights). */
+export function sortRows(rows: Row[], s: Sort | null, airportName: (icao: string) => string): Row[] {
+  if (!s) return rows;
   const k = s.key;
   const val = (r: Row): number | string => {
     switch (k) {

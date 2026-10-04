@@ -140,6 +140,8 @@ server_latch: |
     from the whole filtered result (mono ch for numbers, canvas-measured text for names), so columns line up.
   - Weather is fetched only on the Brief (never on the Finder), cached (forecast 60 min, METAR 10 min).
   - Clear filters resets everything including the airline (→ all airlines).
+  - The flights table is unsorted by default (data order: the pipeline writes flights by origin, destination,
+    then time; airlines in manifest order). Sorting shows Reset sort, which returns to that order (sort = null).
 
 ## 7. Design rules in force
 

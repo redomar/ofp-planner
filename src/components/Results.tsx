@@ -37,8 +37,8 @@ export function FlightTable({
   airlines,
 }: {
   rows: Row[];
-  sort: Sort;
-  onSort: (s: Sort) => void;
+  sort: Sort | null;
+  onSort: (s: Sort | null) => void;
   selected: string | null;
   onSelect: (r: Row) => void;
   airports: Map<string, Airport> | null;
@@ -81,10 +81,10 @@ export function FlightTable({
           <thead>
             <tr>
               {COLS.map(([k, label, tip, cls]) => {
-                const on = sort.key === k;
+                const on = sort?.key === k;
                 return (
-                  <th key={k} scope="col" className={cls} aria-sort={on ? (sort.dir === 1 ? "ascending" : "descending") : undefined}>
-                    <button type="button" className="th-sort" onClick={() => onSort({ key: k, dir: on ? (sort.dir === 1 ? -1 : 1) : 1 })}>
+                  <th key={k} scope="col" className={cls} aria-sort={on ? (sort!.dir === 1 ? "ascending" : "descending") : undefined}>
+                    <button type="button" className="th-sort" onClick={() => onSort({ key: k, dir: on ? (sort!.dir === 1 ? -1 : 1) : 1 })}>
                       {tip ? (
                         <Tip tip={tip} title={label} plain>
                           {label}
@@ -93,7 +93,7 @@ export function FlightTable({
                         label
                       )}
                       <span className="th-arrow" aria-hidden="true">
-                        {on ? (sort.dir === 1 ? "▲" : "▼") : ""}
+                        {on ? (sort!.dir === 1 ? "▲" : "▼") : ""}
                       </span>
                     </button>
                   </th>
