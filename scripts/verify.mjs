@@ -320,6 +320,15 @@ async function run() {
     await page.waitForTimeout(200);
     const u = new URL(page.url()).searchParams;
     u.get("after") === "2000" && u.get("ref") === "on" ? pass(`after: typed 2000 + ON → URL after=2000&ref=on (${await page.locator(".rollbar-count").innerText()} vs ${total} at 12:00 OUT)`) : fail(`after: URL ${u}`);
+    // Clear filters leaves the After controls blank: no time, no OOOI, Scheduled unticked
+    await page.getByRole("button", { name: "Clear filters" }).click();
+    await page.waitForTimeout(150);
+    const blank = await page.evaluate(() => ({
+      time: document.querySelector(".after-time").value,
+      checked: document.querySelectorAll('.seg-btn[aria-checked="true"]').length,
+      sched: document.querySelector(".after-sched input").checked,
+    }));
+    !blank.time && !blank.checked && !blank.sched ? pass("after: Clear filters leaves time, OUT/OFF/ON/IN and Scheduled unselected") : fail(`after: not blank after clear ${JSON.stringify(blank)}`);
     await checkPage("after filter 1280 light", page, errors);
     await ctx.close();
   });

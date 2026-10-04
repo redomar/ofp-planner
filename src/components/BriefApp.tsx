@@ -151,7 +151,7 @@ export function BriefApp() {
           <div className="panel banner">
             <p className="detail-empty-title">{state.error ?? "No flight picked yet"}</p>
             <p className="muted">
-              Pick a flight in the <Link href="/">Finder</Link> and press <b>Ready to sim</b>. The brief shows the dispatch link and the forecast at both
+              Pick a flight in the <Link href="/">Finder</Link> and press <b>Open brief</b>. The brief shows the dispatch link and the forecast at both
               ends for the day you fly.
             </p>
             {!!saved?.history.length && (

@@ -18,12 +18,12 @@ const COLS: [SortKey, string, string | null, string?][] = [
   ["flight", "Flight", null],
   ["dep", "From", null],
   ["arr", "To", null],
-  ["std", "Dep Z", GLOSSARY.depCol],
-  ["sta", "Arr Z", GLOSSARY.arrCol, "hide-s c-arr"],
-  ["block", "Block", GLOSSARY.block],
-  ["dist", "Dist", GLOSSARY.distance, "hide-s c-dist"],
+  ["std", "Dep Z", GLOSSARY.depCol, "num"],
+  ["sta", "Arr Z", GLOSSARY.arrCol, "num hide-s c-arr"],
+  ["block", "Block", GLOSSARY.block, "num"],
+  ["dist", "Dist", GLOSSARY.distance, "num hide-s c-dist"],
   ["type", "Type", GLOSSARY.types, "hide-xs"],
-  ["freq", "Freq", GLOSSARY.freq, "hide-xs"],
+  ["freq", "Freq", GLOSSARY.freq, "num hide-xs"],
 ];
 
 /** Sortable, paged flight list. Clicking a row selects it. */

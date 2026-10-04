@@ -1367,7 +1367,8 @@ select.ctl-input {
   pointer-events: none;
 }
 .map-port.hub text {
-  font-size: 13px;
+  font-size: 14px;
+  stroke-width: 5px;
 }
 @media (prefers-reduced-motion: reduce) {
   .map-route.on .map-line {
@@ -2089,6 +2090,7 @@ select.ctl-input {
   flex: none;
 }
 .seg {
+  margin-left: auto; /* right edge, under the Scheduled tick box */
   display: flex;
   border: 1px solid var(--rule-strong);
   border-radius: var(--radius);
@@ -2114,4 +2116,17 @@ select.ctl-input {
 .seg-btn[aria-checked="true"] {
   background: var(--ink);
   color: var(--sheet);
+}
+
+/* number columns: headings sit over their right-aligned values */
+.flights th.num .th-sort {
+  justify-content: flex-end;
+}
+.flights th.num .th-arrow {
+  order: -1;
+}
+/* the flight column takes only what it needs; spare width goes to the airport names */
+.flights th:first-child,
+.flights td:first-child {
+  width: 1%;
 }
