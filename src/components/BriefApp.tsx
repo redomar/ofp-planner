@@ -177,6 +177,7 @@ export function BriefApp() {
               <FlightCard
                 key={row.f.id}
                 context="brief"
+                placeHref={(icao) => `/?al=&dep=${icao}`}
                 extra={
                   <NextLeg
                     from={f.d}

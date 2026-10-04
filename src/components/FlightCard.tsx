@@ -26,6 +26,7 @@ export function FlightCard({
   closeLabel = "Close this flight",
   context = "finder",
   extra,
+  placeHref,
 }: {
   row: Row;
   airline: AirlineInfo | undefined;
@@ -41,6 +42,8 @@ export function FlightCard({
   context?: "finder" | "brief";
   /** Extra content at the end of the dispatch area (the brief's next-leg controls). */
   extra?: ReactNode;
+  /** Makes each airport a link (the brief: to the finder with that airport as the origin). */
+  placeHref?: (icao: string) => string;
 }) {
   const { f, nm, block } = row;
   const from = airports?.get(f.o);
@@ -138,7 +141,7 @@ export function FlightCard({
 
       <div className="fcard-body" id={bodyId} hidden={folded}>
       <div className="fcard-route">
-        <End a={from} icao={f.o} side="dep" onPlace={onPlace} sched={f.std} obs={f.out ?? f.off} obsKind={f.out != null ? "OUT" : "OFF"} label="Departs" />
+        <End a={from} icao={f.o} side="dep" onPlace={onPlace} placeHref={placeHref} sched={f.std} obs={f.out ?? f.off} obsKind={f.out != null ? "OUT" : "OFF"} label="Departs" />
         <div className="fcard-mid" aria-hidden="true">
           <span className="mono">{dur(block?.min) ?? "—"}</span>
           <svg viewBox="0 0 100 10" preserveAspectRatio="none">
@@ -147,7 +150,7 @@ export function FlightCard({
           </svg>
           <span className="mono">{nm != null ? `${nm.toLocaleString("en-GB")} NM` : "—"}</span>
         </div>
-        <End a={to} icao={f.d} side="arr" onPlace={onPlace} sched={f.sta} obs={f.in ?? f.on} obsKind={f.in != null ? "IN" : "ON"} label="Arrives" />
+        <End a={to} icao={f.d} side="arr" onPlace={onPlace} placeHref={placeHref} sched={f.sta} obs={f.in ?? f.on} obsKind={f.in != null ? "IN" : "ON"} label="Arrives" />
       </div>
 
       {from && to && (
@@ -261,6 +264,7 @@ function End({
   obsKind,
   label,
   onPlace,
+  placeHref,
 }: {
   a: Airport | undefined;
   icao: string;
@@ -270,11 +274,11 @@ function End({
   obsKind: string;
   label: string;
   onPlace?: (side: "dep" | "arr", icao: string) => void;
+  placeHref?: (icao: string) => string;
 }) {
   const t = sched ?? obs;
-  return (
-    <div className={`fcard-end ${side}`}>
-      <span className="ctl-label">{label}</span>
+  const place = (
+    <>
       <ReplayFlapCode code={icao} label={a ? `${icao}, ${airportLabel(a)}` : icao} />
       <p className="fcard-place">
         {a?.country && <img className="flag" src={`/flags/${a.country.toLowerCase()}.svg`} alt="" width="16" height="12" />}
@@ -283,6 +287,18 @@ function End({
           {a?.iata && <span className="mono muted"> {a.iata}</span>}
         </span>
       </p>
+    </>
+  );
+  return (
+    <div className={`fcard-end ${side}`}>
+      <span className="ctl-label">{label}</span>
+      {placeHref ? (
+        <Link className="fcard-placelink" href={placeHref(icao)} title={`Flights from ${a ? airportLabel(a) : icao} in the finder`}>
+          {place}
+        </Link>
+      ) : (
+        place
+      )}
       <p className="fcard-time">
         {t != null ? (
           <>
@@ -301,6 +317,11 @@ function End({
           <span className="mono muted">—</span>
         )}
       </p>
+      {placeHref && (
+        <Link className="linkish" href={placeHref(icao)}>
+          Find flights from here →
+        </Link>
+      )}
       {onPlace && (
         <button type="button" className="linkish" onClick={() => onPlace(side, icao)}>
           {side === "dep" ? "All flights from here" : "All flights to here"}
