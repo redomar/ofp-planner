@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import type { AirlineInfo } from "@/lib/data/types";
 import { airportLabel, dur, flightNo, hhmm, localHHMM, tzLabel } from "@/lib/data/flight";
 import type { Airport } from "@/lib/data/load";
@@ -25,6 +25,7 @@ export function FlightCard({
   onClose,
   closeLabel = "Close this flight",
   context = "finder",
+  extra,
 }: {
   row: Row;
   airline: AirlineInfo | undefined;
@@ -38,6 +39,8 @@ export function FlightCard({
   closeLabel?: string;
   /** Where the card is shown: the finder links on to the brief, the brief links back to the finder. */
   context?: "finder" | "brief";
+  /** Extra content at the end of the dispatch area (the brief's next-leg controls). */
+  extra?: ReactNode;
 }) {
   const { f, nm, block } = row;
   const from = airports?.get(f.o);
@@ -57,10 +60,20 @@ export function FlightCard({
   useEffect(() => {
     pushHistory(f);
   }, [f]);
+  // Folded: only the header shows (it stays pinned while the card scrolls), so the table behind is visible.
+  const [folded, setFolded] = useState(false);
+  const bodyId = useId();
+  const toggleFold = () => setFolded((v) => !v);
 
   return (
     <article className="fcard" aria-label={`Flight ${flightNo(f, iata)}`} style={{ ["--al" as string]: color }}>
-      <header className="fcard-head">
+      <header
+        className="fcard-head"
+        onClick={(e) => {
+          if (!(e.target as HTMLElement).closest("button, a")) toggleFold();
+        }}
+        title={folded ? "Show the flight details" : "Hide the flight details"}
+      >
         <span className="fcard-bar" aria-hidden="true" />
         <div className="fcard-title">
           <p className="fcard-airline">
@@ -102,6 +115,18 @@ export function FlightCard({
             <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" />
           </svg>
         </button>
+        <button
+          type="button"
+          className="btn btn-icon fold"
+          aria-expanded={!folded}
+          aria-controls={bodyId}
+          aria-label={folded ? "Show the flight details" : "Hide the flight details"}
+          onClick={toggleFold}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+            <path d={folded ? "M2 5l5 5 5-5" : "M2 9l5-5 5 5"} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        </button>
         {onClose && (
           <button type="button" className="btn btn-icon" aria-label={closeLabel} title={closeLabel} onClick={onClose}>
             <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
@@ -111,6 +136,7 @@ export function FlightCard({
         )}
       </header>
 
+      <div className="fcard-body" id={bodyId} hidden={folded}>
       <div className="fcard-route">
         <End a={from} icao={f.o} side="dep" onPlace={onPlace} sched={f.std} obs={f.out ?? f.off} obsKind={f.out != null ? "OUT" : "OFF"} label="Departs" />
         <div className="fcard-mid" aria-hidden="true">
@@ -219,6 +245,8 @@ export function FlightCard({
           )}
         </div>
         <CopyLink url={url} />
+        {extra}
+      </div>
       </div>
     </article>
   );

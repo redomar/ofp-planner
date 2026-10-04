@@ -8,6 +8,8 @@ import { enrich, pickNextLeg, type Row } from "@/lib/data/query";
 import type { Manifest } from "@/lib/data/types";
 import { readPrefs, readReady, setReady, updateReady, useSaved } from "@/lib/saved";
 import { KEYS, removeKey } from "@/lib/storage";
+import { routeColor } from "@/lib/colors";
+import { AirlineTag } from "./badges";
 import { StatusLine, TopBar } from "./chrome";
 import { CollapseProvider } from "./collapse";
 import { FlightCard } from "./FlightCard";
@@ -33,7 +35,6 @@ export function BriefApp() {
   const [minDate] = useState(() => ymd(new Date(Date.now() - 86_400_000)));
   const saved = useSaved();
 
-  const [legNote, setLegNote] = useState<string | null>(null);
   const [loadId, setLoadId] = useState<string | null | undefined>(undefined);
 
   // Which flight to show: the URL, else the saved "ready" flight.
@@ -89,24 +90,39 @@ export function BriefApp() {
     return { dep: depAt, arr: blockMin != null ? new Date(depAt.getTime() + blockMin * 60_000) : null };
   }, [f, date, row]);
 
-  /** Next leg: an onward flight from this destination (same airline first), shown on this brief. */
-  const nextLeg = async () => {
+  /*
+   * Next leg. A sample onward flight from this destination (same airline, realistic turnaround) is
+   * picked ahead and previewed under its button, so you see what you'd get; "Next leg" opens every
+   * flight from the destination in the finder instead.
+   */
+  const [sample, setSample] = useState<{ for: string; row: Row | null } | null>(null);
+  const [sampleRound, setSampleRound] = useState(0);
+  const rowId = row?.f.id ?? null;
+  useEffect(() => {
     if (!row || !manifest) return;
-    const f = row.f;
-    const info = manifest.airlines.find((a) => a.icao === f.al);
-    const own = info ? await loadAirline(info, manifest) : [];
-    const from = own.filter((x) => x.o === f.d).map((x) => enrich(x, airports));
-    const next = pickNextLeg(from, f, readPrefs().spread);
-    if (!next) {
-      setLegNote(`No ${info?.name ?? f.al} flight leaves ${f.d} in the snapshot. Try the finder for other airlines from there.`);
-      return;
-    }
-    setLegNote(null);
+    let live = true;
+    const info = manifest.airlines.find((a) => a.icao === row.f.al);
+    void (info ? loadAirline(info, manifest) : Promise.resolve([])).then((own) => {
+      if (!live) return;
+      const from = own.filter((x) => x.o === row.f.d).map((x) => enrich(x, airports));
+      setSample({ for: row.f.id, row: pickNextLeg(from, row.f, readPrefs().spread) });
+    });
+    return () => {
+      live = false;
+    };
+    // a new sample per flight, and on "another"
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rowId, manifest, sampleRound]);
+  const sampleRow = sample && sample.for === rowId ? sample.row : undefined;
+
+  const takeSample = () => {
+    if (!sampleRow) return;
     // fly it on the first day it operates after this flight lands
     const landed = times?.arr ?? new Date();
-    setReady(next.f, ymd(nextDeparture(next.f, landed)), null);
-    setLoadId(next.f.id);
+    setReady(sampleRow.f, ymd(nextDeparture(sampleRow.f, landed)), null);
+    setLoadId(sampleRow.f.id);
   };
+
   const wxPoint = (a: Airport): WxPoint => ({ icao: a.icao, name: airportLabel(a), lat: a.lat, lon: a.lon, elevFt: a.elevFt, tz: a.tz });
   const operates = f && date ? !f.days.length || f.days.includes(isoDay(new Date(`${date}T00:00:00Z`))) : true;
 
@@ -161,7 +177,17 @@ export function BriefApp() {
               <FlightCard
                 key={row.f.id}
                 context="brief"
-                onContinue={nextLeg}
+                extra={
+                  <NextLeg
+                    from={f.d}
+                    fromName={to ? airportLabel(to) : f.d}
+                    sample={sampleRow}
+                    airlines={manifest}
+                    airports={airports}
+                    onTake={takeSample}
+                    onAnother={() => setSampleRound((n) => n + 1)}
+                  />
+                }
                 closeLabel="Clear the brief"
                 onClose={() => {
                   removeKey(KEYS.ready);
@@ -170,7 +196,6 @@ export function BriefApp() {
                   setDate(null);
                 }}
                 row={row} airline={airline} airports={airports} />
-              {legNote && <p className="note-amber leg-note">{legNote}</p>}
             </Section>
 
             <Section id="when" no={2} title="When you fly" meta={<span className="mono">{date ?? ""}</span>}>
@@ -238,5 +263,62 @@ export function BriefApp() {
         )}
       </main>
     </CollapseProvider>
+  );
+}
+
+/** The brief's next-leg controls: a sample leg with its preview below, and the full list in the finder. */
+function NextLeg({
+  from,
+  fromName,
+  sample,
+  airlines,
+  airports,
+  onTake,
+  onAnother,
+}: {
+  from: string;
+  fromName: string;
+  /** undefined while it's being picked, null when there's none. */
+  sample: Row | null | undefined;
+  airlines: Manifest | null;
+  airports: Map<string, Airport> | null;
+  onTake: () => void;
+  onAnother: () => void;
+}) {
+  const al = sample ? airlines?.airlines.find((a) => a.icao === sample.f.al) : undefined;
+  const dest = sample ? airports?.get(sample.f.d) : undefined;
+  return (
+    <div className="nextleg">
+      <p className="ctl-label">Next leg from {fromName}</p>
+      <div className="nextleg-row">
+        <div className="nextleg-sample">
+          <button type="button" className="btn" onClick={onTake} disabled={!sample}>
+            A sample next leg
+          </button>
+          <div className="nextleg-preview" aria-live="polite">
+            {sample === undefined ? (
+              <span className="muted small">Picking one…</span>
+            ) : sample === null ? (
+              <span className="muted small">No onward flight on this airline from {from} in the snapshot.</span>
+            ) : (
+              <>
+                <span className="leg-badge">
+                  <AirlineTag name={al?.name ?? sample.f.al} color={routeColor(al)} style="solid" />
+                  <span className="leg-dest">
+                    {dest ? airportLabel(dest) : sample.f.d} <span className="mono muted">{sample.f.d}</span>
+                  </span>
+                </span>
+                <button type="button" className="chip" onClick={onAnother} title="Pick a different sample">
+                  Another
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+        <Link className="btn btn-primary" href={`/?al=&dep=${from}`}>
+          Next leg: all flights from {from} →
+        </Link>
+      </div>
+    </div>
   );
 }

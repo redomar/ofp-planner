@@ -230,6 +230,14 @@ async function run() {
     await page.waitForSelector(".fcard");
     page.url() === before ? pass("finder: reload keeps filters and flight") : fail(`finder: reload changed URL ${page.url()}`);
 
+    // the card header folds the card (and stays pinned while it scrolls)
+    await page.locator(".drawer .fcard-head .fcard-title").click();
+    (await page.locator(".drawer .fcard-body").isHidden()) ? pass("finder: clicking the card header folds it") : fail("finder: header click didn't fold");
+    await page.locator(".drawer .fcard-head .fcard-title").click();
+    await page.locator(".drawer").evaluate((d) => d.scrollTo(0, 600));
+    const headTop = await page.locator(".drawer .fcard-head").evaluate((h) => Math.round(h.getBoundingClientRect().top - h.closest(".drawer").getBoundingClientRect().top));
+    headTop === 0 ? pass("finder: card header stays pinned when scrolling") : fail(`finder: header moved ${headTop}px`);
+
     // close the flight card → back to the empty state
     await page.getByRole("button", { name: "Close this flight" }).click();
     (await page.locator(".drawer").count()) === 0 && !new URL(page.url()).searchParams.get("f")
@@ -271,13 +279,18 @@ async function run() {
     /kt|KT/.test(wx) ? pass("brief: weather rendered") : fail(`brief: no weather values (${wx.slice(0, 120)})`);
     await checkPage("brief with flight 1280 light", page, errors);
     await shot(page, "brief-day");
-    // next leg on the brief: a new flight from the previous destination
+    // next leg on the brief: the full list link, then the sample (previewed below its button)
     const destBefore = (await page.locator(".fcard-end.arr .flap").getAttribute("aria-label"))?.slice(0, 4);
-    await page.getByRole("button", { name: /^Next leg from/ }).click();
-    await page.waitForTimeout(1500);
-    const origAfter = (await page.locator(".fcard-end.dep .flap").getAttribute("aria-label"))?.slice(0, 4);
-    const note = await page.locator(".leg-note").count();
-    origAfter === destBefore || note ? pass(`brief: next leg from ${destBefore}${note ? " (no onward flight note)" : ""}`) : fail(`brief: next leg departs ${origAfter}, expected ${destBefore}`);
+    const allHref = await page.getByRole("link", { name: /Next leg: all flights from/ }).getAttribute("href");
+    allHref?.includes(`dep=${destBefore}`) ? pass(`brief: Next leg links to all flights from ${destBefore}`) : fail(`brief: next-leg link ${allHref}`);
+    await page.waitForSelector(".nextleg-preview .leg-badge, .nextleg-preview .muted.small:not(:empty)");
+    const preview = await page.locator(".nextleg-preview").innerText();
+    if (await page.locator(".nextleg-preview .leg-badge").count()) {
+      await page.getByRole("button", { name: "A sample next leg" }).click();
+      await page.waitForTimeout(1500);
+      const origAfter = (await page.locator(".fcard-end.dep .flap").getAttribute("aria-label"))?.slice(0, 4);
+      origAfter === destBefore ? pass(`brief: sample next leg (${preview.split("\n")[0].replace(/\s+/g, " ")}) departs ${destBefore}`) : fail(`brief: sample leg departs ${origAfter}, expected ${destBefore}`);
+    } else pass(`brief: no sample leg available (${preview})`);
     // and back to the finder with that flight open
     await page.getByRole("link", { name: /Back to finder/ }).click();
     await page.waitForSelector(".drawer .fcard");
