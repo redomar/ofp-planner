@@ -8,7 +8,7 @@ import type { AirlineInfo } from "@/lib/data/types";
 import { routeColor } from "@/lib/colors";
 import { GLOSSARY } from "@/lib/glossary";
 import { RouteMap } from "./RouteMap";
-import { FlightIdent, TypeBadge, WeekStrip, freqLabel } from "./badges";
+import { FlightIdent, MoreTypes, TypeBadge, WeekStrip, freqLabel } from "./badges";
 import { Tip, cx } from "./ui";
 
 const PAGE = 80;
@@ -51,6 +51,10 @@ export function FlightTable({
     setLimit(PAGE);
   }
   const shown = rows.slice(0, limit);
+  const identOf = (r: Row) => (r.f.fn ? `${airlines.get(r.f.al)?.iata ?? r.f.al}${r.f.fn}` : (r.f.cs ?? `${r.f.op} —`));
+  // Same width for every flight number and every airline tag in view, so both line up down the column.
+  const idW = Math.max(4, ...shown.map((r) => identOf(r).length));
+  const alW = Math.min(18, Math.max(3, ...shown.map((r) => (airlines.get(r.f.al)?.name ?? r.f.al).length)));
   const name = (icao: string) => {
     const a = airports?.get(icao);
     return a ? (a.city ?? a.name) : "";
@@ -59,7 +63,7 @@ export function FlightTable({
   return (
     <div className="results">
       <div className="tbl-wrap">
-        <table className="tbl flights">
+        <table className="tbl flights" style={{ ["--id-w" as string]: `${idW}ch`, ["--al-w" as string]: `${(alW * 0.6 + 0.3).toFixed(2)}em` }}>
           <caption className="sr-only">Flights matching the filters, {rows.length} in total. Select a flight to see its details.</caption>
           <thead>
             <tr>
@@ -104,7 +108,7 @@ export function FlightTable({
                       title={f.fn && f.cs ? `Callsign ${f.cs}` : undefined}
                       onClick={(e) => (e.stopPropagation(), onSelect(r))}
                     >
-                      <FlightIdent airline={al} fallback={f.al} ident={f.fn ? `${al?.iata ?? f.al}${f.fn}` : (f.cs ?? `${f.op} —`)} />
+                      <FlightIdent airline={al} fallback={f.al} ident={identOf(r)} />
                     </button>
                   </td>
                   <td>
@@ -130,12 +134,7 @@ export function FlightTable({
                   <td className="mono num hide-s c-dist">{r.nm ?? "—"}</td>
                   <td className="hide-xs">
                     {f.types[0] ? <TypeBadge type={f.types[0]} airline={al} guessed={f.typeGuessed} /> : "—"}
-                    {f.types.length > 1 && (
-                      <small className="muted mono" title={f.types.slice(1).join(", ")}>
-                        {" "}
-                        +{f.types.length - 1}
-                      </small>
-                    )}
+                    <MoreTypes types={f.types.slice(1)} />
                   </td>
                   <td className="mono num hide-xs freq">{freqLabel(f.days) ?? <span className="muted">—</span>}</td>
                   <td className="hide-s">
@@ -308,11 +307,7 @@ export function PlacesView({
                   {p.types.slice(0, 2).map((t) => (
                     <TypeBadge key={t} type={t} airline={airlines.get(p.typeAirline[t])} />
                   ))}
-                  {p.types.length > 2 && (
-                    <small className="muted mono" title={p.types.slice(2).join(", ")}>
-                      +{p.types.length - 2}
-                    </small>
-                  )}
+                  <MoreTypes types={p.types.slice(2)} />
                 </span>
               </div>
             </li>
