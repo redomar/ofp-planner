@@ -1,0 +1,13 @@
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+# generated at build from node_modules
+public/geo/
+public/flags/
+# snapshot pipeline: raw downloads and caches stay local
+data/raw/
+data/cache/
+.env*
