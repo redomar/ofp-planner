@@ -68,12 +68,13 @@ export function updateReady(patch: Partial<Omit<Ready, "flight">>) {
 export interface Prefs {
   /** Last airline selection, used when the URL doesn't say. */
   airlines: string[];
-  sort: Sort;
+  /** null = unsorted: the order the snapshot lists flights in. */
+  sort: Sort | null;
   view: "flights" | "places";
   /** Spread random rolls across destinations rather than flights. */
   spread: boolean;
 }
-export const DEFAULT_PREFS: Prefs = { airlines: ["EZY"], sort: { key: "std", dir: 1 }, view: "flights", spread: true };
+export const DEFAULT_PREFS: Prefs = { airlines: ["EZY"], sort: null, view: "flights", spread: true };
 export const readPrefs = (): Prefs => ({ ...DEFAULT_PREFS, ...readJSON<Partial<Prefs>>(KEYS.prefs, {}) });
 export function writePrefs(p: Partial<Prefs>) {
   writeJSON(KEYS.prefs, { ...readPrefs(), ...p });

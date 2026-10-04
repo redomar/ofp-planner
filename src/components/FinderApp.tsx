@@ -47,7 +47,7 @@ type View = "flights" | "places";
 export function FinderApp() {
   const [ready, setReady] = useState(false);
   const [q, setQ] = useState<Query>({ ...EMPTY_QUERY, al: DEFAULT_PREFS.airlines });
-  const [sort, setSort] = useState<Sort>(DEFAULT_PREFS.sort);
+  const [sort, setSort] = useState<Sort | null>(DEFAULT_PREFS.sort);
   const [view, setView] = useState<View>("flights");
   const [selId, setSelId] = useState<string | null>(null);
   const [spread, setSpread] = useState(true);
@@ -237,7 +237,7 @@ export function FinderApp() {
     if (r) select(r);
   };
 
-  const onSort = (s: Sort) => {
+  const onSort = (s: Sort | null) => {
     setSort(s);
     writePrefs({ sort: s });
   };
@@ -372,8 +372,8 @@ export function FinderApp() {
               {placeSide === "d" ? "Destinations" : q.arr ? "Origins" : "Airports"} <span className="mono">{places && !nothingYet ? places.length : ""}</span>
             </button>
           </div>
-          {view === "flights" && (sort.key !== DEFAULT_PREFS.sort.key || sort.dir !== DEFAULT_PREFS.sort.dir) && (
-            <button type="button" className="btn sort-reset" onClick={() => onSort(DEFAULT_PREFS.sort)} title="Back to departure time, earliest first">
+          {view === "flights" && sort && (
+            <button type="button" className="btn sort-reset" onClick={() => onSort(null)} title="Clear the sort: flights in the order the data lists them">
               Reset sort
             </button>
           )}
