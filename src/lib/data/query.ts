@@ -4,6 +4,7 @@
  */
 import { blockTime, familyOf, gcNm, plannedOut, span, type Block } from "./flight";
 import type { Airport, FlightRow } from "./load";
+import type { Flight } from "./types";
 
 /** An airport ICAO ("LEMD") or a whole country ("C:ES"). */
 export type Place = string;
@@ -21,9 +22,44 @@ export interface Query {
   days: number[];
   /** Free text: flight number, callsign, airport. */
   text: string;
+  /** Only flights whose `ref` time is at or after this (UTC minutes, same day); null = any time. */
+  after: number | null;
+  /** Which OOOI time `after` compares against. */
+  ref: Oooi;
+  /** Prefer the published schedule (STD/STA) over tracked times where both exist. */
+  sched: boolean;
 }
 
-export const EMPTY_QUERY: Query = { al: [], dep: null, arr: null, types: [], minLen: null, maxLen: null, days: [], text: "" };
+export type Oooi = "out" | "off" | "on" | "in";
+export const OOOI: Oooi[] = ["out", "off", "on", "in"];
+
+/** Typical taxi times (min), used to estimate a missing OOOI time from its neighbour. */
+const TAXI_OUT = 12;
+const TAXI_IN = 6;
+const wrap = (m: number) => ((m % 1440) + 1440) % 1440;
+
+/**
+ * A flight's OUT / OFF / ON / IN time (UTC min), pragmatically: the schedule or the tracked
+ * median (in the order `sched` asks for), else estimated from the neighbouring time with
+ * typical taxi, else from the other end plus block time. null when nothing gives it.
+ */
+export function oooiTime(f: Flight, ref: Oooi, sched: boolean): number | null {
+  const first = <T,>(...v: (T | null | undefined)[]) => v.find((x) => x != null) ?? null;
+  const out = sched ? first(f.std, f.out) : first(f.out, f.std);
+  const inn = sched ? first(f.sta, f.in) : first(f.in, f.sta);
+  switch (ref) {
+    case "out":
+      return first(out, f.off != null ? wrap(f.off - TAXI_OUT) : null);
+    case "off":
+      return first(f.off, out != null ? wrap(out + TAXI_OUT) : null);
+    case "on":
+      return first(f.on, inn != null ? wrap(inn - TAXI_IN) : null);
+    case "in":
+      return first(inn, f.on != null ? wrap(f.on + TAXI_IN) : null);
+  }
+}
+
+export const EMPTY_QUERY: Query = { al: [], dep: null, arr: null, types: [], minLen: null, maxLen: null, days: [], text: "", after: null, ref: "out", sched: true };
 
 export type SortKey = "flight" | "dep" | "arr" | "std" | "sta" | "block" | "dist" | "type" | "freq";
 export interface Sort {
@@ -46,6 +82,9 @@ export function queryFromParams(p: URLSearchParams, fallbackAirlines: string[]):
     maxLen: len?.[2] ? Number(len[2]) : null,
     days: list(p.get("days")).map(Number).filter((d) => d >= 1 && d <= 7),
     text: p.get("q") ?? "",
+    after: parseClock(p.get("after")),
+    ref: (OOOI as string[]).includes(p.get("ref") ?? "") ? (p.get("ref") as Oooi) : "out",
+    sched: p.get("sched") !== "0",
   };
 }
 
@@ -58,8 +97,22 @@ export function queryToParams(q: Query, extra: Record<string, string | null> = {
   if (q.minLen != null || q.maxLen != null) p.set("len", `${q.minLen ?? ""}-${q.maxLen ?? ""}`);
   if (q.days.length) p.set("days", q.days.join(","));
   if (q.text) p.set("q", q.text);
+  if (q.after != null) {
+    p.set("after", `${String(Math.floor(q.after / 60)).padStart(2, "0")}${String(q.after % 60).padStart(2, "0")}`);
+    p.set("ref", q.ref);
+    if (!q.sched) p.set("sched", "0");
+  }
   for (const [k, v] of Object.entries(extra)) if (v) p.set(k, v);
   return p;
+}
+
+/** "1803", "18:03", "18.03", "9:5" → minutes; null when it isn't a valid 24 h time. */
+export function parseClock(v: string | null | undefined): number | null {
+  const m = v?.trim().match(/^(\d{1,2})[:.h]?(\d{2})$/);
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  return h < 24 && min < 60 ? h * 60 + min : null;
 }
 
 /* ---------- enrichment (distance and block once per flight) ---------- */
@@ -105,6 +158,10 @@ export function filterRows(rows: Row[], q: Query, airports: Map<string, Airport>
     if (q.minLen != null && (block == null || block.min < q.minLen)) return false;
     if (q.maxLen != null && (block == null || block.min > q.maxLen)) return false;
     if (q.days.length && f.days.length && !q.days.some((d) => f.days.includes(d))) return false;
+    if (q.after != null) {
+      const t = oooiTime(f, q.ref, q.sched);
+      if (t == null || t < q.after) return false;
+    }
     if (text) {
       const n = f.fn ?? "";
       const hay = `${f.al}${n} ${f.op}${n} ${f.cs ?? ""} ${f.o} ${f.d} ${n}`;

@@ -359,3 +359,95 @@ export function LengthPicker({
     </div>
   );
 }
+
+/* ---------- after a time (Z), against OUT / OFF / ON / IN ---------- */
+
+const OOOI_OPTS = [
+  ["out", "OUT", "Off-block (pushback)"],
+  ["off", "OFF", "Take-off"],
+  ["on", "ON", "Landing"],
+  ["in", "IN", "On-block (at the gate)"],
+] as const;
+
+export function AfterPicker({
+  after,
+  oooi,
+  sched,
+  onChange,
+}: {
+  after: number | null;
+  oooi: "out" | "off" | "on" | "in";
+  sched: boolean;
+  onChange: (p: { after?: number | null; ref?: "out" | "off" | "on" | "in"; sched?: boolean }) => void;
+}) {
+  const id = useId();
+  const fmt = (m: number | null) => (m == null ? "" : `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
+  const [draft, setDraft] = useState(fmt(after));
+  const [prev, setPrev] = useState(after);
+  // follow outside changes (Clear filters, a URL) without fighting the user's typing
+  if (after !== prev) {
+    setPrev(after);
+    setDraft(fmt(after));
+  }
+  const parse = (v: string): number | null | undefined => {
+    if (!v.trim()) return null;
+    const m = v.trim().match(/^(\d{1,2})[:.h]?(\d{2})$/);
+    if (!m) return undefined;
+    const h = Number(m[1]);
+    const min = Number(m[2]);
+    return h < 24 && min < 60 ? h * 60 + min : undefined;
+  };
+  const bad = parse(draft) === undefined;
+  return (
+    <div className="after">
+      <div className="after-head">
+        <label className="ctl-label" htmlFor={id}>
+          After (Z)
+        </label>
+        <label className="after-sched" title="Use the published schedule (STD/STA) where there is one, rather than tracked times">
+          <input type="checkbox" checked={sched} onChange={(e) => onChange({ sched: e.target.checked })} />
+          Scheduled
+        </label>
+      </div>
+      <div className="after-row">
+        <input
+          id={id}
+          className={cx("ctl-input mono after-time", bad && "is-bad")}
+          inputMode="numeric"
+          placeholder="18:03"
+          maxLength={5}
+          value={draft}
+          aria-invalid={bad || undefined}
+          aria-describedby={`${id}-help`}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            const v = parse(e.target.value);
+            if (v !== undefined) onChange({ after: v });
+          }}
+          onBlur={() => !bad && setDraft(fmt(after))}
+        />
+        <button
+          type="button"
+          className="btn after-now"
+          title="The time now, UTC"
+          onClick={() => {
+            const d = new Date();
+            onChange({ after: d.getUTCHours() * 60 + d.getUTCMinutes() });
+          }}
+        >
+          Now
+        </button>
+        <div className="seg" role="radiogroup" aria-label="Compare with">
+          {OOOI_OPTS.map(([v, label, tip]) => (
+            <button key={v} type="button" role="radio" aria-checked={oooi === v} className="seg-btn" title={tip} onClick={() => onChange({ ref: v })}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <span id={`${id}-help`} className="sr-only">
+        Shows flights whose chosen time is at or after this UTC time, the same day. Type 18:03 or 1803.
+      </span>
+    </div>
+  );
+}

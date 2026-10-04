@@ -271,7 +271,7 @@ select.ctl-input {
   grid-template-columns: minmax(150px, 1.1fr) minmax(170px, 1.4fr) 36px minmax(170px, 1.4fr) minmax(130px, 1fr);
   grid-template-areas:
     "al dep swap arr type"
-    "len days days search search";
+    "len days days after search";
   gap: 12px 12px;
   align-items: end;
 }
@@ -299,6 +299,9 @@ select.ctl-input {
 .filters-grid > .search {
   grid-area: search;
 }
+.filters-grid > .after {
+  grid-area: after;
+}
 @media (max-width: 900px) {
   .filters-grid {
     grid-template-columns: minmax(0, 1fr) 36px minmax(0, 1fr);
@@ -308,6 +311,7 @@ select.ctl-input {
       "type type type"
       "len len len"
       "days days days"
+      "after after after"
       "search search search";
   }
 }
@@ -322,6 +326,7 @@ select.ctl-input {
       "type type"
       "len len"
       "days days"
+      "after after"
       "search search";
   }
   .swap {
@@ -2029,4 +2034,70 @@ select.ctl-input {
 }
 .fcard-end.arr .fcard-placelink .flap {
   justify-content: flex-end;
+}
+
+/* After (Z): time, Now, OUT/OFF/ON/IN, Scheduled */
+.after {
+  min-width: 0;
+}
+.after-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.after-sched {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  margin-bottom: 4px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.after-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.after-time {
+  width: 76px;
+  flex: none;
+  text-align: center;
+}
+.after-time.is-bad {
+  border-color: var(--red);
+  box-shadow: inset 0 0 0 1px var(--red);
+}
+.after-now {
+  height: 36px;
+  padding: 0 10px;
+  flex: none;
+}
+.seg {
+  display: flex;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+  min-width: 0;
+}
+.seg-btn {
+  height: 34px;
+  min-width: 0;
+  padding: 0 8px;
+  border: 0;
+  border-left: 1px solid var(--rule);
+  background: var(--field);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.seg-btn:first-child {
+  border-left: 0;
+}
+.seg-btn[aria-checked="true"] {
+  background: var(--ink);
+  color: var(--sheet);
 }
