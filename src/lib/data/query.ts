@@ -25,7 +25,7 @@ export interface Query {
 
 export const EMPTY_QUERY: Query = { al: [], dep: null, arr: null, types: [], minLen: null, maxLen: null, days: [], text: "" };
 
-export type SortKey = "flight" | "dep" | "arr" | "std" | "sta" | "block" | "dist" | "type";
+export type SortKey = "flight" | "dep" | "arr" | "std" | "sta" | "block" | "dist" | "type" | "freq";
 export interface Sort {
   key: SortKey;
   dir: 1 | -1;
@@ -137,6 +137,9 @@ export function sortRows(rows: Row[], s: Sort, airportName: (icao: string) => st
         return num(r.nm);
       case "type":
         return r.f.types[0] ?? "~";
+      case "freq":
+        // most frequent first when ascending; unknown days last
+        return r.f.days.length ? 8 - r.f.days.length : 9;
     }
   };
   return [...rows].sort((a, b) => {
@@ -154,6 +157,8 @@ export interface Destination {
   flights: Row[];
   airlines: string[];
   types: string[];
+  /** For each type, the airline that flies it most here (for airline-coloured badges). */
+  typeAirline: Record<string, string>;
   nm: number | null;
   /** Shortest and longest block time among its flights. */
   minBlock: number | null;
@@ -174,12 +179,22 @@ export function groupByOtherEnd(rows: Row[], side: "d" | "o"): Destination[] {
   return [...by.entries()].map(([icao, flights]) => {
     const blocks = flights.map((r) => r.block?.min).filter((x): x is number => x != null);
     const typeCount = new Map<string, number>();
-    for (const r of flights) for (const t of r.f.types) typeCount.set(t, (typeCount.get(t) ?? 0) + 1);
+    const byTypeAl = new Map<string, Map<string, number>>();
+    for (const r of flights)
+      for (const t of r.f.types) {
+        typeCount.set(t, (typeCount.get(t) ?? 0) + 1);
+        const m = byTypeAl.get(t) ?? new Map<string, number>();
+        m.set(r.f.al, (m.get(r.f.al) ?? 0) + 1);
+        byTypeAl.set(t, m);
+      }
+    const typeAirline: Record<string, string> = {};
+    for (const [t, m] of byTypeAl) typeAirline[t] = [...m.entries()].sort((a, b) => b[1] - a[1])[0][0];
     return {
       icao,
       flights,
       airlines: [...new Set(flights.map((r) => r.f.al))],
       types: [...typeCount.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t),
+      typeAirline,
       nm: flights[0].nm,
       minBlock: blocks.length ? Math.min(...blocks) : null,
       maxBlock: blocks.length ? Math.max(...blocks) : null,

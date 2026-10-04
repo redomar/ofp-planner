@@ -50,6 +50,12 @@ function chromePath() {
 /** In-page: every visible text element whose contrast against its effective background is below AA. */
 const CONTRAST = () => {
   const parse = (c) => {
+    // color-mix() resolves to color(srgb r g b / a) with 0–1 channels
+    const s = c.match(/color\(srgb ([^)]+)\)/);
+    if (s) {
+      const [r, g, b, a = 1] = s[1].replace("/", " ").split(/\s+/).filter(Boolean).map(Number);
+      return [r * 255, g * 255, b * 255, a];
+    }
     const m = c.match(/rgba?\(([^)]+)\)/);
     if (!m) return null;
     const [r, g, b, a = 1] = m[1].split(/[\s,/]+/).filter(Boolean).map(Number);
@@ -208,11 +214,33 @@ async function run() {
     const dep2 = new URL(page.url()).searchParams.get("dep");
     dep2 === firstDest ? pass(`finder: next leg continues from ${dep2}`) : fail(`finder: next leg from ${dep2}, expected ${firstDest}`);
 
+    // aircraft badge tooltip: maker chip + full name
+    const tb = page.locator("table.flights tbody .tbadge").first();
+    await tb.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(100);
+    await tb.hover();
+    await page.waitForTimeout(150);
+    const tipText = await page.locator("#ofp-tip").innerText();
+    /Airbus|Boeing|Embraer|ATR/.test(tipText) ? pass(`finder: type badge tooltip (${tipText.split("\n")[0]})`) : fail(`finder: type tooltip missing maker (${tipText})`);
+    await page.mouse.move(0, 0);
+
     // reload keeps the view
     const before = page.url();
     await page.reload({ waitUntil: "networkidle" });
     await page.waitForSelector(".fcard");
     page.url() === before ? pass("finder: reload keeps filters and flight") : fail(`finder: reload changed URL ${page.url()}`);
+
+    // close the flight card → back to the empty state
+    await page.getByRole("button", { name: "Close this flight" }).click();
+    (await page.locator(".detail-empty").count()) === 1 && !new URL(page.url()).searchParams.get("f")
+      ? pass("finder: × closes the flight card")
+      : fail("finder: close didn't return to No flight picked");
+
+    // clear filters resets the airline as well
+    await page.getByRole("button", { name: "Clear filters" }).click();
+    await page.waitForTimeout(200);
+    const p2 = new URL(page.url()).searchParams;
+    p2.get("al") === "" && !p2.get("dep") ? pass("finder: Clear filters resets airline to all") : fail(`finder: clear left al=${p2.get("al")} dep=${p2.get("dep")}`);
 
     errors.length ? fail(`finder flows: console errors ${JSON.stringify(errors.slice(0, 3))}`) : pass("finder flows: 0 console errors");
     await ctx.close();
@@ -259,12 +287,23 @@ async function run() {
   /* ---------- settings: add an airframe, then it's offered ---------- */
   await section("settings", async () => {
     const { ctx, page, errors } = await open("/settings");
-    await page.getByLabel("Name").fill("G-TEST");
+    await page.getByLabel("Name", { exact: true }).fill("G-TEST");
     await page.getByLabel("ICAO type").fill("A21N");
     await page.getByLabel("SimBrief airframe id or Plan link").fill("https://dispatch.simbrief.com/options/custom?type=1_2");
     await page.getByRole("button", { name: "Add airframe" }).click();
     const rowText = await page.locator(".airframes tbody").innerText();
     rowText.includes("G-TEST") && rowText.includes("1_2") ? pass("settings: airframe added from a pasted Plan link") : fail("settings: airframe not added");
+    // display options apply in the finder
+    await page.getByRole("radio", { name: /Split pill/ }).check();
+    await page.getByRole("radio", { name: /Airline, then flight/ }).check();
+    await page.getByRole("radio", { name: /Coloured edge/ }).check();
+    await page.goto(page.url().replace(/\/settings.*$/, "/?al=EZY&dep=EGKK"), { waitUntil: "networkidle" });
+    await page.waitForSelector("table.flights tbody tr");
+    const split = await page.locator("table.flights tbody tr").first().locator(".split-pill > *").first().getAttribute("class");
+    const side = await page.locator("table.flights tbody .tbadge.tb-side").count();
+    split?.includes("split-al") && side > 0 ? pass("settings: display choices apply (split pill, airline first, edge badges)") : fail(`settings: display not applied (${split}, ${side})`);
+    await checkPage("finder with alt display 1280 light", page, errors);
+    await page.goto(page.url().replace(/\/\?.*$/, "/settings"), { waitUntil: "networkidle" });
     await shot(page, "settings-day");
     errors.length ? fail(`settings: console errors ${JSON.stringify(errors)}`) : pass("settings: 0 console errors");
     await ctx.close();

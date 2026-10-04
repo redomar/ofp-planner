@@ -15,6 +15,7 @@ export const KEYS = {
   history: `${NS}history`,
   prefs: `${NS}prefs`,
   ready: `${NS}ready`,
+  display: `${NS}display`,
 } as const;
 
 function get(key: string): string | null {
