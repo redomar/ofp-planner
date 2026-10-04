@@ -7,7 +7,7 @@
  * once per page load and shared by every component.
  */
 import { useEffect, useState } from "react";
-import type { AirlineFile, AirlineInfo, AirportRow, AirportsFile, Flight, Manifest } from "./types";
+import type { AirlineFile, AirlineInfo, AirportRow, AirportsFile, Flight, Manifest, RoutesFile } from "./types";
 
 export interface Airport {
   icao: string;
@@ -92,6 +92,16 @@ export function loadAirline(info: AirlineInfo, m: Manifest): Promise<FlightRow[]
     airlineP.set(info.icao, p);
   }
   return p;
+}
+
+let routesP: Promise<RoutesFile["routes"]> | null = null;
+/** The route index (orig → dest → brand → flights), fetched the first time an airport is chosen. */
+export function loadRoutes(): Promise<RoutesFile["routes"]> {
+  routesP ??= loadManifest()
+    .then((m) => json<RoutesFile>(`${BASE}routes.json?v=${v(m)}`))
+    .then((f) => f.routes);
+  routesP.catch(() => (routesP = null));
+  return routesP;
 }
 
 export interface Dataset {

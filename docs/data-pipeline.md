@@ -35,6 +35,7 @@ Code: `scripts/snapshot/`
 
 - `manifest.json` — generation time, coverage dates, sources + licences, airlines (colours, file, count), totals
 - `airports.json` — only airports referenced by a flight: `icao → [iata, name, city, country, lat, lon, elevationFt, tz]`
+- `routes.json` — flights per airline on every route, `orig → dest → brand → flights` (written by `route-index.mjs`, also runnable on its own). Lets the app show which airlines serve an airport without downloading every airline file.
 - `airlines/<ICAO>.json` — `{schema, airline, flights: Flight[]}`, minified
 
 A **flight** is one `(operator, callsign, origin, destination)` at one departure time

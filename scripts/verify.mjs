@@ -278,6 +278,26 @@ async function run() {
     await ctx.close();
   });
 
+  /* ---------- airline dropdown counts for an airport ---------- */
+  await section("airline counts", async () => {
+    const { ctx, page, errors } = await open("/?al=&arr=LTDB");
+    await page.waitForSelector("table.flights tbody tr", { timeout: 30000 });
+    await page.locator(".filters .multi-btn").first().click();
+    await page.waitForSelector(".multi-pop li.first-dim");
+    const info = await page.evaluate(() => {
+      const lis = [...document.querySelectorAll(".multi-pop li")];
+      const flying = lis.filter((l) => !l.classList.contains("dim")).map((l) => [l.querySelector(".multi-label")?.firstChild?.textContent, Number(l.querySelector(".multi-count")?.textContent.replace(/,/g, ""))]);
+      const rest = lis.filter((l) => l.classList.contains("dim")).map((l) => Number(l.querySelector(".multi-count")?.textContent));
+      return { flying, restCount: rest.length, restMax: Math.max(0, ...rest), note: document.querySelector(".multi-note")?.textContent };
+    });
+    info.flying.length > 0 && info.flying.every(([, n]) => n > 0) && info.restMax === 0
+      ? pass(`airline dropdown for →LTDB: ${info.flying.map(([n, c]) => `${n} ${c}`).join(", ")} · ${info.restCount} others at 0 (${info.note})`)
+      : fail(`airline dropdown counts ${JSON.stringify(info)}`);
+    await shot(page, "airline-counts-day");
+    await checkPage("airline dropdown open 1280 light", page, errors);
+    await ctx.close();
+  });
+
   /* ---------- every page × width × theme ---------- */
   const pages = ["/?al=EZY&dep=EGKK", "/?al=EZY&dep=EGKK&view=places", "/brief", "/settings"];
   for (const theme of ["light", "dark"])
