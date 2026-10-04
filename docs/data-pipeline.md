@@ -101,19 +101,10 @@ pnpm data:snapshot          # then commit public/data/ with the next release
 
 ### On the server (Dokploy / Docker)
 
-The site image already contains a snapshot. To refresh it in place without a rebuild, run a
-one-off container that writes into a volume nginx serves at `/data/` (overlaying the baked-in copy):
-
-```
-docker run --rm \
-  -v ofp-planner-data:/out -v ofp-planner-cache:/cache \
-  -w /app node:22-slim sh -c "corepack enable && git clone --depth 1 <repo> /app && pnpm install --frozen-lockfile && \
-     pnpm data:snapshot --out /out --cache /cache"
-```
-
-Schedule it monthly (cron / Dokploy scheduled job), e.g. `0 4 2 * *`. Keep the cache volume so
-reruns only download new days. adsb.lol uploads a day's archive the following morning (UTC),
-so the default end date is yesterday.
+Use the compose maintenance job (see `docs/deploy.md`): `docker compose --profile maintenance run --rm snapshot`.
+It writes into the `live` volume that nginx serves at `/data/` ahead of the snapshot baked into the image, and
+keeps its download cache in the `cache` volume so reruns only fetch new days. adsb.lol uploads a day's archive
+the following morning (UTC), so the default end date is yesterday.
 
 ## Known gaps
 
