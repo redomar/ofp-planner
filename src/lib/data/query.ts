@@ -24,8 +24,8 @@ export interface Query {
   text: string;
   /** Only flights whose `ref` time is at or after this (UTC minutes, same day); null = any time. */
   after: number | null;
-  /** Which OOOI time `after` compares against. */
-  ref: Oooi;
+  /** Which OOOI time `after` compares against; null = not chosen (compares OUT). */
+  ref: Oooi | null;
   /** Prefer the published schedule (STD/STA) over tracked times where both exist. */
   sched: boolean;
 }
@@ -59,7 +59,7 @@ export function oooiTime(f: Flight, ref: Oooi, sched: boolean): number | null {
   }
 }
 
-export const EMPTY_QUERY: Query = { al: [], dep: null, arr: null, types: [], minLen: null, maxLen: null, days: [], text: "", after: null, ref: "out", sched: true };
+export const EMPTY_QUERY: Query = { al: [], dep: null, arr: null, types: [], minLen: null, maxLen: null, days: [], text: "", after: null, ref: null, sched: false };
 
 export type SortKey = "flight" | "dep" | "arr" | "std" | "sta" | "block" | "dist" | "type" | "freq";
 export interface Sort {
@@ -83,8 +83,8 @@ export function queryFromParams(p: URLSearchParams, fallbackAirlines: string[]):
     days: list(p.get("days")).map(Number).filter((d) => d >= 1 && d <= 7),
     text: p.get("q") ?? "",
     after: parseClock(p.get("after")),
-    ref: (OOOI as string[]).includes(p.get("ref") ?? "") ? (p.get("ref") as Oooi) : "out",
-    sched: p.get("sched") !== "0",
+    ref: (OOOI as string[]).includes(p.get("ref") ?? "") ? (p.get("ref") as Oooi) : null,
+    sched: p.get("sched") === "1",
   };
 }
 
@@ -97,11 +97,9 @@ export function queryToParams(q: Query, extra: Record<string, string | null> = {
   if (q.minLen != null || q.maxLen != null) p.set("len", `${q.minLen ?? ""}-${q.maxLen ?? ""}`);
   if (q.days.length) p.set("days", q.days.join(","));
   if (q.text) p.set("q", q.text);
-  if (q.after != null) {
-    p.set("after", `${String(Math.floor(q.after / 60)).padStart(2, "0")}${String(q.after % 60).padStart(2, "0")}`);
-    p.set("ref", q.ref);
-    if (!q.sched) p.set("sched", "0");
-  }
+  if (q.after != null) p.set("after", `${String(Math.floor(q.after / 60)).padStart(2, "0")}${String(q.after % 60).padStart(2, "0")}`);
+  if (q.ref) p.set("ref", q.ref);
+  if (q.sched) p.set("sched", "1");
   for (const [k, v] of Object.entries(extra)) if (v) p.set(k, v);
   return p;
 }
@@ -159,7 +157,7 @@ export function filterRows(rows: Row[], q: Query, airports: Map<string, Airport>
     if (q.maxLen != null && (block == null || block.min > q.maxLen)) return false;
     if (q.days.length && f.days.length && !q.days.some((d) => f.days.includes(d))) return false;
     if (q.after != null) {
-      const t = oooiTime(f, q.ref, q.sched);
+      const t = oooiTime(f, q.ref ?? "out", q.sched);
       if (t == null || t < q.after) return false;
     }
     if (text) {

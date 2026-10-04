@@ -376,9 +376,9 @@ export function AfterPicker({
   onChange,
 }: {
   after: number | null;
-  oooi: "out" | "off" | "on" | "in";
+  oooi: "out" | "off" | "on" | "in" | null;
   sched: boolean;
-  onChange: (p: { after?: number | null; ref?: "out" | "off" | "on" | "in"; sched?: boolean }) => void;
+  onChange: (p: { after?: number | null; ref?: "out" | "off" | "on" | "in" | null; sched?: boolean }) => void;
 }) {
   const id = useId();
   const fmt = (m: number | null) => (m == null ? "" : `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`);
@@ -414,7 +414,7 @@ export function AfterPicker({
           id={id}
           className={cx("ctl-input mono after-time", bad && "is-bad")}
           inputMode="numeric"
-          placeholder="18:03"
+          placeholder="HH:MM"
           maxLength={5}
           value={draft}
           aria-invalid={bad || undefined}
@@ -439,14 +439,22 @@ export function AfterPicker({
         </button>
         <div className="seg" role="radiogroup" aria-label="Compare with">
           {OOOI_OPTS.map(([v, label, tip]) => (
-            <button key={v} type="button" role="radio" aria-checked={oooi === v} className="seg-btn" title={tip} onClick={() => onChange({ ref: v })}>
+            <button
+              key={v}
+              type="button"
+              role="radio"
+              aria-checked={oooi === v}
+              className="seg-btn"
+              title={`${tip}${oooi === v ? " (click again to clear)" : ""}`}
+              onClick={() => onChange({ ref: oooi === v ? null : v })}
+            >
               {label}
             </button>
           ))}
         </div>
       </div>
       <span id={`${id}-help`} className="sr-only">
-        Shows flights whose chosen time is at or after this UTC time, the same day. Type 18:03 or 1803.
+        Shows flights whose chosen time (off-block when none is picked) is at or after this UTC time, the same day. Type hours and minutes, with or without a colon.
       </span>
     </div>
   );

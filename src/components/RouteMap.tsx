@@ -156,7 +156,8 @@ export function RouteMap({
             <path d="M0-9 1.6-3.2 9 1.6V3.6L1.6 1.4 1.2 6.2 3.6 8V9.6L0 8.6-3.6 9.6V8L-1.2 6.2-1.6 1.4-9 3.6V1.6L-1.6-3.2Z" style={{ fill: active!.color }} />
           </g>
         )}
-        {[...ports.values()].map(({ a, ends, route }) => {
+        {/* the shared end (hub) is drawn last, so its label sits on top of the fan */}
+        {[...ports.values()].sort((x, y) => Number(x.ends > 1) - Number(y.ends > 1)).map(({ a, ends, route }) => {
           const p = proj([a.lon, a.lat]);
           if (!p) return null;
           const hub = ends > 1 && routes.length > 1;
@@ -182,7 +183,7 @@ export function RouteMap({
               {pickable && <circle className="map-hit" r="10" />}
               <circle className="map-dot" r={hub || routes.length === 1 ? 4.5 : 3.2} />
               {labelIt && (
-                <text x={right ? 8 : -8} y={4} textAnchor={right ? "start" : "end"}>
+                <text x={hub ? 0 : right ? 8 : -8} y={hub ? -10 : 4} textAnchor={hub ? "middle" : right ? "start" : "end"}>
                   {a.iata ?? a.icao}
                 </text>
               )}
