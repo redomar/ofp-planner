@@ -52,9 +52,19 @@ export function FlightTable({
   }
   const shown = rows.slice(0, limit);
   const identOf = (r: Row) => (r.f.fn ? `${airlines.get(r.f.al)?.iata ?? r.f.al}${r.f.fn}` : (r.f.cs ?? `${r.f.op} —`));
-  // Same width for every flight number and every airline tag in view, so both line up down the column.
-  const idW = Math.max(4, ...shown.map((r) => identOf(r).length));
-  const alW = Math.min(18, Math.max(3, ...shown.map((r) => (airlines.get(r.f.al)?.name ?? r.f.al).length)));
+  // One width for every flight number and airline tag in the whole result (not just this page), so the
+  // columns line up and don't change width when more rows are shown.
+  const { idW, alW } = useMemo(() => {
+    let id = 4;
+    let al = 3;
+    for (const r of rows) {
+      id = Math.max(id, identOf(r).length);
+      al = Math.max(al, (airlines.get(r.f.al)?.name ?? r.f.al).length);
+    }
+    return { idW: id, alW: Math.min(18, al) };
+    // identOf only reads airlines
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, airlines]);
   const name = (icao: string) => {
     const a = airports?.get(icao);
     return a ? (a.city ?? a.name) : "";

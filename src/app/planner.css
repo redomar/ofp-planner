@@ -195,7 +195,7 @@
   z-index: 35;
   top: 100px;
   right: 16px;
-  bottom: 16px;
+  max-height: calc(100dvh - 116px);
   width: min(480px, calc(100vw - 32px));
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -206,7 +206,6 @@
   animation: drawer-in 0.28s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 .drawer .fcard {
-  min-height: 100%;
   box-shadow: none;
 }
 @keyframes drawer-in {
@@ -219,7 +218,7 @@
   .drawer {
     top: 57px;
     right: 0;
-    bottom: 0;
+    max-height: calc(100dvh - 57px);
     width: 100vw;
     border-radius: 0;
   }
@@ -601,7 +600,7 @@ select.ctl-input {
   text-align: right;
 }
 /* the chip keeps its place when hidden, so the bar never re-wraps */
-.rollbar .chip[hidden] {
+.rollbar .btn[hidden] {
   display: inline-flex;
   visibility: hidden;
 }
@@ -1370,24 +1369,44 @@ select.ctl-input {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  overflow: hidden;
+  /* clip, not hidden: hidden would make the card the sticky header's scroll container */
+  overflow: clip;
 }
 .sheet .fcard {
   border: 0;
   box-shadow: none;
   background: transparent;
 }
-.fcard > *:not(.fcard-head) {
-  margin-left: 14px;
-  margin-right: 14px;
+.fcard-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 14px;
 }
+.fcard-body[hidden] {
+  display: none;
+}
+/* the header stays in view while the card scrolls, and folds the card on click */
 .fcard-head {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
   padding: 12px 14px 10px;
   border-bottom: 3px double var(--rule-strong);
-  position: relative;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--sunk);
+  cursor: pointer;
+}
+.brief .fcard-head {
+  top: 57px;
+}
+.fcard:has(.fcard-body[hidden]) {
+  padding-bottom: 0;
+}
+.fcard:has(.fcard-body[hidden]) .fcard-head {
+  border-bottom: 0;
 }
 .fcard-bar {
   position: absolute;
@@ -1873,4 +1892,45 @@ select.ctl-input {
   z-index: 0;
   transform: translate(-6px, -6px);
   background: color-mix(in srgb, var(--sunk) 55%, var(--rule));
+}
+
+/* brief: next leg */
+.nextleg {
+  border-top: 1px dashed var(--rule);
+  padding-top: 12px;
+}
+.nextleg-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.nextleg-sample {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+.nextleg-preview {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-height: 28px;
+}
+.leg-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--rule-strong);
+  border-radius: 2px;
+  background: var(--field);
+  overflow: hidden;
+}
+.leg-badge .al-tag {
+  border-radius: 0;
+  height: 26px;
+}
+.leg-dest {
+  padding: 0 9px;
+  font-size: 14px;
 }
