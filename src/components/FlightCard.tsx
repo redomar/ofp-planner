@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { AirlineInfo } from "@/lib/data/types";
-import { airportLabel, daysLabel, dur, flightNo, hhmm, localHHMM, tzLabel } from "@/lib/data/flight";
+import { airportLabel, dur, flightNo, hhmm, localHHMM, tzLabel } from "@/lib/data/flight";
 import type { Airport } from "@/lib/data/load";
 import type { Row } from "@/lib/data/query";
 import { pushHistory, setReady, toggleFavourite, useSaved } from "@/lib/saved";
 import { defaultChoice, flightDispatch, simbriefUrl, typeChoices, useAirframes } from "@/lib/simbrief";
+import { TypeBadge, WeekStrip, freqLabel } from "./badges";
 import { ReplayFlapCode } from "./FlapCode";
 import { RouteMap } from "./RouteMap";
 import { Badge, Tip, V } from "./ui";
@@ -137,8 +138,8 @@ export function FlightCard({
               Aircraft
             </Tip>
           </dt>
-          <dd className="mono">
-            {f.types.length ? f.types.join(" · ") : <V v={null} w={5} />}
+          <dd className="types-dd">
+            {f.types.length ? f.types.map((t) => <TypeBadge key={t} type={t} airline={airline} guessed={f.typeGuessed} />) : <V v={null} w={5} />}
             {f.typeGuessed && <small className="muted"> airline’s usual type</small>}
           </dd>
         </div>
@@ -148,7 +149,16 @@ export function FlightCard({
               Operates
             </Tip>
           </dt>
-          <dd>{daysLabel(f.days) ?? <span className="muted">Days not in snapshot</span>}</dd>
+          <dd className="days-dd">
+            {f.days.length ? (
+              <>
+                <WeekStrip days={f.days} />
+                <span className="mono">{freqLabel(f.days)}</span>
+              </>
+            ) : (
+              <span className="muted">Days not in snapshot</span>
+            )}
+          </dd>
         </div>
         <div>
           <dt>

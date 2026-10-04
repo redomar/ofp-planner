@@ -1,13 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { airportLabel, daysLabel, dur, hhmm } from "@/lib/data/flight";
+import { airportLabel, dur, hhmm } from "@/lib/data/flight";
 import type { Airport } from "@/lib/data/load";
 import type { Destination, Row, Sort, SortKey } from "@/lib/data/query";
 import type { AirlineInfo } from "@/lib/data/types";
 import { routeColor } from "@/lib/colors";
 import { GLOSSARY } from "@/lib/glossary";
 import { RouteMap } from "./RouteMap";
+import { FlightIdent, TypeBadge, WeekStrip, freqLabel } from "./badges";
 import { Tip, cx } from "./ui";
 
 const PAGE = 80;
@@ -17,10 +18,11 @@ const COLS: [SortKey, string, string | null, string?][] = [
   ["dep", "From", null],
   ["arr", "To", null],
   ["std", "Dep Z", GLOSSARY.depCol],
-  ["sta", "Arr Z", GLOSSARY.arrCol, "hide-s"],
+  ["sta", "Arr Z", GLOSSARY.arrCol, "hide-s c-arr"],
   ["block", "Block", GLOSSARY.block],
-  ["dist", "Dist", GLOSSARY.distance, "hide-s"],
+  ["dist", "Dist", GLOSSARY.distance, "hide-s c-dist"],
   ["type", "Type", GLOSSARY.types, "hide-xs"],
+  ["freq", "Freq", GLOSSARY.freq, "hide-xs"],
 ];
 
 /** Sortable, paged flight list. Clicking a row selects it. */
@@ -80,6 +82,11 @@ export function FlightTable({
                   </th>
                 );
               })}
+              <th scope="col" className="hide-s">
+                <Tip tip={GLOSSARY.days} title="Days" plain>
+                  Days
+                </Tip>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -90,22 +97,26 @@ export function FlightTable({
               return (
                 <tr key={f.id} className={cx(sel && "sel")} onClick={() => onSelect(r)}>
                   <td>
-                    <button type="button" className="row-btn" aria-pressed={sel} onClick={(e) => (e.stopPropagation(), onSelect(r))}>
-                      <span className="al-dot" style={{ background: routeColor(al) }} aria-hidden="true" />
-                      <span className="mono">{f.fn ? `${al?.iata ?? f.al}${f.fn}` : (f.cs ?? `${f.op} —`)}</span>
+                    <button
+                      type="button"
+                      className="row-btn"
+                      aria-pressed={sel}
+                      title={f.fn && f.cs ? `Callsign ${f.cs}` : undefined}
+                      onClick={(e) => (e.stopPropagation(), onSelect(r))}
+                    >
+                      <FlightIdent airline={al} fallback={f.al} ident={f.fn ? `${al?.iata ?? f.al}${f.fn}` : (f.cs ?? `${f.op} —`)} />
                     </button>
-                    {f.fn && f.cs && <small className="mono muted cs">{f.cs}</small>}
                   </td>
                   <td>
-                    <span className="mono">{f.o}</span> <small className="muted">{name(f.o)}</small>
+                    <span className="mono">{f.o}</span> <small className="muted city">{name(f.o)}</small>
                   </td>
                   <td>
-                    <span className="mono">{f.d}</span> <small className="muted">{name(f.d)}</small>
+                    <span className="mono">{f.d}</span> <small className="muted city">{name(f.d)}</small>
                   </td>
                   <td className="mono num">
                     <Clock sched={f.std} obs={f.out ?? f.off} kind={f.out != null ? "OUT" : "OFF"} />
                   </td>
-                  <td className="mono num hide-s">
+                  <td className="mono num hide-s c-arr">
                     <Clock sched={f.sta} obs={f.in ?? f.on} kind={f.in != null ? "IN" : "ON"} />
                   </td>
                   <td className="mono num">
@@ -116,11 +127,19 @@ export function FlightTable({
                       </span>
                     )}
                   </td>
-                  <td className="mono num hide-s">{r.nm ?? "—"}</td>
-                  <td className="mono hide-xs">
-                    {f.types[0] ?? "—"}
-                    {f.types.length > 1 && <small className="muted"> +{f.types.length - 1}</small>}
-                    {f.days.length > 0 && f.days.length < 7 && <small className="muted days-mini"> {daysLabel(f.days)}</small>}
+                  <td className="mono num hide-s c-dist">{r.nm ?? "—"}</td>
+                  <td className="hide-xs">
+                    {f.types[0] ? <TypeBadge type={f.types[0]} airline={al} guessed={f.typeGuessed} /> : "—"}
+                    {f.types.length > 1 && (
+                      <small className="muted mono" title={f.types.slice(1).join(", ")}>
+                        {" "}
+                        +{f.types.length - 1}
+                      </small>
+                    )}
+                  </td>
+                  <td className="mono num hide-xs freq">{freqLabel(f.days) ?? <span className="muted">—</span>}</td>
+                  <td className="hide-s">
+                    <WeekStrip days={f.days} />
                   </td>
                 </tr>
               );
@@ -207,6 +226,9 @@ export function PlacesView({
   }, [places, hubAirport, airports, airlines, side]);
 
   const what = side === "d" ? "destinations" : "origins";
+  const maxWeekly = Math.max(1, ...places.map((p) => p.weekly));
+  // block-time scale: 0 to the next whole hour above the longest, at least 4 h
+  const scaleMax = Math.max(240, Math.ceil(Math.max(0, ...places.map((p) => p.maxBlock ?? 0)) / 60) * 60);
   return (
     <div className="places">
       {hubAirport && routes.length > 0 && (
@@ -220,7 +242,8 @@ export function PlacesView({
       <div className="places-head">
         <p className="muted">
           {places.length} {what}
-          {hubAirport && (side === "d" ? ` from ${hubAirport.iata ?? hub}` : ` into ${hubAirport.iata ?? hub}`)}. Pick one to see its flights.
+          {hubAirport && (side === "d" ? ` from ${hubAirport.iata ?? hub}` : ` into ${hubAirport.iata ?? hub}`)}. Pick one to see its flights. Block-time bars run from 0 to{" "}
+          {Math.round(scaleMax / 60)} h.
         </p>
         <label className="inline-ctl">
           <span className="ctl-label">Sort</span>
@@ -232,30 +255,66 @@ export function PlacesView({
           </select>
         </label>
       </div>
+      <div className="place-head" aria-hidden="true">
+        <div className="ph-grid">
+          <span className="ph-ap">{side === "d" ? "Destination" : "Origin"}</span>
+          <span>Flights / week</span>
+          <span className="hide-s">Block time</span>
+          <span className="hide-xs ph-nm">Distance</span>
+        </div>
+        <span className="place-types hide-s">Aircraft</span>
+      </div>
       <ul className="place-list">
         {sorted.map((p) => {
           const a = airports?.get(p.icao);
+          const block = p.minBlock != null ? (p.minBlock === p.maxBlock ? dur(p.minBlock) : `${dur(p.minBlock)}–${dur(p.maxBlock)}`) : null;
           return (
             <li key={p.icao}>
-              <button type="button" className="place" onClick={() => onPick(p.icao)}>
-                <span className="place-al" aria-hidden="true">
-                  {p.airlines.slice(0, 4).map((al) => (
-                    <i key={al} style={{ background: routeColor(airlines.get(al)) }} />
+              <div className="place">
+                <button type="button" className="place-main" onClick={() => onPick(p.icao)} aria-label={`${a ? airportLabel(a) : p.icao}: ${p.weekly} flights a week${block ? `, block ${block}` : ""}${p.nm != null ? `, ${p.nm} NM` : ""}`}>
+                  <span className="place-al" aria-hidden="true">
+                    {p.airlines.slice(0, 4).map((al) => (
+                      <i key={al} style={{ background: routeColor(airlines.get(al)) }} />
+                    ))}
+                  </span>
+                  <span className="mono place-code">{p.icao}</span>
+                  <span className="place-name">
+                    {a?.country && <img className="flag" src={`/flags/${a.country.toLowerCase()}.svg`} alt="" width="16" height="12" />}
+                    {a?.iata && <span className="mono muted">{a.iata}</span>}
+                    <span className="place-label">{a ? airportLabel(a) : p.icao}</span>
+                  </span>
+                  <span className="freqbar mono" aria-hidden="true">
+                    <i style={{ width: `${Math.max(3, (p.weekly / maxWeekly) * 100)}%` }} />
+                    <b>{p.weekly}/wk</b>
+                  </span>
+                  <span className="blockbar hide-s" aria-hidden="true">
+                    <span className="range">
+                      {p.minBlock != null && (
+                        <i
+                          style={{
+                            left: `${(Math.min(p.minBlock, scaleMax) / scaleMax) * 100}%`,
+                            width: `${Math.max(2, ((Math.min(p.maxBlock ?? p.minBlock, scaleMax) - Math.min(p.minBlock, scaleMax)) / scaleMax) * 100)}%`,
+                          }}
+                        />
+                      )}
+                    </span>
+                    <b className="mono">{block ?? "—"}</b>
+                  </span>
+                  <span className="mono place-nm hide-xs" aria-hidden="true">
+                    {p.nm != null ? `${p.nm} NM` : "—"}
+                  </span>
+                </button>
+                <span className="place-types hide-s">
+                  {p.types.slice(0, 2).map((t) => (
+                    <TypeBadge key={t} type={t} airline={airlines.get(p.typeAirline[t])} />
                   ))}
+                  {p.types.length > 2 && (
+                    <small className="muted mono" title={p.types.slice(2).join(", ")}>
+                      +{p.types.length - 2}
+                    </small>
+                  )}
                 </span>
-                <span className="mono place-code">{p.icao}</span>
-                <span className="place-name">
-                  {a?.country && <img className="flag" src={`/flags/${a.country.toLowerCase()}.svg`} alt="" width="16" height="12" />}
-                  {a ? airportLabel(a) : p.icao}
-                  {a?.iata && <span className="mono muted"> {a.iata}</span>}
-                </span>
-                <span className="place-stats mono">
-                  <span title="Departures per week">{p.weekly}/wk</span>
-                  <span>{p.minBlock != null ? (p.minBlock === p.maxBlock ? dur(p.minBlock) : `${dur(p.minBlock)}–${dur(p.maxBlock)}`) : "—"}</span>
-                  <span className="hide-xs">{p.nm != null ? `${p.nm} NM` : ""}</span>
-                  <span className="hide-s muted">{p.types.slice(0, 3).join(" ")}</span>
-                </span>
-              </button>
+              </div>
             </li>
           );
         })}

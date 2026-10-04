@@ -8,6 +8,8 @@ import { routeColor } from "@/lib/colors";
 import { clearHistory, removeFavourite, useSaved, type SavedFlight } from "@/lib/saved";
 import { DEFAULT_AIRFRAMES, readAirframes, useAirframes, writeAirframes, type Airframe } from "@/lib/simbrief";
 import { applyTheme, clearAll, readTheme, storageBytes, useStorageVersion, type ThemePref } from "@/lib/storage";
+import { DEFAULT_DISPLAY, useDisplay, writeDisplay, type AirlineTagStyle } from "@/lib/display";
+import { FlightIdent, TypeBadge } from "./badges";
 import { StatusLine, TopBar } from "./chrome";
 import { CollapseProvider } from "./collapse";
 import { Badge, Section } from "./ui";
@@ -39,16 +41,19 @@ export function SettingsApp() {
         <Section id="airframes" no={1} title="Airframes" meta={<span>Used for SimBrief links</span>}>
           <Airframes />
         </Section>
-        <Section id="favourites" no={2} title="Favourites">
+        <Section id="display" no={2} title="Display" meta={<span>Flights table, airport list, flight card</span>}>
+          <DisplayPrefs manifest={manifest} />
+        </Section>
+        <Section id="favourites" no={3} title="Favourites">
           <Saved kind="favourites" />
         </Section>
-        <Section id="recent" no={3} title="Recent flights">
+        <Section id="recent" no={4} title="Recent flights">
           <Saved kind="history" />
         </Section>
-        <Section id="data" no={4} title="Schedule snapshot" meta={manifest ? <span className="mono">{manifest.generatedAt.slice(0, 10)}</span> : null}>
+        <Section id="data" no={5} title="Schedule snapshot" meta={manifest ? <span className="mono">{manifest.generatedAt.slice(0, 10)}</span> : null}>
           <DataInfo manifest={manifest} error={mErr} />
         </Section>
-        <Section id="device" no={5} title="Appearance & storage">
+        <Section id="device" no={6} title="Appearance & storage">
           <Device key={v} />
         </Section>
           </>
@@ -190,6 +195,106 @@ function Airframes() {
           </>
         )}
       </p>
+    </div>
+  );
+}
+
+const TAG_STYLES: [AirlineTagStyle, string, string][] = [
+  ["solid", "Solid", "Name in the brand colour; text black or white for contrast"],
+  ["tint", "Tinted", "Square plus the name on a light tint of the brand colour"],
+  ["split", "Split pill", "Flight and airline as two halves of one pill"],
+  ["edge", "Edge", "Neutral tag with a brand-colour edge"],
+];
+
+function DisplayPrefs({ manifest }: { manifest: Manifest | null }) {
+  const d = useDisplay();
+  const ezy = manifest?.airlines.find((a) => a.icao === "EZY");
+  const sampleAl = ["EZY", "RYR", "KLM", "BAW"].map((c) => manifest?.airlines.find((a) => a.icao === c));
+  return (
+    <div className="display-prefs">
+      <fieldset className="opt-group">
+        <legend className="ctl-label">Airline name tag</legend>
+        <div className="opt-grid">
+          {TAG_STYLES.map(([v, label, note]) => (
+            <label key={v} className="opt">
+              <input type="radio" name="airlineTag" checked={d.airlineTag === v} onChange={() => writeDisplay({ airlineTag: v })} />
+              <span className="opt-body">
+                <span className="opt-title">
+                  {label}
+                  {v === "solid" && <span className="muted"> (default)</span>}
+                </span>
+                <span className="opt-sample">
+                  <FlightIdent airline={ezy} fallback="EZY" ident="EZY43NM" style={v} />
+                </span>
+                <span className="opt-note">{note}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <fieldset className="opt-group">
+        <legend className="ctl-label">Order</legend>
+        <div className="opt-grid two">
+          {([true, false] as const).map((ff) => (
+            <label key={String(ff)} className="opt">
+              <input type="radio" name="flightFirst" checked={d.flightFirst === ff} onChange={() => writeDisplay({ flightFirst: ff })} />
+              <span className="opt-body">
+                <span className="opt-title">
+                  {ff ? "Flight, then airline" : "Airline, then flight"}
+                  {ff && <span className="muted"> (default)</span>}
+                </span>
+                <span className="opt-sample">
+                  <FlightIdent airline={ezy} fallback="EZY" ident="EZY43NM" flightFirst={ff} />
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <fieldset className="opt-group">
+        <legend className="ctl-label">Aircraft badges: colour by</legend>
+        <div className="opt-grid two">
+          {(["maker", "airline"] as const).map((c) => (
+            <label key={c} className="opt">
+              <input type="radio" name="typeColour" checked={d.typeColour === c} onChange={() => writeDisplay({ typeColour: c })} />
+              <span className="opt-body">
+                <span className="opt-title">
+                  {c === "maker" ? "Manufacturer" : "Airline"}
+                  {c === "maker" && <span className="muted"> (default)</span>}
+                </span>
+                <span className="opt-note">
+                  {c === "maker" ? "Airbus blue · Boeing green · Embraer amber · ATR and Dash 8 red · others grey" : "The brand colour of the airline flying it"}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <fieldset className="opt-group">
+        <legend className="ctl-label">Aircraft badges: theme</legend>
+        <div className="opt-grid two">
+          {(["full", "side"] as const).map((t) => (
+            <label key={t} className="opt">
+              <input type="radio" name="typeTheme" checked={d.typeTheme === t} onChange={() => writeDisplay({ typeTheme: t })} />
+              <span className="opt-body">
+                <span className="opt-title">
+                  {t === "full" ? "Fully coloured" : "Coloured edge"}
+                  {t === "full" && <span className="muted"> (default)</span>}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+        <p className="opt-sample types-dd">
+          {(["A20N", "B38M", "E190", "AT76"] as const).map((t, i) => (
+            <TypeBadge key={t} type={t} airline={sampleAl[i]} />
+          ))}
+          <span className="muted small"> Hover a badge for its manufacturer and full name.</span>
+        </p>
+      </fieldset>
+      <button type="button" className="chip" onClick={() => writeDisplay(DEFAULT_DISPLAY)}>
+        Reset display to defaults
+      </button>
     </div>
   );
 }

@@ -785,21 +785,57 @@ select.ctl-input {
   width: auto;
   height: 32px;
 }
+/* airport rows: header, then airline squares · ICAO · flag · IATA · name | per-week bar | block range | distance | aircraft.
+   Sized by the list's own width (container queries), so they fit beside the flight card too. */
+.places {
+  --types-w: 150px;
+  container-type: inline-size;
+}
+.ph-grid,
+.place-main {
+  display: grid;
+  grid-template-columns: 22px 48px minmax(0, 1fr) 120px 140px 70px;
+  gap: 12px;
+  align-items: center;
+}
+.place-head {
+  display: flex;
+  align-items: end;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--rule-strong);
+  font-family: var(--font-cond);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.ph-grid {
+  flex: 1;
+  min-width: 0;
+  padding: 0 6px;
+}
+.ph-ap {
+  grid-column: 1 / 4;
+}
+.ph-nm {
+  text-align: right;
+}
 .place-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  border-top: 1px solid var(--rule);
 }
 .place-list li {
   border-bottom: 1px solid var(--rule);
 }
 .place {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 22px 48px minmax(0, 1fr) auto;
-  gap: 10px;
+  display: flex;
   align-items: center;
+}
+.place-main {
+  flex: 1;
+  min-width: 0;
   padding: 8px 6px;
   border: 0;
   background: transparent;
@@ -811,9 +847,10 @@ select.ctl-input {
 .place:hover {
   background: var(--sunk);
 }
+/* up to four airline squares, always as a 2×2 block */
 .place-al {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, 8px);
   gap: 2px;
 }
 .place-al i {
@@ -827,35 +864,352 @@ select.ctl-input {
 }
 .place-name {
   display: flex;
-  gap: 6px;
+  gap: 7px;
   align-items: center;
   min-width: 0;
+}
+.place-name .flag {
+  flex: none;
+}
+.place-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.place-stats {
+.freqbar {
+  position: relative;
+  height: 22px;
+  background: var(--sunk);
+  border-radius: 2px;
+  overflow: hidden;
   display: flex;
-  gap: 12px;
+  align-items: center;
+}
+.freqbar i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--blue) 26%, var(--sheet));
+}
+.freqbar b {
+  position: relative;
+  font-weight: 500;
+  font-size: 12.5px;
+  padding-left: 7px;
+  color: var(--ink);
+}
+.blockbar {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.blockbar .range {
+  position: relative;
+  height: 6px;
+  background: var(--sunk);
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+.blockbar .range i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--ink-2);
+  border-radius: 3px;
+}
+.blockbar b {
+  font-weight: 500;
+  font-size: 12.5px;
+}
+.place-nm {
+  font-size: 13px;
+  text-align: right;
+  color: var(--ink-2);
+}
+.place-types {
+  width: var(--types-w);
+  flex: none;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 0 10px;
+}
+@container (max-width: 1000px) {
+  .ph-grid,
+  .place-main {
+    grid-template-columns: 22px 46px minmax(0, 1fr) 92px 112px 62px;
+    gap: 10px;
+  }
+}
+@container (max-width: 640px) {
+  .places {
+    --types-w: 0px;
+  }
+  .ph-grid,
+  .place-main {
+    grid-template-columns: 22px 46px minmax(0, 1fr) 96px;
+  }
+  .place-types,
+  .place-head .place-types,
+  .blockbar,
+  .ph-grid .hide-s,
+  .place-nm,
+  .ph-nm {
+    display: none;
+  }
+}
+@container (max-width: 420px) {
+  .ph-grid,
+  .place-main {
+    grid-template-columns: 18px 42px minmax(0, 1fr) 84px;
+    gap: 8px;
+  }
+  .place-name .mono.muted {
+    display: none;
+  }
+}
+
+/* ---------- airline tags, aircraft badges, week strip ---------- */
+
+.ident-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.ident {
+  font-size: 14px;
+}
+.al-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 21px;
+  max-width: 128px;
+  padding: 0 7px;
+  border-radius: 2px;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1;
+}
+.al-tint {
+  background: color-mix(in srgb, var(--c) 18%, var(--sheet));
+  border: 1px solid color-mix(in srgb, var(--c) 55%, var(--sheet));
+  color: var(--ink);
+  padding-left: 4px;
+}
+.al-tint i {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--c);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 35%, transparent);
+}
+.al-edge {
+  background: var(--sunk);
+  color: var(--ink);
+  border-left: 5px solid var(--c);
+}
+.split-pill {
+  display: inline-flex;
+  height: 24px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 2px;
+  overflow: hidden;
+  vertical-align: middle;
+}
+.split-pill > * {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+}
+.split-pill .ident {
+  background: var(--field);
+}
+.split-al {
+  max-width: 128px;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tbadge {
+  display: inline-flex;
+  align-items: center;
+  height: 21px;
+  padding: 0 6px;
+  border-radius: 2px;
+  border: 1px solid;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: help;
+}
+/* fully coloured, by manufacturer: the badge tones */
+.tb-full.tb-blue {
+  background: var(--blue-bg);
+  color: var(--blue);
+  border-color: var(--blue);
+}
+.tb-full.tb-green {
+  background: var(--green-bg);
+  color: var(--green);
+  border-color: var(--green);
+}
+.tb-full.tb-amber {
+  background: var(--amber-bg);
+  color: var(--amber);
+  border-color: var(--amber);
+}
+.tb-full.tb-red {
+  background: var(--red-bg);
+  color: var(--red);
+  border-color: var(--red);
+}
+.tb-full.tb-ink {
+  background: var(--sunk);
+  color: var(--ink);
+  border-color: var(--rule-strong);
+}
+/* coloured edge: neutral badge, colour on the left */
+.tb-side {
+  background: var(--field);
+  color: var(--ink);
+  border-color: var(--rule-strong);
+  border-left-width: 5px;
+}
+.tb-side.tb-blue {
+  border-left-color: var(--blue);
+}
+.tb-side.tb-green {
+  border-left-color: var(--green);
+}
+.tb-side.tb-amber {
+  border-left-color: var(--amber);
+}
+.tb-side.tb-red {
+  border-left-color: var(--red);
+}
+.tb-side.tb-ink {
+  border-left-color: var(--ink-3);
+}
+.tb-side.tb-brand {
+  border-left-color: var(--c);
+}
+.types-dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.wk {
+  display: inline-flex;
+  gap: 2px;
+  vertical-align: middle;
+}
+.wk i {
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  width: 15px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 2px;
+  color: var(--ink-2);
+  background: var(--sunk);
+}
+.wk i.on {
+  background: var(--ink);
+  color: var(--sheet);
+  font-weight: 600;
+}
+.flights td.freq {
+  font-weight: 600;
+}
+.days-dd {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* settings: display options */
+.display-prefs {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: flex-start;
+}
+.opt-group {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+.opt-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: 8px;
+}
+.opt {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--field);
+  cursor: pointer;
+}
+.opt:has(input:checked) {
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+.opt input {
+  margin-top: 3px;
+}
+.opt-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.opt-title {
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.opt-title .muted {
+  text-transform: none;
+  letter-spacing: 0;
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 12.5px;
+}
+.opt-note {
   font-size: 12.5px;
   color: var(--ink-2);
 }
-.place-stats > span {
-  min-width: 44px;
-  text-align: right;
-}
-@media (max-width: 560px) {
-  .place {
-    grid-template-columns: 14px 44px minmax(0, 1fr);
-  }
-  .place-stats {
-    grid-column: 2 / -1;
-    justify-content: flex-start;
-  }
-  .place-stats > span {
-    text-align: left;
-    min-width: 0;
-  }
+.opt-sample {
+  margin: 8px 0 0;
 }
 
 /* ---------- map ---------- */
@@ -1419,4 +1773,27 @@ select.ctl-input {
 }
 .af-id {
   word-break: break-all;
+}
+
+/* the flights table fits its panel: as the panel narrows, city names, then distance,
+   then arrival time drop out (they're all on the flight card) */
+.results .tbl-wrap {
+  container-type: inline-size;
+}
+@container (max-width: 1000px) {
+  .flights td small.city {
+    display: none;
+  }
+}
+@container (max-width: 860px) {
+  .flights th.c-dist,
+  .flights td.c-dist {
+    display: none;
+  }
+}
+@container (max-width: 760px) {
+  .flights th.c-arr,
+  .flights td.c-arr {
+    display: none;
+  }
 }

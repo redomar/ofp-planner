@@ -12,6 +12,7 @@ export const GLOSSARY = {
   days: "Days of the week this flight operates in the snapshot period.",
   block: "Gate-to-gate time. Scheduled when the timetable has both times; observed from tracking otherwise; estimated from distance as a last resort.",
   distance: "Great-circle distance between the airports in nautical miles. The flown route is usually 5–15% longer.",
+  freq: "How many days a week this flight operates in the snapshot period. Daily = all seven.",
   weekly: "Departures per week on this route across the selected airlines.",
   depCol: "Departure, UTC. The published scheduled time (STD) where the snapshot has a timetable; otherwise the typical tracked OUT (or take-off) time, shown underlined with dots.",
   arrCol: "Arrival, UTC. The scheduled time (STA) where published; otherwise the typical tracked IN (or landing) time, shown underlined with dots.",
