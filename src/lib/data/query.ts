@@ -2,7 +2,7 @@
  * The finder's query: what the filter bar holds, how it maps to the URL, and how it
  * filters, sorts, groups and rolls the flights. Pure functions, no React.
  */
-import { blockTime, familyOf, gcNm, type Block } from "./flight";
+import { blockTime, familyOf, gcNm, plannedOut, span, type Block } from "./flight";
 import type { Airport, FlightRow } from "./load";
 
 /** An airport ICAO ("LEMD") or a whole country ("C:ES"). */
@@ -222,4 +222,37 @@ export function roll(rows: Row[], opts: { spreadBy?: "d" | "o" | null; avoid?: s
     pool = pool.filter((r) => r.f[opts.spreadBy!] === end);
   }
   return pool[Math.floor(Math.random() * pool.length)];
+}
+
+/* ---------- next leg ---------- */
+
+/** When the aircraft is on blocks at the destination (UTC min): scheduled, observed IN, or ON plus taxi-in. */
+function arrivesAt(f: FlightRow): number | null {
+  if (f.sta != null) return f.sta;
+  if (f.in != null) return f.in;
+  if (f.on != null) return (f.on + 6) % 1440;
+  return null;
+}
+
+/**
+ * An onward flight for `f` among `from` (flights departing f's destination): departing
+ * 35 min to 8 h after it arrives, same airline and not straight back first, then any
+ * airline that fits the turnaround, then anything from there.
+ */
+export function pickNextLeg(from: Row[], f: FlightRow, spread: boolean): Row | null {
+  const arrive = arrivesAt(f);
+  const fits = (r: Row) => {
+    const out = plannedOut(r.f);
+    if (arrive == null || out == null) return true;
+    const gap = span(arrive, out);
+    return gap >= 35 && gap <= 8 * 60;
+  };
+  const pools = [
+    from.filter((r) => r.f.al === f.al && fits(r) && r.f.d !== f.o),
+    from.filter((r) => r.f.al === f.al && fits(r)),
+    from.filter((r) => fits(r)),
+    from,
+  ];
+  const pool = pools.find((p) => p.length) ?? [];
+  return roll(pool, { spreadBy: spread ? "d" : null });
 }

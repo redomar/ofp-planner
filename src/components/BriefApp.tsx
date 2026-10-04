@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { airportLabel, daysLabel, DAY_NAMES, dur, flightNo, hhmm, isoDay, nextDeparture } from "@/lib/data/flight";
-import { findFlight, loadAirports, loadManifest, type Airport } from "@/lib/data/load";
-import { enrich, type Row } from "@/lib/data/query";
+import { airportLabel, daysLabel, DAY_NAMES, dur, flightNo, hhmm, isoDay, nextDeparture, plannedOut } from "@/lib/data/flight";
+import { findFlight, loadAirline, loadAirports, loadManifest, type Airport } from "@/lib/data/load";
+import { enrich, pickNextLeg, type Row } from "@/lib/data/query";
 import type { Manifest } from "@/lib/data/types";
-import { readReady, setReady, updateReady, useSaved } from "@/lib/saved";
+import { readPrefs, readReady, setReady, updateReady, useSaved } from "@/lib/saved";
 import { KEYS, removeKey } from "@/lib/storage";
 import { StatusLine, TopBar } from "./chrome";
 import { CollapseProvider } from "./collapse";
@@ -33,8 +33,18 @@ export function BriefApp() {
   const [minDate] = useState(() => ymd(new Date(Date.now() - 86_400_000)));
   const saved = useSaved();
 
+  const [legNote, setLegNote] = useState<string | null>(null);
+  const [loadId, setLoadId] = useState<string | null | undefined>(undefined);
+
+  // Which flight to show: the URL, else the saved "ready" flight.
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("f") ?? readReady()?.flight.id ?? null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- browser-only read after hydration
+    setLoadId(new URLSearchParams(window.location.search).get("f") ?? readReady()?.flight.id ?? null);
+  }, []);
+
+  useEffect(() => {
+    if (loadId === undefined) return;
+    const id = loadId;
     if (!id) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- nothing to load
       setState((s) => ({ ...s, done: true }));
@@ -51,7 +61,7 @@ export function BriefApp() {
           if (!keep) setReady(f, null, null);
           const d = keep?.date && keep.date >= ymd(new Date()) ? keep.date : ymd(nextDeparture(f));
           setDate(d);
-          if (f.std != null) window.history.replaceState(null, "", `/brief?f=${encodeURIComponent(f.id)}`);
+          window.history.replaceState(null, "", `/brief?f=${encodeURIComponent(f.id)}`);
         }
         setState({ row, airports, manifest, error: f ? null : "This flight isn't in the current snapshot.", done: true });
       })
@@ -59,9 +69,11 @@ export function BriefApp() {
     return () => {
       live = false;
     };
-  }, []);
+  }, [loadId]);
 
   const { row, airports, manifest } = state;
+
+
   const f = row?.f ?? null;
   const from = f ? airports?.get(f.o) : undefined;
   const to = f ? airports?.get(f.d) : undefined;
@@ -70,13 +82,31 @@ export function BriefApp() {
   const times = useMemo(() => {
     if (!f || !date) return null;
     const [y, m, d] = date.split("-").map(Number);
-    const dep = f.std ?? f.out ?? f.off;
+    const dep = plannedOut(f);
     if (dep == null) return { dep: null, arr: null };
     const depAt = new Date(Date.UTC(y, m - 1, d, 0, dep));
     const blockMin = row?.block?.min ?? null;
     return { dep: depAt, arr: blockMin != null ? new Date(depAt.getTime() + blockMin * 60_000) : null };
   }, [f, date, row]);
 
+  /** Next leg: an onward flight from this destination (same airline first), shown on this brief. */
+  const nextLeg = async () => {
+    if (!row || !manifest) return;
+    const f = row.f;
+    const info = manifest.airlines.find((a) => a.icao === f.al);
+    const own = info ? await loadAirline(info, manifest) : [];
+    const from = own.filter((x) => x.o === f.d).map((x) => enrich(x, airports));
+    const next = pickNextLeg(from, f, readPrefs().spread);
+    if (!next) {
+      setLegNote(`No ${info?.name ?? f.al} flight leaves ${f.d} in the snapshot. Try the finder for other airlines from there.`);
+      return;
+    }
+    setLegNote(null);
+    // fly it on the first day it operates after this flight lands
+    const landed = times?.arr ?? new Date();
+    setReady(next.f, ymd(nextDeparture(next.f, landed)), null);
+    setLoadId(next.f.id);
+  };
   const wxPoint = (a: Airport): WxPoint => ({ icao: a.icao, name: airportLabel(a), lat: a.lat, lon: a.lon, elevFt: a.elevFt, tz: a.tz });
   const operates = f && date ? !f.days.length || f.days.includes(isoDay(new Date(`${date}T00:00:00Z`))) : true;
 
@@ -130,6 +160,8 @@ export function BriefApp() {
             <Section id="flight" no={1} title="Flight" meta={<span className="mono">{flightNo(f, airline?.iata ?? null)}</span>}>
               <FlightCard
                 key={row.f.id}
+                context="brief"
+                onContinue={nextLeg}
                 closeLabel="Clear the brief"
                 onClose={() => {
                   removeKey(KEYS.ready);
@@ -138,6 +170,7 @@ export function BriefApp() {
                   setDate(null);
                 }}
                 row={row} airline={airline} airports={airports} />
+              {legNote && <p className="note-amber leg-note">{legNote}</p>}
             </Section>
 
             <Section id="when" no={2} title="When you fly" meta={<span className="mono">{date ?? ""}</span>}>
@@ -159,7 +192,7 @@ export function BriefApp() {
                   <div className="field">
                     <span className="field-label">Off-block (STD)</span>
                     <div className="field-value">
-                      <V v={times?.dep ? `${hhmm(f.std ?? f.out)}Z` : null} w={6} />
+                      <V v={times?.dep ? `${hhmm(plannedOut(f))}Z` : null} w={6} />
                       {times?.dep && from?.tz && <span className="field-sub">{localTime(times.dep.getTime(), from.tz)} local</span>}
                     </div>
                   </div>

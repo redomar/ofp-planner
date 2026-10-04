@@ -15,5 +15,7 @@ First release.
 - Airport list: column headings, flights per week as bars, block time as a range bar, distance, and aircraft badges.
 - Aircraft badges coloured by manufacturer or by airline, fully coloured or with a coloured edge; hover or focus shows the manufacturer and full model name.
 - Settings → Display holds these choices, with live samples.
+- The selected flight opens in a floating panel, so the flights table keeps the full width. Flight numbers and airline tags line up down the column. Extra aircraft types show as a small pile of cards with the count.
+- Brief ↔ Finder: "Open brief" from a flight and "Back to finder" from the brief. Next leg on the brief picks an onward flight from the destination (same airline, realistic turnaround) and keeps the day sequence.
 - Close a selected flight (× or Escape) and clear the brief; Clear filters also resets the airline.
 - Schedule snapshot pipeline (`pnpm data:snapshot`) and a CLI-only maintenance job for servers.

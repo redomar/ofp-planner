@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { airportLabel, span } from "@/lib/data/flight";
+import { airportLabel } from "@/lib/data/flight";
 import { findFlight, useDataset, type FlightRow } from "@/lib/data/load";
 import {
   EMPTY_QUERY,
   enrich,
   filterRows,
   groupByOtherEnd,
+  pickNextLeg,
   queryFromParams,
   queryToParams,
   roll,
@@ -50,7 +51,7 @@ export function FinderApp() {
   const [selId, setSelId] = useState<string | null>(null);
   const [spread, setSpread] = useState(true);
   const [extra, setExtra] = useState<Row | null>(null);
-  const detailRef = useRef<HTMLDivElement>(null);
+  const detailRef = useRef<HTMLElement>(null);
 
   // Read the URL (wins) and saved preferences once, after hydration.
   useEffect(() => {
@@ -165,10 +166,10 @@ export function FinderApp() {
     update({ al });
     writePrefs({ airlines: al });
   };
-  const select = useCallback((r: Row | null, scroll = false) => {
+  // The flight opens in a floating panel; it scrolls back to its top for each new flight.
+  const select = useCallback((r: Row | null) => {
     setSelId(r?.f.id ?? null);
-    if (r && scroll && window.matchMedia("(max-width: 1099px)").matches)
-      requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    if (r) requestAnimationFrame(() => detailRef.current?.scrollTo({ top: 0 }));
   }, []);
 
   // Escape closes the flight card (unless typing in a field or a picker is open).
@@ -187,7 +188,7 @@ export function FinderApp() {
   const doRoll = () => {
     const by = spread ? (q.dep && !q.arr ? "d" : q.arr && !q.dep ? "o" : null) : null;
     const r = roll(filtered, { spreadBy: by, avoid: selId });
-    if (r) select(r, true);
+    if (r) select(r);
   };
 
   /** Onward leg: from this flight's destination, departing after it arrives (with a turnaround), same airline first. */
@@ -195,14 +196,9 @@ export function FinderApp() {
     if (!selected) return;
     const f = selected.f;
     const q2: Query = { ...q, dep: f.d, arr: null };
-    const from = filterRows(rows, q2, airports);
-    const arrive = f.sta ?? f.in ?? f.on ?? null;
-    const fits = (r: Row) => arrive == null || r.f.std == null || (span(arrive, r.f.std) >= 35 && span(arrive, r.f.std) <= 8 * 60);
-    const pools = [from.filter((r) => r.f.al === f.al && fits(r) && r.f.d !== f.o), from.filter((r) => fits(r)), from];
-    const pool = pools.find((p) => p.length) ?? [];
-    const r = roll(pool, { spreadBy: spread ? "d" : null });
+    const r = pickNextLeg(filterRows(rows, q2, airports), f, spread);
     setQ(q2);
-    if (r) select(r, true);
+    if (r) select(r);
   };
 
   const onSort = (s: Sort) => {
@@ -312,35 +308,6 @@ export function FinderApp() {
           </div>
         </section>
 
-        <div className="detail" ref={detailRef}>
-          {selected ? (
-            <FlightCard
-              key={selected.f.id}
-              row={selected}
-              airline={airlines.get(selected.f.al)}
-              airports={airports}
-              onContinue={nextLeg}
-              onClose={() => select(null)}
-              onPlace={(side, icao) => {
-                update(side === "dep" ? { dep: icao, arr: null } : { arr: icao, dep: null });
-                changeView("places");
-              }}
-            />
-          ) : (
-            <div className="panel detail-empty">
-              <p className="detail-empty-title">No flight picked</p>
-              <p className="muted">
-                Choose a flight from the list, or roll a random one. Set <b>From</b> and leave <b>To</b> empty to roll a random destination; set only{" "}
-                <b>To</b> for a random origin.
-              </p>
-              <button type="button" className="btn btn-roll" onClick={doRoll} disabled={!filtered.length}>
-                <Dice />
-                {rollLabel}
-              </button>
-            </div>
-          )}
-        </div>
-
         <section className="panel list" aria-label="Results">
           <div className="tabs" role="tablist" aria-label="Show">
             <button type="button" role="tab" aria-selected={view === "flights"} className="tab" onClick={() => changeView("flights")}>
@@ -364,7 +331,7 @@ export function FinderApp() {
             ) : view === "places" && places ? (
               <PlacesView places={places} side={placeSide} hub={hub} airports={airports} airlines={airlines} onPick={pickPlace} />
             ) : filtered.length ? (
-              <FlightTable rows={sorted} sort={sort} onSort={onSort} selected={selId} onSelect={(r) => select(r, true)} airports={airports} airlines={airlines} />
+              <FlightTable rows={sorted} sort={sort} onSort={onSort} selected={selId} onSelect={(r) => select(r)} airports={airports} airlines={airlines} />
             ) : data.loading.length ? (
               <SkeletonRows />
             ) : (
@@ -375,6 +342,22 @@ export function FinderApp() {
           </div>
         </section>
       </div>
+      {selected && (
+        <aside className="drawer" aria-label={`Selected flight ${selected.f.cs ?? selected.f.fn ?? ""}`} ref={detailRef}>
+          <FlightCard
+            key={selected.f.id}
+            row={selected}
+            airline={airlines.get(selected.f.al)}
+            airports={airports}
+            onContinue={nextLeg}
+            onClose={() => select(null)}
+            onPlace={(side, icao) => {
+              update(side === "dep" ? { dep: icao, arr: null } : { arr: icao, dep: null });
+              changeView("places");
+            }}
+          />
+        </aside>
+      )}
     </>
   );
 }

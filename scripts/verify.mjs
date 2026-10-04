@@ -202,7 +202,7 @@ async function run() {
     const dn = await page.locator(".place-list li").count();
     dn > 3 ? pass(`finder: ${dn} destinations from EGKK`) : fail(`finder: only ${dn} destinations`);
     await shot(page, "destinations-day");
-    await page.locator(".place-list .place").first().click();
+    await page.locator(".place-list .place-main").first().click({ position: { x: 40, y: 12 } });
     const arr = new URL(page.url()).searchParams.get("arr");
     arr ? pass(`finder: picking a destination sets To=${arr}`) : fail("finder: destination pick didn't set To");
 
@@ -215,7 +215,7 @@ async function run() {
     dep2 === firstDest ? pass(`finder: next leg continues from ${dep2}`) : fail(`finder: next leg from ${dep2}, expected ${firstDest}`);
 
     // aircraft badge tooltip: maker chip + full name
-    const tb = page.locator("table.flights tbody .tbadge").first();
+    const tb = page.locator(".drawer .tbadge").first();
     await tb.scrollIntoViewIfNeeded();
     await page.waitForTimeout(100);
     await tb.hover();
@@ -232,7 +232,7 @@ async function run() {
 
     // close the flight card → back to the empty state
     await page.getByRole("button", { name: "Close this flight" }).click();
-    (await page.locator(".detail-empty").count()) === 1 && !new URL(page.url()).searchParams.get("f")
+    (await page.locator(".drawer").count()) === 0 && !new URL(page.url()).searchParams.get("f")
       ? pass("finder: × closes the flight card")
       : fail("finder: close didn't return to No flight picked");
 
@@ -263,7 +263,7 @@ async function run() {
     const { ctx, page, errors } = await open("/?al=EZY&dep=EGKK");
     await page.waitForSelector("table.flights tbody tr");
     await page.locator("table.flights tbody tr").first().click();
-    await page.getByRole("link", { name: /Ready to sim/ }).click();
+    await page.getByRole("link", { name: /Open brief/ }).click();
     await page.waitForURL(/\/brief/);
     await page.waitForSelector(".fcard");
     await page.waitForTimeout(4000);
@@ -271,6 +271,19 @@ async function run() {
     /kt|KT/.test(wx) ? pass("brief: weather rendered") : fail(`brief: no weather values (${wx.slice(0, 120)})`);
     await checkPage("brief with flight 1280 light", page, errors);
     await shot(page, "brief-day");
+    // next leg on the brief: a new flight from the previous destination
+    const destBefore = (await page.locator(".fcard-end.arr .flap").getAttribute("aria-label"))?.slice(0, 4);
+    await page.getByRole("button", { name: /^Next leg from/ }).click();
+    await page.waitForTimeout(1500);
+    const origAfter = (await page.locator(".fcard-end.dep .flap").getAttribute("aria-label"))?.slice(0, 4);
+    const note = await page.locator(".leg-note").count();
+    origAfter === destBefore || note ? pass(`brief: next leg from ${destBefore}${note ? " (no onward flight note)" : ""}`) : fail(`brief: next leg departs ${origAfter}, expected ${destBefore}`);
+    // and back to the finder with that flight open
+    await page.getByRole("link", { name: /Back to finder/ }).click();
+    await page.waitForSelector(".drawer .fcard");
+    pass("brief: back to finder opens the flight");
+    await page.goBack({ waitUntil: "networkidle" });
+    await page.waitForSelector(".fcard");
     await page.locator("#weather").scrollIntoViewIfNeeded();
     await shot(page, "brief-weather-day");
     const briefPath = page.url().replace(/^https?:\/\/[^/]+/, "");

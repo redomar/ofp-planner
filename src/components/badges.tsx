@@ -149,3 +149,27 @@ export function WeekStrip({ days }: { days: number[] }) {
     </span>
   );
 }
+
+/* ---------- "+n more types" as a little pile of cards ---------- */
+
+/** The other aircraft types, as a stacked-cards badge with the count centred; hover lists them. */
+export function MoreTypes({ types }: { types: string[] }) {
+  if (!types.length) return null;
+  const list = types
+    .map((t) => {
+      const { maker, model } = aircraft(t);
+      return maker && model ? `${t} (${maker} ${model})` : t;
+    })
+    .join(", ");
+  return (
+    <span
+      className="tpile"
+      tabIndex={0}
+      data-tip={`Also flown with ${list}.`}
+      data-tip-title={`${types.length} more ${types.length === 1 ? "type" : "types"}`}
+      aria-label={`${types.length} more aircraft types: ${list}`}
+    >
+      <b>+{types.length}</b>
+    </span>
+  );
+}

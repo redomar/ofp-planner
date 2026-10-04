@@ -24,6 +24,7 @@ export function FlightCard({
   onPlace,
   onClose,
   closeLabel = "Close this flight",
+  context = "finder",
 }: {
   row: Row;
   airline: AirlineInfo | undefined;
@@ -35,6 +36,8 @@ export function FlightCard({
   /** Deselect the flight (back to the empty state). */
   onClose?: () => void;
   closeLabel?: string;
+  /** Where the card is shown: the finder links on to the brief, the brief links back to the finder. */
+  context?: "finder" | "brief";
 }) {
   const { f, nm, block } = row;
   const from = airports?.get(f.o);
@@ -200,9 +203,15 @@ export function FlightCard({
             </svg>
             <span className="sr-only">(opens in a new tab)</span>
           </a>
-          <Link className="btn" href={`/brief?f=${encodeURIComponent(f.id)}`} onClick={() => setReady(f, null, picked.value)}>
-            Ready to sim · weather
-          </Link>
+          {context === "finder" ? (
+            <Link className="btn" href={`/brief?f=${encodeURIComponent(f.id)}`} onClick={() => setReady(f, null, picked.value)}>
+              Open brief · weather →
+            </Link>
+          ) : (
+            <Link className="btn" href={`/?al=${f.al}&dep=${f.o}&arr=${f.d}&f=${encodeURIComponent(f.id)}`}>
+              ← Back to finder
+            </Link>
+          )}
           {onContinue && (
             <button type="button" className="btn" onClick={onContinue} title={`Roll an onward flight from ${f.d}`}>
               Next leg from {to?.iata ?? f.d}
