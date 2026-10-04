@@ -2290,3 +2290,81 @@ select.ctl-input {
 .opt-check {
   max-width: 640px;
 }
+
+/* map tab: all routes matching the filters */
+.routes-view {
+  padding: 12px 14px 14px;
+}
+.routes-note {
+  margin: 10px 0 8px;
+  font-size: 13px;
+}
+.routes-wrap {
+  max-height: calc(100dvh - 180px);
+  overflow: auto;
+}
+.routes-tbl {
+  width: 100%;
+}
+.routes-tbl tbody tr {
+  cursor: pointer;
+}
+.routes-tbl td {
+  vertical-align: middle;
+}
+.routes-tbl thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--sheet);
+}
+.route-btn {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.route-names {
+  display: block;
+  font-size: 12px;
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.route-als {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.routes-tbl .freqbar {
+  min-width: 110px;
+}
+.routes-tbl .blockbar {
+  min-width: 130px;
+}
+@media (max-width: 480px) {
+  .tabs {
+    padding: 0 4px;
+    min-width: 0;
+  }
+  .tab {
+    padding: 0 9px;
+    font-size: 14px;
+    letter-spacing: 0.06em;
+    gap: 5px;
+  }
+  .tab .mono {
+    min-width: 0;
+  }
+  .tabs-bar {
+    flex-wrap: wrap;
+  }
+}

@@ -347,13 +347,30 @@ async function run() {
     await ctx.close();
   });
 
+  /* ---------- Map tab: Madrid to anywhere in Spain ---------- */
+  await section("map tab", async () => {
+    const { ctx, page, errors } = await open("/?al=&dep=LEMD&arr=C:ES&view=map");
+    await page.waitForSelector(".routes-tbl tbody tr", { timeout: 30000 });
+    const rows = await page.$$eval(".routes-tbl tbody tr .route-btn", (bs) => bs.map((b) => b.textContent.replace(/\s+/g, "")));
+    const okRows = rows.length > 3 && rows.every((r) => r.startsWith("LEMD→LE") || r.startsWith("LEMD→GC") || r.startsWith("LEMD→GE"));
+    okRows ? pass(`map tab: LEMD → Spain lists ${rows.length} routes (${rows.slice(0, 4).join(", ")}…)`) : fail(`map tab rows ${JSON.stringify(rows.slice(0, 8))}`);
+    const drawn = await page.locator(".routes-view .map-route").count();
+    drawn === rows.length || drawn >= Math.min(rows.length, 400) ? pass(`map tab: ${drawn} routes drawn`) : fail(`map tab: drew ${drawn} of ${rows.length}`);
+    await checkPage("map tab 1280 light", page, errors);
+    await shot(page, "map-tab-day");
+    await page.locator(".routes-tbl tbody tr").first().click();
+    const u = new URL(page.url()).searchParams;
+    u.get("dep") === "LEMD" && u.get("arr")?.length === 4 && !u.get("view") ? pass(`map tab: picking a route opens its flights (${u.get("dep")}→${u.get("arr")})`) : fail(`map tab: pick gave ${u}`);
+    await ctx.close();
+  });
+
   /* ---------- every page × width × theme ---------- */
-  const pages = ["/?al=EZY&dep=EGKK", "/?al=EZY&dep=EGKK&view=places", "/brief", "/settings"];
+  const pages = ["/?al=EZY&dep=EGKK", "/?al=EZY&dep=EGKK&view=places", "/?al=&dep=LEMD&arr=C:ES&view=map", "/brief", "/settings"];
   for (const theme of ["light", "dark"])
     for (const width of [1280, 390])
       for (const path of pages) {
         const { ctx, page, errors } = await open(path, { width, height: width < 500 ? 844 : 900, theme });
-        if (path.startsWith("/?")) await page.waitForSelector(path.includes("places") ? ".place-list li" : "table.flights tbody tr", { timeout: 20000 });
+        if (path.startsWith("/?")) await page.waitForSelector(path.includes("places") ? ".place-list li" : path.includes("map") ? ".routes-tbl tbody tr" : "table.flights tbody tr", { timeout: 20000 });
         if (path === "/brief") await page.waitForTimeout(300);
         await checkPage(`${path} ${width}px ${theme}`, page, errors);
         await ctx.close();

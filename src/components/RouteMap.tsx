@@ -246,7 +246,7 @@ function Drawn({
   for (const { a, ends } of portList) {
     const p = proj([a.lon, a.lat]);
     if (!p) continue;
-    const hub = ends > 1 && many;
+    const hub = ends === routes.length && many;
     if (!many || hub) {
       labelled.add(a.icao);
       boxes.push([p[0] - 24, p[1] - 30, p[0] + 24, p[1] - 8]);
@@ -342,7 +342,7 @@ function Drawn({
       {portList.map(({ a, ends, route }) => {
         const p = proj([a.lon, a.lat]);
         if (!p) return null;
-        const hub = ends > 1 && many;
+        const hub = ends === routes.length && many;
         const pickable = !!onPick && !hub;
         const on = hover === route.key || route.active;
         const labelIt = labelled.has(a.icao) || on;

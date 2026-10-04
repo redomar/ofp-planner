@@ -313,3 +313,47 @@ export function pickNextLeg(from: Row[], f: FlightRow, spread: boolean): Row | n
   const pool = pools.find((p) => p.length) ?? [];
   return roll(pool, { spreadBy: spread ? "d" : null });
 }
+
+/* ---------- routes (for the map tab) ---------- */
+
+export interface RouteGroup {
+  key: string; // "LEMD-LEBL"
+  o: string;
+  d: string;
+  flights: Row[];
+  /** Brand ICAOs, most flights first. */
+  airlines: string[];
+  weekly: number;
+  nm: number | null;
+  minBlock: number | null;
+  maxBlock: number | null;
+}
+
+/** Flights grouped by origin → destination, busiest first. */
+export function groupRoutes(rows: Row[]): RouteGroup[] {
+  const by = new Map<string, Row[]>();
+  for (const r of rows) {
+    const k = `${r.f.o}-${r.f.d}`;
+    let l = by.get(k);
+    if (!l) by.set(k, (l = []));
+    l.push(r);
+  }
+  return [...by.entries()]
+    .map(([key, flights]) => {
+      const blocks = flights.map((r) => r.block?.min).filter((x): x is number => x != null);
+      const alCount = new Map<string, number>();
+      for (const r of flights) alCount.set(r.f.al, (alCount.get(r.f.al) ?? 0) + (r.f.days.length || 7));
+      return {
+        key,
+        o: flights[0].f.o,
+        d: flights[0].f.d,
+        flights,
+        airlines: [...alCount.entries()].sort((a, b) => b[1] - a[1]).map(([a]) => a),
+        weekly: flights.reduce((n, r) => n + (r.f.days.length || 7), 0),
+        nm: flights[0].nm,
+        minBlock: blocks.length ? Math.min(...blocks) : null,
+        maxBlock: blocks.length ? Math.max(...blocks) : null,
+      };
+    })
+    .sort((a, b) => b.weekly - a.weekly);
+}

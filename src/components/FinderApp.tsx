@@ -8,6 +8,7 @@ import {
   enrich,
   filterRows,
   groupByOtherEnd,
+  groupRoutes,
   pickNextLeg,
   placeMatches,
   queryFromParams,
@@ -25,6 +26,7 @@ import { StatusLine, TopBar } from "./chrome";
 import { FlightCard } from "./FlightCard";
 import { AfterPicker, DayPicker, LengthPicker, MultiPicker, PlacePicker, type MultiOption, type PlaceOption } from "./pickers";
 import { FlightTable, PlacesView } from "./Results";
+import { RoutesView } from "./RoutesView";
 import { cx } from "./ui";
 
 const regionNames = (() => {
@@ -42,7 +44,7 @@ const countryName = (cc: string) => {
   }
 };
 
-type View = "flights" | "places";
+type View = "flights" | "places" | "map";
 
 export function FinderApp() {
   const [ready, setReady] = useState(false);
@@ -61,7 +63,8 @@ export function FinderApp() {
     /* eslint-disable react-hooks/set-state-in-effect -- one-time read of browser-only state after hydration */
     setQ(queryFromParams(p, prefs.airlines));
     setSort(prefs.sort);
-    setView(p.get("view") === "places" ? "places" : prefs.view);
+    const v = p.get("view");
+    setView(v === "places" || v === "map" ? v : prefs.view);
     setSpread(prefs.spread);
     setSelId(p.get("f"));
     setReady(true);
@@ -74,7 +77,7 @@ export function FinderApp() {
   // Mirror state into the URL so a reload or a shared link reopens the same view.
   useEffect(() => {
     if (!ready) return;
-    const p = queryToParams(q, { view: view === "places" ? "places" : null, f: selId });
+    const p = queryToParams(q, { view: view === "flights" ? null : view, f: selId });
     const next = `${window.location.pathname}?${p.toString()}`;
     if (next !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(null, "", next);
   }, [q, view, selId, ready]);
@@ -87,6 +90,7 @@ export function FinderApp() {
   // Places: destinations from a fixed origin, origins into a fixed destination, or all origins.
   const placeSide: "d" | "o" = q.dep && !q.arr ? "d" : "o";
   const hub = placeSide === "d" ? (q.dep?.startsWith("C:") ? null : q.dep) : q.arr && !q.arr.startsWith("C:") ? q.arr : null;
+  const routeGroups = useMemo(() => groupRoutes(filtered), [filtered]);
   const places = useMemo(() => (q.dep && q.arr ? null : groupByOtherEnd(filtered, placeSide)), [filtered, placeSide, q.dep, q.arr]);
 
   // Selected flight: from the loaded rows, or fetched by id (a link to an airline not selected).
@@ -371,6 +375,9 @@ export function FinderApp() {
             >
               {placeSide === "d" ? "Destinations" : q.arr ? "Origins" : "Airports"} <span className="mono">{places && !nothingYet ? places.length : ""}</span>
             </button>
+            <button type="button" role="tab" aria-selected={view === "map"} className="tab" onClick={() => changeView("map")} disabled={!filtered.length}>
+              Map <span className="mono">{nothingYet ? "" : routeGroups.length.toLocaleString("en-GB")}</span>
+            </button>
           </div>
           {view === "flights" && sort && (
             <button type="button" className="btn sort-reset" onClick={() => onSort(null)} title="Clear the sort: flights in the order the data lists them">
@@ -381,6 +388,16 @@ export function FinderApp() {
           <div role="tabpanel" className={cx("list-body", nothingYet && "is-loading")}>
             {nothingYet ? (
               <SkeletonRows />
+            ) : view === "map" && routeGroups.length ? (
+              <RoutesView
+                routes={routeGroups}
+                airports={airports}
+                airlines={airlines}
+                onPick={(o, d) => {
+                  update({ dep: o, arr: d });
+                  changeView("flights");
+                }}
+              />
             ) : view === "places" && places ? (
               <PlacesView places={places} side={placeSide} hub={hub} airports={airports} airlines={airlines} onPick={pickPlace} />
             ) : filtered.length ? (
