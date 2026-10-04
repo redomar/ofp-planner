@@ -19,6 +19,7 @@ First release.
 - Brief ↔ Finder: "Open brief" from a flight and "Back to finder" from the brief. On the brief, "A sample next leg" shows the onward flight it would pick (airline and destination) below the button and takes it in one click, keeping the day sequence; "Next leg" opens every flight from the destination in the finder.
 - The flights table and the airport list scroll inside a box the height of the screen, with "Show more" kept in view. Airline tags are sized to the widest airline name in the result, measured in the tag's font. Hovering the airline squares in the airport list shows up to six airline badges, then a "+n more" badge.
 - Airline dropdown: with an origin and/or destination chosen (airport or country), it lists the airlines flying there with their number of flights first, then a dashed rule and every other airline at 0. Backed by a small route index (routes.json) the snapshot now writes.
+- Brief: the departure and arrival airports link to the finder with that airport as the origin.
 - The flight card's header stays pinned while the card scrolls; clicking it folds the card so the table behind is visible.
 - Close a selected flight (× or Escape) and clear the brief; Clear filters also resets the airline.
 - Schedule snapshot pipeline (`pnpm data:snapshot`) and a CLI-only maintenance job for servers.

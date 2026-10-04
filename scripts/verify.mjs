@@ -335,6 +335,11 @@ async function run() {
       const origAfter = (await page.locator(".fcard-end.dep .flap").getAttribute("aria-label"))?.slice(0, 4);
       origAfter === destBefore ? pass(`brief: sample next leg (${preview.split("\n")[0].replace(/\s+/g, " ")}) departs ${destBefore}`) : fail(`brief: sample leg departs ${origAfter}, expected ${destBefore}`);
     } else pass(`brief: no sample leg available (${preview})`);
+    // an airport on the brief opens the finder with it as the origin
+    const arrIcao = (await page.locator(".fcard-end.arr .flap").getAttribute("aria-label"))?.slice(0, 4);
+    const placeHref = await page.locator(".fcard-end.arr a.fcard-placelink").getAttribute("href");
+    placeHref === `/?al=&dep=${arrIcao}` ? pass(`brief: arrival airport links to finder from ${arrIcao}`) : fail(`brief: airport link ${placeHref}`);
+
     // and back to the finder with that flight open
     await page.getByRole("link", { name: /Back to finder/ }).click();
     await page.waitForSelector(".drawer .fcard");
