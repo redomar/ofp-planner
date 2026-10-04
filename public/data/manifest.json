@@ -1,0 +1,1016 @@
+{
+ "schema": 1,
+ "generatedAt": "2026-10-04T15:19:08.552Z",
+ "coverage": {
+  "from": "2026-09-20",
+  "to": "2026-10-03"
+ },
+ "sources": [
+  {
+   "id": "adsblol",
+   "name": "adsb.lol globe history",
+   "url": "https://github.com/adsblol",
+   "licence": "ODbL 1.0",
+   "provides": "observed flights: callsigns, routes, days of week, OUT/OFF/ON/IN times",
+   "fetchedAt": "2026-10-04T15:16:15.298Z"
+  },
+  {
+   "id": "standing-data",
+   "name": "Virtual Radar Server standing data",
+   "url": "https://github.com/vradarserver/standing-data",
+   "licence": "CC0 1.0",
+   "provides": "callsign routes where one end was unseen; positioning-flight patterns; aircraft types (gaps) — commit d856ef1",
+   "fetchedAt": "2026-10-04T15:16:15.298Z"
+  },
+  {
+   "id": "tar1090-db",
+   "name": "tar1090-db (Mictronics aircraft database)",
+   "url": "https://github.com/wiedehopf/tar1090-db",
+   "licence": "community database, no licence stated; only type designators used",
+   "provides": "aircraft type per airframe",
+   "fetchedAt": "2026-10-04T15:16:15.298Z"
+  },
+  {
+   "id": "ourairports",
+   "name": "OurAirports",
+   "url": "https://ourairports.com/data/",
+   "licence": "Public domain",
+   "provides": "airports, coordinates, elevation, IATA codes",
+   "fetchedAt": "2026-10-04T15:16:15.298Z"
+  },
+  {
+   "id": "mwgg-airports",
+   "name": "mwgg/Airports",
+   "url": "https://github.com/mwgg/Airports",
+   "licence": "MIT",
+   "provides": "airport time zones",
+   "fetchedAt": "2026-10-04T15:16:15.298Z"
+  },
+  {
+   "id": "ryanair",
+   "name": "Ryanair public timetable",
+   "url": "https://www.ryanair.com/gb/en/cheap-flights/timetable",
+   "licence": "Ryanair website data; non-commercial use",
+   "provides": "Ryanair flight numbers and STD/STA (next 14 days, matched by weekday)",
+   "fetchedAt": "2026-10-04T15:16:15.298Z"
+  }
+ ],
+ "airlines": [
+  {
+   "icao": "RYR",
+   "iata": "FR",
+   "name": "Ryanair",
+   "callsign": "RYANAIR",
+   "country": "IE",
+   "colors": {
+    "primary": "#073590",
+    "secondary": "#F1C933"
+   },
+   "operators": [
+    "RYR",
+    "RUK",
+    "MAY",
+    "LDM",
+    "RYS"
+   ],
+   "file": "data/airlines/RYR.json",
+   "flights": 22430
+  },
+  {
+   "icao": "EZY",
+   "iata": "U2",
+   "name": "easyJet",
+   "callsign": "EASY",
+   "country": "GB",
+   "colors": {
+    "primary": "#FF6600",
+    "secondary": "#FFFFFF"
+   },
+   "operators": [
+    "EZY",
+    "EJU",
+    "EZS"
+   ],
+   "file": "data/airlines/EZY.json",
+   "flights": 6233
+  },
+  {
+   "icao": "WZZ",
+   "iata": "W6",
+   "name": "Wizz Air",
+   "callsign": "WIZZ AIR",
+   "country": "HU",
+   "colors": {
+    "primary": "#C6007E",
+    "secondary": "#2E2C7D"
+   },
+   "operators": [
+    "WZZ",
+    "WUK",
+    "WMT"
+   ],
+   "file": "data/airlines/WZZ.json",
+   "flights": 2844
+  },
+  {
+   "icao": "TRA",
+   "iata": "HV",
+   "name": "Transavia",
+   "callsign": "TRANSAVIA",
+   "country": "NL",
+   "colors": {
+    "primary": "#00D66C",
+    "secondary": "#203A79"
+   },
+   "operators": [
+    "TRA",
+    "TVF"
+   ],
+   "file": "data/airlines/TRA.json",
+   "flights": 1793
+  },
+  {
+   "icao": "EWG",
+   "iata": "EW",
+   "name": "Eurowings",
+   "callsign": "EUROWINGS",
+   "country": "DE",
+   "colors": {
+    "primary": "#A3195B",
+    "secondary": "#FFC800"
+   },
+   "operators": [
+    "EWG",
+    "EWE",
+    "EWL"
+   ],
+   "file": "data/airlines/EWG.json",
+   "flights": 1741
+  },
+  {
+   "icao": "TOM",
+   "iata": "BY",
+   "name": "TUI",
+   "callsign": "TOMSON",
+   "country": "GB",
+   "colors": {
+    "primary": "#70CBF4",
+    "secondary": "#D40E14"
+   },
+   "operators": [
+    "TOM",
+    "TUI",
+    "JAF",
+    "TFL",
+    "BLX"
+   ],
+   "file": "data/airlines/TOM.json",
+   "flights": 1698
+  },
+  {
+   "icao": "DLH",
+   "iata": "LH",
+   "name": "Lufthansa",
+   "callsign": "LUFTHANSA",
+   "country": "DE",
+   "colors": {
+    "primary": "#05164D",
+    "secondary": "#F9BA00"
+   },
+   "operators": [
+    "DLH",
+    "CLH",
+    "LHX",
+    "DLA"
+   ],
+   "file": "data/airlines/DLH.json",
+   "flights": 1688
+  },
+  {
+   "icao": "BAW",
+   "iata": "BA",
+   "name": "British Airways",
+   "callsign": "SPEEDBIRD",
+   "country": "GB",
+   "colors": {
+    "primary": "#075AAA",
+    "secondary": "#EB2226"
+   },
+   "operators": [
+    "BAW",
+    "CFE",
+    "EFW"
+   ],
+   "file": "data/airlines/BAW.json",
+   "flights": 1631
+  },
+  {
+   "icao": "EXS",
+   "iata": "LS",
+   "name": "Jet2",
+   "callsign": "CHANNEX",
+   "country": "GB",
+   "colors": {
+    "primary": "#E41E26",
+    "secondary": "#203A72"
+   },
+   "operators": [
+    "EXS"
+   ],
+   "file": "data/airlines/EXS.json",
+   "flights": 1628
+  },
+  {
+   "icao": "SAS",
+   "iata": "SK",
+   "name": "SAS",
+   "callsign": "SCANDINAVIAN",
+   "country": "SE",
+   "colors": {
+    "primary": "#000DB5",
+    "secondary": "#6E7681"
+   },
+   "operators": [
+    "SAS",
+    "SZS",
+    "CIR"
+   ],
+   "file": "data/airlines/SAS.json",
+   "flights": 1616
+  },
+  {
+   "icao": "NOZ",
+   "iata": "DY",
+   "name": "Norwegian",
+   "callsign": "NORSHUTTLE",
+   "country": "NO",
+   "colors": {
+    "primary": "#D81939",
+    "secondary": "#003251"
+   },
+   "operators": [
+    "NOZ",
+    "NSZ",
+    "IBK",
+    "NAX"
+   ],
+   "file": "data/airlines/NOZ.json",
+   "flights": 1517
+  },
+  {
+   "icao": "VLG",
+   "iata": "VY",
+   "name": "Vueling",
+   "callsign": "VUELING",
+   "country": "ES",
+   "colors": {
+    "primary": "#FFCC00",
+    "secondary": "#4D4D4F"
+   },
+   "operators": [
+    "VLG"
+   ],
+   "file": "data/airlines/VLG.json",
+   "flights": 1486
+  },
+  {
+   "icao": "THY",
+   "iata": "TK",
+   "name": "Turkish Airlines",
+   "callsign": "TURKISH",
+   "country": "TR",
+   "colors": {
+    "primary": "#C70A0C",
+    "secondary": "#1A1A1A"
+   },
+   "operators": [
+    "THY"
+   ],
+   "file": "data/airlines/THY.json",
+   "flights": 1092
+  },
+  {
+   "icao": "CFG",
+   "iata": "DE",
+   "name": "Condor",
+   "callsign": "CONDOR",
+   "country": "DE",
+   "colors": {
+    "primary": "#FDC300",
+    "secondary": "#1D1D1B"
+   },
+   "operators": [
+    "CFG",
+    "CIB"
+   ],
+   "file": "data/airlines/CFG.json",
+   "flights": 1024
+  },
+  {
+   "icao": "KLM",
+   "iata": "KL",
+   "name": "KLM",
+   "callsign": "KLM",
+   "country": "NL",
+   "colors": {
+    "primary": "#00A1DE",
+    "secondary": "#003145"
+   },
+   "operators": [
+    "KLM",
+    "KLC"
+   ],
+   "file": "data/airlines/KLM.json",
+   "flights": 955
+  },
+  {
+   "icao": "AFR",
+   "iata": "AF",
+   "name": "Air France",
+   "callsign": "AIRFRANS",
+   "country": "FR",
+   "colors": {
+    "primary": "#002157",
+    "secondary": "#E40521"
+   },
+   "operators": [
+    "AFR",
+    "HOP"
+   ],
+   "file": "data/airlines/AFR.json",
+   "flights": 941
+  },
+  {
+   "icao": "PGT",
+   "iata": "PC",
+   "name": "Pegasus",
+   "callsign": "SUNTURK",
+   "country": "TR",
+   "colors": {
+    "primary": "#FDB813",
+    "secondary": "#E31E24"
+   },
+   "operators": [
+    "PGT"
+   ],
+   "file": "data/airlines/PGT.json",
+   "flights": 882
+  },
+  {
+   "icao": "VOE",
+   "iata": "V7",
+   "name": "Volotea",
+   "callsign": "VOLOTEA",
+   "country": "ES",
+   "colors": {
+    "primary": "#C2006B",
+    "secondary": "#24135F"
+   },
+   "operators": [
+    "VOE"
+   ],
+   "file": "data/airlines/VOE.json",
+   "flights": 880
+  },
+  {
+   "icao": "SWR",
+   "iata": "LX",
+   "name": "SWISS",
+   "callsign": "SWISS",
+   "country": "CH",
+   "colors": {
+    "primary": "#E2001A",
+    "secondary": "#1A1A1A"
+   },
+   "operators": [
+    "SWR"
+   ],
+   "file": "data/airlines/SWR.json",
+   "flights": 655
+  },
+  {
+   "icao": "AEE",
+   "iata": "A3",
+   "name": "Aegean",
+   "callsign": "AEGEAN",
+   "country": "GR",
+   "colors": {
+    "primary": "#1D3D7A",
+    "secondary": "#8FB8DE"
+   },
+   "operators": [
+    "AEE",
+    "OAL"
+   ],
+   "file": "data/airlines/AEE.json",
+   "flights": 642
+  },
+  {
+   "icao": "SXS",
+   "iata": "XQ",
+   "name": "SunExpress",
+   "callsign": "SUNEXPRESS",
+   "country": "TR",
+   "colors": {
+    "primary": "#F7A800",
+    "secondary": "#C8102E"
+   },
+   "operators": [
+    "SXS"
+   ],
+   "file": "data/airlines/SXS.json",
+   "flights": 621
+  },
+  {
+   "icao": "LOT",
+   "iata": "LO",
+   "name": "LOT Polish Airlines",
+   "callsign": "POLLOT",
+   "country": "PL",
+   "colors": {
+    "primary": "#003D7D",
+    "secondary": "#9FA0A3"
+   },
+   "operators": [
+    "LOT"
+   ],
+   "file": "data/airlines/LOT.json",
+   "flights": 600
+  },
+  {
+   "icao": "FIN",
+   "iata": "AY",
+   "name": "Finnair",
+   "callsign": "FINNAIR",
+   "country": "FI",
+   "colors": {
+    "primary": "#0B1560",
+    "secondary": "#B3B9D6"
+   },
+   "operators": [
+    "FIN"
+   ],
+   "file": "data/airlines/FIN.json",
+   "flights": 558
+  },
+  {
+   "icao": "AUA",
+   "iata": "OS",
+   "name": "Austrian",
+   "callsign": "AUSTRIAN",
+   "country": "AT",
+   "colors": {
+    "primary": "#D81E05",
+    "secondary": "#1A1A1A"
+   },
+   "operators": [
+    "AUA"
+   ],
+   "file": "data/airlines/AUA.json",
+   "flights": 545
+  },
+  {
+   "icao": "WIF",
+   "iata": "WF",
+   "name": "Widerøe",
+   "callsign": "WIDEROE",
+   "country": "NO",
+   "colors": {
+    "primary": "#2B6FB0",
+    "secondary": "#7CC4E8"
+   },
+   "operators": [
+    "WIF"
+   ],
+   "file": "data/airlines/WIF.json",
+   "flights": 533
+  },
+  {
+   "icao": "ITY",
+   "iata": "AZ",
+   "name": "ITA Airways",
+   "callsign": "ITARROW",
+   "country": "IT",
+   "colors": {
+    "primary": "#00296B",
+    "secondary": "#B4975A"
+   },
+   "operators": [
+    "ITY"
+   ],
+   "file": "data/airlines/ITY.json",
+   "flights": 530
+  },
+  {
+   "icao": "TAP",
+   "iata": "TP",
+   "name": "TAP Air Portugal",
+   "callsign": "AIR PORTUGAL",
+   "country": "PT",
+   "colors": {
+    "primary": "#ED1C24",
+    "secondary": "#00A651"
+   },
+   "operators": [
+    "TAP",
+    "PGA"
+   ],
+   "file": "data/airlines/TAP.json",
+   "flights": 515
+  },
+  {
+   "icao": "IBE",
+   "iata": "IB",
+   "name": "Iberia",
+   "callsign": "IBERIA",
+   "country": "ES",
+   "colors": {
+    "primary": "#D7192D",
+    "secondary": "#FFCC00"
+   },
+   "operators": [
+    "IBE",
+    "IBS"
+   ],
+   "file": "data/airlines/IBE.json",
+   "flights": 494
+  },
+  {
+   "icao": "QTR",
+   "iata": "QR",
+   "name": "Qatar Airways",
+   "callsign": "QATARI",
+   "country": "QA",
+   "colors": {
+    "primary": "#5C0632",
+    "secondary": "#A7A9AC"
+   },
+   "operators": [
+    "QTR"
+   ],
+   "file": "data/airlines/QTR.json",
+   "flights": 422
+  },
+  {
+   "icao": "TVS",
+   "iata": "QS",
+   "name": "Smartwings",
+   "callsign": "SKYTRAVEL",
+   "country": "CZ",
+   "colors": {
+    "primary": "#0A3D8F",
+    "secondary": "#E2001A"
+   },
+   "operators": [
+    "TVS",
+    "TVP",
+    "TVQ"
+   ],
+   "file": "data/airlines/TVS.json",
+   "flights": 364
+  },
+  {
+   "icao": "BTI",
+   "iata": "BT",
+   "name": "airBaltic",
+   "callsign": "AIRBALTIC",
+   "country": "LV",
+   "colors": {
+    "primary": "#BED600",
+    "secondary": "#1A1A1A"
+   },
+   "operators": [
+    "BTI"
+   ],
+   "file": "data/airlines/BTI.json",
+   "flights": 357
+  },
+  {
+   "icao": "BEL",
+   "iata": "SN",
+   "name": "Brussels Airlines",
+   "callsign": "BEELINE",
+   "country": "BE",
+   "colors": {
+    "primary": "#00235F",
+    "secondary": "#E3003C"
+   },
+   "operators": [
+    "BEL"
+   ],
+   "file": "data/airlines/BEL.json",
+   "flights": 343
+  },
+  {
+   "icao": "ABY",
+   "iata": "G9",
+   "name": "Air Arabia",
+   "callsign": "ARABIA",
+   "country": "AE",
+   "colors": {
+    "primary": "#E21A23",
+    "secondary": "#6D6E71"
+   },
+   "operators": [
+    "ABY",
+    "MAC",
+    "ABN"
+   ],
+   "file": "data/airlines/ABY.json",
+   "flights": 332
+  },
+  {
+   "icao": "LGL",
+   "iata": "LG",
+   "name": "Luxair",
+   "callsign": "LUXAIR",
+   "country": "LU",
+   "colors": {
+    "primary": "#00A1DE",
+    "secondary": "#2B2A29"
+   },
+   "operators": [
+    "LGL"
+   ],
+   "file": "data/airlines/LGL.json",
+   "flights": 330
+  },
+  {
+   "icao": "TKJ",
+   "iata": "VF",
+   "name": "AJet",
+   "callsign": "ANATOLIAN",
+   "country": "TR",
+   "colors": {
+    "primary": "#E30A17",
+    "secondary": "#1C1C1C"
+   },
+   "operators": [
+    "TKJ"
+   ],
+   "file": "data/airlines/TKJ.json",
+   "flights": 329
+  },
+  {
+   "icao": "DAH",
+   "iata": "AH",
+   "name": "Air Algérie",
+   "callsign": "AIR ALGERIE",
+   "country": "DZ",
+   "colors": {
+    "primary": "#E2001A",
+    "secondary": "#006233"
+   },
+   "operators": [
+    "DAH"
+   ],
+   "file": "data/airlines/DAH.json",
+   "flights": 317
+  },
+  {
+   "icao": "EIN",
+   "iata": "EI",
+   "name": "Aer Lingus",
+   "callsign": "SHAMROCK",
+   "country": "IE",
+   "colors": {
+    "primary": "#006272",
+    "secondary": "#78BE20"
+   },
+   "operators": [
+    "EIN",
+    "EUK"
+   ],
+   "file": "data/airlines/EIN.json",
+   "flights": 301
+  },
+  {
+   "icao": "LOG",
+   "iata": "LM",
+   "name": "Loganair",
+   "callsign": "LOGAN",
+   "country": "GB",
+   "colors": {
+    "primary": "#003863",
+    "secondary": "#E4002B"
+   },
+   "operators": [
+    "LOG"
+   ],
+   "file": "data/airlines/LOG.json",
+   "flights": 284
+  },
+  {
+   "icao": "UAE",
+   "iata": "EK",
+   "name": "Emirates",
+   "callsign": "EMIRATES",
+   "country": "AE",
+   "colors": {
+    "primary": "#D71921",
+    "secondary": "#B79A5B"
+   },
+   "operators": [
+    "UAE"
+   ],
+   "file": "data/airlines/UAE.json",
+   "flights": 274
+  },
+  {
+   "icao": "ELY",
+   "iata": "LY",
+   "name": "El Al",
+   "callsign": "ELAL",
+   "country": "IL",
+   "colors": {
+    "primary": "#0E2A72",
+    "secondary": "#8DA2C8"
+   },
+   "operators": [
+    "ELY"
+   ],
+   "file": "data/airlines/ELY.json",
+   "flights": 274
+  },
+  {
+   "icao": "CAI",
+   "iata": "XC",
+   "name": "Corendon",
+   "callsign": "CORENDON",
+   "country": "TR",
+   "colors": {
+    "primary": "#E3003A",
+    "secondary": "#002F6C"
+   },
+   "operators": [
+    "CAI",
+    "CND",
+    "CXI"
+   ],
+   "file": "data/airlines/CAI.json",
+   "flights": 258
+  },
+  {
+   "icao": "FDB",
+   "iata": "FZ",
+   "name": "flydubai",
+   "callsign": "SKYDUBAI",
+   "country": "AE",
+   "colors": {
+    "primary": "#003D73",
+    "secondary": "#F26E22"
+   },
+   "operators": [
+    "FDB"
+   ],
+   "file": "data/airlines/FDB.json",
+   "flights": 255
+  },
+  {
+   "icao": "ASL",
+   "iata": "JU",
+   "name": "Air Serbia",
+   "callsign": "AIR SERBIA",
+   "country": "RS",
+   "colors": {
+    "primary": "#0D2D6C",
+    "secondary": "#C8102E"
+   },
+   "operators": [
+    "ASL"
+   ],
+   "file": "data/airlines/ASL.json",
+   "flights": 251
+  },
+  {
+   "icao": "AEA",
+   "iata": "UX",
+   "name": "Air Europa",
+   "callsign": "EUROPA",
+   "country": "ES",
+   "colors": {
+    "primary": "#0A2C79",
+    "secondary": "#B5975A"
+   },
+   "operators": [
+    "AEA"
+   ],
+   "file": "data/airlines/AEA.json",
+   "flights": 250
+  },
+  {
+   "icao": "RAM",
+   "iata": "AT",
+   "name": "Royal Air Maroc",
+   "callsign": "ROYALAIR MAROC",
+   "country": "MA",
+   "colors": {
+    "primary": "#C1272D",
+    "secondary": "#006233"
+   },
+   "operators": [
+    "RAM"
+   ],
+   "file": "data/airlines/RAM.json",
+   "flights": 225
+  },
+  {
+   "icao": "RJA",
+   "iata": "RJ",
+   "name": "Royal Jordanian",
+   "callsign": "JORDANIAN",
+   "country": "JO",
+   "colors": {
+    "primary": "#A4855C",
+    "secondary": "#1A1A1A"
+   },
+   "operators": [
+    "RJA"
+   ],
+   "file": "data/airlines/RJA.json",
+   "flights": 221
+  },
+  {
+   "icao": "ETD",
+   "iata": "EY",
+   "name": "Etihad",
+   "callsign": "ETIHAD",
+   "country": "AE",
+   "colors": {
+    "primary": "#BD8B13",
+    "secondary": "#4B4B4B"
+   },
+   "operators": [
+    "ETD"
+   ],
+   "file": "data/airlines/ETD.json",
+   "flights": 211
+  },
+  {
+   "icao": "CTN",
+   "iata": "OU",
+   "name": "Croatia Airlines",
+   "callsign": "CROATIA",
+   "country": "HR",
+   "colors": {
+    "primary": "#003F87",
+    "secondary": "#E30613"
+   },
+   "operators": [
+    "CTN"
+   ],
+   "file": "data/airlines/CTN.json",
+   "flights": 209
+  },
+  {
+   "icao": "SVA",
+   "iata": "SV",
+   "name": "Saudia",
+   "callsign": "SAUDIA",
+   "country": "SA",
+   "colors": {
+    "primary": "#006C35",
+    "secondary": "#C5A572"
+   },
+   "operators": [
+    "SVA"
+   ],
+   "file": "data/airlines/SVA.json",
+   "flights": 192
+  },
+  {
+   "icao": "MSR",
+   "iata": "MS",
+   "name": "EgyptAir",
+   "callsign": "EGYPTAIR",
+   "country": "EG",
+   "colors": {
+    "primary": "#1F3463",
+    "secondary": "#C9A04B"
+   },
+   "operators": [
+    "MSR"
+   ],
+   "file": "data/airlines/MSR.json",
+   "flights": 149
+  },
+  {
+   "icao": "ICE",
+   "iata": "FI",
+   "name": "Icelandair",
+   "callsign": "ICEAIR",
+   "country": "IS",
+   "colors": {
+    "primary": "#0D2C6C",
+    "secondary": "#FFB71B"
+   },
+   "operators": [
+    "ICE"
+   ],
+   "file": "data/airlines/ICE.json",
+   "flights": 134
+  },
+  {
+   "icao": "TAR",
+   "iata": "TU",
+   "name": "Tunisair",
+   "callsign": "TUNAIR",
+   "country": "TN",
+   "colors": {
+    "primary": "#E3001B",
+    "secondary": "#1A1A1A"
+   },
+   "operators": [
+    "TAR"
+   ],
+   "file": "data/airlines/TAR.json",
+   "flights": 117
+  },
+  {
+   "icao": "IBB",
+   "iata": "NT",
+   "name": "Binter",
+   "callsign": "BINTER",
+   "country": "ES",
+   "colors": {
+    "primary": "#00843D",
+    "secondary": "#004B87"
+   },
+   "operators": [
+    "IBB"
+   ],
+   "file": "data/airlines/IBB.json",
+   "flights": 116
+  },
+  {
+   "icao": "GFA",
+   "iata": "GF",
+   "name": "Gulf Air",
+   "callsign": "GULF AIR",
+   "country": "BH",
+   "colors": {
+    "primary": "#B48A3C",
+    "secondary": "#5C2D91"
+   },
+   "operators": [
+    "GFA"
+   ],
+   "file": "data/airlines/GFA.json",
+   "flights": 103
+  },
+  {
+   "icao": "OMA",
+   "iata": "WY",
+   "name": "Oman Air",
+   "callsign": "OMAN AIR",
+   "country": "OM",
+   "colors": {
+    "primary": "#A7804F",
+    "secondary": "#00505C"
+   },
+   "operators": [
+    "OMA"
+   ],
+   "file": "data/airlines/OMA.json",
+   "flights": 103
+  },
+  {
+   "icao": "KMM",
+   "iata": "KM",
+   "name": "KM Malta Airlines",
+   "callsign": "MALTA",
+   "country": "MT",
+   "colors": {
+    "primary": "#D21034",
+    "secondary": "#1A1A1A"
+   },
+   "operators": [
+    "KMM"
+   ],
+   "file": "data/airlines/KMM.json",
+   "flights": 81
+  },
+  {
+   "icao": "MEA",
+   "iata": "ME",
+   "name": "Middle East Airlines",
+   "callsign": "CEDAR JET",
+   "country": "LB",
+   "colors": {
+    "primary": "#00843D",
+    "secondary": "#C8102E"
+   },
+   "operators": [
+    "MEA"
+   ],
+   "file": "data/airlines/MEA.json",
+   "flights": 70
+  }
+ ],
+ "counts": {
+  "airlines": 57,
+  "flights": 64644,
+  "airports": 580,
+  "routes": 15557
+ }
+}

@@ -25,8 +25,10 @@ export interface Airport {
 export interface FlightRow extends Flight {
   /** Brand airline ICAO (the file it came from). */
   al: string;
-  /** Stable id: brand:opFn:orig-dest, e.g. "EZY:EJU1016:LEMD-LFSB". */
+  /** Stable id: brand:op+number-or-callsign:orig-dest:days, e.g. "EZY:EJU54LH:LEMD-LFSB:4". */
   id: string;
+  /** types was empty in the snapshot and holds the airline's most common type instead. */
+  typeGuessed: boolean;
 }
 
 const BASE = "/data/";
@@ -70,7 +72,19 @@ export function loadAirline(info: AirlineInfo, m: Manifest): Promise<FlightRow[]
   let p = airlineP.get(info.icao);
   if (!p) {
     p = json<AirlineFile>(`/${info.file}?v=${v(m)}`).then((f) => {
-      const rows = f.flights.map((fl) => ({ ...fl, al: info.icao, id: `${info.icao}:${fl.op}${fl.fn}:${fl.o}-${fl.d}` }));
+      // Flights without a known type (timetable-only rows) borrow the airline's most common one.
+      const typeCount = new Map<string, number>();
+      for (const fl of f.flights) if (fl.types[0]) typeCount.set(fl.types[0], (typeCount.get(fl.types[0]) ?? 0) + 1);
+      const common = [...typeCount.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+      const seen = new Map<string, number>();
+      const rows = f.flights.map((fl) => {
+        let id = `${info.icao}:${fl.op}${fl.fn ?? fl.cs ?? ""}:${fl.o}-${fl.d}:${fl.days.join("")}`;
+        const n = seen.get(id) ?? 0;
+        seen.set(id, n + 1);
+        if (n) id += `~${n}`;
+        const guess = !fl.types.length && !!common;
+        return { ...fl, types: guess ? [common!] : fl.types, typeGuessed: guess, al: info.icao, id };
+      });
       airlineDone.set(info.icao, rows);
       return rows;
     });

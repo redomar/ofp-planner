@@ -113,7 +113,7 @@ export function BriefApp() {
                   <li key={h.id}>
                     <a href={`/brief?f=${encodeURIComponent(h.id)}`}>
                       <span className="mono">
-                        {h.al} {h.fn}
+                        {h.fn ? `${h.al} ${h.fn}` : (h.cs ?? h.al)}
                       </span>{" "}
                       {h.o} → {h.d}
                     </a>
@@ -175,7 +175,7 @@ export function BriefApp() {
                 </div>
                 {!operates && date && (
                   <p className="note-amber">
-                    {f.al} {f.fn} doesn’t operate on {DAY_NAMES[isoDay(new Date(`${date}T00:00:00Z`)) - 1]}s in the snapshot.{" "}
+                    {flightNo(f, airline?.iata ?? null)} doesn’t operate on {DAY_NAMES[isoDay(new Date(`${date}T00:00:00Z`)) - 1]}s in the snapshot.{" "}
                     <button type="button" className="linkish" onClick={() => setDate(ymd(nextDeparture(f, new Date(`${date}T00:00:00Z`))))}>
                       Use the next day it flies
                     </button>

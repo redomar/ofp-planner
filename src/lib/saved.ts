@@ -12,7 +12,7 @@ export interface SavedFlight {
   id: string;
   al: string;
   op: string;
-  fn: string;
+  fn: string | null;
   cs: string | null;
   o: string;
   d: string;

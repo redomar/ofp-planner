@@ -77,8 +77,12 @@ export interface AirlineFile {
 export interface Flight {
   /** Operating airline ICAO (may differ from the brand, e.g. "EJU" under easyJet). */
   op: string;
-  /** Marketing flight number, digits plus optional suffix letter ("1016", "8473A"). */
-  fn: string;
+  /**
+   * Marketing flight number, digits plus optional suffix letter ("1016", "8473A").
+   * null when no open source maps the callsign to a flight number (alphanumeric callsigns
+   * like EJU54LH without a timetable source).
+   */
+  fn: string | null;
   /** ATC callsign as filed ("EJU54LH"), null when unknown. */
   cs: string | null;
   o: string; // origin ICAO

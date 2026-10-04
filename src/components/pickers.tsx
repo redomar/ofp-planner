@@ -78,7 +78,11 @@ export function PlacePicker({
     setOpen(false);
   };
 
-  const shown = open ? text : current ? `${current.code}${current.alt && !current.country ? ` / ${current.alt}` : ""} · ${current.name}` : "";
+  const shown = open
+    ? text
+    : current
+      ? `${current.code}${current.alt && !current.country ? ` / ${current.alt}` : ""} · ${current.name}`
+      : (value?.replace(/^C:/, "") ?? "");
 
   return (
     <div className={cx("combo", open && "open", value && "has-value")}>
