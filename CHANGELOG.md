@@ -17,6 +17,7 @@ First release.
 - Settings → Display holds these choices, with live samples.
 - The selected flight opens in a floating panel, so the flights table keeps the full width. Flight numbers and airline tags line up down the column. Extra aircraft types show as a small pile of cards with the count.
 - Brief ↔ Finder: "Open brief" from a flight and "Back to finder" from the brief. On the brief, "A sample next leg" shows the onward flight it would pick (airline and destination) below the button and takes it in one click, keeping the day sequence; "Next leg" opens every flight from the destination in the finder.
+- The flights table and the airport list scroll inside a box the height of the screen, with "Show more" kept in view. Airline tags are sized to the widest airline name in the result, measured in the tag's font. Hovering the airline squares in the airport list shows up to six airline badges, then a "+n more" badge.
 - The flight card's header stays pinned while the card scrolls; clicking it folds the card so the table behind is visible.
 - Close a selected flight (× or Escape) and clear the brief; Clear filters also resets the airline.
 - Schedule snapshot pipeline (`pnpm data:snapshot`) and a CLI-only maintenance job for servers.

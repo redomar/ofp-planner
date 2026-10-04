@@ -5,8 +5,9 @@ import { airportLabel, dur, hhmm } from "@/lib/data/flight";
 import type { Airport } from "@/lib/data/load";
 import type { Destination, Row, Sort, SortKey } from "@/lib/data/query";
 import type { AirlineInfo } from "@/lib/data/types";
-import { routeColor } from "@/lib/colors";
+import { routeColor, textOn } from "@/lib/colors";
 import { GLOSSARY } from "@/lib/glossary";
+import { useFontsReady, widestLabel } from "@/lib/measure";
 import { RouteMap } from "./RouteMap";
 import { FlightIdent, MoreTypes, TypeBadge, WeekStrip, freqLabel } from "./badges";
 import { Tip, cx } from "./ui";
@@ -54,17 +55,19 @@ export function FlightTable({
   const identOf = (r: Row) => (r.f.fn ? `${airlines.get(r.f.al)?.iata ?? r.f.al}${r.f.fn}` : (r.f.cs ?? `${r.f.op} —`));
   // One width for every flight number and airline tag in the whole result (not just this page), so the
   // columns line up and don't change width when more rows are shown.
+  // Flight numbers are mono, so characters give the width; airline names are measured in their real font.
+  const fontsReady = useFontsReady();
   const { idW, alW } = useMemo(() => {
     let id = 4;
-    let al = 3;
+    const names = new Set<string>();
     for (const r of rows) {
       id = Math.max(id, identOf(r).length);
-      al = Math.max(al, (airlines.get(r.f.al)?.name ?? r.f.al).length);
+      names.add(airlines.get(r.f.al)?.name ?? r.f.al);
     }
-    return { idW: id, alW: Math.min(18, al) };
-    // identOf only reads airlines
+    return { idW: id, alW: Math.min(150, widestLabel(names)) + 1 };
+    // identOf only reads airlines; fontsReady re-measures once the face has loaded
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, airlines]);
+  }, [rows, airlines, fontsReady]);
   const name = (icao: string) => {
     const a = airports?.get(icao);
     return a ? (a.city ?? a.name) : "";
@@ -73,7 +76,7 @@ export function FlightTable({
   return (
     <div className="results">
       <div className="tbl-wrap">
-        <table className="tbl flights" style={{ ["--id-w" as string]: `${idW}ch`, ["--al-w" as string]: `${(alW * 0.6 + 0.3).toFixed(2)}em` }}>
+        <table className="tbl flights" style={{ ["--id-w" as string]: `${idW}ch`, ["--al-w" as string]: `${alW}px` }}>
           <caption className="sr-only">Flights matching the filters, {rows.length} in total. Select a flight to see its details.</caption>
           <thead>
             <tr>
@@ -182,6 +185,21 @@ function Clock({ sched, obs, kind }: { sched: number | null; obs: number | null;
   return <span className="muted">—</span>;
 }
 
+/** Tooltip for the airline squares: up to six airline badges in their colours, then a "+n" badge. */
+function airlineTip(codes: string[], airlines: Map<string, AirlineInfo>) {
+  const SHOW = 6;
+  const chips: { label: string; color: string; ink: string }[] = codes.slice(0, SHOW).map((c) => {
+    const a = airlines.get(c);
+    const color = routeColor(a);
+    return { label: a?.name ?? c, color, ink: textOn(color) };
+  });
+  if (codes.length > SHOW) chips.push({ label: `+${codes.length - SHOW} more`, color: "var(--sheet)", ink: "var(--ink)" });
+  return {
+    "data-tip": `${codes.length} ${codes.length === 1 ? "airline flies" : "airlines fly"} this route.`,
+    "data-tip-chips": JSON.stringify(chips),
+  };
+}
+
 type PlaceSort = "weekly" | "name" | "block" | "dist";
 
 /**
@@ -280,8 +298,8 @@ export function PlacesView({
           return (
             <li key={p.icao}>
               <div className="place">
-                <button type="button" className="place-main" onClick={() => onPick(p.icao)} aria-label={`${a ? airportLabel(a) : p.icao}: ${p.weekly} flights a week${block ? `, block ${block}` : ""}${p.nm != null ? `, ${p.nm} NM` : ""}`}>
-                  <span className="place-al" aria-hidden="true">
+                <button type="button" className="place-main" onClick={() => onPick(p.icao)} aria-label={`${a ? airportLabel(a) : p.icao}: ${p.airlines.map((c) => airlines.get(c)?.name ?? c).join(", ")}; ${p.weekly} flights a week${block ? `, block ${block}` : ""}${p.nm != null ? `, ${p.nm} NM` : ""}`}>
+                  <span className="place-al" aria-hidden="true" {...airlineTip(p.airlines, airlines)}>
                     {p.airlines.slice(0, 4).map((al) => (
                       <i key={al} style={{ background: routeColor(airlines.get(al)) }} />
                     ))}

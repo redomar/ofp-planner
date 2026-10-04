@@ -176,6 +176,22 @@ async function run() {
     const n = await page.locator("table.flights tbody tr").count();
     n > 0 ? pass(`finder: ${n} rows shown`) : fail("finder: no rows");
 
+    // airline tags fit the widest name in the result (no big empty space), and the list scrolls in a full-height box
+    const fit = await page.evaluate(() => {
+      const tags = [...document.querySelectorAll("table.flights .al-tag")].slice(0, 40);
+      const slack = Math.min(...tags.map((t) => t.clientWidth - t.scrollWidth));
+      const r = document.createRange();
+      const widest = Math.max(...tags.map((t) => (r.selectNodeContents(t), r.getBoundingClientRect().width)));
+      const w = tags[0]?.getBoundingClientRect().width ?? 0;
+      return { w: Math.round(w), widest: Math.round(widest), slack };
+    });
+    fit.w - fit.widest <= 18 && fit.slack >= 0 ? pass(`finder: airline tag fits its names (${fit.w}px for ${fit.widest}px of text)`) : fail(`finder: airline tag ${fit.w}px for ${fit.widest}px of text`);
+    const box = await page.evaluate(() => {
+      const w = document.querySelector(".results .tbl-wrap");
+      return { sh: w.scrollHeight, ch: w.clientHeight, vh: window.innerHeight };
+    });
+    box.sh > box.ch && box.ch <= box.vh ? pass(`finder: table scrolls in a ${box.ch}px box`) : fail(`finder: table box ${JSON.stringify(box)}`);
+
     // filter: from LGW via the combobox
     await page.getByLabel("From", { exact: true }).fill("LGW");
     await page.keyboard.press("Enter");
@@ -199,6 +215,14 @@ async function run() {
     // destinations tab
     await page.getByRole("tab", { name: /Destinations/ }).click();
     await page.waitForSelector(".place-list li");
+    const sq = page.locator(".place-list .place-al").nth(1);
+    await sq.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
+    await sq.hover({ force: true });
+    await page.waitForTimeout(150);
+    const chipN = await page.locator("#ofp-tip .tip-chips .tip-chip").count();
+    chipN > 0 ? pass(`finder: airline squares tooltip shows ${chipN} airline badge(s)`) : fail("finder: no airline badges in squares tooltip");
+    await page.mouse.move(0, 0);
     const dn = await page.locator(".place-list li").count();
     dn > 3 ? pass(`finder: ${dn} destinations from EGKK`) : fail(`finder: only ${dn} destinations`);
     await shot(page, "destinations-day");

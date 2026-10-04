@@ -17,6 +17,16 @@ const parseRows = (v: string | null): TipRow[] => {
   }
 };
 
+const parseChips = (v: string | null): TipState["chips"] => {
+  if (!v) return [];
+  try {
+    const r = JSON.parse(v);
+    return Array.isArray(r) ? r : [];
+  } catch {
+    return [];
+  }
+};
+
 interface TipState {
   title: string | null;
   /** Optional filled chip above the text (data-tip-chip, coloured by data-tip-chip-color / -ink). */
@@ -25,6 +35,8 @@ interface TipState {
   rows: TipRow[];
   /** Optional small note at the end (data-tip-note). */
   note: string | null;
+  /** Optional row of filled chips after the text (data-tip-chips, JSON [{label, color, ink}]). */
+  chips: { label: string; color: string; ink: string }[];
   text: string;
   x: number;
   y: number;
@@ -53,6 +65,7 @@ export function TooltipLayer() {
         title: el.getAttribute("data-tip-title"),
         rows: parseRows(el.getAttribute("data-tip-rows")),
         note: el.getAttribute("data-tip-note"),
+        chips: parseChips(el.getAttribute("data-tip-chips")),
         chip: chip ? { label: chip, color: el.getAttribute("data-tip-chip-color") ?? "var(--blue)", ink: el.getAttribute("data-tip-chip-ink") ?? "var(--sheet)" } : null,
         text,
         x: r.left + r.width / 2,
@@ -122,6 +135,15 @@ export function TooltipLayer() {
           <span>{r.text}</span>
         </span>
       ))}
+      {!!tip?.chips.length && (
+        <span className="tip-chips">
+          {tip.chips.map((c, i) => (
+            <span className="tip-chip" key={i} style={{ background: c.color, color: c.ink }}>
+              {c.label}
+            </span>
+          ))}
+        </span>
+      )}
       {tip?.note && <span className="tip-note">{tip.note}</span>}
     </div>
   );
