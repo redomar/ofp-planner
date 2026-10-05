@@ -431,43 +431,48 @@ function Coded({ ends }: { ends: End[] }) {
   }));
   const text = lines.map((l) => [`${l.e.role.toUpperCase()} ${l.e.p.icao} ${l.e.p.name.toUpperCase()}`, l.fcst, l.metar].filter(Boolean).join("\n")).join("\n\n");
   return (
-    <div className="wb-paper">
-      {lines.map((l) => (
-        <div className="pp-blk" key={l.e.role}>
-          <p className="pp-h">
+    <figure className="wb-print" aria-label="Forecast and METAR, printed">
+      <span className="wb-feed left" aria-hidden="true" />
+      <div className="wb-paper">
+        {lines.flatMap((l, i) => [
+          ...(i ? [<span className="pp-line" key={`gap${i}`} />] : []),
+          <span className="pp-line pp-h" key={`h${i}`}>
             {l.e.role.toUpperCase()} {l.e.p.icao} {l.e.p.name.toUpperCase()}
-          </p>
-          <p className="pp-l mono">
+          </span>,
+          <span className="pp-line" key={`f${i}`}>
             <Tip tip="The model forecast for the planned time, coded like a METAR. It's an estimate (cloud base and weather are derived), not an official TAF." title="FCST" plain>
               <span className="pp-k">FCST</span>
             </Tip>
             {l.fcst ? colour(l.fcst.replace(/^FCST /, "")) : <V v={null} w={36} />}
-          </p>
-          <p className="pp-l mono">
+          </span>,
+          <span className="pp-line" key={`m${i}`}>
             <span className="pp-k">METAR</span>
-            {l.metar ? colour(l.metar.replace(/^METAR /, "")) : l.e.s.metar.state === "loading" ? <V v={null} w={36} /> : <span className="pp-none">no current METAR</span>}
-          </p>
-        </div>
-      ))}
-      <p className="pp-foot mono">
-        FCST = model forecast at the planned time, coded like a METAR (est.) · METAR = latest observation ·{" "}
-        <button
-          type="button"
-          className="pp-copy"
-          onClick={() =>
-            navigator.clipboard?.writeText(text).then(
-              () => {
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1400);
-              },
-              () => undefined,
-            )
-          }
-        >
-          {copied ? "COPIED" : "COPY TEXT"}
-        </button>
-      </p>
-    </div>
+            {l.metar ? colour(l.metar.replace(/^METAR /, "")) : l.e.s.metar.state === "loading" ? <V v={null} w={36} /> : <span className="pp-none">NO CURRENT METAR</span>}
+          </span>,
+        ])}
+        <span className="pp-line" />
+        <span className="pp-line pp-foot">FCST  = MODEL FORECAST AT THE PLANNED TIME (EST.)</span>
+        <span className="pp-line pp-foot">
+          METAR = LATEST OBSERVATION ·{" "}
+          <button
+            type="button"
+            className="pp-copy"
+            onClick={() =>
+              navigator.clipboard?.writeText(text).then(
+                () => {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1400);
+                },
+                () => undefined,
+              )
+            }
+          >
+            {copied ? "COPIED" : "COPY TEXT"}
+          </button>
+        </span>
+      </div>
+      <span className="wb-feed right" aria-hidden="true" />
+    </figure>
   );
 }
 

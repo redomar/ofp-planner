@@ -105,6 +105,23 @@ export function removeFavourite(id: string) {
   writeJSON(KEYS.favourites, readFavourites().filter((x) => x.id !== id));
 }
 
+/**
+ * Saves a journey's flights as a new favourites group named `name` (made unique with a
+ * number), in leg order. Flights already starred move into the group. Returns the group name.
+ */
+export function saveJourney(name: string, flights: FlightRow[]): string {
+  const base = cleanName(name) || "Journey";
+  const taken = new Set(readGroups().map((g) => g.toLowerCase()));
+  let n = base;
+  for (let i = 2; taken.has(n.toLowerCase()); i++) n = `${base.slice(0, 36)} ${i}`;
+  writeJSON(KEYS.favGroups, [...readGroups(), n]);
+  const ids = new Set(flights.map((f) => f.id));
+  const rest = readFavourites().filter((x) => !ids.has(x.id));
+  writeJSON(KEYS.favourites, [...flights.map((f) => ({ ...toSaved(f), group: n })), ...rest]);
+  writePrefs({ lastGroup: n });
+  return n;
+}
+
 /* ---------- history (most recent first, capped) ---------- */
 
 const HISTORY_MAX = 40;

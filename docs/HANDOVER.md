@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: v1.0.0 released 2026-10-05 · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
+  status: v1.2.1 released 2026-10-05 (Journeys; includes 1.1.0 weather paper) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 
@@ -40,6 +40,7 @@ commands:
 
 pages:        # all client components; one shared TopBar (Finder · Brief · Settings tabs), fixed-height StatusLine
   /:          src/components/FinderApp.tsx  — filters, roll bar, Flights/Destinations tabs, floating flight panel
+  /journeys:  src/components/JourneysApp.tsx — multi-leg planner (form in the URL, results list + sticky detail with map and legs)
   /brief:     src/components/BriefApp.tsx   — FlightCard, date, next leg (sample + full list), weather
   /settings:  src/components/SettingsApp.tsx — airframes, Display, favourites, recent, snapshot info, theme/storage
 components:
@@ -66,6 +67,18 @@ lib:
   data/load.ts:    fetch + in-memory cache; useDataset(airlines|"all"); findFlight(id); loadRoutes()
   data/query.ts:   Query ↔ URL, filterRows, sortRows, groupByOtherEnd, roll, pickNextLeg, oooiTime, parseClock
   data/flight.ts:  gcNm, blockTime (scheduled → observed → estimated), hhmm/dur/localHHMM, flightNo/fltnum/plannedOut, families
+  journey/engine.ts: pure multi-leg search (no app imports; runs in Node with --experimental-strip-types for testing).
+                   network mode over routes.json edges; timed mode over weekly flight instances (day × OUT, week minutes,
+                   wrap-around), reversed graph/clock when only `to` is set. DFS with hop lower bounds (BFS to each waypoint),
+                   distance/time bounds, branch-and-bound on the K-th best group, node budget (250k / 400k), roam branching cap 7.
+                   Results grouped by airport sequence; timed groups keep ≤16 flight-chain variants with their weekdays.
+  journey/plan.ts: the form ⇄ URL (?from&via&to&legs=f|4|u5&t=1&al&one&type&sort&dir=desc&detour=1.5|3|any&seed&day&after=HHMM&duty&report&turn=35-180&j=<group>), examples.
+                   List sorts: next (client-side by soonest date; engine ranks quickest) · distance · fewest (dir=desc → engine "most") · quickest · waiting · random.
+  journey/dates.ts: weekly timings → next real departures from now (departures, soonest, legDate, dateLabel).
+  JourneyTimings.tsx: the timings table (sortable, legs timeline on one UTC clock); replaced the variant dropdown in 1.2.1.
+  journey/worker.ts + useSearch.ts: Web Worker (new Worker(new URL("./worker.ts", import.meta.url))); data posted once per key,
+                   newest request wins, busy derived in render. Turbopack also copies worker.ts into out/_next/static/media (harmless).
+  places.ts:       countryName + placeOptions (shared by Finder and Journeys)
   simbrief.ts:     airframes (localStorage) + dispatch URL builder
   saved.ts / display.ts / storage.ts: favourites, history, ready flight, prefs, display choices; all localStorage "ofp-planner:*"
   aircraft-data.json + aircraft.ts: ICAO type → maker/model, maker → tone
@@ -162,6 +175,11 @@ server_latch_container_alternative: |
     (a new object on every storage change caused an update loop with pushHistory).
   - Favourites: SavedFlight.group (null = ungrouped), groups list in "ofp-planner:fav-groups", prefs.lastGroup =
     where new stars go. SavedFlights.tsx renders favourites by group + recent, on the brief start page and Settings.
+  - Journeys (1.2): timed legs use plannedOut (or IN − block) and blockTime; flights with neither are left out of timed search.
+    Duty = report (default 45 min) → last IN. Turnaround window 35 min–3 h by default. "Save as a favourites group" (saveJourney in saved.ts)
+    writes a new uniquely named group with the legs in order. The form renders only after the URL is read (no CLS on shared links).
+    Detour cap (1.2.1): total ≤ max(f × shortest path through the stops, + 250 nm), f = 2 by default; off for round trips and open ends.
+    Brief accepts ?d=YYYY-MM-DD (Journeys passes each leg's date).
   - Clear filters resets everything including the airline (→ all airlines).
   - The flights table is unsorted by default (data order: the pipeline writes flights by origin, destination,
     then time; airlines in manifest order). Sorting shows Reset sort, which returns to that order (sort = null).
@@ -204,6 +222,8 @@ server_latch_container_alternative: |
   - verify.mjs excuses only weather-service (open-meteo / vatsim) HTTP failures, tracked per response.
   - Tooltips hide on any scroll (TooltipLayer); tests must hover after scrolling settles.
   - Status text that changes length mid-load shifts what follows → keep loading text constant; let the bar show progress.
+  - tsconfig excludes out/: Turbopack emits the worker source as a .ts asset there, which `next build`'s type check would pick up.
+  - No prettier config: new files were formatted with --print-width 180 to match the existing code.
   - A python heredoc ending in `open(p,'w').write(s)` with s undefined truncates the file — restore from git.
 
 ## 10. Open items / ideas

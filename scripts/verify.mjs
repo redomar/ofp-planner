@@ -487,14 +487,92 @@ async function run() {
         }
   });
 
+  /* ---------- journeys: multi-leg search ---------- */
+  await section("journeys", async () => {
+    const cards = (page) => page.locator(".jr-card .jr-chain").evaluateAll((els) => els.map((e) => [...e.querySelectorAll(".jr-stop")].map((s) => s.textContent.trim())));
+    const go = async (page, qs) => {
+      await page.goto(`${page.url().split("/journeys")[0]}/journeys?${qs}`, { waitUntil: "networkidle" });
+      await page.waitForFunction(() => document.querySelector(".jr-card, .jr-results .empty-note") && !document.querySelector(".jr-split.is-stale"), null, { timeout: 60000 });
+      await page.waitForTimeout(200);
+    };
+    const { ctx, page, errors } = await open("/journeys");
+    await page.locator(".jr-example", { hasText: "EGBB → LOWI, shortest" }).click();
+    await page.waitForSelector(".jr-card", { timeout: 60000 });
+    /from=EGBB&to=LOWI/.test(page.url()) ? pass("journeys: an example fills the form and the URL") : fail(`journeys: example URL ${page.url()}`);
+    let c = await cards(page);
+    c.length && c.every((s) => s[0] === "EGBB" && s.at(-1) === "LOWI" && s.length === 3) ? pass(`journeys: no direct EGBB–LOWI, fewest is 2 legs (${c.length} routes)`) : fail(`journeys: fewest ${JSON.stringify(c.slice(0, 3))}`);
+    await go(page, "from=EGBB&to=LOWI&legs=5");
+    c = await cards(page);
+    c.length >= 30 && c.every((s) => s.length === 6 && new Set(s).size === 6) ? pass("journeys: exactly 5 legs, no airport twice") : fail(`journeys: 5 legs ${JSON.stringify(c.slice(0, 2))}`);
+    await go(page, "from=EGBB&via=EHAM&to=LEMD&t=1&sort=quickest");
+    c = await cards(page);
+    c.length && c.every((s) => s.join() === "EGBB,EHAM,LEMD") ? pass("journeys: timed via EHAM keeps the stop") : fail(`journeys: via ${JSON.stringify(c)}`);
+    const turns = await page.locator(".jr-turn b:last-child").allTextContents();
+    turns.length && turns.every((t) => { const m = t.match(/(?:(\d+)h )?(\d+)m/); const min = m ? +(m[1] ?? 0) * 60 + +m[2] : -1; return min >= 35 && min <= 180; }) ? pass(`journeys: turnarounds within 35 min–3 h (${turns.join(", ")})`) : fail(`journeys: turns ${turns}`);
+    await go(page, "to=EPPO&legs=u6&t=1&sort=most&duty=360");
+    c = await cards(page);
+    const duties = await page.locator(".jr-card .jr-meta").allTextContents();
+    const dutyMin = duties.map((t) => { const m = t.match(/duty (?:(\d+)h )?(\d+)m/); return m ? +(m[1] ?? 0) * 60 + +m[2] : 9999; });
+    c.length && c.every((s) => s.at(-1) === "EPPO") && dutyMin.every((d) => d <= 360) ? pass(`journeys: 6 h duty ending in EPPO (${c.length} shown, max ${Math.max(...dutyMin)} min)`) : fail(`journeys: duty ${JSON.stringify(dutyMin.slice(0, 5))}`);
+    await go(page, "from=EGBB&to=EGBB&legs=2&t=1&one=1");
+    c = await cards(page);
+    const als = await page.locator(".jr-card .jr-als").allTextContents();
+    c.length && c.every((s) => s[0] === "EGBB" && s[2] === "EGBB") && als.every((a) => !a.includes("·")) ? pass("journeys: round trip on one airline") : fail(`journeys: round trip ${JSON.stringify(c.slice(0, 3))} ${als.slice(0, 3)}`);
+    await go(page, "from=EGBB&to=LOWI");
+    await page.getByRole("button", { name: "Find timed connections on this route" }).click();
+    await page.waitForURL(/t=1/);
+    /via=EHAM/.test(page.url()) && /legs=2/.test(page.url()) ? pass("journeys: a network route opens as timed connections on the same airports") : fail(`journeys: timed from route ${page.url()}`);
+    // list sorting: Distance up, then down (reverses), Legs down = most legs
+    await go(page, "from=EGBB&to=LOWI&legs=u4");
+    const nms = async () => (await page.locator(".jr-card .jr-meta").allTextContents()).map((t) => +t.match(/([\d,]+) nm/)[1].replace(",", ""));
+    let a = await nms();
+    await page.locator(".jr-sort", { hasText: "Distance" }).click();
+    await page.waitForURL(/dir=desc/);
+    await page.waitForTimeout(300);
+    let b = await nms();
+    a.every((x, i) => !i || a[i - 1] <= x) && b.every((x, i) => !i || b[i - 1] >= x) && b[0] > a[0] ? pass(`journeys: list sorts by distance, up and down (${a[0]} → ${b[0]} nm first)`) : fail(`journeys: distance sort ${a.slice(0, 4)} / ${b.slice(0, 4)}`);
+    await page.locator(".jr-sort", { hasText: "Legs" }).click();
+    await page.locator(".jr-sort", { hasText: "Legs" }).click();
+    await page.waitForURL(/sort=fewest&dir=desc/);
+    await page.waitForFunction(() => !document.querySelector(".jr-split.is-stale") && !/updating/.test(document.querySelector(".jr-count")?.textContent ?? ""), null, { timeout: 60000 });
+    c = await cards(page);
+    c[0]?.length === 5 ? pass("journeys: Legs ▼ puts the most legs first") : fail(`journeys: most legs first ${JSON.stringify(c[0])}`);
+    // timings: soonest date first; picking another date changes the legs and the brief link's date
+    await go(page, "from=EGBB&via=EHAM&to=LEMD&t=1&sort=next");
+    const at = await page.locator(".jr-tim-tbl tbody tr").count();
+    const dates = await page.locator(".jr-tim-date").allTextContents();
+    const out1 = await page.locator(".jr-times").first().textContent();
+    await page.locator(".jr-tim-tbl tbody tr").nth(5).click();
+    const out2 = await page.locator(".jr-times").first().textContent();
+    const href = await page.locator(".jr-leg-acts a", { hasText: "Brief" }).first().getAttribute("href");
+    at >= 8 && /today|tomorrow/.test(dates[0]) && out1 !== out2 && /&d=\d{4}-\d{2}-\d{2}/.test(href) ? pass(`journeys: timings table, soonest first (${dates[0]}); a picked date sets the legs and the brief date`) : fail(`journeys: timings ${at} ${dates[0]} ${out1}/${out2} ${href}`);
+    await page.locator(".jr-tim-tbl thead button", { hasText: "Duty" }).click();
+    const duties2 = (await page.locator(".jr-tim-tbl tbody td.num:nth-of-type(4)").allTextContents()).map((t) => { const m = t.match(/(?:(\d+)h )?(\d+)m/); return m ? +(m[1] ?? 0) * 60 + +m[2] : -1; });
+    duties2.length && duties2.every((x, i) => !i || duties2[i - 1] <= x) ? pass("journeys: timings sort by duty") : fail(`journeys: timings duty sort ${duties2}`);
+    // clear
+    await page.getByRole("button", { name: "Clear", exact: true }).click();
+    await page.waitForSelector(".jr-intro");
+    !new URL(page.url()).search ? pass("journeys: Clear empties the form and the URL") : fail(`journeys: clear left ${page.url()}`);
+    await go(page, "from=EGBB&via=EHAM&to=LEMD&t=1&sort=quickest");
+    await page.getByRole("button", { name: "Save as a favourites group" }).click();
+    await page.waitForSelector(".jr-acts [role=status]");
+    await page.goto(page.url().replace(/\/journeys.*$/, "/brief"), { waitUntil: "networkidle" });
+    await page.waitForSelector(".grp .fl-row");
+    const legsSaved = await page.locator(".grp", { hasText: "EGBB → LEMD via 1 stop" }).locator(".fl-row").count();
+    legsSaved === 2 ? pass("journeys: saved as a favourites group with both legs, on the brief") : fail(`journeys: saved group has ${legsSaved} rows`);
+    errors.length ? fail(`journeys: console errors ${JSON.stringify(errors.slice(0, 2))}`) : pass("journeys: 0 console errors");
+    await ctx.close();
+  });
+
   /* ---------- every page × width × theme ---------- */
-  const pages = ["/?al=EZY&dep=EGKK", "/?al=EZY&dep=EGKK&view=places", "/?al=&dep=LEMD&arr=C:ES&view=map", "/brief", "/settings"];
+  const pages = ["/?al=EZY&dep=EGKK", "/?al=EZY&dep=EGKK&view=places", "/?al=&dep=LEMD&arr=C:ES&view=map", "/brief", "/settings", "/journeys", "/journeys?from=EGBB&to=LOWI&legs=5", "/journeys?from=EGBB&via=EHAM&to=LEMD&t=1&sort=quickest"];
   for (const theme of ["light", "dark"])
     for (const width of [1280, 390])
       for (const path of pages) {
         const { ctx, page, errors } = await open(path, { width, height: width < 500 ? 844 : 900, theme });
         if (path.startsWith("/?")) await page.waitForSelector(path.includes("places") ? ".place-list li" : path.includes("map") ? ".routes-tbl tbody tr" : "table.flights tbody tr", { timeout: 20000 });
         if (path === "/brief") await page.waitForTimeout(300);
+        if (path.startsWith("/journeys?")) await page.waitForSelector(".jr-detail .jr-leg", { timeout: 60000 });
         await checkPage(`${path} ${width}px ${theme}`, page, errors);
         await ctx.close();
       }
@@ -514,7 +592,7 @@ async function run() {
       halves: document.querySelectorAll("#weather .wb-half").length,
       scenes: document.querySelectorAll("#weather .wb-scene").length,
       strip: document.querySelectorAll("#weather .wb-tl-bar i").length,
-      fcst: [...document.querySelectorAll("#weather .pp-l")].filter((p) => p.textContent.startsWith("FCST")).length,
+      fcst: [...document.querySelectorAll("#weather .pp-line:not(.pp-foot)")].filter((p) => p.textContent.startsWith("FCST")).length,
     }));
     await page.locator("#weather .wtoggle summary").click();
     const cmpRows = await page.locator("#weather .wb-cmp tbody tr").count();
