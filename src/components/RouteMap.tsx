@@ -139,7 +139,7 @@ export function RouteMap({
   const base = useMemo(() => (view ? baseLayers(view.proj, view.path, W, H, outlines, terrain) : null), [view, outlines, terrain, W, H]);
 
   return (
-    <figure ref={ref} className={`map ${className ?? ""}${zoom.live.k > 1 ? " zoomed" : ""}`} style={{ height: H }}>
+    <figure ref={ref} className={`map ${className ?? ""}${zoom.live.k !== 1 ? " zoomed" : ""}`} style={{ height: H }}>
       {view && base ? (
         <Drawn
           view={view}
@@ -162,14 +162,19 @@ export function RouteMap({
           <button type="button" className="map-zbtn" aria-label="Zoom in" title="Zoom in" onClick={() => zoom.step(1.6)} disabled={zoom.live.k >= ZMAX}>
             +
           </button>
-          <button type="button" className="map-zbtn" aria-label="Zoom out" title="Zoom out" onClick={() => zoom.step(1 / 1.6)} disabled={zoom.live.k <= 1}>
+          <button type="button" className="map-zbtn" aria-label="Zoom out" title="Zoom out" onClick={() => zoom.step(1 / 1.6)} disabled={zoom.live.k <= ZMIN}>
             −
           </button>
-          {zoom.live.k > 1 && (
-            <button type="button" className="map-zbtn map-zreset" aria-label="Reset the map view" title="Back to the whole route view" onClick={zoom.reset}>
-              ⤢
-            </button>
-          )}
+          <button
+            type="button"
+            className="map-zbtn map-zreset"
+            aria-label="Default view"
+            title="Default view: fit all the routes"
+            onClick={zoom.reset}
+            disabled={zoom.atDefault}
+          >
+            ⤢
+          </button>
         </div>
       )}
     </figure>
@@ -440,6 +445,8 @@ function planeAt(proj: GeoProjection, r: MapRoute) {
 /* ---------- zoom and pan ---------- */
 
 const ZMAX = 12;
+/** Furthest out: the whole region the map data covers around the fitted view. */
+const ZMIN = 0.35;
 interface Z {
   k: number;
   x: number;
@@ -448,11 +455,10 @@ interface Z {
 const Z0: Z = { k: 1, x: 0, y: 0 };
 
 /**
- * Zoom (1× = the fitted view, up to 12×) and pan for a map element. Screen = k · fitted + (x, y).
+ * Zoom (1× = the fitted view, out to 0.35×, in to 12×) and pan for a map element. Screen = k · fitted + (x, y).
  * Gestures move a cheap SVG transform at once ("live"); the map is redrawn at the new zoom once
  * the gesture rests ("committed"), so lines and lettering stay crisp.
- * Two-finger scroll and trackpad pinch zoom (at the fitted view a downward scroll still scrolls
- * the page); touch: two-finger pinch, one-finger drag once zoomed in; double-click zooms in.
+ * Two-finger scroll and trackpad pinch zoom (fully zoomed out, a downward scroll scrolls the page); touch: two-finger pinch, one-finger drag once zoomed in; double-click zooms in.
  */
 function useZoom(ref: RefObject<HTMLElement | null>, W: number, H: number, fit: object | null) {
   const [live, setLive] = useState<Z>(Z0);
@@ -473,8 +479,10 @@ function useZoom(ref: RefObject<HTMLElement | null>, W: number, H: number, fit: 
 
   const clamp = useCallback(
     (z: Z): Z => {
-      const k = Math.min(ZMAX, Math.max(1, z.k));
-      return { k, x: Math.min(0, Math.max(W * (1 - k), z.x)), y: Math.min(0, Math.max(H * (1 - k), z.y)) };
+      const k = Math.min(ZMAX, Math.max(ZMIN, z.k));
+      // zoomed in: the view can't leave the fitted area; zoomed out: the fitted area stays in view
+      const bx = W * (1 - k), by = H * (1 - k);
+      return { k, x: Math.min(Math.max(0, bx), Math.max(Math.min(0, bx), z.x)), y: Math.min(Math.max(0, by), Math.max(Math.min(0, by), z.y)) };
     },
     [W, H],
   );
@@ -492,7 +500,7 @@ function useZoom(ref: RefObject<HTMLElement | null>, W: number, H: number, fit: 
   const zoomAt = useCallback(
     (px: number, py: number, f: number, now = false) => {
       const z = liveRef.current;
-      const k = Math.min(ZMAX, Math.max(1, z.k * f));
+      const k = Math.min(ZMAX, Math.max(ZMIN, z.k * f));
       const r = k / z.k;
       apply({ k, x: px - r * (px - z.x), y: py - r * (py - z.y) }, now);
     },
@@ -511,7 +519,7 @@ function useZoom(ref: RefObject<HTMLElement | null>, W: number, H: number, fit: 
     const onWheel = (e: WheelEvent) => {
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
       const zoomingOut = e.deltaY > 0;
-      if (zoomingOut && liveRef.current.k <= 1) return;
+      if (zoomingOut && liveRef.current.k <= ZMIN) return;
       e.preventDefault();
       const [px, py] = local(e);
       const rate = e.ctrlKey ? 0.01 : e.deltaMode === 1 ? 0.05 : 0.004;
@@ -547,10 +555,10 @@ function useZoom(ref: RefObject<HTMLElement | null>, W: number, H: number, fit: 
       moved += Math.abs(dx) + Math.abs(dy);
       if (pts.size > 1 && last.d > 0) {
         // pinch: scale about the fingers' midpoint and follow it
-        const k = Math.min(ZMAX, Math.max(1, (z.k * s.d) / last.d));
+        const k = Math.min(ZMAX, Math.max(ZMIN, (z.k * s.d) / last.d));
         const r = k / z.k;
         apply({ k, x: s.x - r * (last.x - z.x), y: s.y - r * (last.y - z.y) });
-      } else if (z.k > 1 && moved > 3) {
+      } else if (z.k !== 1 && moved > 3) {
         if (!el.hasPointerCapture(e.pointerId)) el.setPointerCapture(e.pointerId);
         apply({ k: z.k, x: z.x + dx, y: z.y + dy });
       }
@@ -597,6 +605,7 @@ function useZoom(ref: RefObject<HTMLElement | null>, W: number, H: number, fit: 
   return {
     live,
     committed,
+    atDefault: live.k === 1 && live.x === 0 && live.y === 0,
     transform: same ? undefined : `translate(${(live.x - r * committed.x).toFixed(2)} ${(live.y - r * committed.y).toFixed(2)}) scale(${r.toFixed(4)})`,
     step: (f: number) => zoomAt(W / 2, H / 2, f, true),
     reset: () => apply(Z0, true),
