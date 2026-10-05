@@ -61,7 +61,11 @@ export function BriefApp() {
           const ready = readReady();
           const keep = ready?.flight.id === f.id ? ready : null;
           if (!keep) setReady(f, null, null);
-          const d = keep?.date && keep.date >= ymd(new Date()) ? keep.date : ymd(nextDeparture(f));
+          // a date in the link (from Journeys: the leg's date) wins over the saved one
+          const asked = new URLSearchParams(window.location.search).get("d");
+          const linked = asked && /^\d{4}-\d{2}-\d{2}$/.test(asked) && asked >= ymd(new Date()) ? asked : null;
+          const d = linked ?? (keep?.date && keep.date >= ymd(new Date()) ? keep.date : ymd(nextDeparture(f)));
+          if (linked) updateReady({ date: linked });
           setDate(d);
           window.history.replaceState(null, "", `/brief?f=${encodeURIComponent(f.id)}`);
         }

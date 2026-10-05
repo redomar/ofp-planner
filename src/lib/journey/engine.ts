@@ -48,6 +48,11 @@ export interface Spec {
   reportMin: number;
   minTurn: number;
   maxTurn: number;
+  /**
+   * With a destination: the journey may fly at most this many times the shortest possible distance
+   * through its stops (and never less than that plus 250 nm). null = any detour.
+   */
+  maxDetour: number | null;
 }
 
 /** routes.json flattened: flights per brand on o → d. */
@@ -124,7 +129,7 @@ export interface Result {
 export const WEEK = 10080;
 export const MAX_LEGS = 8;
 const KEEP = 60; // groups kept for the bound
-const MAX_VARIANTS = 16;
+const MAX_VARIANTS = 24;
 const HOLD = 1500; // groups held while searching
 const ROAM_BRANCH = 7; // children tried per stop when no waypoint steers the walk
 const SPEED_NM_PER_MIN = 8.5; // ~510 kt: faster than any short-haul block average, so a safe bound
@@ -402,6 +407,7 @@ export function searchNetwork(spec: Spec, edges: RouteEdge[], pts: Map<string, P
   const wps = hasTo ? [...vias, placeSet(spec.to!, nodes, pts)] : vias;
   if (![...start].some((s) => nodes.has(s))) return empty(`No flights ${reverse ? "into" : "from"} ${origin} in the snapshot.`);
   const plan = makePlan(g, pts, start, wps, hasTo);
+  const cap = detourCap(spec, plan);
   const col = new Collector(spec.sort);
   const rand = rng(spec.seed);
   const jitter = spec.seed ? 0.6 : 0.05;
@@ -431,7 +437,8 @@ export function searchNetwork(spec: Spec, edges: RouteEdge[], pts: Map<string, P
         if (seen.has(u) && !(done && plan.roundTrip && start.has(u))) continue;
         if (depth + 1 + lbLegs(plan, u, nIdx) > maxDepth) continue;
         if (spec.oneAirline && !(lo & a.lo) && !(hi & a.hi)) continue;
-        if (bound && nm + a.nm + plan.distTo(nIdx, u) + plan.distRest[Math.min(nIdx, wps.length)] >= col.threshold) continue;
+        const lbNm = nm + a.nm + plan.distTo(nIdx, u) + plan.distRest[Math.min(nIdx, wps.length)];
+        if (lbNm > cap || (bound && lbNm >= col.threshold)) continue;
         cand.push([a, nIdx, plan.distTo(nIdx, u) * (1 + jitter * rand()) + a.nm * 0.15]);
       }
       if (!plan.wps.length) for (const c of cand) c[2] = rand();
@@ -542,6 +549,7 @@ export function searchTimed(spec: Spec, flights: TFlight[], pts: Map<string, Pt>
   const hasTo = !reverse && !!spec.to;
   const wps = hasTo ? [...vias, placeSet(spec.to!, nodes, pts)] : vias;
   const plan = makePlan(g, pts, start, wps, hasTo);
+  const cap = detourCap(spec, plan);
   const col = new Collector(spec.sort);
   const rand = rng(spec.seed);
   const jitter = spec.seed ? 0.6 : 0.05;
@@ -587,9 +595,9 @@ export function searchTimed(spec: Spec, flights: TFlight[], pts: Map<string, Pt>
       const elapsedLb = inst.t1 - (firstLeg ? inst.t0 : tStart) + lbTime(u, nIdx);
       if (duty != null && elapsedLb + spec.reportMin > duty) return null;
       if (spec.sort === "quickest" && elapsedLb * 1e3 >= col.threshold) return null;
-      if (spec.sort === "distance") {
-        const leg = gcNm(pts.get(stops[stops.length - 1])!, pts.get(u)!);
-        if (nm + leg + plan.distTo(nIdx, u) + plan.distRest[Math.min(nIdx, wps.length)] >= col.threshold) return null;
+      if (spec.sort === "distance" || cap < Infinity) {
+        const lbNm = nm + gcNm(pts.get(stops[stops.length - 1])!, pts.get(u)!) + plan.distTo(nIdx, u) + plan.distRest[Math.min(nIdx, wps.length)];
+        if (lbNm > cap || (spec.sort === "distance" && lbNm >= col.threshold)) return null;
       }
       return nIdx;
     };
@@ -733,6 +741,15 @@ function lowerBound(list: Inst[], t: number): number {
 }
 
 /* ---------- helpers ---------- */
+
+/** Longest total distance allowed, from the shortest possible path through the stops to the end. */
+function detourCap(spec: Spec, plan: Plan): number {
+  if (spec.maxDetour == null || !plan.hasTo || plan.roundTrip) return Infinity;
+  let shortest = Infinity;
+  for (const s of plan.start) shortest = Math.min(shortest, plan.distTo(startIdx(plan, s), s) + plan.distRest[startIdx(plan, s)]);
+  if (!Number.isFinite(shortest) || shortest <= 0) return Infinity;
+  return Math.max(shortest * spec.maxDetour, shortest + 250);
+}
 
 /** Runs the walk for the legs rule; "fewest" deepens from the lower bound until something is found. */
 function runLegs(spec: Spec, lb: number, run: (maxDepth: number, recordAll: boolean) => void, found: () => number): number | null {

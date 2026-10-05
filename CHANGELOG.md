@@ -1,6 +1,17 @@
 # Changelog
 
-## 1.2.0 — unreleased
+## 1.2.1 — 2026-10-05
+
+First release of Journeys (1.2.0 was not released on its own; its notes follow).
+
+- Journeys list sorts from its own headings: Date (soonest departure from today), Distance, Legs, Duty, Ground and Random; click the active one to reverse. The Sort dropdown is gone from the form.
+- Timings: the dropdown is replaced by a table of every departure in the coming week, soonest first, each with its date (today / tomorrow), OUT–IN, a timeline of the legs on one UTC clock, duty, ground and block time; sortable by any of them. Picking a row sets the legs, and each leg's Brief link carries its date (the brief now accepts ?d=YYYY-MM-DD).
+- Detour limit (default ≤ 2× the shortest path through the stops; 1.5×, 3× or any), so "up to 3 legs" no longer suggests Birmingham to Innsbruck via Dubai.
+- Clear button on the form.
+- Cards show the next date for timed journeys; up to 24 timings per journey.
+- README: Journeys feature and screenshot; the brief weather screenshot shows the 1.1 layout.
+
+## 1.2.0 — not released separately
 
 - Journeys: a new page for multi-leg routes. From an airport (or country), through stops in order, to an airport (or country); leave the end open to roam, or the start open to work backwards from where you want to finish. A round trip may end where it started; no airport is visited twice otherwise.
 - Legs: the fewest that work, exactly N, or up to N (1–8). Optional airline filter and "one airline throughout".

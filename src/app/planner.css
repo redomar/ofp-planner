@@ -3519,6 +3519,9 @@ select.ctl-input {
   font-weight: 600;
   cursor: pointer;
 }
+.jr-clear {
+  margin-left: auto;
+}
 .jr-example:hover {
   border-style: solid;
   background: var(--blue-bg);
@@ -3569,7 +3572,7 @@ select.ctl-input {
 }
 .jr-split {
   display: grid;
-  grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
+  grid-template-columns: minmax(300px, 440px) minmax(0, 1fr);
   grid-template-areas: "list detail";
   align-items: start;
   transition: opacity 0.15s;
@@ -3577,18 +3580,59 @@ select.ctl-input {
 .jr-split.is-stale {
   opacity: 0.6;
 }
-.jr-list {
+.jr-listcol {
   grid-area: list;
+  min-width: 0;
+  border-right: 1px solid var(--rule);
+}
+.jr-sorts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--sunk);
+}
+.jr-sorts .ctl-label {
+  margin: 0 6px 0 2px;
+}
+.jr-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: none;
+  font-family: var(--font-cond);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.jr-sort:hover {
+  border-color: var(--rule-strong);
+  color: var(--ink);
+}
+.jr-sort[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--field);
+  color: var(--ink);
+}
+.jr-list {
   list-style: none;
   margin: 0;
   padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border-right: 1px solid var(--rule);
   min-width: 0;
   /* scrolls in its own box beside the sticky detail, like the finder's table */
-  max-height: calc(100dvh - 120px);
+  max-height: calc(100dvh - 170px);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -3703,6 +3747,107 @@ select.ctl-input {
   display: block;
   max-width: 560px;
 }
+/* timings: every date in the coming week, sortable, with a timeline of the legs */
+.jr-tim-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 0 0 6px;
+}
+.jr-tim-head .ctl-label {
+  margin: 0;
+}
+.jr-tim-wrap {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  overflow-x: auto;
+}
+.jr-tim-tbl {
+  font-size: 13px;
+}
+.jr-tim-tbl thead th {
+  padding: 0;
+  position: static;
+}
+.jr-tim-tbl .th-sort {
+  padding: 6px 8px;
+}
+.jr-tim-tbl .num .th-sort {
+  justify-content: flex-end;
+}
+.jr-tim-tbl .num .th-arrow {
+  order: -1;
+}
+.jr-tim-tbl td {
+  padding: 3px 8px;
+}
+.jr-tim-tbl tbody tr {
+  cursor: pointer;
+}
+.jr-tim-date {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-weight: 600;
+}
+.jr-tim-date small {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--magenta);
+}
+.jr-tim-sub {
+  display: none;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+.jr-tl-h,
+.jr-tl {
+  width: 40%;
+  min-width: 160px;
+}
+.jr-ticks {
+  position: relative;
+  display: block;
+  height: 28px;
+  margin: 0 8px;
+}
+.jr-ticks i {
+  position: absolute;
+  top: 8px;
+  transform: translateX(-50%);
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0;
+  color: var(--ink-2);
+}
+.jr-gantt {
+  position: relative;
+  display: block;
+  height: 14px;
+  margin: 0 8px;
+  border-bottom: 1px solid var(--rule);
+}
+.jr-gantt b {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  border-left: 1px dotted var(--rule-strong);
+}
+.jr-gantt i {
+  position: absolute;
+  top: 2px;
+  height: 10px;
+  min-width: 3px;
+  border-radius: 2px;
+  background: var(--c);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--ink) 55%, transparent);
+}
+.jr-tim-more {
+  margin-top: 6px;
+}
 .jr-legs-list {
   list-style: none;
   margin: 0;
@@ -3790,17 +3935,25 @@ select.ctl-input {
   .jr-route > .jr-swap {
     grid-area: swap;
   }
+  /* one column: the sort bar sits above the journey, the list below it */
   .jr-split {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
+      "sorts"
       "detail"
       "list";
   }
+  .jr-listcol {
+    display: contents;
+  }
+  .jr-sorts {
+    grid-area: sorts;
+  }
   .jr-list {
-    border-right: 0;
-    border-top: 1px solid var(--rule);
+    grid-area: list;
     max-height: none;
     overflow: visible;
+    border-top: 1px solid var(--rule);
   }
   .jr-detail {
     position: static;
@@ -3846,5 +3999,15 @@ select.ctl-input {
   }
   .jr-title {
     font-size: 17px;
+  }
+  .jr-wide {
+    display: none;
+  }
+  .jr-tim-sub {
+    display: block;
+  }
+  .jr-tl-h,
+  .jr-tl {
+    min-width: 110px;
   }
 }

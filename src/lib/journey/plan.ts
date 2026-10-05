@@ -5,6 +5,8 @@
 import type { LegsRule, SortKey, Spec } from "./engine";
 
 export type Timing = "network" | "timed";
+/** How the journey list is ordered: an engine sort, or (timed) the soonest date from today. */
+export type ListSort = SortKey | "next";
 
 export interface JourneyPlan {
   from: string | null;
@@ -17,7 +19,9 @@ export interface JourneyPlan {
   oneAirline: boolean;
   /** Aircraft families or ICAO types (timed only); empty = any. */
   types: string[];
-  sort: SortKey;
+  sort: ListSort;
+  /** Reverse the list (legs flips fewest ⇄ most instead). */
+  desc: boolean;
   seed: number;
   day: number | null;
   after: number | null;
@@ -25,6 +29,8 @@ export interface JourneyPlan {
   reportMin: number;
   minTurn: number;
   maxTurn: number;
+  /** Detour limit as a factor of the shortest path through the stops; null = any. */
+  detour: number | null;
 }
 
 export const EMPTY_PLAN: JourneyPlan = {
@@ -37,6 +43,7 @@ export const EMPTY_PLAN: JourneyPlan = {
   oneAirline: false,
   types: [],
   sort: "distance",
+  desc: false,
   seed: 0,
   day: null,
   after: null,
@@ -44,22 +51,35 @@ export const EMPTY_PLAN: JourneyPlan = {
   reportMin: 45,
   minTurn: 35,
   maxTurn: 180,
+  detour: 2,
 };
 
-export const SORTS: { value: SortKey; label: string; timed?: boolean }[] = [
-  { value: "distance", label: "Shortest distance" },
-  { value: "fewest", label: "Fewest legs" },
-  { value: "most", label: "Most legs" },
-  { value: "quickest", label: "Quickest, first OUT to last IN", timed: true },
-  { value: "waiting", label: "Least time on the ground", timed: true },
-  { value: "random", label: "Shuffled" },
+export const DETOURS = [1.5, 2, 3];
+
+/** The list's sort headings, in order. "legs" covers fewest (up) and most (down). */
+export const SORTS: { value: ListSort; label: string; tip: string; timed?: boolean }[] = [
+  { value: "next", label: "Date", tip: "Soonest departure from today (UTC)", timed: true },
+  { value: "distance", label: "Distance", tip: "Total great-circle distance" },
+  { value: "fewest", label: "Legs", tip: "Number of legs" },
+  { value: "quickest", label: "Duty", tip: "First OUT to last IN", timed: true },
+  { value: "waiting", label: "Ground", tip: "Time on the ground between legs", timed: true },
+  { value: "random", label: "Random", tip: "Random order; Shuffle deals again" },
 ];
 
 export const DUTY_HOURS = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
 
-/** Sorts that need times fall back to distance on the network. */
+/** The sort heading that's on: legs covers fewest and most; timed sorts fall back to distance on the network. */
+export function listSort(p: JourneyPlan): ListSort {
+  const s = p.sort === "most" ? "fewest" : p.sort;
+  return p.timing === "network" && SORTS.find((x) => x.value === s)?.timed ? "distance" : s;
+}
+
+/** What the engine ranks by: "next" searches quickest first and is re-ordered by date on the page. */
 export function effectiveSort(p: JourneyPlan): SortKey {
-  return p.timing === "network" && SORTS.find((s) => s.value === p.sort)?.timed ? "distance" : p.sort;
+  const s = listSort(p);
+  if (s === "next") return "quickest";
+  if (s === "fewest") return p.desc ? "most" : "fewest";
+  return s;
 }
 
 export function toSpec(p: JourneyPlan): Spec {
@@ -77,6 +97,7 @@ export function toSpec(p: JourneyPlan): Spec {
     reportMin: p.reportMin,
     minTurn: p.minTurn,
     maxTurn: Math.max(p.maxTurn, p.minTurn),
+    maxDetour: p.detour,
   };
 }
 
@@ -113,7 +134,9 @@ export function planFromParams(q: URLSearchParams): JourneyPlan {
     al: (q.get("al") ?? "").split(",").filter((a) => /^[A-Z0-9]{2,4}$/.test(a)),
     oneAirline: q.get("one") === "1",
     types: (q.get("type") ?? "").split(",").filter(Boolean),
-    sort: SORTS.some((s) => s.value === sort) ? (sort as SortKey) : EMPTY_PLAN.sort,
+    sort: sort === "most" ? "fewest" : SORTS.some((s) => s.value === sort) ? (sort as ListSort) : EMPTY_PLAN.sort,
+    desc: q.get("dir") === "desc" || sort === "most",
+    detour: q.get("detour") === "any" ? null : DETOURS.includes(Number(q.get("detour"))) ? Number(q.get("detour")) : EMPTY_PLAN.detour,
     seed: int(q.get("seed"), 0, 1e9) ?? 0,
     day: int(q.get("day"), 1, 7),
     after: clock(q.get("after")),
@@ -136,6 +159,8 @@ export function planToParams(p: JourneyPlan, extra: Record<string, string | null
   set("one", p.oneAirline && "1");
   set("type", p.types.join(","));
   set("sort", p.sort !== EMPTY_PLAN.sort && p.sort);
+  set("dir", p.desc && "desc");
+  set("detour", p.detour !== EMPTY_PLAN.detour && (p.detour == null ? "any" : String(p.detour)));
   set("seed", p.seed ? String(p.seed) : null);
   if (p.timing === "timed") {
     set("day", p.day ? String(p.day) : null);
@@ -152,8 +177,8 @@ export function planToParams(p: JourneyPlan, extra: Record<string, string | null
 export const EXAMPLES: { label: string; note: string; plan: Partial<JourneyPlan> }[] = [
   {
     label: "EGBB → LEMD via EHAM",
-    note: "Timed connections through Amsterdam, quickest first",
-    plan: { from: "EGBB", via: ["EHAM"], to: "LEMD", timing: "timed", sort: "quickest" },
+    note: "Timed connections through Amsterdam, soonest date first",
+    plan: { from: "EGBB", via: ["EHAM"], to: "LEMD", timing: "timed", sort: "next" },
   },
   {
     label: "A 4-leg day from EGBB",
@@ -163,7 +188,7 @@ export const EXAMPLES: { label: string; note: string; plan: Partial<JourneyPlan>
   {
     label: "6 h duty, ending in EPPO",
     note: "From anywhere, as many legs as fit a 6-hour duty",
-    plan: { to: "EPPO", legs: { kind: "upto", n: 6 }, timing: "timed", dutyMin: 360, sort: "most" },
+    plan: { to: "EPPO", legs: { kind: "upto", n: 6 }, timing: "timed", dutyMin: 360, sort: "fewest", desc: true },
   },
   {
     label: "EGBB → LOWI, shortest",

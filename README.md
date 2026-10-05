@@ -4,8 +4,9 @@
 
 **Pick a real airline flight for your flight sim, then dispatch it to SimBrief, right in your browser.**
 
-Filter a schedule snapshot of 57 European and EMEA airlines, roll a random flight or destination, browse every route
-from an airport on a chart, compare scheduled and tracked OUT · OFF · ON · IN times, and check the weather for the day you fly.
+Filter a schedule snapshot of 57 European and EMEA airlines, roll a random flight or destination, plan multi-leg journeys
+with real connections, browse every route from an airport on a chart, compare scheduled and tracked OUT · OFF · ON · IN times,
+and check the weather for the day you fly.
 
 ![OFP Planner: easyJet flights from Barcelona with a flight card, timeline and terrain map](docs/screenshots/finder.png)
 
@@ -36,8 +37,8 @@ from an airport on a chart, compare scheduled and tracked OUT · OFF · ON · IN
 - **Charts, not just lists.** Destinations from an airport and every route matching the filters (Madrid → Spain, say) on an azimuthal chart: sea depth and land height contours, a lat/long grid with degrees on the edges, sea, country and mountain lettering, routes in airline colours. Zoom and pan with two fingers, pinch or the buttons.
 - **The times that matter.** Scheduled gate times (STD / STA) beside typical tracked OUT, OFF, ON and IN; anything neither scheduled nor tracked is estimated and badged **EST.** Shown as a timeline, a boarding pass or a split-flap departure board.
 - **One click to SimBrief.** Dispatch links carry airline, flight number, callsign, route, type and departure time. Your saved airframes (G-ABCD, an A20N) replace the scheduled type automatically for the same family. Add your own flight number to callsign-only flights.
-- **Multi-leg journeys.** Plan a route with stops: from an airport, through stops in order, to an airport, with either end open (roam from home, or work backwards to where you want to finish). Ask for the fewest legs, exactly N or up to N, over the whole route network (any day) or as **timed connections** of real flights with a turnaround window, a day, a first departure and a **duty limit**. Sort by distance, legs, quickest or least time on the ground; save a journey as a favourites group.
-- **A brief for the day you fly.** Pick the date, get the Open-Meteo forecast at both ends for the planned times with a 24-hour outlook, plus the current METAR from VATSIM. Fetched only on this page, and cached.
+- **Multi-leg journeys.** Plan a route with stops: from an airport, through stops in order, to an airport, with either end open (roam from home, or work backwards to where your duty should end). Ask for the fewest legs, exactly N or up to N, over the whole route network (any day) or as **timed connections** of real flights with a turnaround window, a day, a first departure, a **duty limit** and a detour limit. Sort the list by date, distance, legs, duty or time on the ground; every timed journey shows its dates for the coming week as a sortable timeline, soonest first. Brief or dispatch each leg, or save the journey as a favourites group.
+- **A brief for the day you fly.** Pick the date, get the Open-Meteo forecast at both ends for the planned times: a verdict for each end with advice, an illustrated scene of each airport with hazards, wind (OFP Reader's wind arrows), visibility, temperature and QNH, a through-the-day strip with your flight on it, and the forecast coded like a METAR beside the current METAR from VATSIM on printer paper. Fetched only on this page, and cached.
 - **Favourites in groups.** Star flights into groups ("Alps hops", "Ryanair B738"), open a group's routes on a map, and brief any of them in one click.
 - **Explains itself.** Hover (or focus) any label, aircraft badge, flag or airline square: OOOI definitions, manufacturer and model, a country's airports and flights, which airlines fly a route.
 - **Your layout.** Airline tag style and order, aircraft badge colours, flight-card style and map codes (IATA / ICAO / off) in Settings, each with a live sample.
@@ -45,13 +46,17 @@ from an airport on a chart, compare scheduled and tracked OUT · OFF · ON · IN
 
 ## Screenshots
 
+**Journeys: Birmingham to Innsbruck in up to three legs, timed, soonest first**
+
+![Journeys page: a sorted list of EGBB to LOWI journeys, the selected one on a map with a timeline of its departures this week and each leg with Brief and SimBrief](docs/screenshots/journeys.png)
+
 | Destinations from Gatwick (night) | Every route from Madrid to Spain |
 | --- | --- |
 | ![Destinations map from Gatwick in airline colours with flights per week, block time and aircraft](docs/screenshots/destinations.png) | ![Map tab with every Madrid to Spain route and a route table](docs/screenshots/map-tab.png) |
 
 | Brief: weather at both ends | Favourites in groups |
 | --- | --- |
-| ![Brief page with forecast, wind dial, cloud layers, 24-hour outlook and METAR](docs/screenshots/brief-weather.png) | ![Favourite groups on the brief start page with the Alps group's routes on a map](docs/screenshots/favourites.png) |
+| ![Brief weather: departure and arrival verdict, an illustrated scene of each airport with hazards, wind, visibility, temperature and QNH, and the through-the-day strip](docs/screenshots/brief-weather.png) | ![Favourite groups on the brief start page with the Alps group's routes on a map](docs/screenshots/favourites.png) |
 
 | Departure-board card (night) | Settings with live samples |
 | --- | --- |
@@ -113,8 +118,10 @@ Live at **[plans.massorbit.co.uk](https://plans.massorbit.co.uk)**, deployed wit
 | Open a flight | Click a row: the card floats over the right; ✕ or Esc closes it, clicking its header folds it |
 | Dispatch | **Open in SimBrief** on the card (pick the aircraft or your airframe above it) |
 | Fly the next leg | **Next leg from …** on the card, or on the brief: **A sample next leg** or **Next leg: all flights from …** |
-| Plan a multi-leg journey | **Journeys**: From, stops, To (either end can be blank), legs, then **Any day** or **Timed connections** (day, first OUT, duty limit, turnaround); **Save as a favourites group** |
-| No direct flight? | **Journeys** with **Fewest** legs and **Shortest distance**; **Find timed connections on this route** turns it into real flights |
+| Plan a multi-leg journey | **Journeys**: From, stops, To (either end can be blank), legs, then **Any day** or **Timed connections** (day, first OUT, duty limit, turnaround); **Clear** starts again |
+| Sort the journeys | The **Sort** headings over the list: Date, Distance, Legs, Duty, Ground, Random; click again to reverse |
+| Pick a date and time | The **Timings** table under the map: every departure this week, soonest first, sortable by duty, ground or block; click a row |
+| No direct flight? | **Journeys** with **Fewest** legs, sorted by **Distance**; **Find timed connections on this route** turns it into real flights |
 | Plan the day | **Open brief · weather →**: set the date, read the forecast and METAR |
 | Keep flights | ☆ on the card; make groups on the Brief start page or in Settings |
 | Add a flight number | **+ Add flight number** under a callsign-only flight |
