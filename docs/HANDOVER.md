@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: v1.0.0 released 2026-10-05 · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
+  status: v1.1.0 committed and tagged locally 2026-10-05, not pushed yet (v1.0.0 is live) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 

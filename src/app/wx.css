@@ -374,65 +374,105 @@
   height: 10px;
 }
 
-/* ---------- coded FCST / METAR on printer paper (paper colours in both themes) ---------- */
+/* ---------- coded FCST / METAR on continuous-form printer paper (as OFP Reader's MCDU sheet) ---------- */
+:root {
+  --pp: #fffdf7;
+  --pp-band: #fbe4ea;
+  --pp-ink: #2a2a33;
+  --pp-mute: #5a5560;
+  --pp-edge: #f3eee2;
+  --pp-wind: #0f5aa6;
+  --pp-vis: #1f6a3b;
+  --pp-wx: #b0241b;
+  --pp-cld: #a1156f;
+  --pp-temp: #8a5100;
+  --pp-q: #44506a;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --pp: #1b2230;
+    --pp-band: #2b2232;
+    --pp-ink: #dfe3ea;
+    --pp-mute: #a9b1bf;
+    --pp-edge: #161c27;
+    --pp-wind: #8cc4ff;
+    --pp-vis: #8fd9a5;
+    --pp-wx: #ff9b8f;
+    --pp-cld: #f39bd2;
+    --pp-temp: #f0c070;
+    --pp-q: #b7c0d0;
+  }
+}
+:root[data-theme="dark"] {
+  --pp: #1b2230;
+  --pp-band: #2b2232;
+  --pp-ink: #dfe3ea;
+  --pp-mute: #a9b1bf;
+  --pp-edge: #161c27;
+  --pp-wind: #8cc4ff;
+  --pp-vis: #8fd9a5;
+  --pp-wx: #ff9b8f;
+  --pp-cld: #f39bd2;
+  --pp-temp: #f0c070;
+  --pp-q: #b7c0d0;
+}
+.wb-print {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) 22px;
+  margin: 0;
+  box-shadow: 0 1px 0 var(--rule), 0 6px 14px -10px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+/* tractor-feed strips: the holes are cut out (masked), so whatever is behind shows through */
+.wb-feed {
+  background: var(--pp-edge);
+  -webkit-mask: radial-gradient(circle at 50% 11px, transparent 0 4.5px, #000 5px) 0 0 / 22px 22px repeat-y;
+  mask: radial-gradient(circle at 50% 11px, transparent 0 4.5px, #000 5px) 0 0 / 22px 22px repeat-y;
+}
+.wb-feed.left { border-right: 1px dashed var(--rule-strong); }
+.wb-feed.right { border-left: 1px dashed var(--rule-strong); }
 .wb-paper {
-  position: relative;
-  /* text runs on the 22 px stripes: padding, margins and line heights are all multiples of 22 */
-  padding: 22px 22px 22px 30px;
-  color: #1d2433;
-  background-color: #fbfaf3;
-  background-image: repeating-linear-gradient(#fbfaf3 0 22px, #e3efe2 22px 44px);
-  border: 1px solid var(--rule-strong);
-}
-.wb-paper::before,
-.wb-paper::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 10px;
-  background: radial-gradient(circle at 5px 11px, var(--sheet) 3px, transparent 3.5px) 0 0 / 10px 22px;
-}
-.wb-paper::before { left: 6px; }
-.wb-paper::after { right: 6px; }
-.pp-blk { margin: 0 0 22px; }
-.pp-h {
-  margin: 0;
-  font: 700 12px/22px var(--font-mono);
-  letter-spacing: 0.06em;
-}
-.pp-l {
-  margin: 0;
-  font-size: 13px;
+  padding: 0;
+  background: var(--pp);
+  overflow-x: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
   line-height: 22px;
-  overflow-wrap: anywhere;
+  color: var(--pp-ink);
+  letter-spacing: 0.03em;
+  /* a little ink bleed, like a ribbon on paper */
+  text-shadow: 0 0 0.7px color-mix(in srgb, var(--pp-ink) 60%, transparent);
 }
+.pp-line {
+  display: block;
+  height: 22px;
+  padding: 0 10px;
+  white-space: pre;
+}
+.pp-line:nth-child(even) { background: var(--pp-band); }
+.pp-h { font-weight: 700; letter-spacing: 0.06em; }
 .pp-k {
   display: inline-block;
-  width: 58px;
+  width: 7ch;
   font-weight: 700;
-  color: #4a5366;
+  color: var(--pp-mute);
 }
-.pp-none { color: #4a5366; }
-.wb-paper .tk-wind { color: #0f5aa6; }
-.wb-paper .tk-vis { color: #1f6a3b; }
-.wb-paper .tk-wx { color: #b0241b; font-weight: 600; }
-.wb-paper .tk-cld { color: #a1156f; }
-.wb-paper .tk-temp { color: #8a5100; }
-.wb-paper .tk-q { color: #44506a; }
-.pp-foot {
-  margin: 0;
-  font-size: 11.5px;
-  line-height: 22px;
-  color: #4a5366;
-}
+.pp-none,
+.pp-foot { color: var(--pp-mute); }
+.wb-paper .tk-wind { color: var(--pp-wind); }
+.wb-paper .tk-vis { color: var(--pp-vis); }
+.wb-paper .tk-wx { color: var(--pp-wx); font-weight: 700; }
+.wb-paper .tk-cld { color: var(--pp-cld); }
+.wb-paper .tk-temp { color: var(--pp-temp); }
+.wb-paper .tk-q { color: var(--pp-q); }
 .pp-copy {
-  line-height: 22px;
   border: 0;
   padding: 0;
   background: none;
   font: inherit;
-  color: #0f5aa6;
+  line-height: 22px;
+  letter-spacing: inherit;
+  color: var(--pp-wind);
   text-decoration: underline;
   cursor: pointer;
 }
@@ -506,9 +546,6 @@
   }
   .wb-tl-flab {
     display: none;
-  }
-  .wb-paper {
-    padding: 22px 16px 22px 22px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
