@@ -126,6 +126,10 @@ recipes:
   add_an_airline: add a brand to AIRLINES in scripts/snapshot/airlines.mjs (icao, iata, name, callsign word,
     operators[], colors[primary, secondary]), then --stage build. Region filter = REGION in the same file.
   after_any_run: pnpm build && pnpm verify, check counts in Settings → Schedule snapshot, commit public/data.
+dokploy: project "OFP Planner" (PC5mxBiH9LB-oYVT1hoUv) · app "web" oAmzXw0iAtwtFQM__Jx1M (appName ofp-planner-web-sjnvl5) ·
+  Dockerfile build from redomar/ofp-planner main, autodeploy on push · domain plans.massorbit.co.uk:80 (Let's Encrypt) ·
+  bind mount /srv/ofp-planner/live → /usr/share/nginx/html/live · updateConfigSwarm start-first + rollback.
+  Git remote uses the SSH alias github-origin (git@github-origin:redomar/ofp-planner.git).
 data_to_server: pnpm data:push (rsync over SSH to koronto:/srv/ofp-planner/live/data, atomic swap; --status, --clear). See docs/deploy.md.
 server_latch_container_alternative: |
   CLI only, never a web route. docker compose --profile maintenance run --rm snapshot

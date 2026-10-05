@@ -5,6 +5,7 @@ Live: **https://plans.massorbit.co.uk** · Dokploy Cloud project "OFP Planner", 
 ## How it's deployed
 
 - Dokploy builds the repo's `Dockerfile` (default stage `web`: `pnpm build` → nginx serving `out/`) from GitHub `redomar/ofp-planner`, branch `main`. **A push to `main` deploys to production** (autoDeploy, trigger "push").
+- Deploys are zero-downtime: the Swarm update order is start-first (new container up before the old stops), rolling back if the new one fails.
 - Domain `plans.massorbit.co.uk` → port 80, HTTPS via Let's Encrypt. DNS (Hover) already points `*.massorbit.co.uk` at the server.
 - The image contains the schedule snapshot committed in `public/data/` at build time.
 - Bind mount: host `/srv/ofp-planner/live` → container `/usr/share/nginx/html/live` (read-only). nginx serves `/data/` from `live/data` first, then the baked copy (see `nginx.conf`). The folder is never served directly.
