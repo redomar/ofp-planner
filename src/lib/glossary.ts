@@ -7,7 +7,7 @@ export const GLOSSARY = {
   scheduled: "Published timetable times (STD / STA). They are gate times, so they line up with OUT and IN, not with take-off and landing.",
   typical: "Median of real tracked flights in the snapshot period. Shows how the flight usually runs against its schedule.",
   callsign: "ATC callsign as filed. easyJet and others use alphanumeric callsigns (EJU54LH) that differ from the flight number, to avoid similar-sounding callsigns on frequency.",
-  noFn: "Open data has this flight's ATC callsign but not its marketing flight number. The SimBrief link uses the callsign's suffix as the flight number, so the OFP is filed under the same callsign.",
+  noFn: "Open data has this flight's ATC callsign but not its marketing flight number. Add the number if you know it (from the airline's timetable or a booking); it's used here and in the SimBrief link. Until then SimBrief gets the callsign's suffix, so the OFP is still filed under the right callsign.",
   types: "ICAO aircraft type designators seen or scheduled on this flight, most common first. A20N = A320neo, A21N = A321neo, B38M = 737 MAX 8.",
   days: "Days of the week this flight operates in the snapshot period.",
   block: "Gate-to-gate time. Scheduled when the timetable has both times; observed from tracking otherwise; estimated from distance as a last resort.",

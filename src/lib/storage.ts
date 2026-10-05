@@ -13,6 +13,7 @@ export const KEYS = {
   airframes: `${NS}airframes`,
   favourites: `${NS}favourites`,
   favGroups: `${NS}fav-groups`,
+  fnOverrides: `${NS}flight-numbers`,
   history: `${NS}history`,
   prefs: `${NS}prefs`,
   ready: `${NS}ready`,

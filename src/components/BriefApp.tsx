@@ -11,6 +11,7 @@ import { KEYS, removeKey } from "@/lib/storage";
 import { routeColor } from "@/lib/colors";
 import { AirlineTag } from "./badges";
 import { StatusLine, TopBar } from "./chrome";
+import { applyFn, useFnOverrides } from "@/lib/fnoverride";
 import { SavedFlights } from "./SavedFlights";
 import { CollapseProvider } from "./collapse";
 import { FlightCard } from "./FlightCard";
@@ -72,7 +73,10 @@ export function BriefApp() {
     };
   }, [loadId]);
 
-  const { row, airports, manifest } = state;
+  const { airports, manifest } = state;
+  // the user's flight number (added on the card) applies as soon as it's saved
+  const fnOv = useFnOverrides();
+  const row = useMemo(() => (state.row ? enrich(applyFn(state.row.f, fnOv), airports) : null), [state.row, fnOv, airports]);
 
 
   const f = row?.f ?? null;

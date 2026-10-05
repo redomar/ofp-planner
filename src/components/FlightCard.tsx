@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { AirlineInfo } from "@/lib/data/types";
 import { airportLabel, dur, flightNo, hhmm, localHHMM, tzLabel } from "@/lib/data/flight";
 import type { Airport } from "@/lib/data/load";
 import type { Row } from "@/lib/data/query";
+import { cleanFn, setFnOverride } from "@/lib/fnoverride";
 import { moveFavourite, pushHistory, setReady, toggleFavourite, useSaved } from "@/lib/saved";
 import { defaultChoice, flightDispatch, simbriefUrl, typeChoices, useAirframes } from "@/lib/simbrief";
 import { TypeBadge, WeekStrip, freqLabel } from "./badges";
@@ -60,9 +61,14 @@ export function FlightCard({
   const color = routeColor(airline);
   const iata = airline?.iata ?? null;
 
+  // record each flight once when it's shown (not on every re-render of the same flight)
+  const fRef = useRef(f);
   useEffect(() => {
-    pushHistory(f);
-  }, [f]);
+    fRef.current = f;
+  });
+  useEffect(() => {
+    pushHistory(fRef.current);
+  }, [f.id]);
   // Folded: only the header shows (it stays pinned while the card scrolls), so the table behind is visible.
   const [folded, setFolded] = useState(false);
   const bodyId = useId();
@@ -73,7 +79,7 @@ export function FlightCard({
       <header
         className="fcard-head"
         onClick={(e) => {
-          if (!(e.target as HTMLElement).closest("button, a")) toggleFold();
+          if (!(e.target as HTMLElement).closest("button, a, input, select, form")) toggleFold();
         }}
         title={folded ? "Show the flight details" : "Hide the flight details"}
       >
@@ -89,21 +95,7 @@ export function FlightCard({
           </p>
           <h2 className="fcard-no">
             <span>{flightNo(f, iata)}</span>
-            <small>
-              {f.fn ? (
-                f.cs ? (
-                  <Tip tip={GLOSSARY.callsign} title="Callsign">
-                    <span className="mono">{f.cs}</span>
-                  </Tip>
-                ) : (
-                  <span className="muted">no callsign in the snapshot</span>
-                )
-              ) : (
-                <Tip tip={GLOSSARY.noFn} title="Flight number">
-                  <span>callsign · no public flight number</span>
-                </Tip>
-              )}
-            </small>
+            <FnLine f={f} iata={iata} />
           </h2>
         </div>
         <button
@@ -272,6 +264,112 @@ export function FlightCard({
       </div>
       </div>
     </article>
+  );
+}
+
+/**
+ * Under the flight number: the ATC callsign, and for flights the open data only knows by
+ * callsign, a way to add (or edit) the marketing flight number. Kept per callsign in this browser.
+ */
+function FnLine({ f, iata }: { f: Row["f"]; iata: string | null }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [bad, setBad] = useState(false);
+  const prefix = iata ?? f.al;
+  const canEdit = !!f.cs && (!f.fn || f.fnUser);
+  const save = (v: string | null) => {
+    if (v === null) {
+      setFnOverride(f.op, f.cs!, null);
+      setEditing(false);
+      return;
+    }
+    const n = cleanFn(v);
+    if (!n) return setBad(true);
+    setFnOverride(f.op, f.cs!, n);
+    setEditing(false);
+  };
+  if (editing)
+    return (
+      <form
+        className="fn-edit"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save(draft);
+        }}
+      >
+        <span className="mono fn-prefix" aria-hidden="true">
+          {prefix}
+        </span>
+        <input
+          className="ctl-input mono"
+          value={draft}
+          autoFocus
+          inputMode="text"
+          maxLength={8}
+          placeholder="1016"
+          aria-label={`Flight number for ${f.cs}, after ${prefix}`}
+          aria-invalid={bad || undefined}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            setBad(false);
+          }}
+          onKeyDown={(e) => e.key === "Escape" && setEditing(false)}
+        />
+        <button type="submit" className="chip">
+          Save
+        </button>
+        {f.fnUser && (
+          <button type="button" className="chip" onClick={() => save(null)}>
+            Remove
+          </button>
+        )}
+        <button type="button" className="chip" onClick={() => setEditing(false)}>
+          Cancel
+        </button>
+        {bad && (
+          <span className="fn-err" role="alert">
+            Use 1–4 digits, optionally a letter (1016, 8473A)
+          </span>
+        )}
+      </form>
+    );
+  return (
+    <small className="fn-line">
+      {f.cs ? (
+        <Tip tip={GLOSSARY.callsign} title="Callsign">
+          <span className="mono">{f.fn ? f.cs : "Callsign"}</span>
+        </Tip>
+      ) : (
+        <span className="muted">no callsign in the snapshot</span>
+      )}
+      {canEdit && !f.fn && (
+        <Tip tip={GLOSSARY.noFn} title="Flight number" plain>
+          <button
+            type="button"
+            className="fn-add"
+            onClick={() => {
+              setDraft("");
+              setEditing(true);
+            }}
+          >
+            + Add flight number
+          </button>
+        </Tip>
+      )}
+      {canEdit && f.fnUser && (
+        <button
+          type="button"
+          className="fn-add"
+          title="You added this number; edit or remove it"
+          onClick={() => {
+            setDraft(f.fn ?? "");
+            setEditing(true);
+          }}
+        >
+          your number · edit
+        </button>
+      )}
+    </small>
   );
 }
 

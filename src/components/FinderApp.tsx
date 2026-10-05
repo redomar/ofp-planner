@@ -21,6 +21,7 @@ import {
 } from "@/lib/data/query";
 import { familyOf } from "@/lib/data/flight";
 import { DEFAULT_PREFS, readPrefs, writePrefs } from "@/lib/saved";
+import { applyFn, readFnOverrides, useFnOverrides } from "@/lib/fnoverride";
 import { routeColor } from "@/lib/colors";
 import { StatusLine, TopBar } from "./chrome";
 import { FlightCard } from "./FlightCard";
@@ -82,7 +83,8 @@ export function FinderApp() {
     if (next !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(null, "", next);
   }, [q, view, selId, ready]);
 
-  const rows = useMemo(() => data.flights.map((f) => enrich(f, airports)), [data.flights, airports]);
+  const fnOv = useFnOverrides();
+  const rows = useMemo(() => data.flights.map((f) => enrich(applyFn(f, fnOv), airports)), [data.flights, airports, fnOv]);
   const filtered = useMemo(() => filterRows(rows, q, airports), [rows, q, airports]);
   const nameOf = useCallback((icao: string) => airportLabel(airports?.get(icao)) || icao, [airports]);
   const sorted = useMemo(() => sortRows(filtered, sort, nameOf), [filtered, sort, nameOf]);
@@ -99,7 +101,7 @@ export function FinderApp() {
     if (!selId || selected || !manifest) return;
     let live = true;
     void findFlight(selId).then((f: FlightRow | null) => {
-      if (live && f) setExtra(enrich(f, airports));
+      if (live && f) setExtra(enrich(applyFn(f, readFnOverrides()), airports));
     });
     return () => {
       live = false;

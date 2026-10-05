@@ -301,6 +301,21 @@ async function run() {
     await page.waitForSelector(".fcard");
     page.url() === before ? pass("finder: reload keeps filters and flight") : fail(`finder: reload changed URL ${page.url()}`);
 
+    // add a flight number to a callsign-only flight: shown on the card and in the SimBrief link
+    const addBtn = page.locator(".drawer .fn-add", { hasText: "Add flight number" });
+    if (await addBtn.count()) {
+      await addBtn.click();
+      await page.locator(".drawer .fn-edit input").fill("U2 1016");
+      await page.locator(".drawer .fn-edit").getByRole("button", { name: "Save" }).click();
+      const title = await page.locator(".drawer .fcard-no > span").first().innerText();
+      const sbFn = new URL(await page.locator(".drawer a.btn-primary").getAttribute("href")).searchParams.get("fltnum");
+      const edit = await page.locator(".drawer .fn-add", { hasText: "your number" }).count();
+      /1016$/.test(title) && sbFn === "1016" && edit === 1 ? pass(`finder: added flight number shows as ${title} and goes to SimBrief (fltnum=${sbFn})`) : fail(`finder: added number (title ${title}, fltnum ${sbFn}, edit ${edit})`);
+      await page.locator(".drawer .fn-add", { hasText: "your number" }).click();
+      await page.locator(".drawer .fn-edit").getByRole("button", { name: "Remove" }).click();
+      (await page.locator(".drawer .fn-add", { hasText: "Add flight number" }).count()) === 1 ? pass("finder: removing the added number restores the callsign") : fail("finder: remove didn't restore");
+    } else pass("finder: (selected flight already has a flight number)");
+
     // the card header folds the card (and stays pinned while it scrolls)
     await page.locator(".drawer .fcard-head .fcard-title").click();
     (await page.locator(".drawer .fcard-body").isHidden()) ? pass("finder: clicking the card header folds it") : fail("finder: header click didn't fold");
