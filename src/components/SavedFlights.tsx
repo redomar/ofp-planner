@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type SyntheticEvent } from "react";
+import { useEffect, useMemo, useState, type SyntheticEvent } from "react";
 import { airportLabel, hhmm } from "@/lib/data/flight";
 import { loadAirports, loadManifest, type Airport } from "@/lib/data/load";
 import type { AirlineInfo } from "@/lib/data/types";
@@ -18,7 +18,9 @@ import {
   writePrefs,
   type SavedFlight,
 } from "@/lib/saved";
+import { routeColor } from "@/lib/colors";
 import { FlightIdent, TypeBadge, WeekStrip } from "./badges";
+import { RouteMap, type MapRoute } from "./RouteMap";
 
 /**
  * Favourites (in groups) and recent flights as rich rows: airline tag, route with places,
@@ -68,14 +70,14 @@ export function SavedFlights({ onOpen, recentMax = 8, showRecent = true }: { onO
         ) : (
           <div className="lib-groups">
             {(ungrouped.length > 0 || groups.length === 0) && (
-              <Group name={null} flights={ungrouped} total={groups.length} index={-1}>
+              <Group name={null} flights={ungrouped} total={groups.length} index={-1} ref_={ref}>
                 {ungrouped.map((f) => row(f, "fav"))}
               </Group>
             )}
             {groups.map((g, i) => {
               const items = favourites.filter((f) => f.group === g);
               return (
-                <Group key={g} name={g} flights={items} total={groups.length} index={i} last={saved.prefs.lastGroup === g}>
+                <Group key={g} name={g} flights={items} total={groups.length} index={i} last={saved.prefs.lastGroup === g} ref_={ref}>
                   {items.map((f) => row(f, "fav"))}
                 </Group>
               );
@@ -151,6 +153,7 @@ function Group({
   total,
   index,
   last,
+  ref_,
   children,
 }: {
   name: string | null;
@@ -158,8 +161,23 @@ function Group({
   total: number;
   index: number;
   last?: boolean;
+  ref_: { airlines: Map<string, AirlineInfo>; airports: Map<string, Airport> } | null;
   children: React.ReactNode;
 }) {
+  const [map, setMap] = useState(false);
+  // one line per route, in the colour of its first flight's airline
+  const routes = useMemo<MapRoute[]>(() => {
+    if (!map || !ref_) return [];
+    const seen = new Map<string, MapRoute>();
+    for (const f of flights) {
+      const key = `${f.o}-${f.d}`;
+      const from = ref_.airports.get(f.o);
+      const to = ref_.airports.get(f.d);
+      if (!from || !to || seen.has(key)) continue;
+      seen.set(key, { key, from, to, color: routeColor(ref_.airlines.get(f.al)) });
+    }
+    return [...seen.values()];
+  }, [map, ref_, flights]);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(name ?? "");
   const [confirm, setConfirm] = useState(false);
@@ -194,6 +212,19 @@ function Group({
             {last && <span className="badge b-blue">new stars</span>}
           </button>
         )}
+        {!editing && flights.length > 0 && (
+          <button
+            type="button"
+            className={`chip grp-map-btn${map ? " on" : ""}`}
+            aria-pressed={map}
+            onClick={() => {
+              setMap((m) => !m);
+              setOpen(true);
+            }}
+          >
+            {map ? "Hide map" : "Map"}
+          </button>
+        )}
         {name && !editing && (
           <div className="grp-tools">
             {confirm ? (
@@ -225,6 +256,11 @@ function Group({
           </div>
         )}
       </div>
+      {open && map && routes.length > 0 && (
+        <div className="grp-map">
+          <RouteMap routes={routes} height={320} label={`Map of the ${routes.length} routes in ${title}.`} />
+        </div>
+      )}
       {open &&
         (flights.length ? (
           <ul className="fl-list">{children}</ul>

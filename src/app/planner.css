@@ -2776,3 +2776,20 @@ select.ctl-input {
   color: var(--magenta);
   border-color: var(--magenta);
 }
+
+/* favourites: a group's routes on a map */
+.grp-head {
+  flex-wrap: wrap;
+}
+.grp-title {
+  margin-right: auto;
+}
+.grp-map-btn.on {
+  border-style: solid;
+  border-color: var(--ink);
+  color: var(--ink);
+}
+.grp-map {
+  padding: 10px;
+  border-bottom: 1px solid var(--rule);
+}
