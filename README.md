@@ -114,6 +114,7 @@ Live at **[plans.massorbit.co.uk](https://plans.massorbit.co.uk)**, deployed wit
 | Find flights | Set **Airline**, **From** and **To** (type an ICAO, IATA, city or country), aircraft, block time, days or **After (Z)** |
 | Roll a random flight | **Random flight**; set only **From** for a random destination, only **To** for a random origin |
 | See where an airport goes | Set **From**, then the **Destinations** tab (map + list; pick one to see its flights) |
+| List a country's airports | **Airports** tab (no From or To), then **Country** |
 | See a whole network | Set the ends (airport, country or anywhere), then the **Map** tab |
 | Open a flight | Click a row: the card floats over the right; ✕ or Esc closes it, clicking its header folds it |
 | Dispatch | **Open in SimBrief** on the card (pick the aircraft or your airframe above it) |
@@ -121,7 +122,8 @@ Live at **[plans.massorbit.co.uk](https://plans.massorbit.co.uk)**, deployed wit
 | Plan a multi-leg journey | **Journeys**: From, stops, To (either end can be blank), legs, then **Any day** or **Timed connections** (day, first OUT, duty limit, turnaround); **Clear** starts again |
 | Sort the journeys | The **Sort** headings over the list: Date, Distance, Legs, Duty, Ground, Random; click again to reverse |
 | Pick a date and time | The **Timings** table under the map: every departure this week, soonest first, sortable by duty, ground or block; click a row |
-| No direct flight? | **Journeys** with **Fewest** legs, sorted by **Distance**; **Find timed connections on this route** turns it into real flights |
+| What does an option mean? | Hover a dotted label on **Journeys**, or open **What the options mean** under the form |
+| No direct flight? | **Find a journey with stops** in the Finder when a route has no flights, or **Journeys** with **Fewest** legs, sorted by **Distance**; **Find timed connections on this route** turns it into real flights |
 | Plan the day | **Open brief · weather →**: set the date, read the forecast and METAR |
 | Keep flights | ☆ on the card; make groups on the Brief start page or in Settings |
 | Add a flight number | **+ Add flight number** under a callsign-only flight |

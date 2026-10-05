@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { dur, fourTimes, hhmm, localHHMM, tzLabel, type Moment } from "@/lib/data/flight";
+import { cityName, dur, fourTimes, hhmm, localHHMM, tzLabel, type Moment } from "@/lib/data/flight";
 import type { Airport, FlightRow } from "@/lib/data/load";
 import { useDisplay, type RouteHeadStyle } from "@/lib/display";
 import { GLOSSARY } from "@/lib/glossary";
@@ -41,7 +41,7 @@ export function RouteHead(p: Props & { style?: RouteHeadStyle }) {
 
 type WithTimes = Props & { t: ReturnType<typeof fourTimes> };
 
-const city = (a: Airport | undefined, icao: string) => a?.city ?? a?.name ?? icao;
+const city = (a: Airport | undefined, icao: string) => cityName(a) ?? a?.name ?? icao;
 const codeLabel = (a: Airport | undefined, icao: string) => (a ? `${icao}, ${a.name}` : icao);
 
 /** EST. badge for an estimated time. */

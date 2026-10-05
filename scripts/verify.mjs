@@ -569,13 +569,68 @@ async function run() {
     await ctx.close();
   });
 
+  /* ---------- 1.2.3: airport names, country filter, finder → journeys, journeys help ---------- */
+  await section("1.2.3 fixes", async () => {
+    const { ctx, page, errors } = await open("/?al=&dep=EGJJ&view=places");
+    await page.waitForSelector(".place-list li");
+    const labels = await page.locator(".place-label").allTextContents();
+    labels.includes("Birmingham Airport") && labels.includes("London Gatwick Airport") && !labels.some((l) => /West Midlands|St\. Peter/.test(l))
+      ? pass("airport names: no city or region prefix (Birmingham Airport, London Gatwick Airport)")
+      : fail(`airport names: ${labels.slice(0, 6)}`);
+    // Airports tab: every origin, then one country
+    await page.goto(page.url().split("/?")[0] + "/?al=&view=places", { waitUntil: "networkidle" });
+    await page.waitForSelector(".place-list li");
+    const all = await page.locator(".place-list li").count();
+    await page.locator(".places-cc").selectOption("PL");
+    await page.waitForURL(/cc=PL/);
+    const pl = await page.locator(".place-code").allTextContents();
+    pl.length && pl.length < all && pl.every((c) => c.startsWith("EP")) ? pass(`airports tab: country filter lists Poland's ${pl.length} airports of ${all}`) : fail(`airports tab: country ${pl.length}/${all} ${pl.slice(0, 5)}`);
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForSelector(".place-list li");
+    (await page.locator(".places-cc").inputValue()) === "PL" && (await page.locator(".place-list li").count()) === pl.length ? pass("airports tab: the country survives a reload") : fail("airports tab: country lost on reload");
+    // a route with no flight offers Journeys, prefilled
+    await page.goto(page.url().split("/?")[0] + "/?al=&dep=EGBB&arr=LOWI", { waitUntil: "networkidle" });
+    const link = page.getByRole("link", { name: "Find a journey with stops" });
+    await link.waitFor({ timeout: 20000 });
+    await link.click();
+    await page.waitForURL(/\/journeys\?from=EGBB&to=LOWI/);
+    await page.waitForSelector(".jr-card", { timeout: 60000 });
+    pass("finder: no EGBB–LOWI flight links to Journeys with the route filled in");
+    // Journeys: Now beside First OUT after, help on the labels, guide and example cards
+    await page.goto(page.url().split("/journeys")[0] + "/journeys?from=EGBB&t=1&legs=2", { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "Now", exact: true }).click();
+    await page.waitForURL(/after=\d{4}/);
+    const now = new Date();
+    const want = `${String(now.getUTCHours()).padStart(2, "0")}`;
+    new URL(page.url()).searchParams.get("after").startsWith(want) ? pass("journeys: Now fills First OUT after with the UTC time") : fail(`journeys: now ${page.url()}`);
+    const tips = await page.locator(".jr-form .ctl-label .tip").evaluateAll((els) => els.map((e) => e.textContent.trim()));
+    ["Legs", "Times", "Detour", "Day (UTC)", "First OUT after (Z)", "Duty limit", "Report before OUT", "Turnaround"].every((t) => tips.includes(t)) ? pass(`journeys: ${tips.length} labels explain themselves on hover`) : fail(`journeys: tips ${tips}`);
+    await page.locator(".jr-guide summary").click();
+    const defs = await page.locator(".jr-guide .jr-defs dt").count();
+    defs === 14 ? pass("journeys: 'What the options mean' lists all 14 options") : fail(`journeys: guide has ${defs}`);
+    await page.goto(page.url().split("/journeys")[0] + "/journeys", { waitUntil: "networkidle" });
+    const cards = await page.locator(".jr-ex-card").count();
+    const chips = await page.locator(".jr-example").count();
+    cards === chips && cards >= 9 && (await page.locator(".jr-intro .jr-defs dt").count()) === 14 ? pass(`journeys: intro shows ${cards} examples and the option guide`) : fail(`journeys: intro ${cards}/${chips}`);
+    for (let i = 5; i < cards; i++) {
+      await page.goto(page.url().split("/journeys")[0] + "/journeys", { waitUntil: "networkidle" });
+      const name = await page.locator(".jr-ex-card b").nth(i).textContent();
+      await page.locator(".jr-ex-card").nth(i).click();
+      await page.waitForFunction(() => document.querySelector(".jr-card, .jr-results .empty-note") && !document.querySelector(".jr-split.is-stale") && !/Searching|updating/.test(document.querySelector(".jr-results")?.textContent ?? ""), null, { timeout: 90000 });
+      const n = await page.locator(".jr-card").count();
+      n ? pass(`journeys: example “${name}” finds journeys (${n} shown)`) : fail(`journeys: example “${name}” found none`);
+    }
+    errors.length ? fail(`1.2.3: console errors ${JSON.stringify(errors.slice(0, 2))}`) : pass("1.2.3: 0 console errors");
+    await ctx.close();
+  });
+
   /* ---------- every page × width × theme ---------- */
-  const pages = ["/?al=EZY&dep=EGKK", "/?al=EZY&dep=EGKK&view=places", "/?al=&dep=LEMD&arr=C:ES&view=map", "/brief", "/settings", "/journeys", "/journeys?from=EGBB&to=LOWI&legs=5", "/journeys?from=EGBB&via=EHAM&to=LEMD&t=1&sort=quickest"];
+  const pages = ["/?al=EZY&dep=EGKK", "/?al=EZY&dep=EGKK&view=places", "/?al=&view=places&cc=GB", "/?al=&dep=EGBB&arr=LOWI", "/?al=&dep=LEMD&arr=C:ES&view=map", "/brief", "/settings", "/journeys", "/journeys?from=EGBB&to=LOWI&legs=5", "/journeys?from=EGBB&via=EHAM&to=LEMD&t=1&sort=quickest"];
   for (const theme of ["light", "dark"])
     for (const width of [1280, 390])
       for (const path of pages) {
         const { ctx, page, errors } = await open(path, { width, height: width < 500 ? 844 : 900, theme });
-        if (path.startsWith("/?")) await page.waitForSelector(path.includes("places") ? ".place-list li" : path.includes("map") ? ".routes-tbl tbody tr" : "table.flights tbody tr", { timeout: 20000 });
+        if (path.startsWith("/?")) await page.waitForSelector(path.includes("places") ? ".place-list li" : path.includes("LOWI") ? ".empty-note .btn" : path.includes("map") ? ".routes-tbl tbody tr" : "table.flights tbody tr", { timeout: 20000 });
         if (path === "/brief") await page.waitForTimeout(300);
         if (path.startsWith("/journeys?")) await page.waitForSelector(".jr-detail .jr-leg", { timeout: 60000 });
         await checkPage(`${path} ${width}px ${theme}`, page, errors);

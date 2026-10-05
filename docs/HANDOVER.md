@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: v1.2.2 released 2026-10-05 (Journeys; includes 1.1.0 weather paper) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
+  status: v1.2.3 released 2026-10-05 (Journeys; includes 1.1.0 weather paper) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 
@@ -80,6 +80,7 @@ lib:
   journey/worker.ts + useSearch.ts: Web Worker (new Worker(new URL("./worker.ts", import.meta.url))); data posted once per key,
                    newest request wins, busy derived in render. Turbopack also copies worker.ts into out/_next/static/media (harmless).
   places.ts:       countryName + placeOptions (shared by Finder and Journeys)
+  data/flight.ts:  airportLabel = the airport's name only (OurAirports' city is often a suburb or "City, Region"); cityName drops the region
   simbrief.ts:     airframes (localStorage) + dispatch URL builder
   saved.ts / display.ts / storage.ts: favourites, history, ready flight, prefs, display choices; all localStorage "ofp-planner:*"
   aircraft-data.json + aircraft.ts: ICAO type → maker/model, maker → tone

@@ -3,7 +3,7 @@
 import { Flag } from "./Flag";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type SyntheticEvent } from "react";
-import { airportLabel, hhmm } from "@/lib/data/flight";
+import { airportLabel, cityName, hhmm } from "@/lib/data/flight";
 import { loadAirports, loadManifest, type Airport } from "@/lib/data/load";
 import type { AirlineInfo } from "@/lib/data/types";
 import {
@@ -296,7 +296,7 @@ function Row({
   const ident = fn ? `${al?.iata ?? f.al}${fn}` : (f.cs ?? `${f.op} —`);
   const dep = f.dep ?? f.std;
   const href = `/brief?f=${encodeURIComponent(f.id)}`;
-  const place = (a: Airport | undefined, icao: string) => (a ? (a.city ?? airportLabel(a)) : icao);
+  const place = (a: Airport | undefined, icao: string) => (a ? (cityName(a) ?? airportLabel(a)) : icao);
   return (
     <li className="fl-row">
       <a
