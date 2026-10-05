@@ -522,6 +522,37 @@ async function run() {
     await page.getByRole("button", { name: "Find timed connections on this route" }).click();
     await page.waitForURL(/t=1/);
     /via=EHAM/.test(page.url()) && /legs=2/.test(page.url()) ? pass("journeys: a network route opens as timed connections on the same airports") : fail(`journeys: timed from route ${page.url()}`);
+    // list sorting: Distance up, then down (reverses), Legs down = most legs
+    await go(page, "from=EGBB&to=LOWI&legs=u4");
+    const nms = async () => (await page.locator(".jr-card .jr-meta").allTextContents()).map((t) => +t.match(/([\d,]+) nm/)[1].replace(",", ""));
+    let a = await nms();
+    await page.locator(".jr-sort", { hasText: "Distance" }).click();
+    await page.waitForURL(/dir=desc/);
+    await page.waitForTimeout(300);
+    let b = await nms();
+    a.every((x, i) => !i || a[i - 1] <= x) && b.every((x, i) => !i || b[i - 1] >= x) && b[0] > a[0] ? pass(`journeys: list sorts by distance, up and down (${a[0]} → ${b[0]} nm first)`) : fail(`journeys: distance sort ${a.slice(0, 4)} / ${b.slice(0, 4)}`);
+    await page.locator(".jr-sort", { hasText: "Legs" }).click();
+    await page.locator(".jr-sort", { hasText: "Legs" }).click();
+    await page.waitForURL(/sort=fewest&dir=desc/);
+    await page.waitForFunction(() => !document.querySelector(".jr-split.is-stale") && !/updating/.test(document.querySelector(".jr-count")?.textContent ?? ""), null, { timeout: 60000 });
+    c = await cards(page);
+    c[0]?.length === 5 ? pass("journeys: Legs ▼ puts the most legs first") : fail(`journeys: most legs first ${JSON.stringify(c[0])}`);
+    // timings: soonest date first; picking another date changes the legs and the brief link's date
+    await go(page, "from=EGBB&via=EHAM&to=LEMD&t=1&sort=next");
+    const at = await page.locator(".jr-tim-tbl tbody tr").count();
+    const dates = await page.locator(".jr-tim-date").allTextContents();
+    const out1 = await page.locator(".jr-times").first().textContent();
+    await page.locator(".jr-tim-tbl tbody tr").nth(5).click();
+    const out2 = await page.locator(".jr-times").first().textContent();
+    const href = await page.locator(".jr-leg-acts a", { hasText: "Brief" }).first().getAttribute("href");
+    at >= 8 && /today|tomorrow/.test(dates[0]) && out1 !== out2 && /&d=\d{4}-\d{2}-\d{2}/.test(href) ? pass(`journeys: timings table, soonest first (${dates[0]}); a picked date sets the legs and the brief date`) : fail(`journeys: timings ${at} ${dates[0]} ${out1}/${out2} ${href}`);
+    await page.locator(".jr-tim-tbl thead button", { hasText: "Duty" }).click();
+    const duties2 = (await page.locator(".jr-tim-tbl tbody td.num:nth-of-type(4)").allTextContents()).map((t) => { const m = t.match(/(?:(\d+)h )?(\d+)m/); return m ? +(m[1] ?? 0) * 60 + +m[2] : -1; });
+    duties2.length && duties2.every((x, i) => !i || duties2[i - 1] <= x) ? pass("journeys: timings sort by duty") : fail(`journeys: timings duty sort ${duties2}`);
+    // clear
+    await page.getByRole("button", { name: "Clear", exact: true }).click();
+    await page.waitForSelector(".jr-intro");
+    !new URL(page.url()).search ? pass("journeys: Clear empties the form and the URL") : fail(`journeys: clear left ${page.url()}`);
     await go(page, "from=EGBB&via=EHAM&to=LEMD&t=1&sort=quickest");
     await page.getByRole("button", { name: "Save as a favourites group" }).click();
     await page.waitForSelector(".jr-acts [role=status]");

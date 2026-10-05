@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { airportLabel, DAY_NAMES, dur, familyOf, flightNo, hhmm, plannedOut } from "@/lib/data/flight";
+import { airportLabel, dur, familyOf, flightNo, hhmm, plannedOut } from "@/lib/data/flight";
 import { enrich, queryToParams, EMPTY_QUERY } from "@/lib/data/query";
 import { loadRoutes, useDataset, type Airport, type FlightRow } from "@/lib/data/load";
 import type { AirlineInfo } from "@/lib/data/types";
 import { routeColor } from "@/lib/colors";
 import { applyFn, useFnOverrides } from "@/lib/fnoverride";
 import type { Group, Journey, Pt, RouteEdge, TFlight } from "@/lib/journey/engine";
-import { DUTY_HOURS, EMPTY_PLAN, EXAMPLES, planFromParams, planToParams, SORTS, toSpec, type JourneyPlan } from "@/lib/journey/plan";
+import { DETOURS, DUTY_HOURS, EMPTY_PLAN, EXAMPLES, listSort, planFromParams, planToParams, SORTS, toSpec, type JourneyPlan, type ListSort } from "@/lib/journey/plan";
+import { dateLabel, departures, legDate, relDay, soonest, type Departure } from "@/lib/journey/dates";
 import { useJourneySearch } from "@/lib/journey/useSearch";
 import type { JourneyData } from "@/lib/journey/worker";
 import { countryName, placeOptions } from "@/lib/places";
@@ -20,10 +21,10 @@ import { StatusLine, TopBar } from "./chrome";
 import { MultiPicker, PlacePicker, type MultiOption } from "./pickers";
 import { RouteMap, type MapRoute } from "./RouteMap";
 import { cx } from "./ui";
+import { JourneyTimings } from "./JourneyTimings";
 
 const PAGE = 30;
 const n0 = (n: number) => n.toLocaleString("en-GB");
-const daysText = (days: number[]) => (days.length === 7 ? "Daily" : days.map((d) => DAY_NAMES[d - 1]).join(" "));
 /** Typical block for a network leg (same estimate the finder uses when there's no time). */
 const estBlock = (nm: number) => Math.round(nm / 7.4 + 28);
 
@@ -36,7 +37,8 @@ export function JourneysApp() {
   const [ready, setReady] = useState(false);
   const [plan, setPlan] = useState<JourneyPlan>(EMPTY_PLAN);
   const [sel, setSel] = useState<string | null>(null);
-  const [variant, setVariant] = useState(0);
+  const [dep, setDep] = useState<{ vi: number; day: number } | null>(null);
+  const [now] = useState(() => Date.now());
   const [shown, setShown] = useState(PAGE);
   const [saved, setSaved] = useState<string | null>(null);
 
@@ -74,12 +76,12 @@ export function JourneysApp() {
   const update = (patch: Partial<JourneyPlan>) => {
     setPlan((p) => ({ ...p, ...patch }));
     setShown(PAGE);
-    setVariant(0);
+    setDep(null);
     setSaved(null);
   };
   const pick = (key: string) => {
     setSel(key);
-    setVariant(0);
+    setDep(null);
     setSaved(null);
   };
 
@@ -184,8 +186,16 @@ export function JourneysApp() {
       : null,
   );
   const result = search.resultKey === dataKey ? search.result : null;
-  const groups = result?.groups ?? [];
-  const current = groups.find((g) => g.key === sel) ?? groups[0] ?? null;
+  const groups = useMemo(() => result?.groups ?? [], [result]);
+  const active = listSort(plan);
+  const ordered = useMemo(() => {
+    let l = groups;
+    if (active === "next") l = [...l].sort((a, b) => soonest(a, now) - soonest(b, now) || a.score - b.score);
+    // legs flips in the engine (fewest ⇄ most); the others reverse the list
+    return plan.desc && active !== "fewest" ? [...l].reverse() : l;
+  }, [groups, active, plan.desc, now]);
+  const current = ordered.find((g) => g.key === sel) ?? ordered[0] ?? null;
+  const sortList = (v: ListSort) => update(v === active ? { sort: v, desc: !plan.desc } : { sort: v, desc: false });
   const rowsOf = timed ? (timedSet?.rows ?? null) : null;
 
   /* ---------- status ---------- */
@@ -269,20 +279,6 @@ export function JourneysApp() {
                     ))}
                   </div>
                 </div>
-                <label className="jr-ctl">
-                  <span className="ctl-label">Sort</span>
-                  <select
-                    className="ctl-input"
-                    value={plan.timing === "network" && SORTS.find((s) => s.value === plan.sort)?.timed ? "distance" : plan.sort}
-                    onChange={(e) => update({ sort: e.target.value as JourneyPlan["sort"] })}
-                  >
-                    {SORTS.filter((s) => timed || !s.timed).map((s) => (
-                      <option key={s.value} value={s.value}>
-                        {s.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
                 <MultiPicker
                   label="Airline"
                   values={plan.al}
@@ -292,6 +288,17 @@ export function JourneysApp() {
                   searchable
                   note="Flights in the snapshot"
                 />
+                <label className="jr-ctl" title="With a destination: how much longer than the shortest path through the stops the journey may be">
+                  <span className="ctl-label">Detour</span>
+                  <select className="ctl-input" value={plan.detour ?? ""} onChange={(e) => update({ detour: e.target.value ? Number(e.target.value) : null })}>
+                    {DETOURS.map((d) => (
+                      <option key={d} value={d}>
+                        ≤ {d}× shortest
+                      </option>
+                    ))}
+                    <option value="">Any</option>
+                  </select>
+                </label>
                 <label className="check jr-one" title="Every leg flown by the same airline">
                   <input type="checkbox" checked={plan.oneAirline} onChange={(e) => update({ oneAirline: e.target.checked })} />
                   One airline throughout
@@ -384,6 +391,17 @@ export function JourneysApp() {
                     {x.label}
                   </button>
                 ))}
+                <button
+                  type="button"
+                  className="btn jr-clear"
+                  disabled={!planToParams(plan).toString()}
+                  onClick={() => {
+                    update(EMPTY_PLAN);
+                    setSel(null);
+                  }}
+                >
+                  Clear
+                </button>
               </div>
             </section>
 
@@ -451,8 +469,9 @@ export function JourneysApp() {
                       <JourneyDetail
                         key={current.key}
                         group={current}
-                        variant={Math.min(variant, current.variants.length - 1)}
-                        onVariant={setVariant}
+                        dep={dep}
+                        onDep={(d) => setDep({ vi: d.vi, day: d.day })}
+                        now={now}
                         rows={rowsOf}
                         airports={airports!}
                         airlines={airlines}
@@ -467,15 +486,38 @@ export function JourneysApp() {
                             via: s.slice(1, -1),
                             legs: { kind: "exact", n: s.length - 1 },
                             timing: "timed",
-                            sort: "quickest",
+                            sort: "next",
                           });
                         }}
                       />
                     )}
+                    <div className="jr-listcol">
+                    <div className="jr-sorts" role="group" aria-label="Sort journeys">
+                      <span className="ctl-label">Sort</span>
+                      {SORTS.filter((x) => timed || !x.timed).map((x) => {
+                        const on = active === x.value;
+                        const arrow = x.value === "random" ? "" : on ? (plan.desc ? "▼" : "▲") : "";
+                        return (
+                          <button
+                            key={x.value}
+                            type="button"
+                            className="jr-sort"
+                            aria-pressed={on}
+                            title={`${x.tip}${x.value === "random" ? "" : on ? (plan.desc ? " · highest first" : " · lowest first") : ""}`}
+                            onClick={() => sortList(x.value)}
+                          >
+                            {x.label}
+                            <span className="th-arrow" aria-hidden="true">
+                              {arrow}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
                     <ol className="jr-list">
-                      {groups.slice(0, shown).map((g, i) => (
+                      {ordered.slice(0, shown).map((g, i) => (
                         <li key={g.key}>
-                          <JourneyCard no={i + 1} group={g} on={g.key === current?.key} onPick={() => pick(g.key)} rows={rowsOf} airlines={airlines} />
+                          <JourneyCard no={i + 1} group={g} on={g.key === current?.key} onPick={() => pick(g.key)} rows={rowsOf} airlines={airlines} now={now} byDate={active === "next"} />
                         </li>
                       ))}
                       {groups.length > shown && (
@@ -486,6 +528,7 @@ export function JourneysApp() {
                         </li>
                       )}
                     </ol>
+                    </div>
                   </div>
                 )}
               </section>
@@ -615,6 +658,8 @@ function JourneyCard({
   onPick,
   rows,
   airlines,
+  now,
+  byDate,
 }: {
   no: number;
   group: Group;
@@ -622,8 +667,13 @@ function JourneyCard({
   onPick: () => void;
   rows: FlightRow[] | null;
   airlines: Map<string, AirlineInfo>;
+  now: number;
+  byDate: boolean;
 }) {
-  const j = group.best;
+  // timed: by date, the soonest timing; otherwise the best timing (what the list is sorted on) and its next date
+  const deps = group.best.timed ? departures(group, now) : [];
+  const next = (byDate ? deps[0] : deps.find((d) => d.vi === 0)) ?? null;
+  const j = next?.v ?? group.best;
   const legs = j.stops.length - 1;
   const als = legAirlines(j, rows);
   const t = j.timed;
@@ -653,7 +703,11 @@ function JourneyCard({
         <span>{n0(j.nm)} nm</span>
         {t ? (
           <>
-            <span>{daysText(t.days)}</span>
+            {next && (
+              <span>
+                next <b>{dateLabel(next.at)}</b>
+              </span>
+            )}
             <span className="mono">
               {clockZ(t.start)}–{clockZ(t.end)}
               {plusDay(t.end, t.start)}
@@ -672,8 +726,9 @@ function JourneyCard({
 
 function JourneyDetail({
   group,
-  variant,
-  onVariant,
+  dep,
+  onDep,
+  now,
   rows,
   airports,
   airlines,
@@ -683,8 +738,9 @@ function JourneyDetail({
   onTime,
 }: {
   group: Group;
-  variant: number;
-  onVariant: (i: number) => void;
+  dep: { vi: number; day: number } | null;
+  onDep: (d: Departure) => void;
+  now: number;
   rows: FlightRow[] | null;
   airports: Map<string, Airport>;
   airlines: Map<string, AirlineInfo>;
@@ -693,7 +749,9 @@ function JourneyDetail({
   onSave: (name: string, flights: FlightRow[]) => void;
   onTime: () => void;
 }) {
-  const j = group.variants[variant] ?? group.best;
+  const deps = useMemo(() => departures(group, now), [group, now]);
+  const sel = deps.find((d) => d.vi === dep?.vi && d.day === dep?.day) ?? deps[0] ?? null;
+  const j = sel?.v ?? group.best;
   const fnOv = useFnOverrides();
   const frames = useAirframes();
   const [hover, setHover] = useState<number | null>(null);
@@ -730,9 +788,12 @@ function JourneyDetail({
           </span>
           {t ? (
             <>
-              <span>
-                <b>{daysText(t.days)}</b>
-              </span>
+              {sel && (
+                <span>
+                  <b>{dateLabel(sel.at)}</b>
+                  {relDay(sel.at, now) && <span className="muted"> ({relDay(sel.at, now)})</span>}
+                </span>
+              )}
               <span>
                 OUT <b className="mono">{clockZ(t.start)}</b> → IN <b className="mono">{clockZ(t.end)}</b>
                 {plusDay(t.end, t.start)}
@@ -755,18 +816,7 @@ function JourneyDetail({
         </p>
       </header>
       <RouteMap routes={mapRoutes} height={300} label={`Map of the journey ${title}.`} />
-      {t && group.variants.length > 1 && (
-        <label className="jr-variant">
-          <span className="ctl-label">Timing</span>
-          <select className="ctl-input" value={variant} onChange={(e) => onVariant(Number(e.target.value))}>
-            {group.variants.map((v, i) => (
-              <option key={i} value={i}>
-                {i + 1}. {daysText(v.timed!.days)} · {clockZ(v.timed!.start)}–{clockZ(v.timed!.end)} · duty {dur(v.timed!.duty)} · ground {dur(v.timed!.wait)}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      {t && rows && deps.length > 0 && <JourneyTimings deps={deps} sel={sel} onPick={onDep} rows={rows} airlines={airlines} now={now} />}
       <ol className="jr-legs-list">
         {j.stops.slice(0, -1).map((o, i) => {
           const d = j.stops[i + 1];
@@ -817,7 +867,7 @@ function JourneyDetail({
                 <div className="jr-leg-acts">
                   {f ? (
                     <>
-                      <Link className="btn" href={`/brief?f=${encodeURIComponent(f.id)}`}>
+                      <Link className="btn" href={`/brief?f=${encodeURIComponent(f.id)}${sel && leg ? `&d=${legDate(sel, leg.t0)}` : ""}`}>
                         Brief
                       </Link>
                       <a className="btn" href={sbLink(f, frames)} target="_blank" rel="noopener noreferrer">
