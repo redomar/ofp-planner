@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0 — unreleased
+## 1.0.0 — 2026-10-05
 
 First release.
 
@@ -26,4 +26,4 @@ First release.
 - Brief: the departure and arrival airports link to the finder with that airport as the origin.
 - The flight card's header stays pinned while the card scrolls; clicking it folds the card so the table behind is visible.
 - Close a selected flight (× or Escape) and clear the brief; Clear filters also resets the airline.
-- Schedule snapshot pipeline (`pnpm data:snapshot`) and a CLI-only maintenance job for servers.
+- Schedule snapshot pipeline (`pnpm data:snapshot`, run locally) and `pnpm data:push` to send a new snapshot to the server over SSH without a rebuild. First snapshot: 15 days (20 Sep – 4 Oct 2026), 57 airlines, 65,858 flights.

@@ -1,40 +1,30 @@
 # Deploy and refresh the snapshot
 
-The site is static: `pnpm build` writes `out/`, which any static host can serve. The Docker image serves it with nginx.
+Live: **https://plans.massorbit.co.uk** · Dokploy Cloud project "OFP Planner", app "web", on server koronto-neu (138.68.119.18).
 
-## Site
+## How it's deployed
 
-```sh
-docker compose up -d web          # http://localhost:8080
-```
+- Dokploy builds the repo's `Dockerfile` (default stage `web`: `pnpm build` → nginx serving `out/`) from GitHub `redomar/ofp-planner`, branch `main`. **A push to `main` deploys to production** (autoDeploy, trigger "push").
+- Domain `plans.massorbit.co.uk` → port 80, HTTPS via Let's Encrypt. DNS (Hover) already points `*.massorbit.co.uk` at the server.
+- The image contains the schedule snapshot committed in `public/data/` at build time.
+- Bind mount: host `/srv/ofp-planner/live` → container `/usr/share/nginx/html/live` (read-only). nginx serves `/data/` from `live/data` first, then the baked copy (see `nginx.conf`). The folder is never served directly.
 
-The image includes the snapshot that was committed in `public/data/` when it was built.
+## Refreshing the schedule data (the maintenance latch)
 
-## Refreshing the snapshot (the maintenance latch)
-
-The snapshot job is a CLI command, not a web route. Nothing on the site can start it.
-
-**Locally**, then commit and redeploy:
+The data pipeline is a CLI only; nothing on the site or the server can start it. It runs **on your machine** (it needs ~0.6 GB of cache and a few minutes per new day), never on the server.
 
 ```sh
-pnpm data:snapshot      # rebuilds public/data/ (see docs/data-pipeline.md for flags)
-pnpm build && pnpm verify
-git add public/data && git commit -m "Schedule snapshot <date>"
+pnpm data:snapshot --days 15 --end 2026-10-04   # rebuild public/data/ locally (see docs/data-pipeline.md)
+pnpm build && pnpm verify                        # check it
 ```
 
-**On the server**, without a rebuild:
+Then either:
 
-```sh
-docker compose --profile maintenance run --rm snapshot
-```
+- **Send it over SSH (no rebuild):** `pnpm data:push` uploads `public/data/` to `koronto:/srv/ofp-planner/live/data` and swaps it in atomically. `pnpm data:push --status` compares local and live; `pnpm data:push --clear` removes the live copy so the baked one is served again. Override the target with `OFP_DATA_HOST` / `OFP_DATA_DIR`.
+- **Or commit it:** `git add public/data && git commit` and push to `main`; Dokploy rebuilds with the new data baked in. (If a live copy was pushed earlier it still wins; clear it, or push again.)
 
-This writes into the `live` volume. nginx serves `/data/` from that volume first and falls back to the copy baked into the image. Raw downloads are cached in the `cache` volume, so later runs fetch less. Run it by hand, or from the host's cron or a Dokploy scheduled job:
+Browsers pick up a new snapshot on their next visit: the manifest is revalidated every time, the other files are requested with `?v=<generatedAt>`.
 
-```cron
-# 04:30 on the 1st of each month
-30 4 1 * * cd /srv/ofp-planner && docker compose --profile maintenance run --rm snapshot >> /var/log/ofp-snapshot.log 2>&1
-```
+## Local / other hosts
 
-To return to the baked snapshot, empty the volume: `docker compose run --rm --entrypoint sh snapshot -c 'rm -rf /live/data'`.
-
-Browsers pick up a new snapshot on their next visit. The manifest is revalidated every time, and the other files are requested with `?v=<generatedAt>`.
+`pnpm build` writes a static `out/` that any host can serve (route `/x` → `x.html`). `docker compose up -d web` runs the same image on :8080; `docker-compose.yml` also has a `snapshot` service for hosts where running the pipeline in a container is preferred.

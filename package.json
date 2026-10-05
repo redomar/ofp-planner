@@ -23,7 +23,8 @@
     "typecheck": "tsc --noEmit",
     "verify": "node scripts/verify.mjs",
     "data:snapshot": "node scripts/snapshot/index.mjs",
-    "map:terrain": "node scripts/build-terrain.mjs"
+    "map:terrain": "node scripts/build-terrain.mjs",
+    "data:push": "bash scripts/push-data.sh"
   },
   "dependencies": {
     "d3-geo": "^3.1.1",
