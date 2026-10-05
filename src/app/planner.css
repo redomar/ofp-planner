@@ -2368,3 +2368,54 @@ select.ctl-input {
     flex-wrap: wrap;
   }
 }
+
+/* map zoom: buttons, hint, touch behaviour */
+.map {
+  touch-action: pan-y;
+  user-select: none;
+}
+.map.zoomed {
+  touch-action: none;
+  cursor: grab;
+}
+.map.zoomed:active {
+  cursor: grabbing;
+}
+/* top-left: the floating flight panel covers the right of the page */
+.map-zoom {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.map-zbtn {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-top: 1px solid var(--rule);
+  background: var(--sheet);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+.map-zbtn:first-child {
+  border-top: 0;
+}
+.map-zbtn:hover {
+  background: var(--sunk);
+}
+.map-zbtn[disabled] {
+  color: var(--ink-3);
+  cursor: default;
+  background: var(--sheet);
+}
+.map-zreset {
+  font-size: 15px;
+}
