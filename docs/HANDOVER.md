@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: v1.0.0, unreleased. All work committed locally on main (signed). NOT pushed; no GitHub repo yet.
+  status: v1.0.0 released 2026-10-05 · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 
@@ -126,7 +126,8 @@ recipes:
   add_an_airline: add a brand to AIRLINES in scripts/snapshot/airlines.mjs (icao, iata, name, callsign word,
     operators[], colors[primary, secondary]), then --stage build. Region filter = REGION in the same file.
   after_any_run: pnpm build && pnpm verify, check counts in Settings → Schedule snapshot, commit public/data.
-server_latch: |
+data_to_server: pnpm data:push (rsync over SSH to koronto:/srv/ofp-planner/live/data, atomic swap; --status, --clear). See docs/deploy.md.
+server_latch_container_alternative: |
   CLI only, never a web route. docker compose --profile maintenance run --rm snapshot
   → writes the "live" volume; nginx serves /data/ from /live first, falling back to the baked copy (nginx.conf).
   Cron example and rollback: docs/deploy.md. Refresh after schedule changes (end of March / October).
@@ -203,8 +204,8 @@ server_latch: |
 
 ## 10. Open items / ideas
 
-  - Decide Ryanair timetable on/off by default; create the GitHub repo; release flow per ../ofp-reader-handover.md §16
-    (release/1.0.0 branch → PR → merge commit → signed tag → GitHub release from CHANGELOG → Dokploy).
+  - Ryanair timetable: kept on (user decision 2026-10-05). Next releases: feature branches → release/x.y.z → PR → merge
+    commit → signed tag → GitHub release; pushing main auto-deploys (Dokploy).
   - Refresh the snapshot after 25 Oct 2026 (winter schedule) and periodically after; consider a longer window
     (--days 21–28) to catch weekly flights.
   - Possible: user-typed flight number override for fn-null flights; more airlines in airlines.mjs;

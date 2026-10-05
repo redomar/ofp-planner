@@ -22,7 +22,9 @@ pnpm verify         # browser checks against out/ (add -- --shots for screenshot
 
 ## Schedule snapshot
 
-The flight data in `public/data/` is a snapshot built offline by `scripts/snapshot/` and committed, so the site needs no API at runtime. To refresh it, see [docs/data-pipeline.md](docs/data-pipeline.md). On a server, see [docs/deploy.md](docs/deploy.md): the maintenance job is CLI-only and can't be reached from the web.
+The flight data in `public/data/` is a snapshot built offline by `scripts/snapshot/` and committed, so the site needs no API at runtime. Rebuild it locally with `pnpm data:snapshot` ([docs/data-pipeline.md](docs/data-pipeline.md)) and send it to the live site with `pnpm data:push` ([docs/deploy.md](docs/deploy.md)). The pipeline is CLI-only and never runs on the server or the web.
+
+Live at **https://plans.massorbit.co.uk**.
 
 ## Licences
 
