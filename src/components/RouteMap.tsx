@@ -1,7 +1,7 @@
 "use client";
 
 import { geoAzimuthalEquidistant, geoDistance, geoGraticule, geoInterpolate, geoPath, type GeoProjection } from "d3-geo";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { Airport } from "@/lib/data/load";
 import { useDisplay } from "@/lib/display";
 import { COUNTRIES, RANGES, SEAS } from "@/lib/maplabels";
@@ -80,7 +80,8 @@ export function RouteMap({
     return () => ro.disconnect();
   }, []);
 
-  const view = useMemo(() => {
+  // The default view fits the routes; zoom only goes in from there (k ≥ 1) and pans stay inside it.
+  const fit = useMemo(() => {
     if (!routes.length || W < 50) return null;
     const pts: [number, number][] = routes.flatMap((r) => [
       [r.from.lon, r.from.lat],
@@ -116,21 +117,60 @@ export function RouteMap({
     // Don't zoom in past ~260 NM across, or a short hop loses all context.
     const minSpan = 0.075;
     if (maxSpan < minSpan) proj.scale(proj.scale() * (maxSpan / minSpan));
-    proj.clipExtent([
-      [0, 0],
-      [W, H],
-    ]);
-    return { proj, path: geoPath(proj) };
+    return { rotate: proj.rotate(), scale: proj.scale(), translate: proj.translate() };
   }, [routes, W, H]);
+
+  const zoom = useZoom(ref, W, H, fit);
+  const z = zoom.committed;
+
+  const view = useMemo(() => {
+    if (!fit) return null;
+    const proj = geoAzimuthalEquidistant()
+      .rotate(fit.rotate)
+      .scale(fit.scale * z.k)
+      .translate([fit.translate[0] * z.k + z.x, fit.translate[1] * z.k + z.y])
+      .clipExtent([
+        [0, 0],
+        [W, H],
+      ]);
+    return { proj, path: geoPath(proj) };
+  }, [fit, z, W, H]);
 
   const base = useMemo(() => (view ? baseLayers(view.proj, view.path, W, H, outlines, terrain) : null), [view, outlines, terrain, W, H]);
 
   return (
-    <figure ref={ref} className={`map ${className ?? ""}`} style={{ height: H }}>
+    <figure ref={ref} className={`map ${className ?? ""}${zoom.live.k > 1 ? " zoomed" : ""}`} style={{ height: H }}>
       {view && base ? (
-        <Drawn view={view} base={base} routes={routes} W={W} H={H} hover={hover} setHover={setHover} onPick={onPick} label={label} codes={display.mapCodes} />
+        <Drawn
+          view={view}
+          base={base}
+          routes={routes}
+          W={W}
+          H={H}
+          hover={hover}
+          setHover={setHover}
+          onPick={onPick}
+          label={label}
+          codes={display.mapCodes}
+          transform={zoom.transform}
+        />
       ) : (
         !routes.length && <span className="map-empty">No route to draw</span>
+      )}
+      {view && (
+        <div className="map-zoom" role="group" aria-label="Map zoom">
+          <button type="button" className="map-zbtn" aria-label="Zoom in" title="Zoom in" onClick={() => zoom.step(1.6)} disabled={zoom.live.k >= ZMAX}>
+            +
+          </button>
+          <button type="button" className="map-zbtn" aria-label="Zoom out" title="Zoom out" onClick={() => zoom.step(1 / 1.6)} disabled={zoom.live.k <= 1}>
+            −
+          </button>
+          {zoom.live.k > 1 && (
+            <button type="button" className="map-zbtn map-zreset" aria-label="Reset the map view" title="Back to the whole route view" onClick={zoom.reset}>
+              ⤢
+            </button>
+          )}
+        </div>
       )}
     </figure>
   );
@@ -214,6 +254,7 @@ function Drawn({
   onPick,
   label,
   codes,
+  transform,
 }: {
   view: View;
   base: Base;
@@ -225,6 +266,8 @@ function Drawn({
   onPick?: (icao: string) => void;
   label: string;
   codes: boolean;
+  /** Live pinch/scroll zoom applied on top of the last drawn view until it's redrawn. */
+  transform: string | undefined;
 }) {
   const { proj, path } = view;
   const many = routes.length > 1;
@@ -290,6 +333,7 @@ function Drawn({
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={label}>
       <rect className="map-sea" x="0" y="0" width={W} height={H} />
+      <g transform={transform}>
       {base.depths.map((b) => (
         <path key={`d${b.i}`} className={`map-depth d${b.i}`} d={b.d} />
       ))}
@@ -379,6 +423,7 @@ function Drawn({
           </text>
         ))}
       </g>
+      </g>
     </svg>
   );
 }
@@ -390,4 +435,170 @@ function planeAt(proj: GeoProjection, r: MapRoute) {
   const b = proj(ip(0.52));
   if (!a || !b) return null;
   return { x: a[0], y: a[1], deg: (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI + 90 };
+}
+
+/* ---------- zoom and pan ---------- */
+
+const ZMAX = 12;
+interface Z {
+  k: number;
+  x: number;
+  y: number;
+}
+const Z0: Z = { k: 1, x: 0, y: 0 };
+
+/**
+ * Zoom (1× = the fitted view, up to 12×) and pan for a map element. Screen = k · fitted + (x, y).
+ * Gestures move a cheap SVG transform at once ("live"); the map is redrawn at the new zoom once
+ * the gesture rests ("committed"), so lines and lettering stay crisp.
+ * Two-finger scroll and trackpad pinch zoom (at the fitted view a downward scroll still scrolls
+ * the page); touch: two-finger pinch, one-finger drag once zoomed in; double-click zooms in.
+ */
+function useZoom(ref: RefObject<HTMLElement | null>, W: number, H: number, fit: object | null) {
+  const [live, setLive] = useState<Z>(Z0);
+  const [committed, setCommitted] = useState<Z>(Z0);
+  const liveRef = useRef<Z>(Z0);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // a new set of routes (or size) starts from the fitted view again
+  const [prevFit, setPrevFit] = useState(fit);
+  if (fit !== prevFit) {
+    setPrevFit(fit);
+    setLive(Z0);
+    setCommitted(Z0);
+  }
+  useEffect(() => {
+    liveRef.current = live;
+  }, [live]);
+
+  const clamp = useCallback(
+    (z: Z): Z => {
+      const k = Math.min(ZMAX, Math.max(1, z.k));
+      return { k, x: Math.min(0, Math.max(W * (1 - k), z.x)), y: Math.min(0, Math.max(H * (1 - k), z.y)) };
+    },
+    [W, H],
+  );
+  const apply = useCallback(
+    (z: Z, now = false) => {
+      const n = clamp(z);
+      liveRef.current = n;
+      setLive(n);
+      clearTimeout(timer.current);
+      if (now) setCommitted(n);
+      else timer.current = setTimeout(() => setCommitted(n), 140);
+    },
+    [clamp],
+  );
+  const zoomAt = useCallback(
+    (px: number, py: number, f: number, now = false) => {
+      const z = liveRef.current;
+      const k = Math.min(ZMAX, Math.max(1, z.k * f));
+      const r = k / z.k;
+      apply({ k, x: px - r * (px - z.x), y: py - r * (py - z.y) }, now);
+    },
+    [apply],
+  );
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const local = (e: { clientX: number; clientY: number }) => {
+      const b = el.getBoundingClientRect();
+      return [e.clientX - b.left, e.clientY - b.top] as const;
+    };
+    // Two-finger scroll (and pinch, which arrives as ctrl+wheel) zooms: up = in, down = out.
+    // At the fitted view, scrolling down isn't captured, so the page still scrolls past the map.
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+      const zoomingOut = e.deltaY > 0;
+      if (zoomingOut && liveRef.current.k <= 1) return;
+      e.preventDefault();
+      const [px, py] = local(e);
+      const rate = e.ctrlKey ? 0.01 : e.deltaMode === 1 ? 0.05 : 0.004;
+      zoomAt(px, py, Math.exp(-e.deltaY * rate));
+    };
+    const pts = new Map<number, { x: number; y: number }>();
+    let moved = 0;
+    let last: { x: number; y: number; d: number } | null = null;
+    const summary = () => {
+      const v = [...pts.values()];
+      const x = v.reduce((s, p) => s + p.x, 0) / v.length;
+      const y = v.reduce((s, p) => s + p.y, 0) / v.length;
+      const d = v.length > 1 ? Math.hypot(v[0].x - v[1].x, v[0].y - v[1].y) : 0;
+      return { x, y, d };
+    };
+    const onDown = (e: PointerEvent) => {
+      if ((e.target as Element).closest(".map-zoom")) return;
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      const [x, y] = local(e);
+      pts.set(e.pointerId, { x, y });
+      if (pts.size === 1) moved = 0;
+      last = summary();
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!pts.has(e.pointerId)) return;
+      const [x, y] = local(e);
+      pts.set(e.pointerId, { x, y });
+      const s = summary();
+      if (!last) return (last = s);
+      const z = liveRef.current;
+      const dx = s.x - last.x;
+      const dy = s.y - last.y;
+      moved += Math.abs(dx) + Math.abs(dy);
+      if (pts.size > 1 && last.d > 0) {
+        // pinch: scale about the fingers' midpoint and follow it
+        const k = Math.min(ZMAX, Math.max(1, (z.k * s.d) / last.d));
+        const r = k / z.k;
+        apply({ k, x: s.x - r * (last.x - z.x), y: s.y - r * (last.y - z.y) });
+      } else if (z.k > 1 && moved > 3) {
+        if (!el.hasPointerCapture(e.pointerId)) el.setPointerCapture(e.pointerId);
+        apply({ k: z.k, x: z.x + dx, y: z.y + dy });
+      }
+      last = s;
+    };
+    const onUp = (e: PointerEvent) => {
+      pts.delete(e.pointerId);
+      last = pts.size ? summary() : null;
+    };
+    // a drag shouldn't also click a destination dot
+    const onClick = (e: MouseEvent) => {
+      if (moved > 6) {
+        e.stopPropagation();
+        e.preventDefault();
+        moved = 0;
+      }
+    };
+    const onDbl = (e: MouseEvent) => {
+      if ((e.target as Element).closest(".map-zoom")) return;
+      const [px, py] = local(e);
+      zoomAt(px, py, 2, true);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("pointerdown", onDown);
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerup", onUp);
+    el.addEventListener("pointercancel", onUp);
+    el.addEventListener("click", onClick, true);
+    el.addEventListener("dblclick", onDbl);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("pointerdown", onDown);
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerup", onUp);
+      el.removeEventListener("pointercancel", onUp);
+      el.removeEventListener("click", onClick, true);
+      el.removeEventListener("dblclick", onDbl);
+      clearTimeout(timer.current);
+    };
+  }, [ref, zoomAt, apply]);
+
+  const r = live.k / committed.k;
+  const same = live.k === committed.k && live.x === committed.x && live.y === committed.y;
+  return {
+    live,
+    committed,
+    transform: same ? undefined : `translate(${(live.x - r * committed.x).toFixed(2)} ${(live.y - r * committed.y).toFixed(2)}) scale(${r.toFixed(4)})`,
+    step: (f: number) => zoomAt(W / 2, H / 2, f, true),
+    reset: () => apply(Z0, true),
+  };
 }
