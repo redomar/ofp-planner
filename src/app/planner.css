@@ -3189,33 +3189,102 @@ select.ctl-input {
 .rh-sample {
   overflow: hidden;
 }
-/* flight-card samples need the real card width: one option per row, sample beside the text */
+/* flight-card options: title and description, then the sample centred at real card width */
 .opt-grid.stack {
   grid-template-columns: minmax(0, 1fr);
 }
-.opt-grid.stack .opt-body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 480px);
-  gap: 6px 18px;
-  align-items: start;
-}
-.opt-grid.stack .opt-title,
-.opt-grid.stack .opt-note {
-  grid-column: 1;
-}
 .opt-grid.stack .opt-sample {
-  grid-column: 2;
-  grid-row: 1 / span 3;
+  width: 100%;
+  max-width: 500px;
+  margin: 6px auto 0;
+}
+
+/* aircraft type badges: colour (rows) × style (columns) */
+.opt-lead {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+.badge-matrix {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: stretch;
+}
+.bm-col {
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  align-self: end;
+  padding-left: 4px;
+}
+.bm-row {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+}
+.bm-row b {
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.bm-row small {
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.bm-cell {
+  align-items: center;
+  flex-wrap: wrap;
+}
+.bm-cell input {
   margin-top: 0;
 }
-@media (max-width: 860px) {
-  .opt-grid.stack .opt-body {
-    grid-template-columns: minmax(0, 1fr);
+.bm-cell .bm-cap {
+  display: none;
+}
+.bm-def {
+  margin-left: auto;
+  font-size: 11.5px;
+}
+@media (max-width: 640px) {
+  .bm-col {
+    display: none;
   }
-  .opt-grid.stack .opt-sample {
-    grid-column: 1;
-    grid-row: auto;
+  .bm-cell .bm-cap {
+    display: block;
+    width: 100%;
+    font-family: var(--font-cond);
+    font-weight: 700;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-2);
   }
+}
+@media (max-width: 640px) {
+  .badge-matrix {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .badge-matrix > span[aria-hidden="true"] {
+    display: none;
+  }
+  .bm-row {
+    grid-column: 1 / -1;
+    margin-top: 6px;
+  }
+}
+
+/* fieldsets default to min-width: min-content; let them shrink on phones */
+.opt-group {
+  min-width: 0;
+}
+.rh-sample {
+  overflow: hidden;
 }
 
 /* RouteHead adapts to its own width (narrow cards on phones, Settings samples) */
@@ -3292,4 +3361,10 @@ select.ctl-input {
 .rh-ticks.top > span:last-child {
   transform: translateX(calc(-100% + 10px));
   align-items: flex-end;
+}
+.bm-cell {
+  gap: 8px 10px;
+}
+.bm-cell .types-dd {
+  flex: 1;
 }

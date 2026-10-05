@@ -560,7 +560,7 @@ async function run() {
     // display options apply in the finder
     await page.getByRole("radio", { name: /Split pill/ }).check();
     await page.getByRole("radio", { name: /Airline, then flight/ }).check();
-    await page.getByRole("radio", { name: /Coloured edge/ }).check();
+    await page.getByRole("radio", { name: "Colour by manufacturer, edge only" }).check();
     await page.locator("input[name=mapCodes]").nth(2).check();
     await page.goto(page.url().replace(/\/settings.*$/, "/?al=EZY&dep=EGKK"), { waitUntil: "networkidle" });
     await page.waitForSelector("table.flights tbody tr");
