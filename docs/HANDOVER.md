@@ -150,6 +150,9 @@ server_latch: |
   - Flights table: Freq column (2× / Daily) then a 7-letter week strip; flight number and airline tag widths come
     from the whole filtered result (mono ch for numbers, canvas-measured text for names), so columns line up.
   - Weather is fetched only on the Brief (never on the Finder), cached (forecast 60 min, METAR 10 min).
+  - User flight numbers: src/lib/fnoverride.ts, "ofp-planner:flight-numbers" { "EJU:EJU54LH": "1016" }; applyFn() fills
+    fn (fnUser=true) in the Finder rows and Brief; SavedFlights uses overrideFor(). useFnOverrides is content-stable
+    (a new object on every storage change caused an update loop with pushHistory).
   - Favourites: SavedFlight.group (null = ungrouped), groups list in "ofp-planner:fav-groups", prefs.lastGroup =
     where new stars go. SavedFlights.tsx renders favourites by group + recent, on the brief start page and Settings.
   - Clear filters resets everything including the airline (→ all airlines).

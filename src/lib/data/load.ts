@@ -29,6 +29,8 @@ export interface FlightRow extends Flight {
   id: string;
   /** types was empty in the snapshot and holds the airline's most common type instead. */
   typeGuessed: boolean;
+  /** fn was added by the user (Settings-free: from the flight card), not from the data. */
+  fnUser?: boolean;
 }
 
 const BASE = "/data/";

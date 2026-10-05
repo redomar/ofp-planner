@@ -19,6 +19,7 @@ import {
   type SavedFlight,
 } from "@/lib/saved";
 import { routeColor } from "@/lib/colors";
+import { overrideFor, useFnOverrides } from "@/lib/fnoverride";
 import { FlightIdent, TypeBadge, WeekStrip } from "./badges";
 import { RouteMap, type MapRoute } from "./RouteMap";
 
@@ -286,10 +287,12 @@ function Row({
   onOpen?: (id: string) => void;
   starred: boolean;
 }) {
+  const fnOv = useFnOverrides();
   const al = ref_?.airlines.get(f.al);
   const o = ref_?.airports.get(f.o);
   const d = ref_?.airports.get(f.d);
-  const ident = f.fn ? `${al?.iata ?? f.al}${f.fn}` : (f.cs ?? `${f.op} —`);
+  const fn = f.fn ?? overrideFor(f.op, f.cs, fnOv);
+  const ident = fn ? `${al?.iata ?? f.al}${fn}` : (f.cs ?? `${f.op} —`);
   const dep = f.dep ?? f.std;
   const href = `/brief?f=${encodeURIComponent(f.id)}`;
   const place = (a: Airport | undefined, icao: string) => (a ? (a.city ?? airportLabel(a)) : icao);
