@@ -287,7 +287,13 @@ export function BriefApp() {
 
             <Section id="weather" no={3} title="Weather" meta={<span>Forecast at the planned times</span>}>
               {from && to ? (
-                <RouteWeather origin={wxPoint(from)} dest={wxPoint(to)} dep={times?.dep ?? null} arr={times?.arr ?? null} />
+                <RouteWeather
+                  origin={wxPoint(from)}
+                  dest={wxPoint(to)}
+                  dep={times?.dep ?? null}
+                  arr={times?.arr ?? null}
+                  flightLabel={`${flightNo(f, airline?.iata ?? null)} · ${dur(row.block?.min) ?? ""}`}
+                />
               ) : (
                 <p className="muted">Airport positions are missing from the snapshot, so there’s no forecast for this flight.</p>
               )}
