@@ -1,17 +1,16 @@
 "use client";
 
-import { Flag } from "./Flag";
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { AirlineInfo } from "@/lib/data/types";
-import { airportLabel, dur, flightNo, hhmm, localHHMM, tzLabel } from "@/lib/data/flight";
+import { airportLabel, dur, flightNo, hhmm, localHHMM } from "@/lib/data/flight";
 import type { Airport } from "@/lib/data/load";
 import type { Row } from "@/lib/data/query";
 import { cleanFn, setFnOverride } from "@/lib/fnoverride";
 import { moveFavourite, pushHistory, setReady, toggleFavourite, useSaved } from "@/lib/saved";
 import { defaultChoice, flightDispatch, simbriefUrl, typeChoices, useAirframes } from "@/lib/simbrief";
 import { TypeBadge, WeekStrip, freqLabel } from "./badges";
-import { ReplayFlapCode } from "./FlapCode";
+import { RouteHead } from "./RouteHead";
 import { RouteMap } from "./RouteMap";
 import { Badge, Tip, V } from "./ui";
 import { GLOSSARY } from "@/lib/glossary";
@@ -133,18 +132,7 @@ export function FlightCard({
       </header>
 
       <div className="fcard-body" id={bodyId} hidden={folded}>
-      <div className="fcard-route">
-        <End a={from} icao={f.o} side="dep" onPlace={onPlace} placeHref={placeHref} sched={f.std} obs={f.out ?? f.off} obsKind={f.out != null ? "OUT" : "OFF"} label="Departs" />
-        <div className="fcard-mid" aria-hidden="true">
-          <span className="mono">{dur(block?.min) ?? "—"}</span>
-          <svg viewBox="0 0 100 10" preserveAspectRatio="none">
-            <path d="M2 5H98" />
-            <path d="M92 1l6 4-6 4" />
-          </svg>
-          <span className="mono">{nm != null ? `${nm.toLocaleString("en-GB")} NM` : "—"}</span>
-        </div>
-        <End a={to} icao={f.d} side="arr" onPlace={onPlace} placeHref={placeHref} sched={f.sta} obs={f.in ?? f.on} obsKind={f.in != null ? "IN" : "ON"} label="Arrives" />
-      </div>
+      <RouteHead f={f} from={from} to={to} blockMin={block?.min ?? null} nm={nm} onPlace={onPlace} placeHref={placeHref} />
 
       {from && to && (
         <RouteMap
@@ -371,82 +359,6 @@ function FnLine({ f, iata }: { f: Row["f"]; iata: string | null }) {
         </button>
       )}
     </small>
-  );
-}
-
-function End({
-  a,
-  icao,
-  side,
-  sched,
-  obs,
-  obsKind,
-  label,
-  onPlace,
-  placeHref,
-}: {
-  a: Airport | undefined;
-  icao: string;
-  side: "dep" | "arr";
-  sched: number | null;
-  obs: number | null;
-  obsKind: string;
-  label: string;
-  onPlace?: (side: "dep" | "arr", icao: string) => void;
-  placeHref?: (icao: string) => string;
-}) {
-  const t = sched ?? obs;
-  const place = (
-    <>
-      <ReplayFlapCode code={icao} label={a ? `${icao}, ${airportLabel(a)}` : icao} />
-      <p className="fcard-place">
-        {a?.country && <Flag cc={a.country} />}
-        <span>
-          {a ? airportLabel(a) : <V v={null} w={12} />}
-          {a?.iata && <span className="mono muted"> {a.iata}</span>}
-        </span>
-      </p>
-    </>
-  );
-  return (
-    <div className={`fcard-end ${side}`}>
-      <span className="ctl-label">{label}</span>
-      {placeHref ? (
-        <Link className="fcard-placelink" href={placeHref(icao)} title={`Flights from ${a ? airportLabel(a) : icao} in the finder`}>
-          {place}
-        </Link>
-      ) : (
-        place
-      )}
-      <p className="fcard-time">
-        {t != null ? (
-          <>
-            <span className={sched == null ? "mono obs" : "mono"} title={sched == null ? `Typical ${obsKind} from tracked flights` : "Scheduled"}>
-              {hhmm(t)}Z
-            </span>
-            {sched == null && <span className="muted small"> {obsKind.toLowerCase()}</span>}
-            {a?.tz && (
-              <span className="muted">
-                {" "}
-                {localHHMM(t, a.tz)} local ({tzLabel(a.tz)})
-              </span>
-            )}
-          </>
-        ) : (
-          <span className="mono muted">—</span>
-        )}
-      </p>
-      {placeHref && (
-        <Link className="linkish" href={placeHref(icao)}>
-          Find flights from here →
-        </Link>
-      )}
-      {onPlace && (
-        <button type="button" className="linkish" onClick={() => onPlace(side, icao)}>
-          {side === "dep" ? "All flights from here" : "All flights to here"}
-        </button>
-      )}
-    </div>
   );
 }
 

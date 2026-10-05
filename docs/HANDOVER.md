@@ -43,7 +43,9 @@ pages:        # all client components; one shared TopBar (Finder · Brief · Set
   /brief:     src/components/BriefApp.tsx   — FlightCard, date, next leg (sample + full list), weather
   /settings:  src/components/SettingsApp.tsx — airframes, Display, favourites, recent, snapshot info, theme/storage
 components:
-  FlightCard.tsx:  sticky foldable header (bg sunk), split-flap codes, RouteMap, OOOI table, facts, SimBrief dispatch
+  FlightCard.tsx:  sticky foldable header (bg sunk), RouteHead, RouteMap, OOOI table, facts, SimBrief dispatch
+  RouteHead.tsx:   departs/arrives in display.routeHead = "timeline" (user's R7, default) | "pass" (R2) | "board" (R5);
+                   times from fourTimes() in data/flight.ts (sched → tracked → estimated, EST. badge)
   Results.tsx:     FlightTable (sortable, paged 80, scroll box) and PlacesView (fan map + airport rows)
   RouteMap.tsx:    d3-geo azimuthal-equidistant chart (user's pick "48" from the map previews): depth bands + dashed depth
                    contours, parchment land + height bands/contours, 10°/5° grid, edge degrees (no shading behind),

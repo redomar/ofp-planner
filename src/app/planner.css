@@ -2848,3 +2848,306 @@ select.ctl-input {
   cursor: help;
   line-height: 0;
 }
+
+/* ---------- flight card: departs / arrives (RouteHead) ---------- */
+
+.rh {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.est-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 17px;
+  padding: 0 5px;
+  margin-left: 5px;
+  border: 1px solid var(--amber);
+  border-radius: 2px;
+  background: var(--amber-bg);
+  color: var(--amber);
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  vertical-align: 1px;
+}
+.rh-z {
+  display: inline-flex;
+  align-items: center;
+}
+.rh-big {
+  font-size: 18px;
+  font-weight: 600;
+}
+.rh-k {
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+}
+.rh-city {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 8px 0 0;
+  font-size: 15px;
+}
+.rh-city.r {
+  justify-content: flex-end;
+}
+.rh-ap {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--ink-2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.code-flap .flap {
+  font: 700 28px/1 var(--font-mono);
+}
+.fcard-end.arr .code-flap {
+  display: flex;
+  justify-content: flex-end;
+}
+.rh-mid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-top: 26px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.rh-arrow {
+  width: 100%;
+  height: 10px;
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 1.4;
+}
+.rh-plane {
+  fill: var(--ink);
+  transform: rotate(90deg);
+}
+.rh-linkrow {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.rh-linkrow .linkish {
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+}
+
+/* R7 timeline */
+.rh-ends {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px minmax(0, 1fr);
+  gap: 10px;
+}
+.rh-ends .ctl-label {
+  margin-bottom: 6px;
+}
+.rh-track-wrap {
+  padding: 0 6px;
+}
+.rh-ticks {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+}
+.rh-ticks.top {
+  height: 36px;
+  margin-top: 8px;
+}
+.rh-ticks.top > span {
+  position: absolute;
+  bottom: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 13px;
+}
+.rh-ticks:not(.top) > span {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+}
+.rh-ticks > .r {
+  align-items: flex-end;
+  text-align: right;
+}
+.rh-ticks i {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+.rh-track {
+  position: relative;
+  height: 14px;
+  margin: 4px 0 6px;
+}
+.rh-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 6px;
+  border-top: 2px solid var(--ink);
+}
+.rh-air {
+  position: absolute;
+  top: 5px;
+  border-top: 4px solid var(--magenta);
+}
+.rh-dot {
+  position: absolute;
+  top: 1px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 2px solid var(--sheet);
+  z-index: 1;
+}
+.rh-dot.est {
+  background: var(--sheet);
+  border: 2px solid var(--amber);
+}
+.rh-dot.none {
+  background: var(--sheet);
+  border: 2px dashed var(--ink-3);
+}
+
+/* R2 boarding pass */
+.rh-pass {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px minmax(0, 1fr);
+  border: 1px solid var(--rule-strong);
+  border-radius: 6px;
+  background: var(--field);
+  overflow: hidden;
+}
+.rh-pass .stub {
+  padding: 10px 12px;
+}
+.rh-pass .ctl-label {
+  margin-bottom: 6px;
+}
+.rh-pass .perf {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-left: 2px dashed var(--rule-strong);
+  border-right: 2px dashed var(--rule-strong);
+  background: var(--sunk);
+}
+.rh-pass .perf .rh-mid {
+  padding-top: 0;
+  gap: 6px;
+}
+.rh-pass .strip {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 4px 12px;
+  align-items: end;
+  padding: 8px 12px;
+  border-top: 1px dashed var(--rule-strong);
+  background: var(--sunk);
+}
+.rh-pass .strip > span {
+  display: flex;
+  flex-direction: column;
+}
+.rh-pass .strip .r {
+  align-items: flex-end;
+}
+.rh-pass .strip .sub {
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  align-self: center;
+}
+.rh-pass .strip i {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+
+/* R5 departure board: themed, so a light board by day and a dark one at night */
+.rh-board {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 4px;
+  background: var(--sunk);
+}
+.rh-board .brow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+}
+.rh-board .brow .ctl-label {
+  margin: 0;
+  width: 30px;
+}
+.rh-board .flap {
+  font: 700 21px/1 var(--font-mono);
+}
+.rh-board .flap-tile {
+  background: var(--field);
+}
+.rh-board .bcity {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-family: var(--font-cond);
+  font-size: 16px;
+  letter-spacing: 0.1em;
+}
+.rh-board .bcity b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rh-board .bcity .fcard-placelink {
+  color: inherit;
+}
+.rh-board .meta {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+@media (max-width: 420px) {
+  .rh-ends,
+  .rh-pass {
+    grid-template-columns: minmax(0, 1fr) 56px minmax(0, 1fr);
+  }
+  .code-flap .flap {
+    font-size: 23px;
+  }
+  .rh-board .flap {
+    font-size: 17px;
+  }
+  .rh-board .brow {
+    gap: 8px;
+  }
+}
+
+/* tooltip descriptions stay hidden whatever layout rule matches them */
+.rh [hidden] {
+  display: none !important;
+}

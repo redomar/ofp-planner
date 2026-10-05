@@ -16,9 +16,12 @@ export interface Display {
   typeTheme: "side" | "full";
   /** Destination IATA codes on the destinations map (codes that would overlap are skipped). */
   mapCodes: boolean;
+  /** How the flight card shows departs / arrives. */
+  routeHead: RouteHeadStyle;
 }
+export type RouteHeadStyle = "timeline" | "pass" | "board";
 
-export const DEFAULT_DISPLAY: Display = { airlineTag: "solid", flightFirst: true, typeColour: "maker", typeTheme: "full", mapCodes: true };
+export const DEFAULT_DISPLAY: Display = { airlineTag: "solid", flightFirst: true, typeColour: "maker", typeTheme: "full", mapCodes: true, routeHead: "timeline" };
 
 export const readDisplay = (): Display => ({ ...DEFAULT_DISPLAY, ...readJSON<Partial<Display>>(KEYS.display, {}) });
 export function writeDisplay(p: Partial<Display>) {

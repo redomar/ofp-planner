@@ -289,6 +289,29 @@ function DisplayPrefs({ manifest }: { manifest: Manifest | null }) {
         </p>
       </fieldset>
       <fieldset className="opt-group">
+        <legend className="ctl-label">Flight card: departs / arrives</legend>
+        <div className="opt-grid">
+          {(
+            [
+              ["timeline", "Timeline", "Both ends with city and airport, then the OUT · OFF · ON · IN track with every time in order."],
+              ["pass", "Boarding pass", "Each end in a stub, a perforated middle with the aircraft, block time and distance; times along the bottom."],
+              ["board", "Departure board", "Split-flap rows like an airport screen: time, code and city. Light by day, dark at night."],
+            ] as const
+          ).map(([v, label, note]) => (
+            <label key={v} className="opt">
+              <input type="radio" name="routeHead" checked={d.routeHead === v} onChange={() => writeDisplay({ routeHead: v })} />
+              <span className="opt-body">
+                <span className="opt-title">
+                  {label}
+                  {v === "timeline" && <span className="muted"> (default)</span>}
+                </span>
+                <span className="opt-note">{note}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <fieldset className="opt-group">
         <legend className="ctl-label">Maps</legend>
         <label className="opt opt-check">
           <input type="checkbox" checked={d.mapCodes} onChange={(e) => writeDisplay({ mapCodes: e.target.checked })} />
