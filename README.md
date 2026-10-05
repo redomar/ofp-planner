@@ -124,6 +124,8 @@ Live at **[plans.massorbit.co.uk](https://plans.massorbit.co.uk)**, deployed wit
 | Pick a date and time | The **Timings** table under the map: every departure this week, soonest first, sortable by duty, ground or block; click a row |
 | What does an option mean? | Hover a dotted label on **Journeys**, or open **What the options mean** under the form |
 | No direct flight? | **Find a journey with stops** in the Finder when a route has no flights, or **Journeys** with **Fewest** legs, sorted by **Distance**; **Find timed connections on this route** turns it into real flights |
+| See an airport's departures | **Board → Airport board**: pick an airport; departures or arrivals for the next hours with remarks from the clock |
+| Show a gate screen on stream | **Board → Gate screen** (or **Gate screen** on a flight card / Journeys leg): **Virtual** clock, then **Open screen window** or **Copy stream URL** for OBS; or load your SimBrief OFP |
 | Plan the day | **Open brief · weather →**: set the date, read the forecast and METAR |
 | Keep flights | ☆ on the card; make groups on the Brief start page or in Settings |
 | Add a flight number | **+ Add flight number** under a callsign-only flight |

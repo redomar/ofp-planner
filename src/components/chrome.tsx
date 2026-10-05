@@ -51,6 +51,12 @@ const ICONS = {
       <path d="M6.3 16.1 10.7 8.9M13.6 8.6l4.2 5.6" strokeDasharray="2.2 1.8" />
     </>
   ),
+  board: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="1.5" />
+      <path d="M6.5 9.5h4M13 9.5h4.5M6.5 14.5h4M13 14.5h4.5" />
+    </>
+  ),
   brief: (
     <>
       <rect x="5" y="3" width="14" height="18" rx="1.5" />
@@ -71,6 +77,7 @@ export function PageNav({ finderHref = "/" }: { finderHref?: string }) {
   const tabs = [
     ["finder", "Finder", finderHref, "/"],
     ["journeys", "Journeys", "/journeys", "/journeys"],
+    ["board", "Board", "/board", "/board"],
     ["brief", "Brief", "/brief", "/brief"],
     ["settings", "Settings", "/settings", "/settings"],
   ] as const;

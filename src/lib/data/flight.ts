@@ -146,9 +146,30 @@ export function airportLabel(a: Airport | undefined | null): string {
   return a ? a.name : "";
 }
 
-/** The city without its region: "Birmingham, West Midlands" → "Birmingham", "Paris (Orly, Val-de-Marne)" → "Paris". */
+/**
+ * The city an airport serves, where OurAirports names the suburb or parish it stands in
+ * (Ferno for Milan Malpensa, Zaventem for Brussels). Only airports in the snapshot.
+ */
+const SERVES: Record<string, string> = {
+  EBBR: "Brussels", EBLG: "Liège", EDDG: "Münster", EDDP: "Leipzig", EDFH: "Frankfurt-Hahn", EDLP: "Paderborn", EDSB: "Karlsruhe",
+  EGJB: "Guernsey", EGJJ: "Jersey", EGMC: "Southend", EGNJ: "Humberside", EGNS: "Isle of Man", EGNV: "Teesside", EGNX: "East Midlands",
+  EGPB: "Sumburgh", EGPH: "Edinburgh", EGPL: "Benbecula", EIKN: "Knock", EIKY: "Kerry", ENDU: "Bardufoss", ENEV: "Harstad/Narvik",
+  EPKK: "Kraków", EPMO: "Warsaw Modlin", EPSY: "Olsztyn", EPZG: "Zielona Góra", ESKN: "Stockholm Skavsta", GCFV: "Fuerteventura",
+  GCLA: "La Palma", GCLP: "Gran Canaria", GCRR: "Lanzarote", GMAD: "Agadir", GMML: "Laayoune", GVAC: "Sal", GVBA: "Boa Vista",
+  GVSV: "São Vicente", HESX: "Cairo Sphinx", LATI: "Tirana", LCEN: "Ercan", LDSB: "Brač", LDZA: "Zagreb", LEAS: "Asturias",
+  LECO: "A Coruña", LEMH: "Menorca", LEMI: "Murcia", LESO: "San Sebastián", LEST: "Santiago", LEVT: "Vitoria", LFJL: "Metz-Nancy",
+  LFLL: "Lyon", LFML: "Marseille", LFQQ: "Lille", LFRN: "Rennes", LFTH: "Toulon-Hyères", LGAV: "Athens", LGSA: "Chania",
+  LGPZ: "Preveza", LIBC: "Crotone", LIME: "Bergamo", LIMC: "Milan Malpensa", LIMF: "Turin", LIMZ: "Cuneo", LIPQ: "Trieste",
+  LIPX: "Verona", LIPY: "Ancona", LJLJ: "Ljubljana", LKMT: "Ostrava", LPAZ: "Santa Maria", LPLA: "Terceira", LQBK: "Banja Luka",
+  LQTZ: "Tuzla", LROP: "Bucharest", LRTM: "Târgu Mureș", LTAF: "Adana", LTBJ: "Izmir", LTBZ: "Kütahya", LTDA: "Hatay",
+  LTFD: "Edremit", LTFJ: "Istanbul Sabiha Gökçen", LWSK: "Skopje", LYBT: "Belgrade Batajnica", OERS: "Red Sea", OENN: "Neom",
+  UGKO: "Kutaisi", EFKE: "Kemi-Tornio", EFKK: "Kokkola", DTTJ: "Djerba", GMFO: "Oujda",
+};
+
+/** The city an airport serves, without its region: "Birmingham, West Midlands" → "Birmingham", "Paris (Orly, Val-de-Marne)" → "Paris". */
 export function cityName(a: Airport | undefined | null): string | null {
-  return a?.city ? a.city.split(/\s*[,(]/)[0].trim() || a.city : null;
+  if (!a) return null;
+  return SERVES[a.icao] ?? (a.city ? a.city.split(/\s*[,(]/)[0].trim() || a.city : null);
 }
 
 /* ---------- the four OOOI times for display, with where each came from ---------- */

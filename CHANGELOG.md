@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.0 — unreleased
+
+- Board: a new page with two tabs.
+  - **Airport board**: an airport's departures or arrivals for the next 3, 6 or 12 hours, soonest first, as a flight information display (dark screen, amber times, split-flap codes, airline picto in brand colour and wordmark). Remarks follow the clock (on time, gate open, boarding, final call, gate closed, departed; arrivals approaching / landed); "Expected HH:MM" when the flight usually runs 10+ minutes late; "typ" marks typical tracked times where no schedule is published. Local or UTC. A map of where they go; hovering a row lights its route. Only the airlines serving the airport are loaded.
+  - **Gate screen**: one flight as the screen above a departure gate, in the airline's colour with its wordmark and a plane picto: flight number and callsign, destination, aircraft and registration, scheduled / new time / arrival in local time, the status with a countdown, and the steps from gate open through boarding, final call, gate closed, ready, pushback and line-up to take-off. Widebodies open the gate earlier; taxi time comes from the flight's tracked OUT→OFF. An info strip rotates destination weather at arrival, flight facts and your message.
+  - Clock: real time (the flight's real date) or **virtual** ("STD in 25 min"), so the sequence plays out live on a stream. Controls for the delay, holding on a step, cancelled, gate and gate change, registration, message, and a transparent backdrop for an OBS overlay.
+  - **Open screen window** shows only the screen and follows the controls live (BroadcastChannel); **Copy stream URL** gives a 1920×1080-ready URL for an OBS browser source; keys on the screen: ↑/↓ delay, 0 on time, C cancelled, F full screen.
+  - **Your SimBrief OFP**: a SimBrief username loads your latest OFP (flight, times, delay, aircraft, registration, passengers, cruise level, runway) onto the screen.
+- Gate screen links from the Finder's flight card and from each Journeys leg (with its date).
+- City names: the city an airport serves where the data names a suburb (Milan Malpensa, not Ferno; Brussels, not Zaventem).
+
 ## 1.2.3 — 2026-10-05
 
 - Airport names: the airport's own name only (Birmingham Airport, not "Birmingham, West Midlands Birmingham Airport"; Jersey Airport, not "St. Peter Jersey Airport"). Where a city is shown it drops the region ("Birmingham", "Paris").
