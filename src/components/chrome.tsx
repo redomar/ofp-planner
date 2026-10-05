@@ -43,6 +43,14 @@ const ICONS = {
       <path d="M15 15l5.5 5.5" />
     </>
   ),
+  journeys: (
+    <>
+      <circle cx="5" cy="18" r="2.2" />
+      <circle cx="12" cy="7" r="2.2" />
+      <circle cx="19" cy="16" r="2.2" />
+      <path d="M6.3 16.1 10.7 8.9M13.6 8.6l4.2 5.6" strokeDasharray="2.2 1.8" />
+    </>
+  ),
   brief: (
     <>
       <rect x="5" y="3" width="14" height="18" rx="1.5" />
@@ -57,11 +65,12 @@ const ICONS = {
   ),
 };
 
-/** The three pages as tabs in the top bar; the current one is marked. */
+/** The pages as tabs in the top bar; the current one is marked. */
 export function PageNav({ finderHref = "/" }: { finderHref?: string }) {
   const path = (usePathname() ?? "/").replace(/\/$/, "") || "/";
   const tabs = [
     ["finder", "Finder", finderHref, "/"],
+    ["journeys", "Journeys", "/journeys", "/journeys"],
     ["brief", "Brief", "/brief", "/brief"],
     ["settings", "Settings", "/settings", "/settings"],
   ] as const;

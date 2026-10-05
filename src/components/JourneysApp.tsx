@@ -1,0 +1,876 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { airportLabel, DAY_NAMES, dur, familyOf, flightNo, hhmm, plannedOut } from "@/lib/data/flight";
+import { enrich, queryToParams, EMPTY_QUERY } from "@/lib/data/query";
+import { loadRoutes, useDataset, type Airport, type FlightRow } from "@/lib/data/load";
+import type { AirlineInfo } from "@/lib/data/types";
+import { routeColor } from "@/lib/colors";
+import { applyFn, useFnOverrides } from "@/lib/fnoverride";
+import type { Group, Journey, Pt, RouteEdge, TFlight } from "@/lib/journey/engine";
+import { DUTY_HOURS, EMPTY_PLAN, EXAMPLES, planFromParams, planToParams, SORTS, toSpec, type JourneyPlan } from "@/lib/journey/plan";
+import { useJourneySearch } from "@/lib/journey/useSearch";
+import type { JourneyData } from "@/lib/journey/worker";
+import { countryName, placeOptions } from "@/lib/places";
+import { saveJourney } from "@/lib/saved";
+import { defaultChoice, flightDispatch, simbriefUrl, typeChoices, useAirframes } from "@/lib/simbrief";
+import { AirlineTag, FlightIdent, TypeBadge } from "./badges";
+import { StatusLine, TopBar } from "./chrome";
+import { MultiPicker, PlacePicker, type MultiOption } from "./pickers";
+import { RouteMap, type MapRoute } from "./RouteMap";
+import { cx } from "./ui";
+
+const PAGE = 30;
+const n0 = (n: number) => n.toLocaleString("en-GB");
+const daysText = (days: number[]) => (days.length === 7 ? "Daily" : days.map((d) => DAY_NAMES[d - 1]).join(" "));
+/** Typical block for a network leg (same estimate the finder uses when there's no time). */
+const estBlock = (nm: number) => Math.round(nm / 7.4 + 28);
+
+/**
+ * Multi-leg journeys: from an airport, through stops in order, to an airport (either end may
+ * be open), over the route network (any day) or as real timed connections with a turnaround
+ * window and a duty limit. The search runs in a worker; the form lives in the URL.
+ */
+export function JourneysApp() {
+  const [ready, setReady] = useState(false);
+  const [plan, setPlan] = useState<JourneyPlan>(EMPTY_PLAN);
+  const [sel, setSel] = useState<string | null>(null);
+  const [variant, setVariant] = useState(0);
+  const [shown, setShown] = useState(PAGE);
+  const [saved, setSaved] = useState<string | null>(null);
+
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    /* eslint-disable react-hooks/set-state-in-effect -- one-time read of the URL after hydration */
+    setPlan(planFromParams(p));
+    setSel(p.get("j"));
+    setReady(true);
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, []);
+
+  const timed = plan.timing === "timed";
+  const data = useDataset(ready && timed ? (plan.al.length ? plan.al : "all") : []);
+  const { manifest, airports, airlines } = data;
+  const [routes, setRoutes] = useState<Awaited<ReturnType<typeof loadRoutes>> | null>(null);
+  useEffect(() => {
+    if (!ready || routes) return;
+    let live = true;
+    loadRoutes().then(
+      (r) => live && setRoutes(r),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [ready, routes]);
+
+  useEffect(() => {
+    if (!ready) return;
+    const next = `${window.location.pathname}?${planToParams(plan, { j: sel }).toString()}`.replace(/\?$/, "");
+    if (next !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(null, "", next);
+  }, [plan, sel, ready]);
+
+  const update = (patch: Partial<JourneyPlan>) => {
+    setPlan((p) => ({ ...p, ...patch }));
+    setShown(PAGE);
+    setVariant(0);
+    setSaved(null);
+  };
+  const pick = (key: string) => {
+    setSel(key);
+    setVariant(0);
+    setSaved(null);
+  };
+
+  /* ---------- picker options ---------- */
+
+  const placeOpts = useMemo(() => {
+    if (!routes || !airports) return [];
+    const counts = new Map<string, number>();
+    for (const [o, ds] of Object.entries(routes))
+      for (const [d, byAl] of Object.entries(ds)) {
+        const n = Object.values(byAl).reduce((s, x) => s + x, 0);
+        counts.set(o, (counts.get(o) ?? 0) + n);
+        counts.set(d, (counts.get(d) ?? 0) + n);
+      }
+    return placeOptions(counts, airports);
+  }, [routes, airports]);
+
+  const airlineOpts = useMemo<MultiOption[]>(
+    () =>
+      (manifest?.airlines ?? [])
+        .map((a) => ({
+          value: a.icao,
+          label: a.name,
+          detail: [a.iata, a.icao].filter(Boolean).join(" / "),
+          swatch: routeColor(a),
+          count: a.flights,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [manifest],
+  );
+
+  const typeOpts = useMemo<MultiOption[]>(() => {
+    const fam = new Map<string, number>();
+    const exact = new Map<string, number>();
+    for (const f of data.flights)
+      for (const t of f.types) {
+        exact.set(t, (exact.get(t) ?? 0) + 1);
+        const g = familyOf(t);
+        if (g !== t) fam.set(g, (fam.get(g) ?? 0) + 1);
+      }
+    return [
+      ...[...fam.entries()].sort((a, b) => b[1] - a[1]).map(([v, n]) => ({ value: v, label: v, detail: "Family", count: n })),
+      ...[...exact.entries()].sort((a, b) => b[1] - a[1]).map(([v, n]) => ({ value: v, label: v, count: n })),
+    ];
+  }, [data.flights]);
+
+  /* ---------- search data ---------- */
+
+  const pts = useMemo<[string, Pt][] | null>(() => (airports ? [...airports].map(([k, a]) => [k, { lat: a.lat, lon: a.lon, country: a.country }]) : null), [airports]);
+
+  const net = useMemo(() => {
+    if (timed || !routes || !manifest) return null;
+    const keep = plan.al.length ? new Set(plan.al) : null;
+    const edges: RouteEdge[] = [];
+    for (const [o, ds] of Object.entries(routes))
+      for (const [d, byAl] of Object.entries(ds)) {
+        const als = keep ? Object.fromEntries(Object.entries(byAl).filter(([al]) => keep.has(al))) : byAl;
+        if (Object.keys(als).length) edges.push({ o, d, als });
+      }
+    return {
+      key: `net|${plan.al.join(",")}|${edges.length}|${manifest.generatedAt}`,
+      edges,
+    };
+  }, [timed, routes, manifest, plan.al]);
+
+  const timedSet = useMemo(() => {
+    if (!timed || !manifest || !airports || data.loading.length || data.progress < 1 || !data.flights.length) return null;
+    const want = plan.types;
+    const rows: FlightRow[] = [];
+    const flights: TFlight[] = [];
+    let untimed = 0;
+    for (const f of data.flights) {
+      if (want.length && !f.types.some((t) => want.includes(t) || want.includes(familyOf(t)))) continue;
+      const r = enrich(f, airports);
+      const block = r.block?.min ?? null;
+      let dep = plannedOut(f);
+      if (dep == null && block != null && (f.sta ?? f.in) != null) dep = ((((f.sta ?? f.in)! - block) % 1440) + 1440) % 1440;
+      if (dep == null || !block) {
+        untimed++;
+        continue;
+      }
+      rows.push(f);
+      flights.push({ o: f.o, d: f.d, al: f.al, dep, block, days: f.days });
+    }
+    return {
+      key: `timed|${plan.al.join(",")}|${want.join(",")}|${flights.length}|${manifest.generatedAt}`,
+      rows,
+      flights,
+      untimed,
+    };
+  }, [timed, manifest, airports, data.loading.length, data.progress, data.flights, plan.types, plan.al]);
+
+  const dataKey = timed ? (timedSet?.key ?? null) : (net?.key ?? null);
+  const canSearch = ready && !!pts && !!dataKey && !!(plan.from || plan.to);
+  const search = useJourneySearch(
+    canSearch
+      ? {
+          key: dataKey!,
+          spec: toSpec(plan),
+          data: (): JourneyData => (timed ? { kind: "timed", flights: timedSet!.flights, pts: pts! } : { kind: "network", edges: net!.edges, pts: pts! }),
+        }
+      : null,
+  );
+  const result = search.resultKey === dataKey ? search.result : null;
+  const groups = result?.groups ?? [];
+  const current = groups.find((g) => g.key === sel) ?? groups[0] ?? null;
+  const rowsOf = timed ? (timedSet?.rows ?? null) : null;
+
+  /* ---------- status ---------- */
+
+  const loadingTimed = timed && ready && !timedSet;
+  const status =
+    !ready || !manifest || !airports ? (
+      <span className="muted">Loading schedule snapshot…</span>
+    ) : loadingTimed ? (
+      <span className="muted">Loading every airline’s timetable for timed connections…</span>
+    ) : timed && timedSet ? (
+      <span>
+        <b>Timed connections</b> · {n0(timedSet.flights.length)} flights with times
+        <span className="muted hide-xs"> · weekly pattern from the snapshot {manifest.coverage ? `${manifest.coverage.from} → ${manifest.coverage.to}` : ""}</span>
+      </span>
+    ) : (
+      <span>
+        <b>Route network</b> · {n0(manifest.counts.routes)} routes · {n0(manifest.counts.airports)} airports
+        <span className="muted hide-xs"> · any day, from the snapshot</span>
+      </span>
+    );
+
+  const summary = !canSearch
+    ? ""
+    : search.busy && !result
+      ? "Searching…"
+      : result
+        ? result.groups.length
+          ? `${n0(result.groups.length)}${result.groups.length >= 240 ? "+" : ""} journey${result.groups.length === 1 ? "" : "s"}${result.legs ? ` · fewest is ${result.legs} leg${result.legs === 1 ? "" : "s"}` : ""}`
+          : "No journeys"
+        : "";
+
+  return (
+    <>
+      <TopBar />
+      <StatusLine progress={timed && ready && !data.error ? data.progress : null}>{status}</StatusLine>
+      <main className="journeys">
+        {/* the form waits for the URL (read after hydration), so a shared timed link doesn't grow under the reader */}
+        {ready && (
+          <>
+            <section className="panel jr-form" aria-label="Plan a journey">
+              <div className="jr-route">
+                <PlacePicker label="From" value={plan.from} options={placeOpts} onChange={(from) => update({ from })} />
+                <ViaPicker via={plan.via} options={placeOpts} onChange={(via) => update({ via })} />
+                <PlacePicker label="To" value={plan.to} options={placeOpts} onChange={(to) => update({ to })} />
+                <button
+                  type="button"
+                  className="btn btn-icon jr-swap"
+                  aria-label="Reverse the journey"
+                  title="Reverse the journey"
+                  onClick={() =>
+                    update({
+                      from: plan.to,
+                      to: plan.from,
+                      via: [...plan.via].reverse(),
+                    })
+                  }
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M2 5h11M10 2l3 3-3 3M14 11H3M6 8l-3 3 3 3" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="jr-opts">
+                <LegsPicker legs={plan.legs} onChange={(legs) => update({ legs })} />
+                <div className="jr-ctl">
+                  <span className="ctl-label" id="jr-timing">
+                    Times
+                  </span>
+                  <div className="seg jr-seg" role="radiogroup" aria-labelledby="jr-timing">
+                    {(
+                      [
+                        ["network", "Any day", "Airport to airport on the route network, whatever the day or time"],
+                        ["timed", "Timed connections", "Real flights that connect: turnaround window, day and duty limit"],
+                      ] as const
+                    ).map(([v, label, tip]) => (
+                      <button key={v} type="button" role="radio" aria-checked={plan.timing === v} className="seg-btn" title={tip} onClick={() => update({ timing: v })}>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <label className="jr-ctl">
+                  <span className="ctl-label">Sort</span>
+                  <select
+                    className="ctl-input"
+                    value={plan.timing === "network" && SORTS.find((s) => s.value === plan.sort)?.timed ? "distance" : plan.sort}
+                    onChange={(e) => update({ sort: e.target.value as JourneyPlan["sort"] })}
+                  >
+                    {SORTS.filter((s) => timed || !s.timed).map((s) => (
+                      <option key={s.value} value={s.value}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <MultiPicker
+                  label="Airline"
+                  values={plan.al}
+                  options={airlineOpts}
+                  onChange={(al) => update({ al })}
+                  allLabel="All airlines"
+                  searchable
+                  note="Flights in the snapshot"
+                />
+                <label className="check jr-one" title="Every leg flown by the same airline">
+                  <input type="checkbox" checked={plan.oneAirline} onChange={(e) => update({ oneAirline: e.target.checked })} />
+                  One airline throughout
+                </label>
+              </div>
+
+              {timed && (
+                <div className="jr-timed">
+                  <DayOne day={plan.day} onChange={(day) => update({ day })} />
+                  <label className="jr-ctl">
+                    <span className="ctl-label">First OUT after (Z)</span>
+                    <input
+                      className="ctl-input mono"
+                      type="time"
+                      value={plan.after != null ? `${String(Math.floor(plan.after / 60)).padStart(2, "0")}:${String(plan.after % 60).padStart(2, "0")}` : ""}
+                      onChange={(e) => {
+                        const m = e.target.value.match(/^(\d{2}):(\d{2})$/);
+                        update({ after: m ? +m[1] * 60 + +m[2] : null });
+                      }}
+                    />
+                  </label>
+                  <label className="jr-ctl">
+                    <span className="ctl-label">Duty limit</span>
+                    <select
+                      className="ctl-input"
+                      value={plan.dutyMin ?? ""}
+                      onChange={(e) =>
+                        update({
+                          dutyMin: e.target.value ? Number(e.target.value) : null,
+                        })
+                      }
+                    >
+                      <option value="">No limit</option>
+                      {DUTY_HOURS.map((h) => (
+                        <option key={h} value={h * 60}>
+                          {h} h
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="jr-ctl" title="Duty runs from report to on-blocks after the last leg">
+                    <span className="ctl-label">Report before OUT</span>
+                    <select className="ctl-input" value={plan.reportMin} onChange={(e) => update({ reportMin: Number(e.target.value) })}>
+                      {[0, 30, 45, 60, 75, 90].map((m) => (
+                        <option key={m} value={m}>
+                          {m} min
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="jr-ctl">
+                    <span className="ctl-label" id="jr-turn">
+                      Turnaround
+                    </span>
+                    <div className="len-row" role="group" aria-labelledby="jr-turn">
+                      <select className="ctl-input" aria-label="Shortest turnaround" value={plan.minTurn} onChange={(e) => update({ minTurn: Number(e.target.value) })}>
+                        {[20, 25, 30, 35, 40, 45, 50, 60, 75, 90].map((m) => (
+                          <option key={m} value={m} disabled={m > plan.maxTurn}>
+                            ≥ {m} min
+                          </option>
+                        ))}
+                      </select>
+                      <span aria-hidden="true">–</span>
+                      <select className="ctl-input" aria-label="Longest turnaround" value={plan.maxTurn} onChange={(e) => update({ maxTurn: Number(e.target.value) })}>
+                        {[60, 90, 120, 150, 180, 240, 300, 360, 480].map((m) => (
+                          <option key={m} value={m} disabled={m < plan.minTurn}>
+                            ≤ {dur(m)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <MultiPicker label="Aircraft" values={plan.types} options={typeOpts} onChange={(types) => update({ types })} allLabel="Any type" searchable />
+                </div>
+              )}
+
+              <div className="jr-examples" aria-label="Examples">
+                <span className="ctl-label">Try</span>
+                {EXAMPLES.map((x) => (
+                  <button
+                    key={x.label}
+                    type="button"
+                    className="jr-example"
+                    title={x.note}
+                    onClick={() => {
+                      update({ ...EMPTY_PLAN, al: [], ...x.plan });
+                      setSel(null);
+                    }}
+                  >
+                    {x.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            {!canSearch ? (
+              <section className="panel jr-intro">
+                <h2 className="brief-title">Plan a multi-leg journey</h2>
+                <p className="muted">
+                  Choose where it starts, where it ends, or both. Add stops to pass through, in order. Leave the end open to roam; leave the start open to work backwards from where
+                  you want to finish.
+                </p>
+                <ul className="jr-how">
+                  <li>
+                    <b>Any day</b> searches the route network: who flies from where to where in the snapshot, regardless of time. Good for “is there a way to get there” and for a
+                    shortest route.
+                  </li>
+                  <li>
+                    <b>Timed connections</b> chains real flights by their typical times, with a turnaround window, an optional day, a first-departure time and a duty limit (report
+                    to on-blocks after the last leg).
+                  </li>
+                  <li>Legs: the fewest that work, exactly a number, or up to a number. A round trip ends where it starts; no airport is visited twice otherwise.</li>
+                </ul>
+              </section>
+            ) : (
+              <section className="panel jr-results" aria-label="Journeys">
+                <div className="jr-bar">
+                  <span className="jr-count" aria-live="polite">
+                    {summary}
+                    {search.busy && result ? <span className="muted"> · updating…</span> : null}
+                  </span>
+                  {result && search.ms != null && (
+                    <span className="muted small mono hide-xs">
+                      {n0(result.expansions)} steps · {search.ms} ms
+                      {result.capped ? " · search limit reached" : ""}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="btn jr-shuffle"
+                    onClick={() => update({ seed: 1 + Math.floor(Math.random() * 1e6) })}
+                    title="Search in a different order: other journeys come up when there are more than the search covers, and Shuffled order changes"
+                  >
+                    Shuffle
+                  </button>
+                </div>
+                {search.error ? (
+                  <p className="empty-note">{search.error}</p>
+                ) : !result ? (
+                  <div className="jr-skel" aria-hidden="true">
+                    {Array.from({ length: 6 }, (_, i) => (
+                      <i key={i} />
+                    ))}
+                  </div>
+                ) : !groups.length ? (
+                  <div className="empty-note">
+                    <p>{result.reason}</p>
+                    <p className="muted small">
+                      {timed
+                        ? "Try a longer turnaround, a higher duty limit, any day, more legs, or switch to Any day to see whether the route network connects at all."
+                        : "Try more legs, all airlines, or without One airline throughout."}
+                    </p>
+                  </div>
+                ) : (
+                  <div className={cx("jr-split", search.busy && "is-stale")}>
+                    {current && (
+                      <JourneyDetail
+                        key={current.key}
+                        group={current}
+                        variant={Math.min(variant, current.variants.length - 1)}
+                        onVariant={setVariant}
+                        rows={rowsOf}
+                        airports={airports!}
+                        airlines={airlines}
+                        reportMin={plan.reportMin}
+                        saved={saved}
+                        onSave={(name, flights) => setSaved(saveJourney(name, flights))}
+                        onTime={() => {
+                          const s = current.stops;
+                          update({
+                            from: s[0],
+                            to: s[s.length - 1],
+                            via: s.slice(1, -1),
+                            legs: { kind: "exact", n: s.length - 1 },
+                            timing: "timed",
+                            sort: "quickest",
+                          });
+                        }}
+                      />
+                    )}
+                    <ol className="jr-list">
+                      {groups.slice(0, shown).map((g, i) => (
+                        <li key={g.key}>
+                          <JourneyCard no={i + 1} group={g} on={g.key === current?.key} onPick={() => pick(g.key)} rows={rowsOf} airlines={airlines} />
+                        </li>
+                      ))}
+                      {groups.length > shown && (
+                        <li>
+                          <button type="button" className="btn jr-more" onClick={() => setShown((n) => n + PAGE)}>
+                            Show {Math.min(PAGE, groups.length - shown)} more of {n0(groups.length - shown)}
+                          </button>
+                        </li>
+                      )}
+                    </ol>
+                  </div>
+                )}
+              </section>
+            )}
+          </>
+        )}
+      </main>
+    </>
+  );
+}
+
+/* ---------- form pieces ---------- */
+
+function ViaPicker({ via, options, onChange }: { via: string[]; options: ReturnType<typeof placeOptions>; onChange: (v: string[]) => void }) {
+  const name = (v: string) => (v.startsWith("C:") ? countryName(v.slice(2)) : v);
+  return (
+    <div className="jr-via">
+      <PlacePicker
+        label={via.length ? `Then via (stop ${via.length + 1})` : "Via (optional)"}
+        value={null}
+        options={options.filter((o) => !via.includes(o.value))}
+        anyLabel="Add a stop"
+        onChange={(v) => v && onChange([...via, v])}
+      />
+      {via.length > 0 && (
+        <ol className="jr-chips" aria-label="Stops in order">
+          {via.map((v, i) => (
+            <li key={v} className="jr-chip">
+              <span className="mono">{i + 1}</span> {name(v)}
+              {i > 0 && (
+                <button
+                  type="button"
+                  aria-label={`Move ${name(v)} earlier`}
+                  title="Earlier"
+                  onClick={() => onChange(via.map((x, k) => (k === i - 1 ? v : k === i ? via[i - 1] : x)))}
+                >
+                  ↑
+                </button>
+              )}
+              <button type="button" aria-label={`Remove ${name(v)}`} title="Remove" onClick={() => onChange(via.filter((x) => x !== v))}>
+                ×
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+function LegsPicker({ legs, onChange }: { legs: JourneyPlan["legs"]; onChange: (l: JourneyPlan["legs"]) => void }) {
+  const n = legs.kind === "fewest" ? 3 : legs.n;
+  return (
+    <div className="jr-ctl">
+      <span className="ctl-label" id="jr-legs">
+        Legs
+      </span>
+      <div className="jr-legs">
+        <div className="seg jr-seg" role="radiogroup" aria-labelledby="jr-legs">
+          {(
+            [
+              ["fewest", "Fewest"],
+              ["exact", "Exactly"],
+              ["upto", "Up to"],
+            ] as const
+          ).map(([k, label]) => (
+            <button key={k} type="button" role="radio" aria-checked={legs.kind === k} className="seg-btn" onClick={() => onChange(k === "fewest" ? { kind: k } : { kind: k, n })}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <select
+          className="ctl-input jr-n"
+          aria-label="Number of legs"
+          value={n}
+          disabled={legs.kind === "fewest"}
+          onChange={(e) => legs.kind !== "fewest" && onChange({ kind: legs.kind, n: Number(e.target.value) })}
+        >
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((k) => (
+            <option key={k} value={k}>
+              {k}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+function DayOne({ day, onChange }: { day: number | null; onChange: (d: number | null) => void }) {
+  const full = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  return (
+    <div className="days" role="radiogroup" aria-label="Day of the first departure (UTC)">
+      <span className="ctl-label">Day (UTC)</span>
+      <div className="days-row">
+        <button type="button" className="day day-any" role="radio" aria-checked={day == null} onClick={() => onChange(null)}>
+          Any
+        </button>
+        {["M", "T", "W", "T", "F", "S", "S"].map((l, i) => (
+          <button key={i} type="button" className="day" role="radio" aria-checked={day === i + 1} aria-label={full[i]} title={full[i]} onClick={() => onChange(i + 1)}>
+            {l}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- results ---------- */
+
+/** The airline of each leg: the flight's brand (timed) or the busiest brand on the route. */
+function legAirlines(j: Journey, rows: FlightRow[] | null): string[] {
+  if (j.timed && rows) return j.timed.legs.map((l) => rows[l.f]?.al ?? "");
+  return (j.net ?? []).map((l) => l.als[0]?.[0] ?? "");
+}
+
+const clockZ = (t: number) => `${hhmm(t % 1440)}Z`;
+const plusDay = (t: number, start: number) => {
+  const d = Math.floor(t / 1440) - Math.floor(start / 1440);
+  return d > 0 ? <sup className="jr-plus">+{d}</sup> : null;
+};
+
+function JourneyCard({
+  no,
+  group,
+  on,
+  onPick,
+  rows,
+  airlines,
+}: {
+  no: number;
+  group: Group;
+  on: boolean;
+  onPick: () => void;
+  rows: FlightRow[] | null;
+  airlines: Map<string, AirlineInfo>;
+}) {
+  const j = group.best;
+  const legs = j.stops.length - 1;
+  const als = legAirlines(j, rows);
+  const t = j.timed;
+  return (
+    <button type="button" className="jr-card" aria-pressed={on} onClick={onPick}>
+      <span className="jr-no mono">{no}</span>
+      <span className="jr-chain mono">
+        {j.stops.map((s, i) => (
+          <span key={i} className="jr-stop">
+            {i > 0 && (
+              <i
+                className="jr-hop"
+                style={{
+                  ["--c" as string]: routeColor(airlines.get(als[i - 1])),
+                }}
+                aria-hidden="true"
+              />
+            )}
+            {s}
+          </span>
+        ))}
+      </span>
+      <span className="jr-meta">
+        <span>
+          {legs} leg{legs === 1 ? "" : "s"}
+        </span>
+        <span>{n0(j.nm)} nm</span>
+        {t ? (
+          <>
+            <span>{daysText(t.days)}</span>
+            <span className="mono">
+              {clockZ(t.start)}–{clockZ(t.end)}
+              {plusDay(t.end, t.start)}
+            </span>
+            <span>duty {dur(t.duty)}</span>
+          </>
+        ) : (
+          <span>≈ {dur((j.net ?? []).reduce((s, l) => s + estBlock(l.nm), 0))} block</span>
+        )}
+        {group.variants.length > 1 && <span className="muted">{group.variants.length} timings</span>}
+      </span>
+      <span className="jr-als">{[...new Set(als)].map((a) => airlines.get(a)?.name ?? a).join(" · ")}</span>
+    </button>
+  );
+}
+
+function JourneyDetail({
+  group,
+  variant,
+  onVariant,
+  rows,
+  airports,
+  airlines,
+  reportMin,
+  saved,
+  onSave,
+  onTime,
+}: {
+  group: Group;
+  variant: number;
+  onVariant: (i: number) => void;
+  rows: FlightRow[] | null;
+  airports: Map<string, Airport>;
+  airlines: Map<string, AirlineInfo>;
+  reportMin: number;
+  saved: string | null;
+  onSave: (name: string, flights: FlightRow[]) => void;
+  onTime: () => void;
+}) {
+  const j = group.variants[variant] ?? group.best;
+  const fnOv = useFnOverrides();
+  const frames = useAirframes();
+  const [hover, setHover] = useState<number | null>(null);
+  const als = legAirlines(j, rows);
+  const t = j.timed;
+  const flights = t && rows ? t.legs.map((l) => applyFn(rows[l.f], fnOv)) : null;
+  const title = `${j.stops[0]} → ${j.stops[j.stops.length - 1]}${j.stops.length > 2 ? ` via ${j.stops.slice(1, -1).join(", ")}` : ""}`;
+
+  const mapRoutes: MapRoute[] = [];
+  for (let i = 0; i < j.stops.length - 1; i++) {
+    const a = airports.get(j.stops[i]);
+    const b = airports.get(j.stops[i + 1]);
+    if (a && b)
+      mapRoutes.push({
+        key: `${i}`,
+        from: a,
+        to: b,
+        color: routeColor(airlines.get(als[i])),
+        active: hover === i,
+        label: `leg ${i + 1}`,
+      });
+  }
+
+  return (
+    <article className="jr-detail" aria-label={`Journey ${title}`}>
+      <header className="jr-dhead">
+        <h2 className="jr-title mono">{j.stops.join(" › ")}</h2>
+        <p className="jr-facts">
+          <span>
+            <b>{j.stops.length - 1}</b> legs
+          </span>
+          <span>
+            <b>{n0(j.nm)}</b> nm
+          </span>
+          {t ? (
+            <>
+              <span>
+                <b>{daysText(t.days)}</b>
+              </span>
+              <span>
+                OUT <b className="mono">{clockZ(t.start)}</b> → IN <b className="mono">{clockZ(t.end)}</b>
+                {plusDay(t.end, t.start)}
+              </span>
+              <span title={`Report ${reportMin} min before the first OUT, to on-blocks after the last leg`}>
+                duty <b>{dur(t.duty)}</b>
+              </span>
+              <span>
+                block <b>{dur(t.block)}</b>
+              </span>
+              <span>
+                on the ground <b>{dur(t.wait)}</b>
+              </span>
+            </>
+          ) : (
+            <span>
+              ≈ <b>{dur((j.net ?? []).reduce((s, l) => s + estBlock(l.nm), 0))}</b> block
+            </span>
+          )}
+        </p>
+      </header>
+      <RouteMap routes={mapRoutes} height={300} label={`Map of the journey ${title}.`} />
+      {t && group.variants.length > 1 && (
+        <label className="jr-variant">
+          <span className="ctl-label">Timing</span>
+          <select className="ctl-input" value={variant} onChange={(e) => onVariant(Number(e.target.value))}>
+            {group.variants.map((v, i) => (
+              <option key={i} value={i}>
+                {i + 1}. {daysText(v.timed!.days)} · {clockZ(v.timed!.start)}–{clockZ(v.timed!.end)} · duty {dur(v.timed!.duty)} · ground {dur(v.timed!.wait)}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <ol className="jr-legs-list">
+        {j.stops.slice(0, -1).map((o, i) => {
+          const d = j.stops[i + 1];
+          const leg = t?.legs[i];
+          const f = flights?.[i];
+          const next = t?.legs[i + 1];
+          const nl = j.net?.[i];
+          return (
+            <li key={i} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(i)} onBlur={() => setHover(null)}>
+              <div className="jr-leg">
+                <span className="jr-leg-no mono">{i + 1}</span>
+                <div className="jr-leg-main">
+                  <p className="jr-leg-route">
+                    <b className="mono">{o}</b> → <b className="mono">{d}</b>
+                    <span className="muted">
+                      {" "}
+                      {airportLabel(airports.get(o))} to {airportLabel(airports.get(d))}
+                    </span>
+                  </p>
+                  {f && leg ? (
+                    <div className="jr-leg-flight">
+                      <FlightIdent airline={airlines.get(f.al)} ident={flightNo(f, airlines.get(f.al)?.iata ?? null)} fallback={f.al} />
+                      {f.types[0] && <TypeBadge type={f.types[0]} airline={airlines.get(f.al)} guessed={f.typeGuessed} />}
+                      <span className="mono jr-times">
+                        OUT {clockZ(leg.t0)}
+                        {plusDay(leg.t0, t!.start)} · IN {clockZ(leg.t1)}
+                        {plusDay(leg.t1, t!.start)}
+                      </span>
+                      <span className="muted">{dur(leg.t1 - leg.t0)}</span>
+                    </div>
+                  ) : nl ? (
+                    <div className="jr-leg-flight">
+                      {nl.als.slice(0, 4).map(([al, n]) => {
+                        const a = airlines.get(al);
+                        return (
+                          <span key={al} className="jr-al" title={`${a?.name ?? al}: ${n} flight${n === 1 ? "" : "s"} in the snapshot`}>
+                            <AirlineTag name={a?.name ?? al} color={routeColor(a)} style="solid" />
+                          </span>
+                        );
+                      })}
+                      {nl.als.length > 4 && <span className="muted">+{nl.als.length - 4} more</span>}
+                      <span className="muted">
+                        {n0(nl.nm)} nm · ≈ {dur(estBlock(nl.nm))}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+                <div className="jr-leg-acts">
+                  {f ? (
+                    <>
+                      <Link className="btn" href={`/brief?f=${encodeURIComponent(f.id)}`}>
+                        Brief
+                      </Link>
+                      <a className="btn" href={sbLink(f, frames)} target="_blank" rel="noopener noreferrer">
+                        SimBrief ↗
+                      </a>
+                    </>
+                  ) : (
+                    <Link className="btn" href={`/?${queryToParams({ ...EMPTY_QUERY, al: nl?.als.map((a) => a[0]) ?? [], dep: o, arr: d }).toString()}`}>
+                      Flights
+                    </Link>
+                  )}
+                </div>
+              </div>
+              {leg && next && (
+                <p className="jr-turn">
+                  Turn at <b className="mono">{d}</b> · <b>{dur(next.t0 - leg.t1)}</b> on the ground
+                </p>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+      <div className="jr-acts">
+        {flights ? (
+          <>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => onSave(title.replace(/ via .*/, ` via ${j.stops.length - 2} stop${j.stops.length === 3 ? "" : "s"}`).replace(/ via 0 stops/, ""), flights)}
+            >
+              Save as a favourites group
+            </button>
+            {saved && (
+              <span className="small" role="status">
+                Saved as “{saved}”. It’s on the <Link href="/brief">Brief</Link> start page and in Settings.
+              </span>
+            )}
+          </>
+        ) : (
+          <>
+            <button type="button" className="btn btn-primary" onClick={onTime}>
+              Find timed connections on this route
+            </button>
+            <span className="small muted">Real flights along these airports, with turnarounds and duty.</span>
+          </>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function sbLink(f: FlightRow, frames: ReturnType<typeof useAirframes>): string {
+  const choice = defaultChoice(f, frames);
+  const c = typeChoices(f, frames).find((x) => x.value === choice);
+  return simbriefUrl(flightDispatch(f, c?.sbType ?? f.types[0] ?? "A320"));
+}

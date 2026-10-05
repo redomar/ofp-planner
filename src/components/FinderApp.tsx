@@ -29,21 +29,7 @@ import { AfterPicker, DayPicker, LengthPicker, MultiPicker, PlacePicker, type Mu
 import { FlightTable, PlacesView } from "./Results";
 import { RoutesView } from "./RoutesView";
 import { cx } from "./ui";
-
-const regionNames = (() => {
-  try {
-    return new Intl.DisplayNames(["en"], { type: "region" });
-  } catch {
-    return null;
-  }
-})();
-const countryName = (cc: string) => {
-  try {
-    return regionNames?.of(cc) ?? cc;
-  } catch {
-    return cc;
-  }
-};
+import { countryName, placeOptions } from "@/lib/places";
 
 type View = "flights" | "places" | "map";
 
@@ -110,37 +96,14 @@ export function FinderApp() {
 
   /* ---------- options for the pickers ---------- */
 
-  const placeOptions = useMemo<PlaceOption[]>(() => {
+  const placeOpts = useMemo<PlaceOption[]>(() => {
     if (!airports) return [];
     const counts = new Map<string, number>();
     for (const r of rows) {
       counts.set(r.f.o, (counts.get(r.f.o) ?? 0) + 1);
       counts.set(r.f.d, (counts.get(r.f.d) ?? 0) + 1);
     }
-    const byCountry = new Map<string, { n: number; airports: number }>();
-    const out: PlaceOption[] = [];
-    for (const [icao, n] of counts) {
-      const a = airports.get(icao);
-      if (!a) continue;
-      if (a.country) {
-        const c = byCountry.get(a.country) ?? { n: 0, airports: 0 };
-        c.n += n;
-        c.airports++;
-        byCountry.set(a.country, c);
-      }
-      out.push({
-        value: icao,
-        code: icao,
-        alt: a.iata,
-        name: a.name,
-        detail: [a.city, a.country ? countryName(a.country) : null].filter(Boolean).join(" · "),
-        weight: n,
-        country: false,
-      });
-    }
-    for (const [cc, c] of byCountry)
-      out.push({ value: `C:${cc}`, code: cc, alt: null, name: countryName(cc), detail: `Any of ${c.airports} airports`, weight: c.n / 2, country: true });
-    return out;
+    return placeOptions(counts, airports);
   }, [rows, airports]);
 
   // With an airport (or country) chosen, count each airline's flights for that selection from the
@@ -306,7 +269,7 @@ export function FinderApp() {
               note={placeCounts ? `Flights ${q.dep && !q.arr ? "from" : q.arr && !q.dep ? "to" : "on"} ${routeLabel}` : "Flights in the snapshot"}
               restLabel={placeCounts ? `Not flying ${q.dep && !q.arr ? "from" : q.arr && !q.dep ? "to" : "on"} ${routeLabel}` : undefined}
             />
-            <PlacePicker label="From" value={q.dep} options={placeOptions} onChange={(dep) => update({ dep })} />
+            <PlacePicker label="From" value={q.dep} options={placeOpts} onChange={(dep) => update({ dep })} />
             <button
               type="button"
               className="btn btn-icon swap"
@@ -318,7 +281,7 @@ export function FinderApp() {
                 <path d="M2 5h11M10 2l3 3-3 3M14 11H3M6 8l-3 3 3 3" fill="none" stroke="currentColor" strokeWidth="1.5" />
               </svg>
             </button>
-            <PlacePicker label="To" value={q.arr} options={placeOptions} onChange={(arr) => update({ arr })} />
+            <PlacePicker label="To" value={q.arr} options={placeOpts} onChange={(arr) => update({ arr })} />
             <MultiPicker label="Aircraft" values={q.types} options={typeOptions} onChange={(types) => update({ types })} allLabel="Any type" searchable />
             <LengthPicker min={q.minLen} max={q.maxLen} onChange={(minLen, maxLen) => update({ minLen, maxLen })} />
             <DayPicker values={q.days} onChange={(days) => update({ days })} />
