@@ -1,5 +1,6 @@
 "use client";
 
+import { Flag } from "./Flag";
 import { useMemo, useState } from "react";
 import { airportLabel, dur, hhmm } from "@/lib/data/flight";
 import type { Airport } from "@/lib/data/load";
@@ -306,7 +307,7 @@ export function PlacesView({
                   </span>
                   <span className="mono place-code">{p.icao}</span>
                   <span className="place-name">
-                    {a?.country && <img className="flag" src={`/flags/${a.country.toLowerCase()}.svg`} alt="" width="16" height="12" />}
+                    {a?.country && <Flag cc={a.country} />}
                     {a?.iata && <span className="mono muted">{a.iata}</span>}
                     <span className="place-label">{a ? airportLabel(a) : p.icao}</span>
                   </span>

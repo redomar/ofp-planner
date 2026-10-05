@@ -1,5 +1,6 @@
 "use client";
 
+import { Flag } from "./Flag";
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { AirlineInfo } from "@/lib/data/types";
@@ -399,7 +400,7 @@ function End({
     <>
       <ReplayFlapCode code={icao} label={a ? `${icao}, ${airportLabel(a)}` : icao} />
       <p className="fcard-place">
-        {a?.country && <img className="flag" src={`/flags/${a.country.toLowerCase()}.svg`} alt="" width="16" height="12" />}
+        {a?.country && <Flag cc={a.country} />}
         <span>
           {a ? airportLabel(a) : <V v={null} w={12} />}
           {a?.iata && <span className="mono muted"> {a.iata}</span>}

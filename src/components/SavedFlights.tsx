@@ -1,5 +1,6 @@
 "use client";
 
+import { Flag } from "./Flag";
 import Link from "next/link";
 import { useEffect, useMemo, useState, type SyntheticEvent } from "react";
 import { airportLabel, hhmm } from "@/lib/data/flight";
@@ -319,10 +320,10 @@ function Row({
             {f.o} <span aria-hidden="true">→</span> {f.d}
           </span>
           <small className="fl-places">
-            {o?.country && <img className="flag" src={`/flags/${o.country.toLowerCase()}.svg`} alt="" width="16" height="12" />}
+            {o?.country && <Flag cc={o.country} />}
             {place(o, f.o)}
             <span aria-hidden="true"> → </span>
-            {d?.country && <img className="flag" src={`/flags/${d.country.toLowerCase()}.svg`} alt="" width="16" height="12" />}
+            {d?.country && <Flag cc={d.country} />}
             {place(d, f.d)}
           </small>
         </span>

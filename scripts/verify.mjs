@@ -285,6 +285,16 @@ async function run() {
     const dep2 = new URL(page.url()).searchParams.get("dep");
     dep2 === firstDest ? pass(`finder: next leg continues from ${dep2}`) : fail(`finder: next leg from ${dep2}, expected ${firstDest}`);
 
+    // flag hover label: country chip + snapshot figures
+    const fl = page.locator(".drawer .fcard-place .flag-tip").first();
+    await fl.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
+    await fl.hover();
+    await page.waitForTimeout(200);
+    const ft = await page.locator("#ofp-tip").innerText();
+    /airports? ·.*departing/.test(ft) ? pass(`finder: flag label (${ft.split("\n")[0]}: ${ft.split("\n")[1]?.slice(0, 40)}…)`) : fail(`finder: flag label "${ft}"`);
+    await page.mouse.move(0, 0);
+
     // aircraft badge tooltip: maker chip + full name
     const tb = page.locator(".drawer .tbadge").first();
     await tb.scrollIntoViewIfNeeded();

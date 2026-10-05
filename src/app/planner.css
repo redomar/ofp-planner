@@ -2840,3 +2840,11 @@ select.ctl-input {
   font-family: var(--font-sans);
   font-weight: 500;
 }
+
+/* flags with a hover label (country chip + snapshot figures) */
+.flag-tip {
+  display: inline-flex;
+  flex: none;
+  cursor: help;
+  line-height: 0;
+}
