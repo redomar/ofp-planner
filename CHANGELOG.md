@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.3.0 — unreleased
+## 1.3.0 — 2026-10-05
 
 - Board: a new page with two tabs (same panel tabs as the Finder).
   - **Airport board**: an airport's departures or arrivals for the next 3, 6 or 12 hours, soonest first, as a flight information display (dark screen, amber times, split-flap codes, airline picto in brand colour and wordmark). Remarks follow the clock (on time, gate open, boarding, final call, gate closed, departed; arrivals approaching / landed); "Expected HH:MM" when the flight usually runs 10+ minutes late; "typ" marks typical tracked times where no schedule is published. Local or UTC. A map of where they go; hovering a row lights its route. Only the airlines serving the airport are loaded.
@@ -10,6 +10,7 @@
   - **Your SimBrief OFP**: a SimBrief username loads your latest OFP (flight, times, delay, aircraft, registration, passengers, cruise level, runway) onto the screen.
 - Gate screen links from the Finder's flight card and from each Journeys leg (with its date).
 - Split-flap tiles (Brief board times and codes): the hinge line is a dark translucent hairline instead of the paper rule colour.
+- README: Board feature and screenshots.
 - City names: the city an airport serves where the data names a suburb (Milan Malpensa, not Ferno; Brussels, not Zaventem).
 
 ## 1.2.3 — 2026-10-05

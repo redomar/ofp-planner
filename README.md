@@ -38,6 +38,7 @@ and check the weather for the day you fly.
 - **The times that matter.** Scheduled gate times (STD / STA) beside typical tracked OUT, OFF, ON and IN; anything neither scheduled nor tracked is estimated and badged **EST.** Shown as a timeline, a boarding pass or a split-flap departure board.
 - **One click to SimBrief.** Dispatch links carry airline, flight number, callsign, route, type and departure time. Your saved SimBrief airframes replace the scheduled type automatically for the same family. Add your own flight number to callsign-only flights.
 - **Multi-leg journeys.** Plan a route with stops: from an airport, through stops in order, to an airport, with either end open (roam from home, or work backwards to where your duty should end). Ask for the fewest legs, exactly N or up to N, over the whole route network (any day) or as **timed connections** of real flights with a turnaround window, a day, a first departure, a **duty limit** and a detour limit. Sort the list by date, distance, legs, duty or time on the ground; every timed journey shows its dates for the coming week as a sortable timeline, soonest first. Brief or dispatch each leg, or save the journey as a favourites group.
+- **Departure board and gate screen.** An airport's departures or arrivals for the next hours as a flight information display, with remarks that follow the clock (boarding, final call, departed) and a map of where they go. Pick a flight for a gate screen in the airline's colours: destination, scheduled / new time / arrival, the boarding steps from gate open to take-off with a countdown, and destination weather. A virtual clock ("STD in 25 min") plays the sequence live for a stream; open the screen in its own window or copy a URL for an OBS browser source; set a delay, gate change or message; or load your latest SimBrief OFP.
 - **A brief for the day you fly.** Pick the date, get the Open-Meteo forecast at both ends for the planned times: a verdict for each end with advice, an illustrated scene of each airport with hazards, wind (OFP Reader's wind arrows), visibility, temperature and QNH, a through-the-day strip with your flight on it, and the forecast coded like a METAR beside the current METAR from VATSIM on printer paper. Fetched only on this page, and cached.
 - **Favourites in groups.** Star flights into groups ("Alps hops", "Ryanair B738"), open a group's routes on a map, and brief any of them in one click.
 - **Explains itself.** Hover (or focus) any label, aircraft badge, flag or airline square: OOOI definitions, manufacturer and model, a country's airports and flights, which airlines fly a route.
@@ -49,6 +50,12 @@ and check the weather for the day you fly.
 **Journeys: Birmingham to Innsbruck in up to three legs, timed, soonest first**
 
 ![Journeys page: a sorted list of EGBB to LOWI journeys, the selected one on a map with a timeline of its departures this week and each leg with Brief and SimBrief](docs/screenshots/journeys.png)
+
+**Board: Gatwick departures, and the gate screen for one of them (virtual clock, 10 minutes late)**
+
+![Board page: Gatwick departures as a dark flight information display with remarks, beside a map of the destinations](docs/screenshots/board.png)
+
+![Gate screen in easyJet orange: Ibiza, scheduled 05:27 struck through with a new time of 05:37, boarding with the gate closing in 17 minutes, the steps from gate open to take-off, and the weather at arrival](docs/screenshots/gate-screen.png)
 
 | Destinations from Gatwick (night) | Every route from Madrid to Spain |
 | --- | --- |
