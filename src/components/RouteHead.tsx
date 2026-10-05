@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { dur, fourTimes, hhmm, localHHMM, tzLabel, type Moment } from "@/lib/data/flight";
 import type { Airport, FlightRow } from "@/lib/data/load";
-import { useDisplay } from "@/lib/display";
+import { useDisplay, type RouteHeadStyle } from "@/lib/display";
 import { GLOSSARY } from "@/lib/glossary";
 import { ReplayFlapCode } from "./FlapCode";
 import { Flag } from "./Flag";
@@ -30,8 +30,9 @@ interface Props {
  * or "board" (split-flap departure board). Times that aren't scheduled or tracked are estimated
  * and carry an EST. badge.
  */
-export function RouteHead(p: Props) {
-  const { routeHead } = useDisplay();
+export function RouteHead(p: Props & { style?: RouteHeadStyle }) {
+  const d = useDisplay();
+  const routeHead = p.style ?? d.routeHead;
   const t = fourTimes(p.f, p.blockMin);
   if (routeHead === "pass") return <Pass {...p} t={t} />;
   if (routeHead === "board") return <Board {...p} t={t} />;
@@ -155,6 +156,9 @@ function Timeline({ f, from, to, blockMin, nm, onPlace, placeHref, t }: WithTime
           <p className="rh-ap">{to?.name}</p>
         </div>
       </div>
+      <p className="rh-mid-inline mono" aria-hidden="true">
+        {dur(blockMin) ?? "—"} · {nm != null ? `${nm.toLocaleString("en-GB")} NM` : "—"}
+      </p>
       <div className="rh-track-wrap" role="group" aria-label="OUT, OFF, ON and IN times">
         <div className="rh-ticks top">
           <span style={{ left: `${offPos}%` }}>
@@ -220,7 +224,10 @@ function Pass({ f, from, to, blockMin, nm, onPlace, placeHref, t }: WithTimes) {
             <Z m={t.out} big />
             <i className="mono">{local(t.out, from)}</i>
           </span>
-          <span className="sub mono">
+          <span className="pass-mid mono">
+            <span className="rh-mid-inline">
+              {dur(blockMin) ?? "—"} · {nm != null ? `${nm.toLocaleString("en-GB")} NM` : "—"} ·{" "}
+            </span>
             {label("OFF")} <Z m={t.off} /> · {label("ON")} <Z m={t.on} />
           </span>
           <span className="r">

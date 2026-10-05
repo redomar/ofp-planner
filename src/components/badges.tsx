@@ -93,8 +93,22 @@ export function AirlineTag({ name, color, style }: { name: string; color: string
  * coloured side edge or fully coloured (Settings → Display). Hover or focus shows the
  * manufacturer chip and the full model name.
  */
-export function TypeBadge({ type, airline, guessed }: { type: string; airline?: AirlineInfo; guessed?: boolean }) {
-  const d = useDisplay();
+export function TypeBadge({
+  type,
+  airline,
+  guessed,
+  colour,
+  theme,
+}: {
+  type: string;
+  airline?: AirlineInfo;
+  guessed?: boolean;
+  /** Override the Display setting (Settings samples). */
+  colour?: "maker" | "airline";
+  theme?: "side" | "full";
+}) {
+  const dd = useDisplay();
+  const d = { typeColour: colour ?? dd.typeColour, typeTheme: theme ?? dd.typeTheme };
   const { maker, model } = aircraft(type);
   const tone = makerTone(maker);
   const byAirline = d.typeColour === "airline" && !!airline;

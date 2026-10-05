@@ -3069,7 +3069,7 @@ select.ctl-input {
 .rh-pass .strip .r {
   align-items: flex-end;
 }
-.rh-pass .strip .sub {
+.rh-pass .strip .pass-mid {
   flex-direction: row;
   justify-content: center;
   align-items: center;
@@ -3150,4 +3150,146 @@ select.ctl-input {
 /* tooltip descriptions stay hidden whatever layout rule matches them */
 .rh [hidden] {
   display: none !important;
+}
+
+/* settings: live samples inside each option */
+.opt-grid.wide {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+}
+.opt-body {
+  flex: 1;
+}
+.opt-sample {
+  display: block;
+  margin-top: 4px;
+  padding: 10px;
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius);
+  background: var(--sheet);
+}
+.rh-sample {
+  display: block;
+  pointer-events: none;
+}
+.rh-sample .rh-linkrow {
+  display: none;
+}
+.mini-map {
+  display: block;
+  width: 100%;
+  max-width: 260px;
+  height: auto;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+/* fieldsets default to min-width: min-content; let them shrink on phones */
+.opt-group {
+  min-width: 0;
+}
+.rh-sample {
+  overflow: hidden;
+}
+/* flight-card samples need the real card width: one option per row, sample beside the text */
+.opt-grid.stack {
+  grid-template-columns: minmax(0, 1fr);
+}
+.opt-grid.stack .opt-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 480px);
+  gap: 6px 18px;
+  align-items: start;
+}
+.opt-grid.stack .opt-title,
+.opt-grid.stack .opt-note {
+  grid-column: 1;
+}
+.opt-grid.stack .opt-sample {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  margin-top: 0;
+}
+@media (max-width: 860px) {
+  .opt-grid.stack .opt-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .opt-grid.stack .opt-sample {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+/* RouteHead adapts to its own width (narrow cards on phones, Settings samples) */
+.rh {
+  container-type: inline-size;
+}
+.rh-mid-inline {
+  display: none;
+}
+.rh-city b {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@container (max-width: 400px) {
+  .rh-ends,
+  .rh-pass {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
+  }
+  .rh-ends > .rh-mid,
+  .rh-pass > .perf {
+    display: none;
+  }
+  .rh-mid-inline {
+    display: block;
+    margin: 6px 0 0;
+    text-align: center;
+    font-size: 12px;
+    color: var(--ink-2);
+  }
+  .rh-pass .strip .rh-mid-inline {
+    display: inline;
+    margin: 0;
+  }
+  .rh-city .mono {
+    display: none;
+  }
+  .code-flap .flap {
+    font-size: 23px;
+  }
+  .rh-pass .strip {
+    grid-template-columns: 1fr 1fr;
+  }
+  .rh-pass .strip .pass-mid {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    flex-wrap: wrap;
+  }
+  .rh-board {
+    padding: 10px;
+  }
+  .rh-board .brow {
+    gap: 7px;
+  }
+  .rh-board .flap {
+    font-size: 15px;
+  }
+  .rh-board .bcity {
+    font-size: 14px;
+    letter-spacing: 0.06em;
+  }
+  .rh-ticks.top {
+    margin-top: 2px;
+  }
+}
+
+/* OFF / ON labels lean inwards so their times and badges stay inside the card */
+.rh-ticks.top > span:first-child {
+  transform: translateX(-10px);
+  align-items: flex-start;
+}
+.rh-ticks.top > span:last-child {
+  transform: translateX(calc(-100% + 10px));
+  align-items: flex-end;
 }

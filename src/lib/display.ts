@@ -14,16 +14,22 @@ export interface Display {
   typeColour: "maker" | "airline";
   /** Aircraft badge theme: a coloured edge on the side, or fully coloured. */
   typeTheme: "side" | "full";
-  /** Destination IATA codes on the destinations map (codes that would overlap are skipped). */
-  mapCodes: boolean;
+  /** Airport codes beside destinations on maps (codes that would overlap are skipped). */
+  mapCodes: MapCodes;
   /** How the flight card shows departs / arrives. */
   routeHead: RouteHeadStyle;
 }
+export type MapCodes = "iata" | "icao" | "off";
 export type RouteHeadStyle = "timeline" | "pass" | "board";
 
-export const DEFAULT_DISPLAY: Display = { airlineTag: "solid", flightFirst: true, typeColour: "maker", typeTheme: "full", mapCodes: true, routeHead: "timeline" };
+export const DEFAULT_DISPLAY: Display = { airlineTag: "solid", flightFirst: true, typeColour: "maker", typeTheme: "full", mapCodes: "iata", routeHead: "timeline" };
 
-export const readDisplay = (): Display => ({ ...DEFAULT_DISPLAY, ...readJSON<Partial<Display>>(KEYS.display, {}) });
+export const readDisplay = (): Display => {
+  const d = { ...DEFAULT_DISPLAY, ...readJSON<Partial<Display> & { mapCodes?: MapCodes | boolean }>(KEYS.display, {}) };
+  // earlier versions stored a yes/no for codes
+  if (typeof d.mapCodes === "boolean") d.mapCodes = d.mapCodes ? "iata" : "off";
+  return d as Display;
+};
 export function writeDisplay(p: Partial<Display>) {
   writeJSON(KEYS.display, { ...readDisplay(), ...p });
 }
