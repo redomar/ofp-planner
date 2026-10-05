@@ -3,7 +3,7 @@
 import { geoAzimuthalEquidistant, geoDistance, geoGraticule, geoInterpolate, geoPath, type GeoProjection } from "d3-geo";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { Airport } from "@/lib/data/load";
-import { useDisplay } from "@/lib/display";
+import { useDisplay, type MapCodes } from "@/lib/display";
 import { COUNTRIES, RANGES, SEAS } from "@/lib/maplabels";
 import { useOutlines, type Outlines } from "@/lib/outlines";
 import { useTerrain, type Terrain } from "@/lib/terrain";
@@ -270,7 +270,7 @@ function Drawn({
   setHover: (k: string | null) => void;
   onPick?: (icao: string) => void;
   label: string;
-  codes: boolean;
+  codes: MapCodes;
   /** Live pinch/scroll zoom applied on top of the last drawn view until it's redrawn. */
   transform: string | undefined;
 }) {
@@ -300,8 +300,8 @@ function Drawn({
       boxes.push([p[0] - 24, p[1] - 30, p[0] + 24, p[1] - 8]);
       continue;
     }
-    if (!codes) continue;
-    const code = a.iata ?? a.icao;
+    if (codes === "off") continue;
+    const code = codes === "icao" ? a.icao : (a.iata ?? a.icao);
     const w = code.length * 7.4 + 4;
     const x0 = p[0] + 7;
     const b: [number, number, number, number] = [x0, p[1] - 9, x0 + w, p[1] + 5];
@@ -415,7 +415,7 @@ function Drawn({
             <circle className="map-dot" r={hub || !many ? 4.5 : 3.4} />
             {labelIt && (
               <text x={hub ? 0 : right ? 8 : -8} y={hub ? -10 : 4} textAnchor={hub ? "middle" : right ? "start" : "end"}>
-                {a.iata ?? a.icao}
+                {codes === "icao" ? a.icao : (a.iata ?? a.icao)}
               </text>
             )}
           </g>

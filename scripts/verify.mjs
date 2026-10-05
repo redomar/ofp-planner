@@ -131,6 +131,10 @@ async function run() {
     const errors = [];
     page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
     page.on("pageerror", (e) => errors.push(String(e)));
+    // live weather services may rate-limit or be down; the page handles it, so their failures aren't app errors
+    page.on("response", (r) => {
+      if (r.status() >= 400 && /open-meteo\.com|vatsim\.net/.test(r.url())) errors.push(`__weather_${r.status()}`);
+    });
     await page.addInitScript(() => {
       window.__cls = 0;
       new PerformanceObserver((l) => {
@@ -152,7 +156,13 @@ async function run() {
     cls > 0.02 ? fail(`${label}: layout shift CLS ${cls.toFixed(3)} ${JSON.stringify(shifts.slice(0, 4))}`) : pass(`${label}: CLS ${cls.toFixed(3)}`);
     const bad = await page.evaluate(CONTRAST);
     bad.length ? fail(`${label}: ${bad.length} contrast issues ${JSON.stringify(bad.slice(0, 6))}`) : pass(`${label}: text contrast AA`);
-    const errs = errors.filter((e) => !/Failed to load resource.*(open-meteo|vatsim)/.test(e));
+    // drop one "Failed to load resource" per weather-service failure seen, and the markers themselves
+    let weatherFails = errors.filter((e) => e.startsWith("__weather_")).length;
+    const errs = errors.filter((e) => {
+      if (e.startsWith("__weather_")) return false;
+      if (weatherFails > 0 && /^Failed to load resource/.test(e)) return (weatherFails--, false);
+      return true;
+    });
     errs.length ? fail(`${label}: console errors ${JSON.stringify(errs.slice(0, 3))}`) : pass(`${label}: 0 console errors`);
   };
   const shot = async (page, name) => {
@@ -551,7 +561,7 @@ async function run() {
     await page.getByRole("radio", { name: /Split pill/ }).check();
     await page.getByRole("radio", { name: /Airline, then flight/ }).check();
     await page.getByRole("radio", { name: /Coloured edge/ }).check();
-    await page.getByRole("checkbox", { name: /Destination codes/ }).uncheck();
+    await page.locator("input[name=mapCodes]").nth(2).check();
     await page.goto(page.url().replace(/\/settings.*$/, "/?al=EZY&dep=EGKK"), { waitUntil: "networkidle" });
     await page.waitForSelector("table.flights tbody tr");
     const split = await page.locator("table.flights tbody tr").first().locator(".split-pill > *").first().getAttribute("class");

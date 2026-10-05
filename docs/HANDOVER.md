@@ -50,7 +50,7 @@ components:
   RouteMap.tsx:    d3-geo azimuthal-equidistant chart (user's pick "48" from the map previews): depth bands + dashed depth
                    contours, parchment land + height bands/contours, 10°/5° grid, edge degrees (no shading behind),
                    sea/country/range lettering placed with collision boxes, routes (hover = looping draw-in), dots,
-                   optional destination codes (Settings → Display → Maps). Drawn at the measured pixel width.
+                   destination codes display.mapCodes "iata" | "icao" | "off" (old boolean migrated in readDisplay). Drawn at the measured pixel width.
                    useZoom: k 0.35–12 over the fitted view (⤢ = Default view, k 1), live SVG transform during gestures, redraw ~140 ms after;
                    two-finger scroll/pinch zoom (scroll down at k=0.35 is left to the page), pointer pinch/drag, dblclick,
                    +/−/⤢ buttons top-left (the floating flight panel covers the right).
@@ -194,6 +194,9 @@ server_latch: |
   - React Compiler lint: no setState in effects (use "adjust state during render" or keyed remounts), no Date.now()
     in render (useState(() => Date.now())), and memo deps must be preservable (define closures after useMemo).
   - React 19 treats `ref` as a normal prop on function components — don't name a prop `ref`.
+  - A global .sub class (sub-heading with dashed rule) exists in base.css — don't reuse the name.
+  - fieldset defaults to min-width: min-content; set min-width: 0 or wide samples overflow phones.
+  - verify.mjs excuses only weather-service (open-meteo / vatsim) HTTP failures, tracked per response.
   - Tooltips hide on any scroll (TooltipLayer); tests must hover after scrolling settles.
   - Status text that changes length mid-load shifts what follows → keep loading text constant; let the bar show progress.
   - A python heredoc ending in `open(p,'w').write(s)` with s undefined truncates the file — restore from git.
