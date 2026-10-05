@@ -26,7 +26,7 @@ esac
 test -f public/data/manifest.json || { echo "No public/data/manifest.json; run pnpm data:snapshot first." >&2; exit 1; }
 echo "Uploading $(gen ./public/data/manifest.json) to $HOST:$REMOTE/data"
 ssh "$HOST" "mkdir -p '$REMOTE/.incoming'"
-rsync -az --delete --info=stats1 public/data/ "$HOST:$REMOTE/.incoming/"
+rsync -az --delete --stats public/data/ "$HOST:$REMOTE/.incoming/"
 # swap: the new copy replaces the old in one rename
 ssh "$HOST" "cd '$REMOTE' && rm -rf data.old && { [ -d data ] && mv data data.old || true; } && mv .incoming data && rm -rf data.old && chmod -R a+rX data"
 echo "Done. Browsers pick it up on their next visit (the manifest is revalidated each time)."
