@@ -246,7 +246,7 @@ async function run() {
     // zoom: buttons in, can't go below the fitted view, ⌘/Ctrl+scroll zooms, reset returns
     const hubX = async () => page.locator(".places .map-port.hub").evaluate((g) => Number(g.getAttribute("transform").match(/translate\(([-\d.]+)/)[1]));
     const x0 = await hubX();
-    const outDisabled = await page.locator(".places .map-zbtn[aria-label='Zoom out']").isDisabled();
+    const defDisabled = await page.locator(".places .map-zbtn[aria-label='Default view']").isDisabled();
     await page.locator(".places .map-zbtn[aria-label='Zoom in']").click();
     await page.locator(".places .map-zbtn[aria-label='Zoom in']").click();
     await page.waitForTimeout(300);
@@ -258,9 +258,17 @@ async function run() {
     await page.locator(".places .map-zreset").click();
     await page.waitForTimeout(200);
     const x2 = await hubX();
-    outDisabled && x1 !== x0 && kAfterWheel === 1 && Math.abs(x2 - x0) < 0.5
-      ? pass(`map: zoom in (+, two-finger scroll), not out past the fitted view, reset returns (hub x ${x0.toFixed(0)} → ${x1.toFixed(0)} → ${x2.toFixed(0)})`)
-      : fail(`map: zoom (out disabled ${outDisabled}, x ${x0} → ${x1} → ${x2}, zoomed ${kAfterWheel})`);
+    // zooming out past the fitted view is allowed; Default view returns again
+    await page.locator(".places .map-zbtn[aria-label='Zoom out']").click();
+    await page.locator(".places .map-zbtn[aria-label='Zoom out']").click();
+    await page.waitForTimeout(200);
+    const out = await page.locator(".places .map.zoomed").count();
+    await page.locator(".places .map-zreset").click();
+    await page.waitForTimeout(200);
+    const x3 = await hubX();
+    defDisabled && x1 !== x0 && kAfterWheel === 1 && Math.abs(x2 - x0) < 0.5 && out === 1 && Math.abs(x3 - x0) < 0.5
+      ? pass(`map: zoom in (+, two-finger scroll) and out past the fitted view; Default view returns (hub x ${x0.toFixed(0)} → ${x1.toFixed(0)} → ${x2.toFixed(0)})`)
+      : fail(`map: zoom (default disabled ${defDisabled}, x ${x0} → ${x1} → ${x2} → ${x3}, zoomed ${kAfterWheel}, out ${out})`);
     const codesOn = await page.locator(".places .map-port:not(.hub) text").count();
     codesOn > 10 ? pass(`map: ${codesOn} destination codes shown`) : fail(`map: only ${codesOn} codes`);
     const terrainBands = await page.locator(".places .map-height, .places .map-depth").count();

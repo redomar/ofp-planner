@@ -49,8 +49,8 @@ components:
                    contours, parchment land + height bands/contours, 10°/5° grid, edge degrees (no shading behind),
                    sea/country/range lettering placed with collision boxes, routes (hover = looping draw-in), dots,
                    optional destination codes (Settings → Display → Maps). Drawn at the measured pixel width.
-                   useZoom: k 1–12 over the fitted view, live SVG transform during gestures, redraw ~140 ms after;
-                   two-finger scroll/pinch zoom (scroll down at k=1 is left to the page), pointer pinch/drag, dblclick,
+                   useZoom: k 0.35–12 over the fitted view (⤢ = Default view, k 1), live SVG transform during gestures, redraw ~140 ms after;
+                   two-finger scroll/pinch zoom (scroll down at k=0.35 is left to the page), pointer pinch/drag, dblclick,
                    +/−/⤢ buttons top-left (the floating flight panel covers the right).
   terrain:         public/geo/terrain.json (committed, ~470 KB / 166 KB gz) from `pnpm map:terrain`
                    (scripts/build-terrain.mjs: AWS Terrain Tiles z5 → 0.1° grid → d3-contour bands; Natural Earth land),
