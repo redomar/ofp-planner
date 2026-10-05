@@ -624,8 +624,121 @@ async function run() {
     await ctx.close();
   });
 
+  /* ---------- board: airport FIDS and gate screen ---------- */
+  await section("board", async () => {
+    const { ctx, page, errors } = await open("/board?ap=EGKK&h=12");
+    await page.waitForSelector(".fids-tbl tbody tr", { timeout: 30000 });
+    const n = await page.locator(".fids-tbl tbody tr").count();
+    const rmk = await page.locator(".fids-rmk").allTextContents();
+    const okRmk = rmk.every((r) => /^(On time|Expected \d\d:\d\d|Gate open|Boarding|Final call|Gate closed|Departed)$/.test(r));
+    n > 5 && okRmk && (await page.locator(".bd-map svg").count()) > 0 ? pass(`board: EGKK departures (${n} rows, remarks from the clock, map)`) : fail(`board: ${n} rows, remarks ${rmk.slice(0, 5)}`);
+    await page.getByRole("radio", { name: "Arrivals" }).click();
+    await page.waitForURL(/side=arr/);
+    await page.waitForSelector(".fids-tbl tbody tr", { timeout: 30000 });
+    (await page.locator(".fids-head h2").textContent()) === "Arrivals" && (await page.locator(".fids-tbl tbody tr").count()) > 0 ? pass("board: arrivals") : fail("board: arrivals");
+    await page.getByRole("radio", { name: "Departures" }).click();
+    await page.waitForSelector(".fids-tbl tbody tr");
+    // a narrowbody row opens its gate screen
+    const row = page.locator(".fids-tbl tbody tr", { has: page.locator(".fids-ac", { hasText: /A3[12]|A2[01]N|A319|B73|B38M/ }) }).first();
+    await row.locator(".fids-flight").click();
+    await page.waitForURL(/tab=gate/);
+    await page.waitForSelector(".gs-dest");
+    const gateUrl = new URL(page.url());
+    (await page.locator(".gs-dest").textContent()).length > 1 && gateUrl.searchParams.get("f") ? pass(`board: a row opens its gate screen (${await page.locator(".gs-dest").textContent()})`) : fail(`board: gate ${page.url()}`);
+    await checkPage("gate screen 1280 light", page, errors);
+    const statusAt = async (params) => {
+      const u = new URL(gateUrl);
+      for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
+      await page.goto(u.toString(), { waitUntil: "networkidle" });
+      await page.waitForSelector(".gs-status b");
+      return (await page.locator(".gs-status").innerText()).replace(/\s+/g, " ");
+    };
+    const s90 = await statusAt({ in: "90" });
+    const s30 = await statusAt({ in: "30" });
+    const s17 = await statusAt({ in: "17" });
+    const s0 = await statusAt({ in: "-1" });
+    const sLate = await statusAt({ in: "90", late: "20" });
+    const newTime = await page.locator(".gs-new b").count();
+    const sCx = await statusAt({ in: "30", cx: "1" });
+    /ON TIME/i.test(s90) && /BOARDING/i.test(s30) && /FINAL CALL/i.test(s17) && /PUSHBACK/i.test(s0) && /DELAYED/i.test(sLate) && newTime === 1 && /CANCELLED/i.test(sCx)
+      ? pass("gate screen: virtual clock steps (on time → boarding → final call → pushback), delayed with a new time, cancelled")
+      : fail(`gate screen: steps ${[s90, s30, s17, s0, sLate, newTime, sCx].join(" | ")}`);
+    // controls: delay, gate change, message
+    await statusAt({ in: "90", rot: "0" });
+    await page.getByRole("button", { name: "+15", exact: true }).click();
+    await page.locator(".gt-ctl input[placeholder='e.g. 12']").fill("12");
+    await page.locator(".gt-ctl input[placeholder='e.g. 14']").fill("14");
+    await page.getByRole("button", { name: "Change", exact: true }).click();
+    const st = (await page.locator(".gs-status").innerText()).replace(/\s+/g, " ");
+    /DELAYED/i.test(st) && /Gate change: 12 → 14/.test(st) && (await page.locator(".gs-gate b").textContent()) === "14" && /late=15/.test(page.url()) && /gate=14/.test(page.url())
+      ? pass("gate screen: controls set the delay and a gate change, kept in the URL")
+      : fail(`gate screen: controls ${st} ${page.url()}`);
+    // the screen window follows the controls (BroadcastChannel), and has keys of its own
+    const screenUrl = new URL(page.url());
+    screenUrl.searchParams.set("screen", "1");
+    screenUrl.searchParams.set("ch", "verify1");
+    screenUrl.searchParams.set("late", "0");
+    const ctlUrl = new URL(page.url());
+    ctlUrl.searchParams.set("ch", "verify1");
+    ctlUrl.searchParams.set("late", "0");
+    await page.goto(ctlUrl.toString(), { waitUntil: "networkidle" });
+    const scr = await ctx.newPage();
+    await scr.goto(screenUrl.toString(), { waitUntil: "networkidle" });
+    await scr.waitForSelector(".screen-root .gs");
+    const chrome = await scr.locator(".topbar").isVisible();
+    await page.getByRole("button", { name: "+30", exact: true }).click();
+    await scr.waitForSelector(".gs-new", { timeout: 5000 });
+    await scr.keyboard.press("0");
+    await scr.waitForSelector(".gs-new", { state: "detached", timeout: 5000 });
+    !chrome ? pass("gate screen window: screen only, follows the controls (+30 → new time), 0 key puts it back on time") : fail("gate screen window: page chrome visible");
+    await scr.close();
+    // SimBrief: the pilot's latest OFP (mocked here)
+    await page.route(/simbrief\.com\/api\/xml\.fetcher\.php/, (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { "access-control-allow-origin": "*" },
+        body: JSON.stringify({
+          fetch: { status: "Success" },
+          general: { icao_airline: "EZY", flight_number: "8101", initial_altitude: "35000", gc_distance: "750" },
+          atc: { callsign: "EZY81AB" },
+          origin: { icao_code: "EGKK", pos_lat: "51.148", pos_long: "-0.190", name: "GATWICK", plan_rwy: "26L" },
+          destination: { icao_code: "LEMD", pos_lat: "40.472", pos_long: "-3.561", name: "BARAJAS" },
+          times: { sched_out: new Date(Date.now() + 3 * 3600e3).toISOString(), est_out: new Date(Date.now() + 3 * 3600e3 + 10 * 60e3).toISOString(), sched_block: "02:20:00", taxi_out: "00:15:00" },
+          aircraft: { icaocode: "A20N", name: "A320-251N", reg: "G-ABCD" },
+          weights: { pax_count: "180" },
+          params: { time_generated: new Date().toISOString() },
+        }),
+      }),
+    );
+    await page.goto(base + "/board?tab=gate", { waitUntil: "networkidle" });
+    await page.locator(".gt-sb input").fill("example-pilot");
+    await page.getByRole("button", { name: "Use my latest OFP" }).click();
+    await page.waitForSelector(".gs-dest");
+    const sb = { dest: await page.locator(".gs-dest").textContent(), sub: await page.locator(".gs-dest-sub").textContent(), brand: await page.locator(".gs-wordmark").textContent(), st: await page.locator(".gs-status").innerText() };
+    sb.dest === "Madrid" && /G-ABCD/.test(sb.sub) && sb.brand === "easyJet" && /sb=example-pilot/.test(page.url()) && /late=10/.test(page.url())
+      ? pass("gate screen: a SimBrief OFP fills the screen (easyJet, Madrid, G-ABCD, its 10 min delay)")
+      : fail(`gate screen: SimBrief ${JSON.stringify(sb)} ${page.url()}`);
+    // entry points
+    await page.goto(base + "/?al=EZY&dep=EGKK", { waitUntil: "networkidle" });
+    await page.waitForSelector("table.flights tbody tr");
+    await page.locator("table.flights tbody tr").first().click();
+    await page.getByRole("link", { name: "Gate screen" }).click();
+    await page.waitForURL(/\/board\?.*tab=gate/);
+    await page.waitForSelector(".gs-dest");
+    pass("finder: the flight card opens its gate screen");
+    errors.filter((e) => !e.startsWith("__weather_") && !/Failed to load resource/.test(e)).length ? fail(`board: console errors ${JSON.stringify(errors.slice(0, 3))}`) : pass("board: 0 console errors");
+    await ctx.close();
+    for (const [width, theme] of [[1280, "dark"], [390, "light"], [390, "dark"]]) {
+      const o = await open(gateUrl.pathname + gateUrl.search, { width, height: width < 500 ? 844 : 900, theme });
+      await o.page.waitForSelector(".gs-dest");
+      await checkPage(`gate screen ${width}px ${theme}`, o.page, o.errors);
+      await o.ctx.close();
+    }
+  });
+
   /* ---------- every page × width × theme ---------- */
-  const pages = ["/?al=EZY&dep=EGKK", "/?al=EZY&dep=EGKK&view=places", "/?al=&view=places&cc=GB", "/?al=&dep=EGBB&arr=LOWI", "/?al=&dep=LEMD&arr=C:ES&view=map", "/brief", "/settings", "/journeys", "/journeys?from=EGBB&to=LOWI&legs=5", "/journeys?from=EGBB&via=EHAM&to=LEMD&t=1&sort=quickest"];
+  const pages = ["/?al=EZY&dep=EGKK", "/?al=EZY&dep=EGKK&view=places", "/?al=&view=places&cc=GB", "/?al=&dep=EGBB&arr=LOWI", "/?al=&dep=LEMD&arr=C:ES&view=map", "/brief", "/settings", "/journeys", "/journeys?from=EGBB&to=LOWI&legs=5", "/journeys?from=EGBB&via=EHAM&to=LEMD&t=1&sort=quickest", "/board", "/board?ap=EGKK&h=12"];
   for (const theme of ["light", "dark"])
     for (const width of [1280, 390])
       for (const path of pages) {
@@ -633,6 +746,7 @@ async function run() {
         if (path.startsWith("/?")) await page.waitForSelector(path.includes("places") ? ".place-list li" : path.includes("LOWI") ? ".empty-note .btn" : path.includes("map") ? ".routes-tbl tbody tr" : "table.flights tbody tr", { timeout: 20000 });
         if (path === "/brief") await page.waitForTimeout(300);
         if (path.startsWith("/journeys?")) await page.waitForSelector(".jr-detail .jr-leg", { timeout: 60000 });
+        if (path.startsWith("/board?")) await page.waitForSelector(".fids-tbl tbody tr", { timeout: 30000 });
         await checkPage(`${path} ${width}px ${theme}`, page, errors);
         await ctx.close();
       }

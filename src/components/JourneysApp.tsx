@@ -969,6 +969,9 @@ function JourneyDetail({
                       <Link className="btn" href={`/brief?f=${encodeURIComponent(f.id)}${sel && leg ? `&d=${legDate(sel, leg.t0)}` : ""}`}>
                         Brief
                       </Link>
+                      <Link className="btn" href={`/board?tab=gate&f=${encodeURIComponent(f.id)}${sel && leg ? `&d=${legDate(sel, leg.t0)}` : ""}`}>
+                        Gate
+                      </Link>
                       <a className="btn" href={sbLink(f, frames)} target="_blank" rel="noopener noreferrer">
                         SimBrief ↗
                       </a>

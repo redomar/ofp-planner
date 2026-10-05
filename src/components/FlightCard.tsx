@@ -222,6 +222,9 @@ export function FlightCard({
               ← Back to finder
             </Link>
           )}
+          <Link className="btn" href={`/board?tab=gate&f=${encodeURIComponent(f.id)}`}>
+            Gate screen
+          </Link>
           {onContinue && (
             <button type="button" className="btn" onClick={onContinue} title={`Roll an onward flight from ${f.d}`}>
               Next leg from {to?.iata ?? f.d}

@@ -1421,7 +1421,7 @@ table.tbl {
   left: 0;
   right: 0;
   top: 50%;
-  border-top: 1px solid var(--rule);
+  border-top: 1px solid rgb(0 0 0 / 0.32);
 }
 .flap-ch {
   line-height: 1;

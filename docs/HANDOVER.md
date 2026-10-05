@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: v1.2.3 released 2026-10-05 (Journeys; includes 1.1.0 weather paper) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
+  status: v1.3.0 released 2026-10-05 (Board: airport FIDS + gate screen; Journeys 1.2) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 
@@ -39,9 +39,14 @@ commands:
 
 ## 3. Architecture (file map)
 
-pages:        # all client components; one shared TopBar (Finder · Brief · Settings tabs), fixed-height StatusLine
+pages:        # all client components; one shared TopBar (Finder · Journeys · Board · Brief · Settings tabs), fixed-height StatusLine
   /:          src/components/FinderApp.tsx  — filters, roll bar, Flights/Destinations tabs, floating flight panel
   /journeys:  src/components/JourneysApp.tsx — multi-leg planner (form in the URL, results list + sticky detail with map and legs)
+  /board:     src/components/BoardApp.tsx — Airport board (board/FidsBoard.tsx) and Gate screen (board/GateScreen.tsx + controls);
+              lib/board/board.ts (dated movements from the weekly pattern, boarding phases, remarks), lib/board/gate.ts (state ⇄ URL,
+              snapshot or SimBrief OFP → GateFlight, BroadcastChannel). ?tab=gate&f&d&sb&in=<min to STD, virtual>&late&pin&cx&gate&was&reg&msg&ov&rot&screen=1&ch.
+              screen=1 portals the 16:9 screen into body and hides the rest (html.screen-mode); sized in cqw units.
+              SimBrief: www.simbrief.com/api/xml.fetcher.php?username=…&json=v2 is CORS *; the username is kept in localStorage only.
   /brief:     src/components/BriefApp.tsx   — FlightCard, date, next leg (sample + full list), weather
   /settings:  src/components/SettingsApp.tsx — airframes, Display, favourites, recent, snapshot info, theme/storage
 components:
@@ -81,6 +86,7 @@ lib:
                    newest request wins, busy derived in render. Turbopack also copies worker.ts into out/_next/static/media (harmless).
   places.ts:       countryName + placeOptions (shared by Finder and Journeys)
   data/flight.ts:  airportLabel = the airport's name only (OurAirports' city is often a suburb or "City, Region"); cityName drops the region
+                   and uses SERVES (icao → city served) where OurAirports names a suburb; add to it when a board shows a suburb
   simbrief.ts:     airframes (localStorage) + dispatch URL builder
   saved.ts / display.ts / storage.ts: favourites, history, ready flight, prefs, display choices; all localStorage "ofp-planner:*"
   aircraft-data.json + aircraft.ts: ICAO type → maker/model, maker → tone
