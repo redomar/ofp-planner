@@ -407,6 +407,10 @@ async function run() {
     await page.waitForSelector(".grp .fl-row");
     const inGroup = await page.locator(".grp", { hasText: "Alps hops" }).locator(".fl-row").count();
     inGroup === 1 ? pass("favourites: brief start page lists the group with its flight") : fail(`favourites: ${inGroup} rows in the group`);
+    await page.locator(".grp", { hasText: "Alps hops" }).getByRole("button", { name: "Map" }).click();
+    await page.waitForSelector(".grp-map .map-route");
+    const gm = await page.locator(".grp-map .map-route").count();
+    gm === 1 ? pass("favourites: a group opens its routes on a map") : fail(`favourites: group map drew ${gm} routes`);
     await checkPage("brief start page 1280 light", page, errors);
     await shot(page, "brief-start-day");
     await page.locator(".grp .fl-main").first().click();
