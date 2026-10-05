@@ -4,7 +4,7 @@
  * Link format (dispatch.simbrief.com "custom" options page, pre-filled from the query):
  *   airline, fltnum, orig, dest, type, callsign, deph, depm (departure hour/minute, UTC)
  * `type` is either an ICAO type ("A320") or a saved SimBrief airframe's internal id
- * ("276565_1790212659311"), which loads that airframe's registration, weights and engines.
+ * ("123456_1700000000000"), which loads that airframe's registration, weights and engines.
  */
 import { useMemo } from "react";
 import { familyOf, fltnum, plannedOut } from "./data/flight";
@@ -13,7 +13,7 @@ import { KEYS, readJSON, useStorageVersion, writeJSON } from "./storage";
 
 export interface Airframe {
   id: string;
-  /** What the picker shows, e.g. "G-ZONA". */
+  /** What the picker shows, e.g. "G-ABCD". */
   name: string;
   /** ICAO type designator it flies as. */
   icao: string;
@@ -22,10 +22,24 @@ export interface Airframe {
   note: string | null;
 }
 
-/** Seeded on first run; editable and removable in Settings. */
-export const DEFAULT_AIRFRAMES: Airframe[] = [
-  { id: "g-zona", name: "G-ZONA", icao: "A20N", sbType: "276565_1790212659311", note: "A320-251N · LEAP-1A26 · 180 pax" },
-];
+/**
+ * Seeded on first run; editable and removable in Settings. Empty in the published build: a personal
+ * default can be set at build time, untracked, in .env.local as a JSON array of airframes:
+ *   NEXT_PUBLIC_DEFAULT_AIRFRAMES='[{"id":"g-abcd","name":"G-ABCD","icao":"A20N","sbType":"123456_1700000000000","note":null}]'
+ */
+export const DEFAULT_AIRFRAMES: Airframe[] = parseAirframes(process.env.NEXT_PUBLIC_DEFAULT_AIRFRAMES);
+
+function parseAirframes(raw: string | undefined): Airframe[] {
+  if (!raw) return [];
+  try {
+    const l: unknown = JSON.parse(raw);
+    return Array.isArray(l)
+      ? l.filter((a): a is Airframe => !!a && typeof a.id === "string" && typeof a.name === "string" && typeof a.icao === "string" && typeof a.sbType === "string").map((a) => ({ ...a, note: a.note ?? null }))
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 export interface AirframePrefs {
   list: Airframe[];
@@ -34,7 +48,7 @@ export interface AirframePrefs {
 }
 
 export function readAirframes(): AirframePrefs {
-  return readJSON<AirframePrefs>(KEYS.airframes, { list: DEFAULT_AIRFRAMES, preferred: DEFAULT_AIRFRAMES[0].id });
+  return readJSON<AirframePrefs>(KEYS.airframes, { list: DEFAULT_AIRFRAMES, preferred: DEFAULT_AIRFRAMES[0]?.id ?? null });
 }
 export function writeAirframes(p: AirframePrefs) {
   writeJSON(KEYS.airframes, p);

@@ -36,7 +36,7 @@ and check the weather for the day you fly.
 - **Roll a flight.** Random flight, random destination from an airport or random origin into one, with even odds per airport so busy routes don't dominate. **Next leg** continues from where you land after a realistic turnaround.
 - **Charts, not just lists.** Destinations from an airport and every route matching the filters (Madrid → Spain, say) on an azimuthal chart: sea depth and land height contours, a lat/long grid with degrees on the edges, sea, country and mountain lettering, routes in airline colours. Zoom and pan with two fingers, pinch or the buttons.
 - **The times that matter.** Scheduled gate times (STD / STA) beside typical tracked OUT, OFF, ON and IN; anything neither scheduled nor tracked is estimated and badged **EST.** Shown as a timeline, a boarding pass or a split-flap departure board.
-- **One click to SimBrief.** Dispatch links carry airline, flight number, callsign, route, type and departure time. Your saved airframes (G-ZONA, an A20N) replace the scheduled type automatically for the same family. Add your own flight number to callsign-only flights.
+- **One click to SimBrief.** Dispatch links carry airline, flight number, callsign, route, type and departure time. Your saved SimBrief airframes replace the scheduled type automatically for the same family. Add your own flight number to callsign-only flights.
 - **Multi-leg journeys.** Plan a route with stops: from an airport, through stops in order, to an airport, with either end open (roam from home, or work backwards to where your duty should end). Ask for the fewest legs, exactly N or up to N, over the whole route network (any day) or as **timed connections** of real flights with a turnaround window, a day, a first departure, a **duty limit** and a detour limit. Sort the list by date, distance, legs, duty or time on the ground; every timed journey shows its dates for the coming week as a sortable timeline, soonest first. Brief or dispatch each leg, or save the journey as a favourites group.
 - **A brief for the day you fly.** Pick the date, get the Open-Meteo forecast at both ends for the planned times: a verdict for each end with advice, an illustrated scene of each airport with hazards, wind (OFP Reader's wind arrows), visibility, temperature and QNH, a through-the-day strip with your flight on it, and the forecast coded like a METAR beside the current METAR from VATSIM on printer paper. Fetched only on this page, and cached.
 - **Favourites in groups.** Star flights into groups ("Alps hops", "Ryanair B738"), open a group's routes on a map, and brief any of them in one click.
@@ -176,7 +176,7 @@ Everything you save stays in the browser. Nothing is sent anywhere.
 | Favourites and their groups | `localStorage` | `ofp-planner:favourites`, `ofp-planner:fav-groups` |
 | Recent flights | `localStorage` | `ofp-planner:history` |
 | The flight on the Brief (and its date) | `localStorage` | `ofp-planner:ready` |
-| Saved airframes (G-ZONA preset) | `localStorage` | `ofp-planner:airframes` |
+| Saved airframes | `localStorage` | `ofp-planner:airframes` |
 | Flight numbers you add | `localStorage` | `ofp-planner:flight-numbers` |
 | Display choices | `localStorage` | `ofp-planner:display` |
 | Finder preferences (airline, sort, view) | `localStorage` | `ofp-planner:prefs` |

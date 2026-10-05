@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.2 — 2026-10-05
+
+- No personal airframe in the published build: the default airframe list is empty and set, if wanted, from an untracked `.env.local` (`NEXT_PUBLIC_DEFAULT_AIRFRAMES`). Settings placeholders use an example (G-ABCD, 123456_1700000000000). Airframes already saved in a browser are kept.
+
 ## 1.2.1 — 2026-10-05
 
 First release of Journeys (1.2.0 was not released on its own; its notes follow).
@@ -33,7 +37,7 @@ First release.
 - Random flights: roll any flight, a random destination from an airport, or a random origin into one, with even odds per airport. Next leg continues from the arrival airport after a realistic turnaround.
 - Destinations: every destination from an airport on a projected map in airline colours, with flights per week, block times and aircraft types.
 - Flight card: great-circle map, scheduled gate times beside typical OUT / OFF / ON / IN times (UTC and local), aircraft, operating days, distance and block time.
-- SimBrief dispatch links with airline, flight number, callsign, route, type and departure time. Saved airframes (G-ZONA A20N preset) replace the scheduled type for the same family.
+- SimBrief dispatch links with airline, flight number, callsign, route, type and departure time. Saved airframes replace the scheduled type for the same family.
 - Brief page: the flight you're about to fly, the date, and the forecast at both ends for the planned times (Open-Meteo), plus the current METAR (VATSIM). Fetched only on this page and cached.
 - Settings: airframes, favourites, recent flights, snapshot sources and licences, theme, storage.
 - Flights table: airline name tag beside each flight (solid, tinted, split pill or edge style; flight first or airline first), how often it flies per week, and the week as a day strip. The table drops city names, distance and arrival time as its panel narrows, so it always fits.

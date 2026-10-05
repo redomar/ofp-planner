@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: v1.2.1 released 2026-10-05 (Journeys; includes 1.1.0 weather paper) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
+  status: v1.2.2 released 2026-10-05 (Journeys; includes 1.1.0 weather paper) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 
@@ -21,8 +21,9 @@ project:
   - Commit locally after each confirmed step: signed (global gpg config), NO AI co-author trailer,
     no push until asked. Keep CHANGELOG.md "1.0.0 — unreleased" up to date.
   - Reply briefly: what changed, what was verified (numbers), what's left; name any removal.
-  - Their SimBrief airframe: G-ZONA, A20N (A320-251N, LEAP-1A26, 180 pax), SimBrief type id
-    276565_1790212659311. Seeded as the default preferred airframe.
+  - Their own SimBrief airframe is personal: never commit it. It lives in the untracked .env.local as
+    NEXT_PUBLIC_DEFAULT_AIRFRAMES (JSON array) and seeds the local build only; the published build ships none.
+    Examples in code, docs and tests use G-ABCD / 123456_1700000000000.
 
 ## 2. Stack and commands
 
@@ -198,7 +199,7 @@ server_latch_container_alternative: |
 ## 8. Verification (pnpm verify)
 
   - scripts/verify.mjs serves out/ itself (page.html beats folder of the same name, like nginx try_files) and
-    drives Chromium: ~112 checks — finder flows (combobox, random destination, G-ZONA default, destinations,
+    drives Chromium: ~112 checks — finder flows (combobox, random destination, preferred airframe (example seeded), destinations,
     next leg, reload, tooltips, fold/pin, close, clear), airline counts, After filter, every page × 1280/390 ×
     day/night (sideways scroll, CLS, AA contrast incl. color-mix backgrounds, console errors), brief (weather,
     next leg, airport links, back link), settings (airframe from a pasted Plan link, display choices apply).

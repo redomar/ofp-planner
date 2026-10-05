@@ -153,7 +153,7 @@ function Airframes() {
       <form className="af-form" onSubmit={add}>
         <label>
           <span className="ctl-label">Name</span>
-          <input className="ctl-input" value={form.name} placeholder="G-ZONA" onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <input className="ctl-input" value={form.name} placeholder="G-ABCD" onChange={(e) => setForm({ ...form, name: e.target.value })} />
         </label>
         <label>
           <span className="ctl-label">ICAO type</span>
@@ -164,13 +164,13 @@ function Airframes() {
           <input
             className="ctl-input mono"
             value={form.sb}
-            placeholder="276565_1790212659311"
+            placeholder="123456_1700000000000"
             onChange={(e) => setForm({ ...form, sb: e.target.value })}
           />
         </label>
         <label className="wide">
           <span className="ctl-label">Note</span>
-          <input className="ctl-input" value={form.note} placeholder="A320-251N · LEAP-1A26" onChange={(e) => setForm({ ...form, note: e.target.value })} />
+          <input className="ctl-input" value={form.note} placeholder="A320-251N · 180 seats" onChange={(e) => setForm({ ...form, note: e.target.value })} />
         </label>
         <button type="submit" className="btn btn-primary">
           Add airframe
@@ -184,11 +184,11 @@ function Airframes() {
       <p className="muted small">
         Find the id on SimBrief → Airframes → Saved Airframes: the <b>Plan</b> link ends in <span className="mono">?type=…</span>. Paste the whole
         link.
-        {!prefs.list.some((a) => a.id === DEFAULT_AIRFRAMES[0].id) && (
+        {DEFAULT_AIRFRAMES.length > 0 && !prefs.list.some((a) => a.id === DEFAULT_AIRFRAMES[0].id) && (
           <>
             {" "}
             <button type="button" className="linkish" onClick={() => save({ list: [...DEFAULT_AIRFRAMES, ...prefs.list], preferred: prefs.preferred })}>
-              Restore G-ZONA
+              Restore {DEFAULT_AIRFRAMES[0].name}
             </button>
           </>
         )}
