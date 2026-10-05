@@ -12,6 +12,10 @@ import { aircraft } from "@/lib/aircraft";
 export interface GateWx {
   temp: number | null;
   text: string | null;
+  /** WMO weather code, for the picto. */
+  code: number | null;
+  /** Dark at the destination at arrival (a moon instead of a sun). */
+  night: boolean;
 }
 
 /** HH:MM at an airport (its time zone; UTC with a Z when unknown). */
@@ -105,11 +109,9 @@ export function GateScreen({ flight: f, state: g, now, wx }: { flight: GateFligh
     f.cruiseFt != null && `FL${String(Math.round(f.cruiseFt / 100)).padStart(3, "0")}`,
     f.pax != null && `${f.pax} passengers`,
   ].filter(Boolean) as string[];
-  const items = [
-    wx && (wx.temp != null || wx.text) ? `${dest} at arrival: ${[wx.temp != null ? `${Math.round(wx.temp)}°C` : null, wx.text?.toLowerCase()].filter(Boolean).join(", ")}` : null,
-    facts.length ? facts.join(" · ") : null,
-    g.msg || null,
-  ].filter((x): x is string => !!x);
+  const wxText =
+    wx && (wx.temp != null || wx.text) ? `${dest} at arrival: ${[wx.temp != null ? `${Math.round(wx.temp)}°C` : null, wx.text?.toLowerCase()].filter(Boolean).join(", ")}` : null;
+  const items = [wxText, facts.length ? facts.join(" · ") : null, g.msg || null].filter((x): x is string => !!x);
   const item = items.length ? items[g.rotate ? Math.floor(now / 8000) % items.length : 0] : null;
 
   return (
@@ -186,10 +188,78 @@ export function GateScreen({ flight: f, state: g, now, wx }: { flight: GateFligh
         })}
       </ol>
 
-      <footer className="gs-info">{item && <span key={item}>{item}</span>}</footer>
+      <footer className="gs-info">
+        {item && (
+          <span key={item} className="gs-info-item">
+            {item === wxText && wx && <WxPicto code={wx.code} night={wx.night} />}
+            <span>{item}</span>
+          </span>
+        )}
+      </footer>
     </div>
   );
 }
 
 /** A plain airliner seen from above (decorative, not any airline's mark). */
 export const PLANE = "M32 3c2.2 0 3.4 2.4 3.4 6v13.6l22.6 12.6v5.6l-22.6-7.2v11.8l7.6 5.6v4.4l-11-3.4-11 3.4v-4.4l7.6-5.6V33.6L6 40.8v-5.6l22.6-12.6V9c0-3.6 1.2-6 3.4-6z";
+
+/** A small weather picto from a WMO code: clear, partly cloudy, cloud, fog, rain, snow or thunder. */
+function WxPicto({ code, night }: { code: number | null; night: boolean }) {
+  const c = code ?? 3;
+  const kind =
+    c <= 1
+      ? "clear"
+      : c === 2
+        ? "partly"
+        : c === 3
+          ? "cloud"
+          : c === 45 || c === 48
+            ? "fog"
+            : c >= 95
+              ? "storm"
+              : (c >= 71 && c <= 77) || c === 85 || c === 86
+                ? "snow"
+                : c >= 51
+                  ? "rain"
+                  : "cloud";
+  const cloud = <path d="M7 17.5h10.5a3.5 3.5 0 0 0 .4-7 5 5 0 0 0-9.6-1.3A4 4 0 0 0 7 17.5z" />;
+  const sky = night ? (
+    <path className="sun" d="M15.5 4.5a6 6 0 1 0 4 10.4 7 7 0 0 1-4-10.4z" />
+  ) : (
+    <g className="sun">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6 7 7M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4" />
+    </g>
+  );
+  return (
+    <svg className="gs-info-icon" viewBox="0 0 24 24" aria-hidden="true">
+      {kind === "clear" && sky}
+      {kind === "partly" && (
+        <>
+          <g transform="translate(-3 -3) scale(0.8)">{sky}</g>
+          {cloud}
+        </>
+      )}
+      {kind === "cloud" && cloud}
+      {kind === "fog" && <path d="M4 9h16M6 13h13M4 17h16" />}
+      {kind === "rain" && (
+        <>
+          <g transform="translate(0 -3)">{cloud}</g>
+          <path className="drop" d="M8 18l-1 3M12 18l-1 3M16 18l-1 3" />
+        </>
+      )}
+      {kind === "snow" && (
+        <>
+          <g transform="translate(0 -3)">{cloud}</g>
+          <path d="M8 19.5h.01M12 21h.01M16 19.5h.01" strokeWidth="2.6" />
+        </>
+      )}
+      {kind === "storm" && (
+        <>
+          <g transform="translate(0 -3)">{cloud}</g>
+          <path className="bolt" d="M12.5 15 9.5 20h2.5l-1 3.5 3.5-5h-2.5l1-3.5z" />
+        </>
+      )}
+    </svg>
+  );
+}

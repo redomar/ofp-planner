@@ -234,7 +234,8 @@ export function BoardApp() {
         const n = nearestHour(fc, etaMs);
         if (!live || !n || n.outside) return;
         const h = hourAt(fc, n.i);
-        setWx({ key: wxKey, wx: { temp: h.temp, text: wmoText(h.code) } });
+        const hr = Number(new Intl.DateTimeFormat("en-GB", { timeZone: flight.to.tz ?? "UTC", hour: "2-digit", hourCycle: "h23" }).format(etaMs));
+        setWx({ key: wxKey, wx: { temp: h.temp, text: wmoText(h.code), code: h.code, night: hr < 6 || hr >= 20 } });
       },
       () => undefined,
     );
@@ -347,156 +348,159 @@ export function BoardApp() {
       <TopBar />
       <StatusLine progress={ready && ap && tab === "airport" && !data.error ? data.progress : null}>{status}</StatusLine>
       <main className="board">
-        <div className="tabs-bar board-tabs">
-          <div className="tabs" role="tablist" aria-label="Board">
-            <button type="button" role="tab" aria-selected={tab === "airport"} className="tab" onClick={() => setTab("airport")}>
-              Airport board
-            </button>
-            <button type="button" role="tab" aria-selected={tab === "gate"} className="tab" onClick={() => setTab("gate")}>
-              Gate screen
-            </button>
+        <section className="panel board-panel" aria-label="Board">
+          <div className="tabs-bar">
+            <div className="tabs" role="tablist" aria-label="Show">
+              <button type="button" role="tab" aria-selected={tab === "airport"} className="tab" onClick={() => setTab("airport")}>
+                Airport board <span className="mono">{ready && ap && !loadingBoard ? rows.length.toLocaleString("en-GB") : ""}</span>
+              </button>
+              <button type="button" role="tab" aria-selected={tab === "gate"} className="tab" onClick={() => setTab("gate")}>
+                Gate screen <span className="mono">{flight ? flight.flightNo : ""}</span>
+              </button>
+            </div>
           </div>
-        </div>
-
-        {ready && tab === "airport" && (
-          <>
-            <section className="panel bd-form" aria-label="Board options">
-              <PlacePicker label="Airport" value={ap} options={placeOpts} onChange={(v) => (setAp(v), setShown(ROWS))} anyLabel="Choose an airport" />
-              <Seg
-                label="Show"
-                value={side}
-                options={[
-                  ["dep", "Departures"],
-                  ["arr", "Arrivals"],
-                ]}
-                onChange={(v) => (setSide(v), setShown(ROWS))}
-              />
-              <Seg label="Next" value={String(hours)} options={HOURS.map((h) => [String(h), `${h} h`] as [string, string])} onChange={(v) => setHours(Number(v))} />
-              <Seg
-                label="Times"
-                value={utc ? "utc" : "local"}
-                options={[
-                  ["local", "Local"],
-                  ["utc", "UTC"],
-                ]}
-                onChange={(v) => setUtc(v === "utc")}
-              />
-            </section>
-            {!ap ? (
-              <section className="panel bd-intro">
-                <h2 className="brief-title">An airport’s departures and arrivals</h2>
-                <p className="muted">
-                  Pick an airport for the flights in the next few hours, soonest first, like the screens in the terminal. Remarks follow the clock: gate open, boarding, final call,
-                  gate closed, departed. Times are scheduled where the airline publishes them, else typical from tracking (marked “typ”); “Expected” means the flight usually runs
-                  10 minutes or more late. Pick a flight for its gate screen.
-                </p>
-                <p className="bd-try">
-                  <span className="ctl-label">Try</span>
-                  {["EGKK", "EGBB", "LEMD", "EHAM", "EPPO"].map((c) => (
-                    <button key={c} type="button" className="jr-example" onClick={() => setAp(c)}>
-                      {c}
-                    </button>
-                  ))}
-                </p>
-              </section>
-            ) : loadingBoard || !airport ? (
-              <section className="panel bd-loading" aria-busy="true">
-                <p className="muted">Loading the airlines that fly here…</p>
-              </section>
-            ) : (
-              <div className="bd-split">
-                <div className="bd-list">
-                  <FidsBoard
-                    rows={rows.slice(0, shown)}
-                    side={side}
-                    airport={airport}
-                    airports={airports!}
-                    airlines={airlines}
-                    now={now}
-                    fmt={fmt}
-                    clock={fmt(now)}
-                    hover={hover}
-                    onHover={setHover}
-                    onPick={(m) => {
-                      setGate({ ...EMPTY_GATE, f: m.f.id, d: isoDate(m.depMs) });
-                      setSnapFlight(m.f);
-                      setTab("gate");
-                      window.scrollTo({ top: 0 });
-                    }}
+          <div role="tabpanel" className="board-body">
+            {ready && tab === "airport" && (
+              <>
+                <div className="bd-form" role="group" aria-label="Board options">
+                  <PlacePicker label="Airport" value={ap} options={placeOpts} onChange={(v) => (setAp(v), setShown(ROWS))} anyLabel="Choose an airport" />
+                  <Seg
+                    label="Show"
+                    value={side}
+                    options={[
+                      ["dep", "Departures"],
+                      ["arr", "Arrivals"],
+                    ]}
+                    onChange={(v) => (setSide(v), setShown(ROWS))}
                   />
-                  {rows.length > shown && (
-                    <button type="button" className="btn bd-more" onClick={() => setShown((n) => n + ROWS)}>
-                      Show {Math.min(ROWS, rows.length - shown)} more of {rows.length}
-                    </button>
-                  )}
+                  <Seg label="Next" value={String(hours)} options={HOURS.map((h) => [String(h), `${h} h`] as [string, string])} onChange={(v) => setHours(Number(v))} />
+                  <Seg
+                    label="Times"
+                    value={utc ? "utc" : "local"}
+                    options={[
+                      ["local", "Local"],
+                      ["utc", "UTC"],
+                    ]}
+                    onChange={(v) => setUtc(v === "utc")}
+                  />
                 </div>
-                <div className="panel bd-map">
-                  {mapRoutes.length > 0 && (
-                    <div className="bd-map-clip">
-                      <RouteMap
-                        routes={mapRoutes}
-                        height={460}
-                        label={`Map of ${mapRoutes.length} ${side === "dep" ? "destinations from" : "origins into"} ${airport.name} in the next ${hours} hours.`}
-                        onPick={(icao) => setHover((h) => (h === icao ? null : icao))}
-                      />
-                    </div>
-                  )}
-                  <p className="muted small">
-                    Hover a flight to see its route. {mapRoutes.length} airports in the next {hours} h.
-                  </p>
-                </div>
-              </div>
-            )}
-          </>
-        )}
-
-        {ready && tab === "gate" && (
-          <div className="gt-split">
-            <div className="gt-preview">
-              <div className="gs-frame" id="gs-preview">
-                {flight ? (
-                  <GateScreen flight={flight} state={shownGate} now={now} wx={gateWx} />
+                {!ap ? (
+                  <div className="bd-intro">
+                    <h2 className="brief-title">An airport’s departures and arrivals</h2>
+                    <p className="muted">
+                      Pick an airport for the flights in the next few hours, soonest first, like the screens in the terminal. Remarks follow the clock: gate open, boarding, final
+                      call, gate closed, departed. Times are scheduled where the airline publishes them, else typical from tracking (marked “typ”); “Expected” means the flight
+                      usually runs 10 minutes or more late. Pick a flight for its gate screen.
+                    </p>
+                    <p className="bd-try">
+                      <span className="ctl-label">Try</span>
+                      {["EGKK", "EGBB", "LEMD", "EHAM", "EPPO"].map((c) => (
+                        <button key={c} type="button" className="jr-example" onClick={() => setAp(c)}>
+                          {c}
+                        </button>
+                      ))}
+                    </p>
+                  </div>
+                ) : loadingBoard || !airport ? (
+                  <div className="bd-loading" aria-busy="true">
+                    <p className="muted">Loading the airlines that fly here…</p>
+                  </div>
                 ) : (
-                  <div className="gs-empty">
-                    <p>{gate.sb ? (ofp?.error ? `SimBrief: ${ofp.error}` : "Loading your SimBrief OFP…") : gate.f ? "Loading the flight…" : "No flight yet"}</p>
+                  <div className="bd-split">
+                    <div className="bd-list">
+                      <FidsBoard
+                        rows={rows.slice(0, shown)}
+                        side={side}
+                        airport={airport}
+                        airports={airports!}
+                        airlines={airlines}
+                        now={now}
+                        fmt={fmt}
+                        clock={fmt(now)}
+                        hover={hover}
+                        onHover={setHover}
+                        onPick={(m) => {
+                          setGate({ ...EMPTY_GATE, f: m.f.id, d: isoDate(m.depMs) });
+                          setSnapFlight(m.f);
+                          setTab("gate");
+                          window.scrollTo({ top: 0 });
+                        }}
+                      />
+                      {rows.length > shown && (
+                        <button type="button" className="btn bd-more" onClick={() => setShown((n) => n + ROWS)}>
+                          Show {Math.min(ROWS, rows.length - shown)} more of {rows.length}
+                        </button>
+                      )}
+                    </div>
+                    <div className="bd-map">
+                      {mapRoutes.length > 0 && (
+                        <div className="bd-map-clip">
+                          <RouteMap
+                            routes={mapRoutes}
+                            height={460}
+                            label={`Map of ${mapRoutes.length} ${side === "dep" ? "destinations from" : "origins into"} ${airport.name} in the next ${hours} hours.`}
+                            onPick={(icao) => setHover((h) => (h === icao ? null : icao))}
+                          />
+                        </div>
+                      )}
+                      <p className="muted small">
+                        Hover a flight to see its route. {mapRoutes.length} airports in the next {hours} h.
+                      </p>
+                    </div>
                   </div>
                 )}
-              </div>
-              {
-                <div className="gt-actions">
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={!flight}
-                    onClick={() => window.open(screenUrl(true), `gate-${ch}`, "popup,width=1280,height=720")}
-                    title="A window with only the screen, kept in step with these controls (capture it in OBS as a window)"
-                  >
-                    Open screen window
-                  </button>
-                  <CopyButton
-                    disabled={!flight}
-                    text={() => screenUrl(false)}
-                    label="Copy stream URL"
-                    title="For an OBS browser source at 1920×1080: the screen with these settings (the virtual clock starts again when the source loads)"
-                  />
-                  <button type="button" className="btn" disabled={!flight} onClick={() => void document.getElementById("gs-preview")?.requestFullscreen?.()}>
-                    Full screen
-                  </button>
+              </>
+            )}
+
+            {ready && tab === "gate" && (
+              <div className="gt-split">
+                <div className="gt-preview">
+                  <div className="gs-frame" id="gs-preview">
+                    {flight ? (
+                      <GateScreen flight={flight} state={shownGate} now={now} wx={gateWx} />
+                    ) : (
+                      <div className="gs-empty">
+                        <p>{gate.sb ? (ofp?.error ? `SimBrief: ${ofp.error}` : "Loading your SimBrief OFP…") : gate.f ? "Loading the flight…" : "No flight yet"}</p>
+                      </div>
+                    )}
+                  </div>
+                  {
+                    <div className="gt-actions">
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={!flight}
+                        onClick={() => window.open(screenUrl(true), `gate-${ch}`, "popup,width=1280,height=720")}
+                        title="A window with only the screen, kept in step with these controls (capture it in OBS as a window)"
+                      >
+                        Open screen window
+                      </button>
+                      <CopyButton
+                        disabled={!flight}
+                        text={() => screenUrl(false)}
+                        label="Copy stream URL"
+                        title="For an OBS browser source at 1920×1080: the screen with these settings (the virtual clock starts again when the source loads)"
+                      />
+                      <button type="button" className="btn" disabled={!flight} onClick={() => void document.getElementById("gs-preview")?.requestFullscreen?.()}>
+                        Full screen
+                      </button>
+                    </div>
+                  }
                 </div>
-              }
-            </div>
-            <GateControls
-              gate={gate}
-              flight={flight}
-              snap={snapFlight && snapFlight.id === gate.f ? snapFlight : null}
-              now={now}
-              autoReg={autoReg}
-              ofpError={gate.sb && ofp?.user === gate.sb ? ofp.error : null}
-              onPatch={patch}
-              onSet={setGate}
-            />
+                <GateControls
+                  gate={gate}
+                  flight={flight}
+                  snap={snapFlight && snapFlight.id === gate.f ? snapFlight : null}
+                  now={now}
+                  autoReg={autoReg}
+                  ofpError={gate.sb && ofp?.user === gate.sb ? ofp.error : null}
+                  onPatch={patch}
+                  onSet={setGate}
+                />
+              </div>
+            )}
           </div>
-        )}
+        </section>
       </main>
     </>
   );
@@ -603,7 +607,7 @@ function GateControls({
   const ps = flight ? phases(flight.types, flight.taxiOut) : [];
 
   return (
-    <section className="panel gt-ctl" aria-label="Gate screen controls">
+    <section className="gt-ctl" aria-label="Gate screen controls">
       <fieldset className="gt-group">
         <legend>Flight</legend>
         {(flight || gate.f || gate.sb) && (

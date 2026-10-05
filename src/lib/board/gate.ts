@@ -227,7 +227,7 @@ export async function fetchOfp(username: string, signal?: AbortSignal): Promise<
 
 /** An OFP as the screen's flight: the brand from its airline code (an operator of a brand counts). */
 export function fromOfp(o: SbOfp, airports: Map<string, Airport> | null, airlines: Map<string, AirlineInfo>): GateFlight {
-  const brand = [...airlines.values()].find((a) => a.icao === o.airline || a.operators.includes(o.airline)) ?? null;
+  const brand = o.airline ? ([...airlines.values()].find((a) => a.icao === o.airline || a.operators.includes(o.airline) || a.iata === o.airline) ?? null) : null;
   const ap = (icao: string, pos: [number, number], name: string): Airport =>
     airports?.get(icao) ?? { icao, iata: null, name, city: null, country: null, lat: pos[0], lon: pos[1], elevFt: null, tz: null };
   const from = ap(o.o, o.oPos, o.oName);

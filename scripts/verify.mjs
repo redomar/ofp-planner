@@ -626,7 +626,7 @@ async function run() {
 
   /* ---------- board: airport FIDS and gate screen ---------- */
   await section("board", async () => {
-    const { ctx, page, errors } = await open("/board?ap=EGKK");
+    const { ctx, page, errors } = await open("/board?ap=EGKK&h=12");
     await page.waitForSelector(".fids-tbl tbody tr", { timeout: 30000 });
     const n = await page.locator(".fids-tbl tbody tr").count();
     const rmk = await page.locator(".fids-rmk").allTextContents();
@@ -738,7 +738,7 @@ async function run() {
   });
 
   /* ---------- every page × width × theme ---------- */
-  const pages = ["/?al=EZY&dep=EGKK", "/?al=EZY&dep=EGKK&view=places", "/?al=&view=places&cc=GB", "/?al=&dep=EGBB&arr=LOWI", "/?al=&dep=LEMD&arr=C:ES&view=map", "/brief", "/settings", "/journeys", "/journeys?from=EGBB&to=LOWI&legs=5", "/journeys?from=EGBB&via=EHAM&to=LEMD&t=1&sort=quickest", "/board", "/board?ap=EGKK"];
+  const pages = ["/?al=EZY&dep=EGKK", "/?al=EZY&dep=EGKK&view=places", "/?al=&view=places&cc=GB", "/?al=&dep=EGBB&arr=LOWI", "/?al=&dep=LEMD&arr=C:ES&view=map", "/brief", "/settings", "/journeys", "/journeys?from=EGBB&to=LOWI&legs=5", "/journeys?from=EGBB&via=EHAM&to=LEMD&t=1&sort=quickest", "/board", "/board?ap=EGKK&h=12"];
   for (const theme of ["light", "dark"])
     for (const width of [1280, 390])
       for (const path of pages) {

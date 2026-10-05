@@ -11,15 +11,23 @@
   flex-direction: column;
   gap: 18px;
 }
-.board-tabs {
-  border-bottom: 1px solid var(--rule);
+.board-panel {
+  min-width: 0;
+}
+.board-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 420px;
+  padding: 14px 16px 18px;
 }
 .bd-form {
   display: flex;
   flex-wrap: wrap;
   gap: 12px 16px;
   align-items: end;
-  padding: 14px 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px dashed var(--rule);
 }
 .bd-form > .combo,
 .bd-form > div:first-child {
@@ -27,7 +35,7 @@
 }
 .bd-intro,
 .bd-loading {
-  padding: 22px;
+  padding: 4px 2px;
 }
 .bd-intro p {
   max-width: 78ch;
@@ -50,7 +58,9 @@
 .bd-map {
   position: sticky;
   top: 12px;
-  padding: 10px;
+  padding: 8px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
 }
 .bd-map-clip {
   overflow: hidden;
@@ -248,6 +258,12 @@
   color: var(--fx-mute);
 }
 @media (max-width: 640px) {
+  .board {
+    padding: 12px 10px 20px;
+  }
+  .board-body {
+    padding: 12px 10px 14px;
+  }
   .fids-ac,
   .fids-flight small {
     display: none;
@@ -379,7 +395,7 @@
   font-size: calc(var(--u) * 3.6);
   font-weight: 700;
   letter-spacing: -0.01em;
-  line-height: 1;
+  line-height: 1.25;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -438,7 +454,8 @@
 .gs-dest {
   font-size: calc(var(--u) * 9);
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.16;
+  padding-bottom: calc(var(--u) * 0.2);
   letter-spacing: -0.02em;
   white-space: nowrap;
   overflow: hidden;
@@ -610,11 +627,37 @@
   font-size: calc(var(--u) * 1.7);
   overflow: hidden;
 }
-.gs-info span {
+.gs-info-icon {
+  width: calc(var(--u) * 2.4);
+  height: calc(var(--u) * 2.4);
+  margin-right: calc(var(--u) * 1);
+  flex: none;
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.gs-info-icon .sun {
+  stroke: #ffd166;
+}
+.gs-info-icon .drop {
+  stroke: #8ecbff;
+}
+.gs-info-icon .bolt {
+  fill: #ffd166;
+  stroke: none;
+}
+.gs-info-item {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  animation: gs-in 500ms ease-out;
+}
+.gs-info-item > span {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  animation: gs-in 500ms ease-out;
 }
 @keyframes gs-in {
   from {
@@ -624,7 +667,7 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .gs-steps .is-now i,
-  .gs-info span {
+  .gs-info-item {
     animation: none;
   }
 }
@@ -632,6 +675,9 @@
 /* controls */
 .gt-ctl {
   padding: 14px 16px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--sheet);
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -729,4 +775,18 @@ html.screen-mode body > :not(.screen-root) {
   font-size: 2.4cqw;
   text-align: center;
   margin-top: 20%;
+}
+
+/* tab counts: a fixed width, so a count arriving moves nothing; none on phones */
+.board-panel .tab .mono {
+  width: 8ch;
+  min-width: 8ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .board-panel .tab .mono {
+    display: none;
+  }
 }
