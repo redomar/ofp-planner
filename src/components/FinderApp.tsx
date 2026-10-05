@@ -30,6 +30,8 @@ import { FlightTable, PlacesView } from "./Results";
 import { RoutesView } from "./RoutesView";
 import { cx } from "./ui";
 import { countryName, placeOptions } from "@/lib/places";
+import { EMPTY_PLAN, planToParams } from "@/lib/journey/plan";
+import Link from "next/link";
 
 type View = "flights" | "places" | "map";
 
@@ -41,6 +43,8 @@ export function FinderApp() {
   const [selId, setSelId] = useState<string | null>(null);
   const [spread, setSpread] = useState(true);
   const [extra, setExtra] = useState<Row | null>(null);
+  /** Airports tab: only this country's airports (ISO code), or every country. */
+  const [placeCc, setPlaceCc] = useState<string | null>(null);
   const detailRef = useRef<HTMLElement>(null);
 
   // Read the URL (wins) and saved preferences once, after hydration.
@@ -54,6 +58,7 @@ export function FinderApp() {
     setView(v === "places" || v === "map" ? v : prefs.view);
     setSpread(prefs.spread);
     setSelId(p.get("f"));
+    setPlaceCc(/^[A-Z]{2}$/.test(p.get("cc") ?? "") ? p.get("cc") : null);
     setReady(true);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
@@ -64,10 +69,10 @@ export function FinderApp() {
   // Mirror state into the URL so a reload or a shared link reopens the same view.
   useEffect(() => {
     if (!ready) return;
-    const p = queryToParams(q, { view: view === "flights" ? null : view, f: selId });
+    const p = queryToParams(q, { view: view === "flights" ? null : view, cc: view === "places" ? placeCc : null, f: selId });
     const next = `${window.location.pathname}?${p.toString()}`;
     if (next !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(null, "", next);
-  }, [q, view, selId, ready]);
+  }, [q, view, placeCc, selId, ready]);
 
   const fnOv = useFnOverrides();
   const rows = useMemo(() => data.flights.map((f) => enrich(applyFn(f, fnOv), airports)), [data.flights, airports, fnOv]);
@@ -80,6 +85,19 @@ export function FinderApp() {
   const hub = placeSide === "d" ? (q.dep?.startsWith("C:") ? null : q.dep) : q.arr && !q.arr.startsWith("C:") ? q.arr : null;
   const routeGroups = useMemo(() => groupRoutes(filtered), [filtered]);
   const places = useMemo(() => (q.dep && q.arr ? null : groupByOtherEnd(filtered, placeSide)), [filtered, placeSide, q.dep, q.arr]);
+  // the countries in the list, most airports first, for the Airports tab's country filter
+  const placeCountries = useMemo(() => {
+    const by = new Map<string, number>();
+    for (const p of places ?? []) {
+      const cc = airports?.get(p.icao)?.country;
+      if (cc) by.set(cc, (by.get(cc) ?? 0) + 1);
+    }
+    return [...by.entries()].map(([cc, n]) => ({ cc, name: countryName(cc), n })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [places, airports]);
+  const shownPlaces = useMemo(
+    () => (places && placeCc ? places.filter((p) => airports?.get(p.icao)?.country === placeCc) : places),
+    [places, placeCc, airports],
+  );
 
   // Selected flight: from the loaded rows, or fetched by id (a link to an airline not selected).
   const selected = useMemo(() => (selId ? (rows.find((r) => r.f.id === selId) ?? (extra?.f.id === selId ? extra : null)) : null), [rows, selId, extra]);
@@ -338,7 +356,7 @@ export function FinderApp() {
               disabled={!places}
               title={places ? undefined : "Clear From or To to list destinations"}
             >
-              {placeSide === "d" ? "Destinations" : q.arr ? "Origins" : "Airports"} <span className="mono">{places && !nothingYet ? places.length : ""}</span>
+              {placeSide === "d" ? "Destinations" : q.arr ? "Origins" : "Airports"} <span className="mono">{shownPlaces && !nothingYet ? shownPlaces.length : ""}</span>
             </button>
             <button type="button" role="tab" aria-selected={view === "map"} className="tab" onClick={() => changeView("map")} disabled={!filtered.length}>
               Map <span className="mono">{nothingYet ? "" : routeGroups.length.toLocaleString("en-GB")}</span>
@@ -363,16 +381,36 @@ export function FinderApp() {
                   changeView("flights");
                 }}
               />
-            ) : view === "places" && places ? (
-              <PlacesView places={places} side={placeSide} hub={hub} airports={airports} airlines={airlines} onPick={pickPlace} />
+            ) : view === "places" && shownPlaces ? (
+              <PlacesView
+                places={shownPlaces}
+                side={placeSide}
+                hub={hub}
+                airports={airports}
+                airlines={airlines}
+                onPick={pickPlace}
+                country={placeCc}
+                countries={placeCountries}
+                onCountry={setPlaceCc}
+              />
             ) : filtered.length ? (
               <FlightTable rows={sorted} sort={sort} onSort={onSort} selected={selId} onSelect={(r) => select(r)} airports={airports} airlines={airlines} />
             ) : data.loading.length ? (
               <SkeletonRows />
             ) : (
-              <p className="empty-note">
-                No flights match. {q.dep && q.arr ? "There is no scheduled flight on this route for the selected airlines." : "Try widening the filters."}
-              </p>
+              <div className="empty-note">
+                <p>
+                  No flights match. {q.dep && q.arr ? "There is no scheduled flight on this route for the selected airlines." : "Try widening the filters."}
+                </p>
+                {q.dep && q.arr && (
+                  <p>
+                    <Link className="btn btn-primary" href={`/journeys?${planToParams({ ...EMPTY_PLAN, from: q.dep, to: q.arr, al: q.al }).toString()}`}>
+                      Find a journey with stops
+                    </Link>{" "}
+                    <span className="muted">Opens Journeys with {routeLabel} filled in.</span>
+                  </p>
+                )}
+              </div>
             )}
           </div>
         </section>

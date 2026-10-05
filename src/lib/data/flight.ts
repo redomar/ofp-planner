@@ -141,9 +141,14 @@ const FAMILIES: Record<string, string[]> = {
 const FAMILY_OF = new Map(Object.entries(FAMILIES).flatMap(([fam, types]) => types.map((t) => [t, fam] as const)));
 export const familyOf = (type: string) => FAMILY_OF.get(type) ?? type;
 
+/** The airport's own name ("Birmingham Airport", "London Heathrow Airport"); the city field is often a suburb or carries a region, so it isn't prefixed. */
 export function airportLabel(a: Airport | undefined | null): string {
-  if (!a) return "";
-  return a.city && !a.name.toLowerCase().includes(a.city.toLowerCase()) ? `${a.city} ${a.name}` : a.name;
+  return a ? a.name : "";
+}
+
+/** The city without its region: "Birmingham, West Midlands" → "Birmingham", "Paris (Orly, Val-de-Marne)" → "Paris". */
+export function cityName(a: Airport | undefined | null): string | null {
+  return a?.city ? a.city.split(/\s*[,(]/)[0].trim() || a.city : null;
 }
 
 /* ---------- the four OOOI times for display, with where each came from ---------- */

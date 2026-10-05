@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.2.3 — 2026-10-05
+
+- Airport names: the airport's own name only (Birmingham Airport, not "Birmingham, West Midlands Birmingham Airport"; Jersey Airport, not "St. Peter Jersey Airport"). Where a city is shown it drops the region ("Birmingham", "Paris").
+- Finder, Airports tab: a Country menu lists one country's airports (kept in the URL as `cc`).
+- Finder: a route with no flights offers **Find a journey with stops**, which opens Journeys with the From, To and airlines filled in.
+- Journeys: **Now** beside First OUT after (Z), like the Finder's After (Z).
+- Journeys: every label explains itself on hover (Legs, Times, Detour, Day, First OUT after, Duty limit, Report before OUT, Turnaround); "What the options mean" under the form; the start page has example cards with what each one shows, the option guide and how to read the results. Four more examples: a round trip from EGKK, an early start in an 8 h duty, anywhere to LEMD in two legs, and UK to Greece.
+
 ## 1.2.2 — 2026-10-05
 
 - No personal airframe in the published build: the default airframe list is empty and set, if wanted, from an untracked `.env.local` (`NEXT_PUBLIC_DEFAULT_AIRFRAMES`). Settings placeholders use an example (G-ABCD, 123456_1700000000000). Airframes already saved in a browser are kept.

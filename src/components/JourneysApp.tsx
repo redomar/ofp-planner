@@ -9,7 +9,7 @@ import type { AirlineInfo } from "@/lib/data/types";
 import { routeColor } from "@/lib/colors";
 import { applyFn, useFnOverrides } from "@/lib/fnoverride";
 import type { Group, Journey, Pt, RouteEdge, TFlight } from "@/lib/journey/engine";
-import { DETOURS, DUTY_HOURS, EMPTY_PLAN, EXAMPLES, listSort, planFromParams, planToParams, SORTS, toSpec, type JourneyPlan, type ListSort } from "@/lib/journey/plan";
+import { DETOURS, DUTY_HOURS, EMPTY_PLAN, EXAMPLES, HELP, listSort, planFromParams, planToParams, SORTS, toSpec, type JourneyPlan, type ListSort } from "@/lib/journey/plan";
 import { dateLabel, departures, legDate, relDay, soonest, type Departure } from "@/lib/journey/dates";
 import { useJourneySearch } from "@/lib/journey/useSearch";
 import type { JourneyData } from "@/lib/journey/worker";
@@ -20,7 +20,7 @@ import { AirlineTag, FlightIdent, TypeBadge } from "./badges";
 import { StatusLine, TopBar } from "./chrome";
 import { MultiPicker, PlacePicker, type MultiOption } from "./pickers";
 import { RouteMap, type MapRoute } from "./RouteMap";
-import { cx } from "./ui";
+import { cx, Tip } from "./ui";
 import { JourneyTimings } from "./JourneyTimings";
 
 const PAGE = 30;
@@ -78,6 +78,10 @@ export function JourneysApp() {
     setShown(PAGE);
     setDep(null);
     setSaved(null);
+  };
+  const pickExample = (x: Partial<JourneyPlan>) => {
+    update({ ...EMPTY_PLAN, al: [], ...x });
+    setSel(null);
   };
   const pick = (key: string) => {
     setSel(key);
@@ -264,7 +268,9 @@ export function JourneysApp() {
                 <LegsPicker legs={plan.legs} onChange={(legs) => update({ legs })} />
                 <div className="jr-ctl">
                   <span className="ctl-label" id="jr-timing">
-                    Times
+                    <Tip tip={HELP.times} title="Times">
+                      Times
+                    </Tip>
                   </span>
                   <div className="seg jr-seg" role="radiogroup" aria-labelledby="jr-timing">
                     {(
@@ -288,8 +294,12 @@ export function JourneysApp() {
                   searchable
                   note="Flights in the snapshot"
                 />
-                <label className="jr-ctl" title="With a destination: how much longer than the shortest path through the stops the journey may be">
-                  <span className="ctl-label">Detour</span>
+                <label className="jr-ctl">
+                  <span className="ctl-label">
+                    <Tip tip={HELP.detour} title="Detour">
+                      Detour
+                    </Tip>
+                  </span>
                   <select className="ctl-input" value={plan.detour ?? ""} onChange={(e) => update({ detour: e.target.value ? Number(e.target.value) : null })}>
                     {DETOURS.map((d) => (
                       <option key={d} value={d}>
@@ -299,7 +309,7 @@ export function JourneysApp() {
                     <option value="">Any</option>
                   </select>
                 </label>
-                <label className="check jr-one" title="Every leg flown by the same airline">
+                <label className="check jr-one" title={HELP.oneAirline}>
                   <input type="checkbox" checked={plan.oneAirline} onChange={(e) => update({ oneAirline: e.target.checked })} />
                   One airline throughout
                 </label>
@@ -308,20 +318,42 @@ export function JourneysApp() {
               {timed && (
                 <div className="jr-timed">
                   <DayOne day={plan.day} onChange={(day) => update({ day })} />
+                  <div className="jr-ctl">
+                    <label className="ctl-label" htmlFor="jr-after">
+                      <Tip tip={HELP.after} title="First OUT after">
+                        First OUT after (Z)
+                      </Tip>
+                    </label>
+                    <div className="after-row">
+                      <input
+                        id="jr-after"
+                        className="ctl-input mono jr-after"
+                        type="time"
+                        value={plan.after != null ? `${String(Math.floor(plan.after / 60)).padStart(2, "0")}:${String(plan.after % 60).padStart(2, "0")}` : ""}
+                        onChange={(e) => {
+                          const m = e.target.value.match(/^(\d{2}):(\d{2})$/);
+                          update({ after: m ? +m[1] * 60 + +m[2] : null });
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn after-now"
+                        title="The time now, UTC"
+                        onClick={() => {
+                          const d = new Date();
+                          update({ after: d.getUTCHours() * 60 + d.getUTCMinutes() });
+                        }}
+                      >
+                        Now
+                      </button>
+                    </div>
+                  </div>
                   <label className="jr-ctl">
-                    <span className="ctl-label">First OUT after (Z)</span>
-                    <input
-                      className="ctl-input mono"
-                      type="time"
-                      value={plan.after != null ? `${String(Math.floor(plan.after / 60)).padStart(2, "0")}:${String(plan.after % 60).padStart(2, "0")}` : ""}
-                      onChange={(e) => {
-                        const m = e.target.value.match(/^(\d{2}):(\d{2})$/);
-                        update({ after: m ? +m[1] * 60 + +m[2] : null });
-                      }}
-                    />
-                  </label>
-                  <label className="jr-ctl">
-                    <span className="ctl-label">Duty limit</span>
+                    <span className="ctl-label">
+                      <Tip tip={HELP.duty} title="Duty limit">
+                        Duty limit
+                      </Tip>
+                    </span>
                     <select
                       className="ctl-input"
                       value={plan.dutyMin ?? ""}
@@ -339,8 +371,12 @@ export function JourneysApp() {
                       ))}
                     </select>
                   </label>
-                  <label className="jr-ctl" title="Duty runs from report to on-blocks after the last leg">
-                    <span className="ctl-label">Report before OUT</span>
+                  <label className="jr-ctl">
+                    <span className="ctl-label">
+                      <Tip tip={HELP.report} title="Report before OUT">
+                        Report before OUT
+                      </Tip>
+                    </span>
                     <select className="ctl-input" value={plan.reportMin} onChange={(e) => update({ reportMin: Number(e.target.value) })}>
                       {[0, 30, 45, 60, 75, 90].map((m) => (
                         <option key={m} value={m}>
@@ -351,7 +387,9 @@ export function JourneysApp() {
                   </label>
                   <div className="jr-ctl">
                     <span className="ctl-label" id="jr-turn">
-                      Turnaround
+                      <Tip tip={HELP.turnaround} title="Turnaround">
+                        Turnaround
+                      </Tip>
                     </span>
                     <div className="len-row" role="group" aria-labelledby="jr-turn">
                       <select className="ctl-input" aria-label="Shortest turnaround" value={plan.minTurn} onChange={(e) => update({ minTurn: Number(e.target.value) })}>
@@ -383,10 +421,7 @@ export function JourneysApp() {
                     type="button"
                     className="jr-example"
                     title={x.note}
-                    onClick={() => {
-                      update({ ...EMPTY_PLAN, al: [], ...x.plan });
-                      setSel(null);
-                    }}
+                    onClick={() => pickExample(x.plan)}
                   >
                     {x.label}
                   </button>
@@ -403,25 +438,50 @@ export function JourneysApp() {
                   Clear
                 </button>
               </div>
+              {canSearch && (
+                <details className="jr-guide">
+                  <summary>What the options mean</summary>
+                  <OptionGuide />
+                </details>
+              )}
             </section>
 
             {!canSearch ? (
               <section className="panel jr-intro">
                 <h2 className="brief-title">Plan a multi-leg journey</h2>
                 <p className="muted">
-                  Choose where it starts, where it ends, or both. Add stops to pass through, in order. Leave the end open to roam; leave the start open to work backwards from where
-                  you want to finish.
+                  Chain flights from the snapshot into a journey of several legs: a way between two airports with no direct flight, a day of flying that fits a duty, or a round trip.
+                  Choose where it starts, where it ends, or both, and add stops to pass through in order. Leave the end open to roam; leave the start open to work backwards from
+                  where you want to finish.
                 </p>
+                <h3 className="jr-h3">Examples</h3>
+                <p className="muted small">Each one fills in the form above, so you can see how it is set up and change it.</p>
+                <ul className="jr-ex-cards">
+                  {EXAMPLES.map((x) => (
+                    <li key={x.label}>
+                      <button type="button" className="jr-ex-card" onClick={() => pickExample(x.plan)}>
+                        <b>{x.label}</b>
+                        <span>{x.note}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <h3 className="jr-h3">What each option means</h3>
+                <OptionGuide />
+                <h3 className="jr-h3">Reading the results</h3>
                 <ul className="jr-how">
                   <li>
-                    <b>Any day</b> searches the route network: who flies from where to where in the snapshot, regardless of time. Good for “is there a way to get there” and for a
-                    shortest route.
+                    Each card is one way through the airports, with every airline that flies each leg. The headings above the list sort it; click one again to reverse.
                   </li>
                   <li>
-                    <b>Timed connections</b> chains real flights by their typical times, with a turnaround window, an optional day, a first-departure time and a duty limit (report
-                    to on-blocks after the last leg).
+                    <b>Duty</b> runs from report to the last IN; <b>Ground</b> is the time between legs. With timed connections, the soonest date from today is on each card.
                   </li>
-                  <li>Legs: the fewest that work, exactly a number, or up to a number. A round trip ends where it starts; no airport is visited twice otherwise.</li>
+                  <li>
+                    Pick a card to see it on the map, every timing that works, and each leg with buttons to brief it, open SimBrief, or save the journey as a group in Saved.
+                  </li>
+                  <li>
+                    <b>Shuffle</b> searches in a different order, so other journeys come up when there are more than the search can list.
+                  </li>
                 </ul>
               </section>
             ) : (
@@ -579,12 +639,47 @@ function ViaPicker({ via, options, onChange }: { via: string[]; options: ReturnT
   );
 }
 
+/** Every option with what it does, in form order; timed-only ones are marked. */
+function OptionGuide() {
+  const rows: [string, string, boolean?][] = [
+    ["From", HELP.from],
+    ["Via", HELP.via],
+    ["To", HELP.to],
+    ["Legs", HELP.legs],
+    ["Times", HELP.times],
+    ["Airline", HELP.airline],
+    ["Detour", HELP.detour],
+    ["One airline throughout", HELP.oneAirline],
+    ["Day (UTC)", HELP.day, true],
+    ["First OUT after (Z)", HELP.after, true],
+    ["Duty limit", HELP.duty, true],
+    ["Report before OUT", HELP.report, true],
+    ["Turnaround", HELP.turnaround, true],
+    ["Aircraft", HELP.aircraft, true],
+  ];
+  return (
+    <dl className="jr-defs">
+      {rows.map(([k, v, timed]) => (
+        <div key={k}>
+          <dt>
+            {k}
+            {timed && <span className="jr-timed-tag">Timed</span>}
+          </dt>
+          <dd>{v.replace(/^Timed only: (.)/, (_, c: string) => c.toUpperCase())}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 function LegsPicker({ legs, onChange }: { legs: JourneyPlan["legs"]; onChange: (l: JourneyPlan["legs"]) => void }) {
   const n = legs.kind === "fewest" ? 3 : legs.n;
   return (
     <div className="jr-ctl">
       <span className="ctl-label" id="jr-legs">
-        Legs
+        <Tip tip={HELP.legs} title="Legs">
+          Legs
+        </Tip>
       </span>
       <div className="jr-legs">
         <div className="seg jr-seg" role="radiogroup" aria-labelledby="jr-legs">
@@ -622,7 +717,11 @@ function DayOne({ day, onChange }: { day: number | null; onChange: (d: number | 
   const full = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
   return (
     <div className="days" role="radiogroup" aria-label="Day of the first departure (UTC)">
-      <span className="ctl-label">Day (UTC)</span>
+      <span className="ctl-label">
+        <Tip tip={HELP.day} title="Day">
+          Day (UTC)
+        </Tip>
+      </span>
       <div className="days-row">
         <button type="button" className="day day-any" role="radio" aria-checked={day == null} onClick={() => onChange(null)}>
           Any

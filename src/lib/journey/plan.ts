@@ -173,6 +173,26 @@ export function planToParams(p: JourneyPlan, extra: Record<string, string | null
   return q;
 }
 
+/** What each option does, for the tooltips on the form and the guide under it. In form order. */
+export const HELP = {
+  from: "Where the first leg leaves. A country (“Any airport in Spain”) starts from any of its airports. Leave it empty to work backwards from where you want to finish.",
+  via: "Airports the journey must pass through, in this order. Each one is a stop between legs, not an extra leg of its own.",
+  to: "Where the last leg lands. Leave it empty to roam: the journey ends wherever its legs run out. Set it to the start airport for a round trip.",
+  legs: "Fewest: the smallest number of legs that gets there. Exactly: that many legs, no more, no fewer. Up to: any number from 1 to that many.",
+  times:
+    "Any day uses the route network: who flies where in the snapshot, whatever the day. Timed connections chains real flights by their typical times, so each leg leaves after the one before it lands.",
+  airline: "Only legs flown by these airlines. Empty means every airline in the snapshot.",
+  detour:
+    "With a destination, how much longer than the shortest path through the stops a journey may be. 2× rules out wild detours, like a European trip via the Gulf. Any turns the limit off; round trips and open ends have none.",
+  oneAirline: "Every leg flown by the same airline, as a single crew's day would be.",
+  day: "Timed only: the UTC day of the first leg. Any day looks at every day of the week; later legs may run past midnight into the next day.",
+  after: "Timed only: the first leg's OUT (off-block, pushback) is at or after this UTC time. Now fills in the time now.",
+  duty: "Timed only: the longest duty, from report (before the first OUT) to IN (on-blocks) after the last leg. 6 h with 45 min report leaves 5 h 15 for flying and turnarounds.",
+  report: "Timed only: how long before the first OUT the duty starts, for briefing and the walk to the aircraft. It counts towards the duty limit. 45 min is typical for short haul.",
+  turnaround: "Timed only: the time on the ground between one leg's IN and the next leg's OUT. The shortest is how fast you can turn the aircraft; the longest stops days with long sits.",
+  aircraft: "Timed only: only legs scheduled on these types or families (A320 family, 737).",
+} as const;
+
 /** The examples on the page: the kinds of question it answers. */
 export const EXAMPLES: { label: string; note: string; plan: Partial<JourneyPlan> }[] = [
   {
@@ -199,5 +219,25 @@ export const EXAMPLES: { label: string; note: string; plan: Partial<JourneyPlan>
     label: "EGBB → LOWI in 5 legs",
     note: "Any day, exactly five legs, shortest first",
     plan: { from: "EGBB", to: "LOWI", legs: { kind: "exact", n: 5 }, sort: "distance" },
+  },
+  {
+    label: "Round trip from EGKK",
+    note: "Three timed legs back to Gatwick on one airline, soonest first",
+    plan: { from: "EGKK", to: "EGKK", legs: { kind: "exact", n: 3 }, timing: "timed", oneAirline: true, sort: "next" },
+  },
+  {
+    label: "Early start, 8 h duty",
+    note: "From EGGW, first OUT after 06:00Z, up to 4 legs within an 8-hour duty",
+    plan: { from: "EGGW", legs: { kind: "upto", n: 4 }, timing: "timed", after: 360, dutyMin: 480, sort: "fewest", desc: true },
+  },
+  {
+    label: "Anywhere → LEMD in 2",
+    note: "No start: every way to reach Madrid in exactly two legs, shortest first",
+    plan: { to: "LEMD", legs: { kind: "exact", n: 2 }, sort: "distance" },
+  },
+  {
+    label: "UK → Greece",
+    note: "Country to country: any UK airport to any Greek one, fewest legs",
+    plan: { from: "C:GB", to: "C:GR", sort: "distance" },
   },
 ];

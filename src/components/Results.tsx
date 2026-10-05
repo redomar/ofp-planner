@@ -2,7 +2,7 @@
 
 import { Flag } from "./Flag";
 import { useMemo, useState } from "react";
-import { airportLabel, dur, hhmm } from "@/lib/data/flight";
+import { airportLabel, cityName, dur, hhmm } from "@/lib/data/flight";
 import type { Airport } from "@/lib/data/load";
 import type { Destination, Row, Sort, SortKey } from "@/lib/data/query";
 import type { AirlineInfo } from "@/lib/data/types";
@@ -12,6 +12,7 @@ import { useFontsReady, widestLabel } from "@/lib/measure";
 import { RouteMap } from "./RouteMap";
 import { FlightIdent, MoreTypes, TypeBadge, WeekStrip, freqLabel } from "./badges";
 import { Tip, cx } from "./ui";
+import { countryName } from "@/lib/places";
 
 const PAGE = 80;
 
@@ -71,7 +72,7 @@ export function FlightTable({
   }, [rows, airlines, fontsReady]);
   const name = (icao: string) => {
     const a = airports?.get(icao);
-    return a ? (a.city ?? a.name) : "";
+    return a ? (cityName(a) ?? a.name) : "";
   };
 
   return (
@@ -214,6 +215,9 @@ export function PlacesView({
   airports,
   airlines,
   onPick,
+  country = null,
+  countries = [],
+  onCountry,
 }: {
   places: Destination[];
   /** Which end is free: "d" lists destinations, "o" lists origins. */
@@ -222,6 +226,11 @@ export function PlacesView({
   airports: Map<string, Airport> | null;
   airlines: Map<string, AirlineInfo>;
   onPick: (icao: string) => void;
+  /** Only this country's airports (ISO code); null = every country. */
+  country?: string | null;
+  /** The countries in the unfiltered list, with how many airports each. */
+  countries?: { cc: string; name: string; n: number }[];
+  onCountry?: (cc: string | null) => void;
 }) {
   const [sort, setSort] = useState<PlaceSort>("weekly");
   const sorted = useMemo(() => {
@@ -254,6 +263,7 @@ export function PlacesView({
   }, [places, hubAirport, airports, airlines, side]);
 
   const what = side === "d" ? "destinations" : "origins";
+  const countryLabel = country ? (countries.find((c) => c.cc === country)?.name ?? countryName(country)) : "";
   const maxWeekly = Math.max(1, ...places.map((p) => p.weekly));
   // block-time scale: 0 to the next whole hour above the longest, at least 4 h
   const scaleMax = Math.max(240, Math.ceil(Math.max(0, ...places.map((p) => p.maxBlock ?? 0)) / 60) * 60);
@@ -270,18 +280,35 @@ export function PlacesView({
       <div className="places-head">
         <p className="muted">
           {places.length} {what}
-          {hubAirport && (side === "d" ? ` from ${hubAirport.iata ?? hub}` : ` into ${hubAirport.iata ?? hub}`)}. Pick one to see its flights. Block-time bars run from 0 to{" "}
-          {Math.round(scaleMax / 60)} h.
+          {country && ` in ${countryLabel}`}
+          {hubAirport && (side === "d" ? ` from ${hubAirport.iata ?? hub}` : ` into ${hubAirport.iata ?? hub}`)}.{" "}
+          {places.length ? `Pick one to see its flights. Block-time bars run from 0 to ${Math.round(scaleMax / 60)} h.` : "Pick another country, or every country."}
         </p>
-        <label className="inline-ctl">
-          <span className="ctl-label">Sort</span>
-          <select className="ctl-input" value={sort} onChange={(e) => setSort(e.target.value as PlaceSort)}>
-            <option value="weekly">Most flights</option>
-            <option value="name">Name</option>
-            <option value="block">Shortest</option>
-            <option value="dist">Nearest</option>
-          </select>
-        </label>
+        <div className="places-ctls">
+          {onCountry && (
+            <label className="inline-ctl">
+              <span className="ctl-label">Country</span>
+              <select className="ctl-input places-cc" value={country ?? ""} onChange={(e) => onCountry(e.target.value || null)}>
+                <option value="">Every country ({countries.reduce((n, c) => n + c.n, 0)})</option>
+                {country && !countries.some((c) => c.cc === country) && <option value={country}>{countryLabel} (0)</option>}
+                {countries.map((c) => (
+                  <option key={c.cc} value={c.cc}>
+                    {c.name} ({c.n})
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <label className="inline-ctl">
+            <span className="ctl-label">Sort</span>
+            <select className="ctl-input" value={sort} onChange={(e) => setSort(e.target.value as PlaceSort)}>
+              <option value="weekly">Most flights</option>
+              <option value="name">Name</option>
+              <option value="block">Shortest</option>
+              <option value="dist">Nearest</option>
+            </select>
+          </label>
+        </div>
       </div>
       <div className="place-head" aria-hidden="true">
         <div className="ph-grid">
