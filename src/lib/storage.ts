@@ -12,6 +12,7 @@ const CHANGE = "ofp-planner:change";
 export const KEYS = {
   airframes: `${NS}airframes`,
   favourites: `${NS}favourites`,
+  favGroups: `${NS}fav-groups`,
   history: `${NS}history`,
   prefs: `${NS}prefs`,
   ready: `${NS}ready`,

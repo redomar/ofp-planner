@@ -4,6 +4,7 @@
  * drops it.
  */
 import { useMemo } from "react";
+import { plannedOut } from "./data/flight";
 import type { FlightRow } from "./data/load";
 import type { Sort } from "./data/query";
 import { KEYS, readJSON, useStorageVersion, writeJSON } from "./storage";
@@ -18,16 +19,87 @@ export interface SavedFlight {
   d: string;
   std: number | null;
   at: number;
+  /** Planned off-block, UTC min (scheduled or tracked); older entries may lack it. */
+  dep?: number | null;
+  /** Main aircraft type. */
+  type?: string | null;
+  days?: number[];
+  /** Favourite group name; null/undefined = ungrouped. */
+  group?: string | null;
 }
 
-const toSaved = (f: FlightRow): SavedFlight => ({ id: f.id, al: f.al, op: f.op, fn: f.fn, cs: f.cs, o: f.o, d: f.d, std: f.std, at: Date.now() });
+const toSaved = (f: FlightRow): SavedFlight => ({
+  id: f.id,
+  al: f.al,
+  op: f.op,
+  fn: f.fn,
+  cs: f.cs,
+  o: f.o,
+  d: f.d,
+  std: f.std,
+  at: Date.now(),
+  dep: plannedOut(f),
+  type: f.types[0] ?? null,
+  days: f.days,
+});
 
 /* ---------- favourites ---------- */
 
 export const readFavourites = () => readJSON<SavedFlight[]>(KEYS.favourites, []);
+/** Starring adds to the group last chosen (Settings → favourites, or the flight card). */
 export function toggleFavourite(f: FlightRow) {
   const l = readFavourites();
-  writeJSON(KEYS.favourites, l.some((x) => x.id === f.id) ? l.filter((x) => x.id !== f.id) : [toSaved(f), ...l]);
+  const group = readGroups().includes(readPrefs().lastGroup ?? "") ? readPrefs().lastGroup : null;
+  writeJSON(KEYS.favourites, l.some((x) => x.id === f.id) ? l.filter((x) => x.id !== f.id) : [{ ...toSaved(f), group }, ...l]);
+}
+/** Star or unstar a saved (e.g. recent) flight without loading it. */
+export function toggleSavedFavourite(s: SavedFlight) {
+  const l = readFavourites();
+  const group = readGroups().includes(readPrefs().lastGroup ?? "") ? readPrefs().lastGroup : null;
+  writeJSON(KEYS.favourites, l.some((x) => x.id === s.id) ? l.filter((x) => x.id !== s.id) : [{ ...s, group, at: Date.now() }, ...l]);
+}
+export function moveFavourite(id: string, group: string | null) {
+  writeJSON(
+    KEYS.favourites,
+    readFavourites().map((x) => (x.id === id ? { ...x, group } : x)),
+  );
+  writePrefs({ lastGroup: group });
+}
+
+/* ---------- favourite groups (ordered names) ---------- */
+
+export const readGroups = () => readJSON<string[]>(KEYS.favGroups, []);
+const cleanName = (n: string) => n.trim().replace(/\s+/g, " ").slice(0, 40);
+/** Adds a group; returns its name, or null if empty or taken. */
+export function addGroup(name: string): string | null {
+  const n = cleanName(name);
+  const g = readGroups();
+  if (!n || g.some((x) => x.toLowerCase() === n.toLowerCase())) return null;
+  writeJSON(KEYS.favGroups, [...g, n]);
+  return n;
+}
+export function renameGroup(from: string, to: string): boolean {
+  const n = cleanName(to);
+  const g = readGroups();
+  if (!n || (n.toLowerCase() !== from.toLowerCase() && g.some((x) => x.toLowerCase() === n.toLowerCase()))) return false;
+  writeJSON(KEYS.favGroups, g.map((x) => (x === from ? n : x)));
+  writeJSON(KEYS.favourites, readFavourites().map((x) => (x.group === from ? { ...x, group: n } : x)));
+  if (readPrefs().lastGroup === from) writePrefs({ lastGroup: n });
+  return true;
+}
+/** Removes a group; its flights stay favourites, ungrouped. */
+export function deleteGroup(name: string) {
+  writeJSON(KEYS.favGroups, readGroups().filter((x) => x !== name));
+  writeJSON(KEYS.favourites, readFavourites().map((x) => (x.group === name ? { ...x, group: null } : x)));
+  if (readPrefs().lastGroup === name) writePrefs({ lastGroup: null });
+}
+export function moveGroup(name: string, by: -1 | 1) {
+  const g = readGroups();
+  const i = g.indexOf(name);
+  const j = i + by;
+  if (i < 0 || j < 0 || j >= g.length) return;
+  [g[i], g[j]] = [g[j], g[i]];
+  writeJSON(KEYS.favGroups, g);
 }
 export function removeFavourite(id: string) {
   writeJSON(KEYS.favourites, readFavourites().filter((x) => x.id !== id));
@@ -73,6 +145,8 @@ export interface Prefs {
   view: "flights" | "places" | "map";
   /** Spread random rolls across destinations rather than flights. */
   spread: boolean;
+  /** Group new favourites go into. */
+  lastGroup?: string | null;
 }
 export const DEFAULT_PREFS: Prefs = { airlines: ["EZY"], sort: null, view: "flights", spread: true };
 export const readPrefs = (): Prefs => ({ ...DEFAULT_PREFS, ...readJSON<Partial<Prefs>>(KEYS.prefs, {}) });
@@ -84,7 +158,7 @@ export function writePrefs(p: Partial<Prefs>) {
 export function useSaved() {
   const v = useStorageVersion();
   return useMemo(
-    () => (v < 0 ? null : { favourites: readFavourites(), history: readHistory(), ready: readReady(), prefs: readPrefs() }),
+    () => (v < 0 ? null : { favourites: readFavourites(), groups: readGroups(), history: readHistory(), ready: readReady(), prefs: readPrefs() }),
     [v],
   );
 }

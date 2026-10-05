@@ -1,16 +1,15 @@
 "use client";
 
 import { useEffect, useState, type SyntheticEvent } from "react";
-import { hhmm } from "@/lib/data/flight";
 import { loadManifest } from "@/lib/data/load";
 import type { Manifest } from "@/lib/data/types";
 import { routeColor } from "@/lib/colors";
-import { clearHistory, removeFavourite, useSaved, type SavedFlight } from "@/lib/saved";
 import { DEFAULT_AIRFRAMES, readAirframes, useAirframes, writeAirframes, type Airframe } from "@/lib/simbrief";
 import { applyTheme, clearAll, readTheme, storageBytes, useStorageVersion, type ThemePref } from "@/lib/storage";
 import { DEFAULT_DISPLAY, useDisplay, writeDisplay, type AirlineTagStyle } from "@/lib/display";
 import { FlightIdent, TypeBadge } from "./badges";
 import { StatusLine, TopBar } from "./chrome";
+import { SavedFlights } from "./SavedFlights";
 import { CollapseProvider } from "./collapse";
 import { Badge, Section } from "./ui";
 
@@ -44,16 +43,13 @@ export function SettingsApp() {
         <Section id="display" no={2} title="Display" meta={<span>Flights table, airport list, flight card</span>}>
           <DisplayPrefs manifest={manifest} />
         </Section>
-        <Section id="favourites" no={3} title="Favourites">
-          <Saved kind="favourites" />
+        <Section id="favourites" no={3} title="Favourites & recent">
+          <SavedFlights recentMax={40} />
         </Section>
-        <Section id="recent" no={4} title="Recent flights">
-          <Saved kind="history" />
-        </Section>
-        <Section id="data" no={5} title="Schedule snapshot" meta={manifest ? <span className="mono">{manifest.generatedAt.slice(0, 10)}</span> : null}>
+        <Section id="data" no={4} title="Schedule snapshot" meta={manifest ? <span className="mono">{manifest.generatedAt.slice(0, 10)}</span> : null}>
           <DataInfo manifest={manifest} error={mErr} />
         </Section>
-        <Section id="device" no={6} title="Appearance & storage">
+        <Section id="device" no={5} title="Appearance & storage">
           <Device key={v} />
         </Section>
           </>
@@ -308,51 +304,6 @@ function DisplayPrefs({ manifest }: { manifest: Manifest | null }) {
         Reset display to defaults
       </button>
     </div>
-  );
-}
-
-function Saved({ kind }: { kind: "favourites" | "history" }) {
-  const saved = useSaved();
-  if (!saved) return <div className="sk-block" aria-hidden="true" />;
-  const list = saved[kind];
-  if (!list.length)
-    return (
-      <p className="muted">
-        {kind === "favourites" ? "No favourites yet. Use the star on a flight to keep it here." : "Flights you open in the Finder show up here."}
-      </p>
-    );
-  return (
-    <>
-      <ul className="saved-list">
-        {list.map((s: SavedFlight) => (
-          <li key={s.id}>
-            <a href={`/?al=${s.al}&dep=${s.o}&arr=${s.d}&f=${encodeURIComponent(s.id)}`}>
-              <span className="mono">
-                {s.fn ? `${s.al} ${s.fn}` : (s.cs ?? s.al)}
-              </span>{" "}
-              <span className="mono">
-                {s.o} → {s.d}
-              </span>
-              {s.std != null && <span className="muted mono"> {hhmm(s.std)}Z</span>}
-              {s.fn && s.cs && <span className="muted mono"> · {s.cs}</span>}
-            </a>
-            <a className="chip" href={`/brief?f=${encodeURIComponent(s.id)}`}>
-              Brief
-            </a>
-            {kind === "favourites" && (
-              <button type="button" className="chip" onClick={() => removeFavourite(s.id)}>
-                Remove
-              </button>
-            )}
-          </li>
-        ))}
-      </ul>
-      {kind === "history" && (
-        <button type="button" className="chip" onClick={clearHistory}>
-          Clear recent flights
-        </button>
-      )}
-    </>
   );
 }
 
