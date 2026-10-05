@@ -514,7 +514,7 @@ async function run() {
       halves: document.querySelectorAll("#weather .wb-half").length,
       scenes: document.querySelectorAll("#weather .wb-scene").length,
       strip: document.querySelectorAll("#weather .wb-tl-bar i").length,
-      fcst: [...document.querySelectorAll("#weather .pp-l")].filter((p) => p.textContent.startsWith("FCST")).length,
+      fcst: [...document.querySelectorAll("#weather .pp-line:not(.pp-foot)")].filter((p) => p.textContent.startsWith("FCST")).length,
     }));
     await page.locator("#weather .wtoggle summary").click();
     const cmpRows = await page.locator("#weather .wb-cmp tbody tr").count();
