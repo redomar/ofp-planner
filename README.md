@@ -36,6 +36,7 @@ from an airport on a chart, compare scheduled and tracked OUT · OFF · ON · IN
 - **Charts, not just lists.** Destinations from an airport and every route matching the filters (Madrid → Spain, say) on an azimuthal chart: sea depth and land height contours, a lat/long grid with degrees on the edges, sea, country and mountain lettering, routes in airline colours. Zoom and pan with two fingers, pinch or the buttons.
 - **The times that matter.** Scheduled gate times (STD / STA) beside typical tracked OUT, OFF, ON and IN; anything neither scheduled nor tracked is estimated and badged **EST.** Shown as a timeline, a boarding pass or a split-flap departure board.
 - **One click to SimBrief.** Dispatch links carry airline, flight number, callsign, route, type and departure time. Your saved airframes (G-ABCD, an A20N) replace the scheduled type automatically for the same family. Add your own flight number to callsign-only flights.
+- **Multi-leg journeys.** Plan a route with stops: from an airport, through stops in order, to an airport, with either end open (roam from home, or work backwards to where you want to finish). Ask for the fewest legs, exactly N or up to N, over the whole route network (any day) or as **timed connections** of real flights with a turnaround window, a day, a first departure and a **duty limit**. Sort by distance, legs, quickest or least time on the ground; save a journey as a favourites group.
 - **A brief for the day you fly.** Pick the date, get the Open-Meteo forecast at both ends for the planned times with a 24-hour outlook, plus the current METAR from VATSIM. Fetched only on this page, and cached.
 - **Favourites in groups.** Star flights into groups ("Alps hops", "Ryanair B738"), open a group's routes on a map, and brief any of them in one click.
 - **Explains itself.** Hover (or focus) any label, aircraft badge, flag or airline square: OOOI definitions, manufacturer and model, a country's airports and flights, which airlines fly a route.
@@ -112,6 +113,8 @@ Live at **[plans.massorbit.co.uk](https://plans.massorbit.co.uk)**, deployed wit
 | Open a flight | Click a row: the card floats over the right; ✕ or Esc closes it, clicking its header folds it |
 | Dispatch | **Open in SimBrief** on the card (pick the aircraft or your airframe above it) |
 | Fly the next leg | **Next leg from …** on the card, or on the brief: **A sample next leg** or **Next leg: all flights from …** |
+| Plan a multi-leg journey | **Journeys**: From, stops, To (either end can be blank), legs, then **Any day** or **Timed connections** (day, first OUT, duty limit, turnaround); **Save as a favourites group** |
+| No direct flight? | **Journeys** with **Fewest** legs and **Shortest distance**; **Find timed connections on this route** turns it into real flights |
 | Plan the day | **Open brief · weather →**: set the date, read the forecast and METAR |
 | Keep flights | ☆ on the card; make groups on the Brief start page or in Settings |
 | Add a flight number | **+ Add flight number** under a callsign-only flight |
