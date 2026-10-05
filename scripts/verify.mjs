@@ -135,6 +135,11 @@ async function run() {
     page.on("response", (r) => {
       if (r.status() >= 400 && /open-meteo\.com|vatsim\.net/.test(r.url())) errors.push(`__weather_${r.status()}`);
     });
+    // an example preferred airframe (the published build ships none), unless a test already changed them
+    await page.addInitScript(() => {
+      if (!localStorage.getItem("ofp-planner:airframes"))
+        localStorage.setItem("ofp-planner:airframes", JSON.stringify({ list: [{ id: "ex", name: "G-ABCD", icao: "A20N", sbType: "123456_1700000000000", note: "example" }], preferred: "ex" }));
+    });
     await page.addInitScript(() => {
       window.__cls = 0;
       new PerformanceObserver((l) => {
@@ -226,8 +231,8 @@ async function run() {
       ? pass(`finder: random destination → ${u.searchParams.get("airline")}${u.searchParams.get("fltnum")} ${u.searchParams.get("orig")}-${u.searchParams.get("dest")} type=${u.searchParams.get("type")}`)
       : fail(`finder: bad SimBrief link ${sb}`);
     u.searchParams.get("type") === "123456_1700000000000" || !/A3|A2/.test(await page.locator(".facts dd").first().innerText())
-      ? pass("finder: preferred airframe G-ABCD used for A320 family")
-      : fail(`finder: expected G-ABCD airframe, got type=${u.searchParams.get("type")}`);
+      ? pass("finder: preferred airframe (example G-ABCD) used for A320 family")
+      : fail(`finder: expected the example airframe, got type=${u.searchParams.get("type")}`);
     await shot(page, "finder-day");
 
     // destinations tab
