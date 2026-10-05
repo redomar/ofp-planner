@@ -325,6 +325,23 @@ function DisplayPrefs({ manifest }: { manifest: Manifest | null }) {
       </fieldset>
 
       <fieldset className="opt-group">
+        <legend className="ctl-label">Maps: destination codes</legend>
+        <div className="opt-grid">
+          {(
+            [
+              ["iata", "IATA", "Three-letter codes passengers know (BCN, ADB)."],
+              ["icao", "ICAO", "Four-letter codes pilots and SimBrief use (LEBL, LTBJ)."],
+              ["off", "Off", "Only the shared airport is labelled; hover a destination to see its code."],
+            ] as const
+          ).map(([v, label, note]) => (
+            <Opt key={v} name="mapCodes" checked={d.mapCodes === v} onChange={() => writeDisplay({ mapCodes: v })} title={label} isDefault={v === "iata"} note={note}>
+              <MiniMap mode={v} />
+            </Opt>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="opt-group">
         <legend className="ctl-label">Flight card: departs / arrives</legend>
         <div className="opt-grid stack">
           {(
@@ -347,22 +364,6 @@ function DisplayPrefs({ manifest }: { manifest: Manifest | null }) {
         </div>
       </fieldset>
 
-      <fieldset className="opt-group">
-        <legend className="ctl-label">Maps: destination codes</legend>
-        <div className="opt-grid">
-          {(
-            [
-              ["iata", "IATA", "Three-letter codes passengers know (BCN, ADB)."],
-              ["icao", "ICAO", "Four-letter codes pilots and SimBrief use (LEBL, LTBJ)."],
-              ["off", "Off", "Only the shared airport is labelled; hover a destination to see its code."],
-            ] as const
-          ).map(([v, label, note]) => (
-            <Opt key={v} name="mapCodes" checked={d.mapCodes === v} onChange={() => writeDisplay({ mapCodes: v })} title={label} isDefault={v === "iata"} note={note}>
-              <MiniMap mode={v} />
-            </Opt>
-          ))}
-        </div>
-      </fieldset>
 
       <button type="button" className="chip" onClick={() => writeDisplay(DEFAULT_DISPLAY)}>
         Reset display to defaults

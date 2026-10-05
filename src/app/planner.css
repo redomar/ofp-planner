@@ -3190,12 +3190,13 @@ select.ctl-input {
   overflow: hidden;
 }
 /* flight-card options: title and description, then the sample centred at real card width */
+/* two side by side when there's room for real-width samples, else one per row */
 .opt-grid.stack {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 470px), 1fr));
 }
 .opt-grid.stack .opt-sample {
   width: 100%;
-  max-width: 500px;
+  max-width: 480px;
   margin: 6px auto 0;
 }
 
