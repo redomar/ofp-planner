@@ -279,7 +279,7 @@ async function run() {
 
     // next leg
     await page.locator("table.flights tbody tr").first().click();
-    const firstDest = (await page.locator(".fcard-end.arr .flap").getAttribute("aria-label"))?.slice(0, 4);
+    const firstDest = (await page.locator(".fcard-end.arr .code-flap .flap").getAttribute("aria-label"))?.slice(0, 4);
     await page.getByRole("button", { name: /^Next leg from/ }).click();
     await page.waitForTimeout(300);
     const dep2 = new URL(page.url()).searchParams.get("dep");
@@ -444,6 +444,39 @@ async function run() {
     await ctx.close();
   });
 
+  /* ---------- flight card departs/arrives styles × theme × width ---------- */
+  await section("route head", async () => {
+    for (const style of ["timeline", "pass", "board"])
+      for (const theme of ["light", "dark"])
+        for (const width of [1280, 390]) {
+          const ctx = await browser.newContext({ viewport: { width, height: 900 }, colorScheme: theme, deviceScaleFactor: SHOTS ? 2 : 1 });
+          await ctx.addInitScript((s) => localStorage.setItem("ofp-planner:display", JSON.stringify({ routeHead: s })), style);
+          const page = await ctx.newPage();
+          const errors = [];
+          page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+          page.on("pageerror", (e) => errors.push(String(e)));
+          // PC1528 LEBL→LTBJ: departure tracked, arrival not → estimated with an EST. badge
+          await page.goto(`${base}/?al=PGT&dep=LEBL&arr=LTBJ`, { waitUntil: "networkidle" });
+          await page.waitForSelector("table.flights tbody tr");
+          await page.locator("table.flights tbody tr").first().click();
+          await page.waitForSelector(".drawer .fcard");
+          await page.waitForTimeout(700);
+          const cls = { timeline: ".rh-timeline", pass: ".rh-pass", board: ".rh-board" }[style];
+          const ok = (await page.locator(`.drawer ${cls}`).count()) === 1;
+          const est = await page.locator(".drawer .rh .est-badge").count();
+          const wavy = await page.locator(".drawer .rh").evaluate((el) => el.textContent.includes("≈"));
+          ok && est > 0 && !wavy ? pass(`route head ${style} ${theme} ${width}px: shown, ${est} EST. badge(s), no ≈`) : fail(`route head ${style} ${theme} ${width}px: ok ${ok} est ${est} wavy ${wavy}`);
+          const bad = await page.evaluate(CONTRAST);
+          const inCard = bad.filter((b) => b);
+          inCard.length ? fail(`route head ${style} ${theme} ${width}px: contrast ${JSON.stringify(inCard.slice(0, 4))}`) : pass(`route head ${style} ${theme} ${width}px: text contrast AA`);
+          const sw = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+          sw > 0 ? fail(`route head ${style} ${width}px: sideways scroll ${sw}`) : null;
+          errors.length ? fail(`route head ${style}: console errors ${JSON.stringify(errors.slice(0, 2))}`) : null;
+          if (width === 1280) await shot(page, `route-${style}-${theme === "light" ? "day" : "night"}`);
+          await ctx.close();
+        }
+  });
+
   /* ---------- every page × width × theme ---------- */
   const pages = ["/?al=EZY&dep=EGKK", "/?al=EZY&dep=EGKK&view=places", "/?al=&dep=LEMD&arr=C:ES&view=map", "/brief", "/settings"];
   for (const theme of ["light", "dark"])
@@ -470,7 +503,7 @@ async function run() {
     await checkPage("brief with flight 1280 light", page, errors);
     await shot(page, "brief-day");
     // next leg on the brief: the full list link, then the sample (previewed below its button)
-    const destBefore = (await page.locator(".fcard-end.arr .flap").getAttribute("aria-label"))?.slice(0, 4);
+    const destBefore = (await page.locator(".fcard-end.arr .code-flap .flap").getAttribute("aria-label"))?.slice(0, 4);
     const allHref = await page.getByRole("link", { name: /Next leg: all flights from/ }).getAttribute("href");
     allHref?.includes(`dep=${destBefore}`) ? pass(`brief: Next leg links to all flights from ${destBefore}`) : fail(`brief: next-leg link ${allHref}`);
     await page.waitForSelector(".nextleg-preview .leg-badge, .nextleg-preview .muted.small:not(:empty)");
@@ -478,11 +511,11 @@ async function run() {
     if (await page.locator(".nextleg-preview .leg-badge").count()) {
       await page.getByRole("button", { name: "A sample next leg" }).click();
       await page.waitForTimeout(1500);
-      const origAfter = (await page.locator(".fcard-end.dep .flap").getAttribute("aria-label"))?.slice(0, 4);
+      const origAfter = (await page.locator(".fcard-end.dep .code-flap .flap").getAttribute("aria-label"))?.slice(0, 4);
       origAfter === destBefore ? pass(`brief: sample next leg (${preview.split("\n")[0].replace(/\s+/g, " ")}) departs ${destBefore}`) : fail(`brief: sample leg departs ${origAfter}, expected ${destBefore}`);
     } else pass(`brief: no sample leg available (${preview})`);
     // an airport on the brief opens the finder with it as the origin
-    const arrIcao = (await page.locator(".fcard-end.arr .flap").getAttribute("aria-label"))?.slice(0, 4);
+    const arrIcao = (await page.locator(".fcard-end.arr .code-flap .flap").getAttribute("aria-label"))?.slice(0, 4);
     const placeHref = await page.locator(".fcard-end.arr a.fcard-placelink").getAttribute("href");
     placeHref === `/?al=&dep=${arrIcao}` ? pass(`brief: arrival airport links to finder from ${arrIcao}`) : fail(`brief: airport link ${placeHref}`);
 

@@ -145,3 +145,36 @@ export function airportLabel(a: Airport | undefined | null): string {
   if (!a) return "";
   return a.city && !a.name.toLowerCase().includes(a.city.toLowerCase()) ? `${a.city} ${a.name}` : a.name;
 }
+
+/* ---------- the four OOOI times for display, with where each came from ---------- */
+
+export type TimeKind = "sched" | "obs" | "est";
+export interface Moment {
+  t: number;
+  kind: TimeKind;
+}
+export interface FourTimes {
+  out: Moment | null;
+  off: Moment | null;
+  on: Moment | null;
+  in: Moment | null;
+}
+
+const TAXI_OUT = 12;
+const TAXI_IN = 6;
+const wrap = (m: number) => ((m % 1440) + 1440) % 1440;
+
+/**
+ * OUT / OFF / ON / IN for the flight card: the schedule (gate times), else the tracked medians,
+ * else estimates from the neighbouring time with typical taxi (12 min out, 6 min in), and for
+ * the arrival end from the departure plus block time. Estimates are marked so the UI can badge them.
+ */
+export function fourTimes(f: FlightRow, blockMin: number | null): FourTimes {
+  const m = (t: number | null | undefined, kind: TimeKind): Moment | null => (t == null ? null : { t: wrap(t), kind });
+  const out = m(f.std, "sched") ?? m(f.out, "obs") ?? (f.off != null ? m(f.off - TAXI_OUT, "est") : null);
+  const off = m(f.off, "obs") ?? (out ? m(out.t + TAXI_OUT, "est") : null);
+  let inn = m(f.sta, "sched") ?? m(f.in, "obs") ?? (f.on != null ? m(f.on + TAXI_IN, "est") : null);
+  if (!inn && out && blockMin != null) inn = m(out.t + blockMin, "est");
+  const on = m(f.on, "obs") ?? (inn ? m(inn.t - TAXI_IN, "est") : null);
+  return { out, off, on, in: inn };
+}
