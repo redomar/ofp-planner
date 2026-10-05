@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode, type SyntheticEvent } from "react";
+import { Fragment, useEffect, useState, type ReactNode, type SyntheticEvent } from "react";
 import { loadAirline, loadAirports, loadManifest, type Airport, type FlightRow } from "@/lib/data/load";
 import { enrich } from "@/lib/data/query";
 import { RouteHead } from "./RouteHead";
@@ -280,28 +280,48 @@ function DisplayPrefs({ manifest }: { manifest: Manifest | null }) {
       </fieldset>
 
       <fieldset className="opt-group">
-        <legend className="ctl-label">Aircraft badges: colour by</legend>
-        <div className="opt-grid two">
-          <Opt name="typeColour" checked={d.typeColour === "maker"} onChange={() => writeDisplay({ typeColour: "maker" })} title="Manufacturer" isDefault note="Airbus blue · Boeing green · Embraer amber · ATR and Dash 8 red · others grey">
-            {badges("maker", d.typeTheme)}
-          </Opt>
-          <Opt name="typeColour" checked={d.typeColour === "airline"} onChange={() => writeDisplay({ typeColour: "airline" })} title="Airline" note="The brand colour of the airline flying it">
-            {badges("airline", d.typeTheme)}
-          </Opt>
+        <legend className="ctl-label">Aircraft type badges</legend>
+        <p className="opt-lead muted">
+          Shown in the flights table, airport list and flight card. Pick what the colour means and how much of the badge it fills. Hover a badge for its
+          manufacturer and full name.
+        </p>
+        <div className="badge-matrix" role="radiogroup" aria-label="Aircraft type badges">
+          <span aria-hidden="true" />
+          <span className="bm-col">Filled</span>
+          <span className="bm-col">Edge only</span>
+          {(
+            [
+              ["maker", "Colour by manufacturer", "Airbus blue · Boeing green · Embraer amber · ATR and Dash 8 red"],
+              ["airline", "Colour by airline", "The brand colour of the airline flying it"],
+            ] as const
+          ).map(([colour, label, note]) => (
+            <Fragment key={colour}>
+              <span className="bm-row">
+                <b>{label}</b>
+                <small>{note}</small>
+              </span>
+              {(["full", "side"] as const).map((theme) => {
+                const on = d.typeColour === colour && d.typeTheme === theme;
+                return (
+                  <label key={theme} className={`opt bm-cell${on ? " on" : ""}`}>
+                    <input
+                      type="radio"
+                      name="typeBadge"
+                      checked={on}
+                      onChange={() => writeDisplay({ typeColour: colour, typeTheme: theme })}
+                      aria-label={`${label}, ${theme === "full" ? "filled" : "edge only"}${colour === "maker" && theme === "full" ? " (default)" : ""}`}
+                    />
+                    <span className="bm-cap" aria-hidden="true">
+                      {theme === "full" ? "Filled" : "Edge only"}
+                    </span>
+                    {badges(colour, theme)}
+                    {colour === "maker" && theme === "full" && <span className="muted bm-def">default</span>}
+                  </label>
+                );
+              })}
+            </Fragment>
+          ))}
         </div>
-      </fieldset>
-
-      <fieldset className="opt-group">
-        <legend className="ctl-label">Aircraft badges: theme</legend>
-        <div className="opt-grid two">
-          <Opt name="typeTheme" checked={d.typeTheme === "full"} onChange={() => writeDisplay({ typeTheme: "full" })} title="Fully coloured" isDefault>
-            {badges(d.typeColour, "full")}
-          </Opt>
-          <Opt name="typeTheme" checked={d.typeTheme === "side"} onChange={() => writeDisplay({ typeTheme: "side" })} title="Coloured edge">
-            {badges(d.typeColour, "side")}
-          </Opt>
-        </div>
-        <p className="muted small">Hover a badge for its manufacturer and full name.</p>
       </fieldset>
 
       <fieldset className="opt-group">
