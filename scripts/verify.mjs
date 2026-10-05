@@ -390,6 +390,31 @@ async function run() {
     await ctx.close();
   });
 
+  /* ---------- favourites in groups, brief start page ---------- */
+  await section("favourites", async () => {
+    const { ctx, page, errors } = await open("/brief");
+    await page.waitForSelector(".brief-start");
+    // make a group, then star a flight in the finder: it goes into that group
+    await page.getByLabel("New group name").fill("Alps hops");
+    await page.getByRole("button", { name: "Add group" }).click();
+    await page.goto(page.url().replace(/\/brief.*$/, "/?al=EZY&dep=EGKK"), { waitUntil: "networkidle" });
+    await page.waitForSelector("table.flights tbody tr");
+    await page.locator("table.flights tbody tr").nth(1).click();
+    await page.getByRole("button", { name: "Add to favourites" }).click();
+    const grp = await page.locator(".fav-group select").inputValue();
+    grp === "Alps hops" ? pass("favourites: a new star goes into the last group used") : fail(`favourites: star went to "${grp}"`);
+    await page.goto(page.url().replace(/\/\?.*$/, "/brief"), { waitUntil: "networkidle" });
+    await page.waitForSelector(".grp .fl-row");
+    const inGroup = await page.locator(".grp", { hasText: "Alps hops" }).locator(".fl-row").count();
+    inGroup === 1 ? pass("favourites: brief start page lists the group with its flight") : fail(`favourites: ${inGroup} rows in the group`);
+    await checkPage("brief start page 1280 light", page, errors);
+    await shot(page, "brief-start-day");
+    await page.locator(".grp .fl-main").first().click();
+    await page.waitForSelector(".fcard");
+    /\/brief\?f=/.test(page.url()) ? pass("favourites: clicking a favourite opens its brief") : fail(`favourites: url ${page.url()}`);
+    await ctx.close();
+  });
+
   /* ---------- every page × width × theme ---------- */
   const pages = ["/?al=EZY&dep=EGKK", "/?al=EZY&dep=EGKK&view=places", "/?al=&dep=LEMD&arr=C:ES&view=map", "/brief", "/settings"];
   for (const theme of ["light", "dark"])

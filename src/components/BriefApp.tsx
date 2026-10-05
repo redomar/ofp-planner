@@ -6,11 +6,12 @@ import { airportLabel, daysLabel, DAY_NAMES, dur, flightNo, hhmm, isoDay, nextDe
 import { findFlight, loadAirline, loadAirports, loadManifest, type Airport } from "@/lib/data/load";
 import { enrich, pickNextLeg, type Row } from "@/lib/data/query";
 import type { Manifest } from "@/lib/data/types";
-import { readPrefs, readReady, setReady, updateReady, useSaved } from "@/lib/saved";
+import { readPrefs, readReady, setReady, updateReady } from "@/lib/saved";
 import { KEYS, removeKey } from "@/lib/storage";
 import { routeColor } from "@/lib/colors";
 import { AirlineTag } from "./badges";
 import { StatusLine, TopBar } from "./chrome";
+import { SavedFlights } from "./SavedFlights";
 import { CollapseProvider } from "./collapse";
 import { FlightCard } from "./FlightCard";
 import { Section, V } from "./ui";
@@ -33,7 +34,6 @@ export function BriefApp() {
   });
   const [date, setDate] = useState<string | null>(null);
   const [minDate] = useState(() => ymd(new Date(Date.now() - 86_400_000)));
-  const saved = useSaved();
 
   const [loadId, setLoadId] = useState<string | null | undefined>(undefined);
 
@@ -134,7 +134,7 @@ export function BriefApp() {
       {times?.dep && (
         <span className="muted">
           {" "}
-          · departs {ymd(times.dep)} {hhmm(f.std)}Z
+          · departs {ymd(times.dep)} {hhmm(plannedOut(f))}Z
         </span>
       )}
     </span>
@@ -148,26 +148,54 @@ export function BriefApp() {
       <StatusLine progress={state.done ? null : 0.4}>{status}</StatusLine>
       <main className="brief">
         {state.done && !f && (
-          <div className="panel banner">
-            <p className="detail-empty-title">{state.error ?? "No flight picked yet"}</p>
-            <p className="muted">
-              Pick a flight in the <Link href="/">Finder</Link> and press <b>Open brief</b>. The brief shows the dispatch link and the forecast at both
-              ends for the day you fly.
-            </p>
-            {!!saved?.history.length && (
-              <ul className="saved-list">
-                {saved.history.slice(0, 6).map((h) => (
-                  <li key={h.id}>
-                    <a href={`/brief?f=${encodeURIComponent(h.id)}`}>
-                      <span className="mono">
-                        {h.fn ? `${h.al} ${h.fn}` : (h.cs ?? h.al)}
-                      </span>{" "}
-                      {h.o} → {h.d}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            )}
+          <div className="brief-start">
+            <div className="panel brief-intro">
+              <div className="brief-intro-text">
+                <p className="brief-kicker">{state.error ? "That flight isn’t in the current snapshot" : "Brief"}</p>
+                <h2 className="brief-title">Choose a flight to brief</h2>
+                <p className="muted">
+                  Pick one of your favourites or a recent flight below, or find one in the Finder. The brief gathers the SimBrief dispatch link, the day
+                  you’ll fly it and the forecast at both ends.
+                </p>
+                <div className="brief-cta">
+                  <Link className="btn btn-primary" href="/">
+                    Open the Finder
+                  </Link>
+                  <Link className="btn" href="/?al=">
+                    Browse all airlines
+                  </Link>
+                </div>
+              </div>
+              <ol className="brief-steps" aria-label="How it works">
+                <li>
+                  <span className="brief-step-no mono">1</span>
+                  <span>
+                    <b>Find</b> a flight: filter, roll a random one, or pick a destination.
+                  </span>
+                </li>
+                <li>
+                  <span className="brief-step-no mono">2</span>
+                  <span>
+                    <b>Star</b> it to keep it in a favourites group, or open its brief.
+                  </span>
+                </li>
+                <li>
+                  <span className="brief-step-no mono">3</span>
+                  <span>
+                    <b>Brief</b>: set the day, check the weather, dispatch in SimBrief.
+                  </span>
+                </li>
+              </ol>
+            </div>
+            <div className="panel brief-lib">
+              <SavedFlights
+                onOpen={(id) => {
+                  window.history.replaceState(null, "", `/brief?f=${encodeURIComponent(id)}`);
+                  setState((s) => ({ ...s, done: false, error: null }));
+                  setLoadId(id);
+                }}
+              />
+            </div>
           </div>
         )}
 

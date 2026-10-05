@@ -150,6 +150,8 @@ server_latch: |
   - Flights table: Freq column (2× / Daily) then a 7-letter week strip; flight number and airline tag widths come
     from the whole filtered result (mono ch for numbers, canvas-measured text for names), so columns line up.
   - Weather is fetched only on the Brief (never on the Finder), cached (forecast 60 min, METAR 10 min).
+  - Favourites: SavedFlight.group (null = ungrouped), groups list in "ofp-planner:fav-groups", prefs.lastGroup =
+    where new stars go. SavedFlights.tsx renders favourites by group + recent, on the brief start page and Settings.
   - Clear filters resets everything including the airline (→ all airlines).
   - The flights table is unsorted by default (data order: the pipeline writes flights by origin, destination,
     then time; airlines in manifest order). Sorting shows Reset sort, which returns to that order (sort = null).

@@ -6,7 +6,7 @@ import type { AirlineInfo } from "@/lib/data/types";
 import { airportLabel, dur, flightNo, hhmm, localHHMM, tzLabel } from "@/lib/data/flight";
 import type { Airport } from "@/lib/data/load";
 import type { Row } from "@/lib/data/query";
-import { pushHistory, setReady, toggleFavourite, useSaved } from "@/lib/saved";
+import { moveFavourite, pushHistory, setReady, toggleFavourite, useSaved } from "@/lib/saved";
 import { defaultChoice, flightDispatch, simbriefUrl, typeChoices, useAirframes } from "@/lib/simbrief";
 import { TypeBadge, WeekStrip, freqLabel } from "./badges";
 import { ReplayFlapCode } from "./FlapCode";
@@ -248,6 +248,26 @@ export function FlightCard({
           )}
         </div>
         <CopyLink url={url} />
+        {fav && saved && saved.groups.length > 0 && (
+          <label className="fav-group">
+            <span className="fav-group-star" aria-hidden="true">
+              ★
+            </span>
+            <span className="ctl-label">Favourite group</span>
+            <select
+              className="ctl-input"
+              value={saved.favourites.find((x) => x.id === f.id)?.group ?? ""}
+              onChange={(e) => moveFavourite(f.id, e.target.value || null)}
+            >
+              <option value="">Ungrouped</option>
+              {saved.groups.map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {extra}
       </div>
       </div>
