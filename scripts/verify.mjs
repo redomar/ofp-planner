@@ -510,6 +510,17 @@ async function run() {
     await page.waitForTimeout(4000);
     const wx = await page.locator("#weather").innerText();
     /kt|KT/.test(wx) ? pass("brief: weather rendered") : fail(`brief: no weather values (${wx.slice(0, 120)})`);
+    const parts = await page.evaluate(() => ({
+      halves: document.querySelectorAll("#weather .wb-half").length,
+      scenes: document.querySelectorAll("#weather .wb-scene").length,
+      strip: document.querySelectorAll("#weather .wb-tl-bar i").length,
+      fcst: [...document.querySelectorAll("#weather .pp-l")].filter((p) => p.textContent.startsWith("FCST")).length,
+    }));
+    await page.locator("#weather .wtoggle summary").click();
+    const cmpRows = await page.locator("#weather .wb-cmp tbody tr").count();
+    parts.halves === 2 && parts.scenes === 2 && parts.strip === 48 && parts.fcst === 2 && cmpRows === 10
+      ? pass(`brief: verdict, 2 scenes, trip strip (48 hours), 2 FCST lines, comparison table (${cmpRows} rows)`)
+      : fail(`brief: weather parts ${JSON.stringify({ ...parts, cmpRows })}`);
     await checkPage("brief with flight 1280 light", page, errors);
     await shot(page, "brief-day");
     // next leg on the brief: the full list link, then the sample (previewed below its button)

@@ -1,12 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Badge, Field, Tip, V } from "@/components/ui";
-import { CATEGORY_TIP, CATEGORY_TONE, compass, wmoSevere, wmoText, type Category } from "@/lib/wx/category";
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Badge, Tip, V } from "@/components/ui";
+import { WindArrow } from "@/components/WindArrow";
+import { advice, CAT_RANK, fcstLine, hazards, headline, summary, tokenClass } from "@/lib/wx/brief";
+import { CATEGORY_TIP, CATEGORY_TONE, compass, wmoText, type Category } from "@/lib/wx/category";
 import { fetchForecast, hourAt, nearestHour, type Forecast, type Hour } from "@/lib/wx/forecast";
 import { deg3, localTime, relative, round, vis, zulu, zuluDay } from "@/lib/wx/format";
-import { decodeMetar, fetchMetar, weatherText, type Metar } from "@/lib/wx/metar";
-import { CloudColumn, WindDial, WxStrip } from "./WxGraphics";
+import { decodeMetar, fetchMetar, type Metar } from "@/lib/wx/metar";
+import { Scene } from "./Scene";
 
 export interface WxPoint {
   icao: string;
@@ -35,7 +37,20 @@ const errText = (e: unknown) =>
  * (forecast 60 min, METAR 10 min). "Refresh" re-reads the cache unless it's expired,
  * and a second click within a minute forces a refetch.
  */
-export function RouteWeather({ origin, dest, dep, arr }: { origin: WxPoint; dest: WxPoint; dep: Date | null; arr: Date | null }) {
+export function RouteWeather({
+  origin,
+  dest,
+  dep,
+  arr,
+  flightLabel,
+}: {
+  origin: WxPoint;
+  dest: WxPoint;
+  dep: Date | null;
+  arr: Date | null;
+  /** Shown on the flight bar in the trip strip, e.g. "EZY96ME · 1h 54m". */
+  flightLabel?: string;
+}) {
   const [wx, setWx] = useState<Record<string, AirportState>>({});
   const lastRefresh = useRef(0);
   const ctl = useRef<AbortController | null>(null);
@@ -95,8 +110,16 @@ export function RouteWeather({ origin, dest, dep, arr }: { origin: WxPoint; dest
     .map((l) => l.at);
   const oldest = fetched.length ? Math.min(...fetched) : null;
 
+  const [now] = useState(() => Date.now());
+  const ends = [
+    { role: "Departure" as const, kind: "OUT", p: origin, at: dep, s: wx[origin.icao] ?? LOADING },
+    { role: "Arrival" as const, kind: "IN", p: dest, at: arr, s: wx[dest.icao] ?? LOADING },
+  ].map((e) => ({ ...e, ...resolve(e.s, e.at, now) }));
+  const [d, a] = ends;
+  const loading = ends.some((e) => e.s.fc.state === "loading");
+
   return (
-    <div className="wx">
+    <div className="wx" aria-busy={loading || undefined}>
       <div className="wx-bar">
         <p className="wx-src">
           Forecast{" "}
@@ -113,12 +136,87 @@ export function RouteWeather({ origin, dest, dep, arr }: { origin: WxPoint; dest
           Refresh
         </button>
       </div>
-      <div className="wx-cards">
-        <AirportCard role="Departure" p={origin} at={dep} s={wx[origin.icao] ?? LOADING} onRetry={() => load(true)} />
-        <AirportCard role="Arrival" p={dest} at={arr} s={wx[dest.icao] ?? LOADING} onRetry={() => load(true)} />
+
+      {/* split verdict: one half per end, coloured by its flight category */}
+      <div className="wb-verdict">
+        {ends.map((e) => (
+          <div key={e.role} className={`wb-half t-${e.h?.category ? CATEGORY_TONE[e.h.category] : "ink"}`}>
+            <b className="wb-k">
+              {e.role === "Departure" ? "DEP" : "ARR"} {e.p.icao} · {e.kind} {e.at ? zulu(e.at.getTime()) : "now"}
+            </b>
+            {e.error ? (
+              <span className="wx-err-inline">Forecast unavailable</span>
+            ) : (
+              <>
+                {catBadge(e.h?.category ?? null, true)}
+                <span>{e.h ? summary(e.h) : <V v={null} w={22} />}</span>
+              </>
+            )}
+          </div>
+        ))}
       </div>
+      <p className="wb-advice">
+        {loading ? <V v={null} w={40} /> : advice({ icao: d.p.icao, h: d.h, fc: d.fc, at: d.at?.getTime() ?? null }, { icao: a.p.icao, h: a.h })}
+      </p>
+      {ends.some((e) => e.note) && (
+        <ul className="wx-notes">
+          {ends.map((e) => e.note && <li key={e.role}>{`${e.p.icao}: ${e.note}`}</li>)}
+        </ul>
+      )}
+
+      <div className="wb-two">
+        {ends.map((e) => (
+          <EndPanel key={e.role} e={e} onRetry={() => load(true)} />
+        ))}
+      </div>
+
+      <TripStrip d={d} a={a} label={flightLabel} />
+
+      <Coded ends={ends} />
+
+      <details className="wtoggle">
+        <summary>
+          <span className="wt-open">▸ Compare departure and arrival side by side</span>
+          <span className="wt-close">▾ Hide the comparison table</span>
+          <span className="muted"> · 10 rows</span>
+        </summary>
+        <Compare d={d} a={a} />
+      </details>
     </div>
   );
+}
+
+type End = {
+  role: "Departure" | "Arrival";
+  kind: string;
+  p: WxPoint;
+  at: Date | null;
+  s: AirportState;
+  fc: Forecast | null;
+  h: Hour | null;
+  note: string | null;
+  error: string | null;
+  metar: Metar | null;
+};
+
+/** The forecast hour for the planned time (or why there isn't one) and the decoded METAR. */
+function resolve(s: AirportState, at: Date | null, now: number) {
+  const target = at?.getTime() ?? now;
+  let h: Hour | null = null;
+  let fc: Forecast | null = null;
+  let note: string | null = at ? null : "No planned time, so this shows the forecast for now.";
+  if (s.fc.state === "ok") {
+    fc = s.fc.data;
+    const n = nearestHour(fc, target);
+    if (n) {
+      h = hourAt(fc, n.i);
+      if (n.outside === "after") note = `The planned time is beyond the 16-day forecast; showing the last hour (${zuluDay(h.t)} ${zulu(h.t)}).`;
+      else if (n.outside === "before") note = `The planned time has passed; showing the earliest hour available (${zuluDay(h.t)} ${zulu(h.t)}).`;
+      else if (at && target < now - 3600_000) note = "The planned time has passed; the forecast for that hour is shown, and the METAR is current.";
+    }
+  }
+  const metar = s.metar.state === "ok" && s.metar.data ? decodeMetar(s.metar.data) : null;
+  return { fc, h, note, error: s.fc.state === "error" ? s.fc.message : null, metar };
 }
 
 function catBadge(c: Category | null, estimated: boolean) {
@@ -130,184 +228,307 @@ function catBadge(c: Category | null, estimated: boolean) {
   );
 }
 
-function AirportCard({ role, p, at, s, onRetry }: { role: "Departure" | "Arrival"; p: WxPoint; at: Date | null; s: AirportState; onRetry: () => void }) {
-  const [now] = useState(() => Date.now());
-  const target = at?.getTime() ?? now;
-  let h: Hour | null = null;
-  let strip: (Hour | null)[] = Array.from({ length: 25 }, () => null);
-  let note: string | null = at ? null : "No planned time, so this shows the forecast for now.";
-  if (s.fc.state === "ok") {
-    const fc = s.fc.data;
-    const n = nearestHour(fc, target);
-    if (n) {
-      h = hourAt(fc, n.i);
-      strip = Array.from({ length: 25 }, (_, k) => {
-        const j = n.i - 12 + k;
-        return j >= 0 && j < fc.time.length ? hourAt(fc, j) : null;
-      });
-      if (n.outside === "after")
-        note = `The planned time is beyond the 16-day forecast, so this shows the last forecast hour (${zuluDay(h.t)} ${zulu(h.t)}).`;
-      else if (n.outside === "before") note = `The planned time has passed, so this shows the earliest hour available (${zuluDay(h.t)} ${zulu(h.t)}).`;
-      else if (at && target < now - 3600_000) note = "The planned time has passed; the forecast for that hour is shown, and the METAR below is current.";
-    }
-  }
-  const loading = s.fc.state === "loading";
-  const planned = at ? at.getTime() : null;
-  const local = localTime(planned ?? now, p.tz);
+const localHour = (ms: number | null, tz: string | null) => {
+  const t = localTime(ms, tz);
+  return t ? Number(t.slice(0, 2)) + Number(t.slice(3, 5)) / 60 : null;
+};
+
+function EndPanel({ e, onRetry }: { e: End; onRetry: () => void }) {
+  const h = e.h;
+  const planned = e.at?.getTime() ?? null;
+  const z = planned != null ? `${zulu(planned)}` : "now";
   const gust = h?.gustKt != null && h.windKt != null && h.gustKt >= h.windKt + 8 ? h.gustKt : null;
-  const desc = wmoText(h?.code ?? null);
-
+  const spread = h?.temp != null && h.dew != null ? h.temp - h.dew : null;
   return (
-    <article className="wx-card" aria-label={`${role} weather, ${p.icao}`} aria-busy={loading || undefined}>
-      <header className="wx-card-head">
-        <span className="wx-role">{role}</span>
-        <span className="wx-icao">{p.icao}</span>
-        <span className="wx-name">{p.name}</span>
-        <span className="wx-when">
-          {planned != null ? (
-            <>
-              <span className="mono">
-                {zuluDay(planned)} {zulu(planned)}
-              </span>
-              {local && <span className="wx-local"> · {local} local</span>}
-            </>
-          ) : (
-            <span className="mono">now</span>
-          )}
-        </span>
-      </header>
-
-      {note && <p className="wx-note">{note}</p>}
-
-      {s.fc.state === "error" ? (
+    <figure className="wb-end" aria-label={`${e.role} weather, ${e.p.icao}`}>
+      {e.error ? (
         <p className="wx-err" role="status">
-          Forecast unavailable: {s.fc.message}{" "}
+          Forecast unavailable: {e.error}{" "}
           <button type="button" className="chip-btn" onClick={onRetry}>
             Retry
           </button>
         </p>
       ) : (
-        <div className="wx-main">
-          <div className="wx-now">
-            <WindDial dir={h?.windDir ?? null} kt={h?.windKt ?? null} gust={gust} />
-            <div className="wx-wind">
-              <span className="wx-wind-v mono">
-                {h?.windKt != null ? (
-                  <>
-                    {deg3(h.windDir)}° {Math.round(h.windKt)} kt{gust ? <span className={gust >= 25 ? "wx-gust strong" : "wx-gust"}> G{Math.round(gust)}</span> : null}
-                  </>
-                ) : (
-                  <V v={null} w={11} />
-                )}
-              </span>
-              <span className="wx-wind-sub">{h?.windDir != null ? `from ${compass(h.windDir)}` : " "}</span>
-              <span className="wx-cat">
-                {catBadge(h?.category ?? null, true)}
-                {wmoSevere(h?.code ?? null) && <Badge tone="amber">Caution</Badge>}
-              </span>
-            </div>
-          </div>
-          <div className="fields wx-fields">
-            <Field label="Conditions" tip="Model forecast for the planned hour (WMO weather code).">
-              <V v={desc} w={12} className="wx-desc" />
-            </Field>
-            <Field label="Visibility" tip="Forecast horizontal visibility near the surface.">
-              <V v={vis(h?.visM ?? null)} w={6} />
-            </Field>
-            <Field
-              label="Ceiling"
-              tip="Estimated: base of the lowest broken or overcast layer. The model gives cover per layer, not a cloud base, so the base is worked out from the temperature / dew-point spread."
-              sub={h && h.ceilingFt != null ? "est." : null}
-            >
-              <V v={h ? (h.ceilingFt != null ? `${h.ceilingFt.toLocaleString("en-GB")} ft` : "None") : null} w={8} />
-            </Field>
-            <Field label="Temp / dew" tip="Air temperature and dew point at 2 m. A small spread (under 3 °C) means mist, fog or low cloud is likely.">
-              <V v={h?.temp != null ? `${round(h.temp)} / ${round(h.dew) ?? "—"} °C` : null} w={9} />
-            </Field>
-            <Field label="QNH" tip="Mean sea-level pressure; set it on the altimeter for departure / arrival.">
-              <V v={h?.qnh != null ? `${Math.round(h.qnh)} hPa` : null} w={8} />
-            </Field>
-            <Field label="Precip" tip="Precipitation in that hour, and the chance of any precipitation.">
-              <V v={h?.precipMm != null ? `${h.precipMm.toFixed(1)} mm` : null} w={6} />
-              {h?.precipProb != null && <span className="field-sub">{Math.round(h.precipProb)}%</span>}
-            </Field>
-          </div>
-          <div className="wx-cloud">
-            <span className="field-label">
-              <Tip tip="Cloud cover by layer at the planned hour. Shading darkens with cover; amounts use METAR terms (FEW, SCT, BKN, OVC)." title="Cloud">
-                Cloud
+        <Scene h={h} icao={e.p.icao} z={z} headline={h ? headline(h) : "Loading forecast…"} elevFt={e.p.elevFt} localHour={localHour(planned ?? e.h?.t ?? null, e.p.tz)} />
+      )}
+      <figcaption>
+        <p className="wb-haz">
+          {catBadge(h?.category ?? null, true)}
+          {hazards(h).map((z2) => (
+            <Badge key={z2.label} tone={z2.tone} tip={z2.note}>
+              {z2.label}
+            </Badge>
+          ))}
+        </p>
+        <dl className="wb-facts">
+          <div>
+            <dt>
+              <Tip tip="Forecast wind at 10 m for the planned hour. The arrow points downwind and sways like a windsock: faster with more wind, unsteady with gusts; its colour is the wind category." title="Wind">
+                Wind
               </Tip>
-            </span>
-            <CloudColumn low={h?.cloudLow ?? null} mid={h?.cloudMid ?? null} high={h?.cloudHigh ?? null} />
+            </dt>
+            <dd>
+              {h?.windKt != null ? (
+                <>
+                  {h.windDir != null && h.windKt >= 1 && (
+                    <WindArrow dir={Math.round(h.windDir)} spd={Math.round(h.windKt)} gust={gust != null ? Math.round(gust) : null} kind="PWIND" size={26} label={`Wind from ${deg3(h.windDir)}° at ${Math.round(h.windKt)} kt`} />
+                  )}
+                  <span className="mono">{h.windKt < 1 ? "Calm" : `${deg3(h.windDir)}° ${Math.round(h.windKt)} kt`}</span>
+                  {gust != null && <small>gust {Math.round(gust)} kt</small>}
+                  {h.windDir != null && h.windKt >= 1 && <small>from {compass(h.windDir)}</small>}
+                </>
+              ) : (
+                <V v={null} w={9} />
+              )}
+            </dd>
           </div>
-        </div>
-      )}
-
-      {s.fc.state !== "error" && (
-        <div className="wx-strip-box">
-          <span className="field-label">
-            <Tip tip="Hourly outlook 12 hours either side of the planned time, in UTC. Arrows point downwind; speeds show the gust when it's 10 kt above the mean; the magenta box is the planned hour." title="24-hour outlook">
-              24-hour outlook (UTC)
-            </Tip>
-          </span>
-          <div className="wx-strip-scroll">
-            <WxStrip hours={strip} planned={12} />
+          <div>
+            <dt>
+              <Tip tip="Forecast horizontal visibility near the surface; the bar runs from 100 m (red) to 10 km (green)." title="Visibility">
+                Visibility
+              </Tip>
+            </dt>
+            <dd>
+              <span className="mono">{h ? vis(h.visM) : <V v={null} w={6} />}</span>
+              <VisBar m={h?.visM ?? null} />
+            </dd>
           </div>
-        </div>
-      )}
-
-      <MetarBlock s={s.metar} onRetry={onRetry} />
-    </article>
+          <div>
+            <dt>
+              <Tip tip="Air temperature and dew point at 2 m. A spread under 3 °C means mist, fog or low cloud is likely." title="Temp / dew">
+                Temp / dew
+              </Tip>
+            </dt>
+            <dd>
+              <span className="mono">{h?.temp != null ? `${round(h.temp)}° / ${round(h.dew) ?? "—"}°` : <V v={null} w={8} />}</span>
+              {spread != null && <small>spread {Math.round(spread)}°{spread < 1.5 ? " · fog risk" : ""}</small>}
+            </dd>
+          </div>
+          <div>
+            <dt>
+              <Tip tip="Mean sea-level pressure; set it on the altimeter for departure / arrival." title="QNH">
+                QNH
+              </Tip>
+            </dt>
+            <dd>
+              <span className="mono">{h?.qnh != null ? `${Math.round(h.qnh)} hPa` : <V v={null} w={8} />}</span>
+              {h?.qnh != null && <small>{(h.qnh * 0.02953).toFixed(2)} inHg</small>}
+            </dd>
+          </div>
+        </dl>
+      </figcaption>
+    </figure>
   );
 }
 
-function MetarBlock({ s, onRetry }: { s: Load<string | null>; onRetry: () => void }) {
-  if (s.state === "error")
-    return (
-      <p className="wx-err" role="status">
-        METAR unavailable: {s.message}{" "}
-        <button type="button" className="chip-btn" onClick={onRetry}>
-          Retry
-        </button>
-      </p>
-    );
-  const m: Metar | null = s.state === "ok" && s.data ? decodeMetar(s.data) : null;
-  const none = s.state === "ok" && !s.data;
+function VisBar({ m }: { m: number | null }) {
+  if (m == null) return null;
+  const p = Math.max(0, Math.min(100, ((Math.log10(Math.max(100, m)) - 2) / 2) * 100));
   return (
-    <div className="wx-metar">
-      <div className="wx-metar-head">
-        <span className="field-label">
-          <Tip tip="The latest observed report at the airport (real world, as served to VATSIM). Useful if you're flying now with live weather." title="METAR">
-            METAR now
-          </Tip>
+    <span className="wb-visbar" aria-hidden="true">
+      <i style={{ left: `${p}%` }} />
+    </span>
+  );
+}
+
+/** Both airports on one UTC clock, an hourly block per flight category, the flight between OUT and IN. */
+function TripStrip({ d, a, label }: { d: End; a: End; label?: string }) {
+  const dep = d.at?.getTime() ?? null;
+  const arr = a.at?.getTime() ?? null;
+  if (!d.fc || !a.fc || dep == null) return null;
+  // the departure's UTC day, or a 24 h window from 8 h before departure when the flight runs past midnight
+  const dayStart = Date.UTC(new Date(dep).getUTCFullYear(), new Date(dep).getUTCMonth(), new Date(dep).getUTCDate());
+  const start = arr != null && arr > dayStart + 86_400_000 ? Math.floor((dep - 8 * 3600_000) / 3600_000) * 3600_000 : dayStart;
+  const hoursOf = (fc: Forecast) =>
+    Array.from({ length: 24 }, (_, k) => {
+      const t = (start + k * 3600_000) / 1000;
+      const i = fc.time.indexOf(t);
+      return i >= 0 ? hourAt(fc, i) : null;
+    });
+  const x = (ms: number) => Math.max(0, Math.min(100, ((ms - start) / 86_400_000) * 100));
+  const rows: [End, (Hour | null)[], number | null, string, boolean][] = [
+    [d, hoursOf(d.fc), dep, "OUT", false],
+    [a, hoursOf(a.fc), arr, "IN", true],
+  ];
+  const dayLabel = new Date(start).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+  const block = (r: [End, (Hour | null)[], number | null, string, boolean]) => (
+    <div className="wb-tl-row" key={r[0].role}>
+      <span className="wb-tl-lbl mono">{r[0].p.icao}</span>
+      <span className="wb-tl-bar">
+        {r[1].map((h, i) => (
+          <i
+            key={i}
+            className={h?.category ? `c-${CATEGORY_TONE[h.category]}` : "c-none"}
+            title={`${String(new Date(start + i * 3600_000).getUTCHours()).padStart(2, "0")}Z ${h?.category ?? "no data"}`}
+          />
+        ))}
+        {r[2] != null && (
+          <span className={`wb-tl-mark${r[4] ? " below" : ""}`} style={{ left: `${x(r[2])}%` }}>
+            <b className="mono">
+              {r[3]} {zulu(r[2])}
+            </b>
+          </span>
+        )}
+      </span>
+    </div>
+  );
+  return (
+    <div className="wb-tl" role="img" aria-label={`Flight category by hour at ${d.p.icao} and ${a.p.icao}, ${dayLabel}, with the flight from ${zulu(dep)} to ${arr != null ? zulu(arr) : "unknown"}.`}>
+      <p className="wb-tl-h field-label">
+        <Tip tip="Each block is one hour (UTC), coloured by the forecast flight category; the magenta bar is the flight. See how flying earlier or later changes the weather." title="Trip strip">
+          Through the day
+        </Tip>
+      </p>
+      {block(rows[0])}
+      <div className="wb-tl-row">
+        <span className="wb-tl-lbl muted small">flight</span>
+        <span className="wb-tl-bar air">
+          {arr != null && <span className="wb-tl-flight" style={{ left: `${x(dep)}%`, width: `${Math.max(0.8, x(arr) - x(dep))}%` }} />}
+          {label && arr != null && (
+            <span className="wb-tl-flab" style={x(arr) > 70 ? { right: `${100 - x(dep) + 1}%` } : { left: `${x(arr) + 1}%` }}>
+              {label}
+            </span>
+          )}
         </span>
-        {m?.category && catBadge(m.category, false)}
-        {m?.observed != null && <span className="wx-obs mono">{zulu(m.observed)} · {relative(m.observed)}</span>}
       </div>
-      {none ? (
-        <p className="wx-note">This airport has no current METAR.</p>
-      ) : (
-        <>
-          <p className="wx-metar-sum">
-            {m ? (
-              [
-                m.windKt != null ? (m.windKt < 1 ? "Calm" : `${m.variable ? "VRB" : `${deg3(m.windDir)}°`} ${m.windKt} kt${m.gustKt ? ` G${m.gustKt}` : ""}`) : null,
-                m.cavok ? "CAVOK" : vis(m.visM),
-                !m.cavok && (m.clouds.length ? m.clouds.map((c) => `${c.amount}${c.baseFt != null ? ` ${c.baseFt.toLocaleString("en-GB")} ft` : ""}${c.type ? ` ${c.type}` : ""}`).join(", ") : null),
-                ...m.weather.map(weatherText),
-                m.temp != null ? `${m.temp}/${m.dew ?? "—"} °C` : null,
-                m.qnh != null ? `Q${m.qnh}` : null,
-              ]
-                .filter(Boolean)
-                .join(" · ") || "Couldn't decode; see the raw report"
-            ) : (
-              <V v={null} w={34} />
-            )}
-          </p>
-          <p className="wx-raw mono">{m ? m.raw : <V v={null} w={48} />}</p>
-        </>
-      )}
+      {block(rows[1])}
+      <div className="wb-tl-row axis">
+        <span />
+        <span className="wb-tl-axis mono">
+          {[0, 3, 6, 9, 12, 15, 18, 21, 24].map((k) => (
+            <span key={k} style={{ left: `${(k / 24) * 100}%` }}>
+              {String(new Date(start + k * 3600_000).getUTCHours()).padStart(2, "0")}
+            </span>
+          ))}
+        </span>
+      </div>
+      <p className="wb-tl-key small muted">
+        {(["VFR", "MVFR", "IFR", "LIFR"] as const).map((c) => (
+          <Fragment key={c}>
+            <i className={`c-${CATEGORY_TONE[c]}`} aria-hidden="true" />
+            {c}{" "}
+          </Fragment>
+        ))}
+        · one block per hour, UTC, {dayLabel}
+      </p>
     </div>
   );
 }
 
+const colour = (line: string): ReactNode[] =>
+  line.split(" ").flatMap((t, i) => {
+    const c = tokenClass(t);
+    return [i ? " " : "", c ? <span key={i} className={c}>{t}</span> : t];
+  });
+
+/** The forecast coded like a METAR (FCST, estimated) above the real METAR, on printer paper. */
+function Coded({ ends }: { ends: End[] }) {
+  const [copied, setCopied] = useState(false);
+  const lines = ends.map((e) => ({
+    e,
+    fcst: e.h && e.at ? fcstLine(e.p.icao, e.h, e.at.getTime()) : null,
+    metar: e.s.metar.state === "ok" && e.s.metar.data ? `METAR ${e.p.icao} ${e.s.metar.data}` : null,
+  }));
+  const text = lines.map((l) => [`${l.e.role.toUpperCase()} ${l.e.p.icao} ${l.e.p.name.toUpperCase()}`, l.fcst, l.metar].filter(Boolean).join("\n")).join("\n\n");
+  return (
+    <div className="wb-paper">
+      {lines.map((l) => (
+        <div className="pp-blk" key={l.e.role}>
+          <p className="pp-h">
+            {l.e.role.toUpperCase()} {l.e.p.icao} {l.e.p.name.toUpperCase()}
+          </p>
+          <p className="pp-l mono">
+            <Tip tip="The model forecast for the planned time, coded like a METAR. It's an estimate (cloud base and weather are derived), not an official TAF." title="FCST" plain>
+              <span className="pp-k">FCST</span>
+            </Tip>
+            {l.fcst ? colour(l.fcst.replace(/^FCST /, "")) : <V v={null} w={36} />}
+          </p>
+          <p className="pp-l mono">
+            <span className="pp-k">METAR</span>
+            {l.metar ? colour(l.metar.replace(/^METAR /, "")) : l.e.s.metar.state === "loading" ? <V v={null} w={36} /> : <span className="pp-none">no current METAR</span>}
+          </p>
+        </div>
+      ))}
+      <p className="pp-foot mono">
+        FCST = model forecast at the planned time, coded like a METAR (est.) · METAR = latest observation ·{" "}
+        <button
+          type="button"
+          className="pp-copy"
+          onClick={() =>
+            navigator.clipboard?.writeText(text).then(
+              () => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1400);
+              },
+              () => undefined,
+            )
+          }
+        >
+          {copied ? "COPIED" : "COPY TEXT"}
+        </button>
+      </p>
+    </div>
+  );
+}
+
+/** Departure and arrival as two columns of the same rows; the worse value of each pair highlighted. */
+function Compare({ d, a }: { d: End; a: End }) {
+  const x = d.h;
+  const y = a.h;
+  const worse = (pa: number | null | undefined, pb: number | null | undefined, higherIsWorse = true): [string, string] => {
+    if (pa == null || pb == null || pa === pb) return ["", ""];
+    const aw = higherIsWorse ? pa > pb : pa < pb;
+    return aw ? ["worse", ""] : ["", "worse"];
+  };
+  const ceilScore = (h: Hour | null) => (h ? (h.ceilingFt ?? 99999) : null);
+  const wind = (h: Hour | null) =>
+    h?.windKt != null ? (
+      <>
+        {h.windDir != null && h.windKt >= 1 && <WindArrow dir={Math.round(h.windDir)} spd={Math.round(h.windKt)} kind="PWIND" size={18} />}
+        <span className="mono">{h.windKt < 1 ? "Calm" : `${deg3(h.windDir)}° ${Math.round(h.windKt)} kt`}</span>
+      </>
+    ) : (
+      "—"
+    );
+  const rows: [string, ReactNode, ReactNode, [string, string]][] = [
+    ["Category", catBadge(x?.category ?? null, true), catBadge(y?.category ?? null, true), worse(x?.category ? CAT_RANK[x.category] : null, y?.category ? CAT_RANK[y.category] : null)],
+    ["Conditions", wmoText(x?.code ?? null) ?? "—", wmoText(y?.code ?? null) ?? "—", ["", ""]],
+    ["Wind", wind(x), wind(y), worse(x?.windKt, y?.windKt)],
+    ["Gust", x?.gustKt != null ? `${Math.round(x.gustKt)} kt` : "—", y?.gustKt != null ? `${Math.round(y.gustKt)} kt` : "—", worse(x?.gustKt, y?.gustKt)],
+    ["Visibility", vis(x?.visM ?? null) ?? "—", vis(y?.visM ?? null) ?? "—", worse(x?.visM, y?.visM, false)],
+    ["Cloud base (est.)", x ? (x.ceilingFt === 0 ? "obscured" : x.ceilingFt != null ? `${x.ceilingFt.toLocaleString("en-GB")} ft` : "none") : "—", y ? (y.ceilingFt === 0 ? "obscured" : y.ceilingFt != null ? `${y.ceilingFt.toLocaleString("en-GB")} ft` : "none") : "—", worse(ceilScore(x), ceilScore(y), false)],
+    ["Temp / dew", x?.temp != null ? `${round(x.temp)}° / ${round(x.dew)}°` : "—", y?.temp != null ? `${round(y.temp)}° / ${round(y.dew)}°` : "—", ["", ""]],
+    ["QNH", x?.qnh != null ? `${Math.round(x.qnh)} hPa` : "—", y?.qnh != null ? `${Math.round(y.qnh)} hPa` : "—", ["", ""]],
+    ["Precip", x?.precipMm != null ? `${x.precipMm.toFixed(1)} mm · ${Math.round(x.precipProb ?? 0)}%` : "—", y?.precipMm != null ? `${y.precipMm.toFixed(1)} mm · ${Math.round(y.precipProb ?? 0)}%` : "—", worse(x?.precipProb, y?.precipProb)],
+    ["METAR now", d.metar ? <span className="mono small">{colour(d.metar.raw)}</span> : "—", a.metar ? <span className="mono small">{colour(a.metar.raw)}</span> : "—", ["", ""]],
+  ];
+  return (
+    <div className="tbl-wrap">
+      <table className="tbl wb-cmp">
+        <thead>
+          <tr>
+            <th scope="col">
+              <span className="sr-only">Item</span>
+            </th>
+            <th scope="col">
+              {d.p.icao} · OUT {d.at ? zulu(d.at.getTime()) : "now"}
+            </th>
+            <th scope="col">
+              {a.p.icao} · IN {a.at ? zulu(a.at.getTime()) : "now"}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([k, v1, v2, [w1, w2]]) => (
+            <tr key={k}>
+              <th scope="row">{k}</th>
+              <td className={w1}>{v1}</td>
+              <td className={w2}>{v2}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="small muted wb-cmp-note">The worse value of each pair is highlighted.</p>
+    </div>
+  );
+}
