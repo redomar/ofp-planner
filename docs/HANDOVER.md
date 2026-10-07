@@ -100,7 +100,7 @@ ids_and_urls:
 
 ## 4. Data: what exists and why
 
-snapshot_now: 57 airlines · 65,858 flights · 15,600 routes · 581 airports · window 2026-09-20 → 2026-10-04 (15 days)
+snapshot_now: 57 airlines · 68,018 flights · 15,683 routes · 584 airports · window 2026-09-20 → 2026-10-06 (17 days, built 2026-10-07)
 size: public/data ≈ 11 MB raw, ≈ 1.2 MB gzipped (biggest RYR.json 3.6 MB / 423 KB gz); routes.json 315 KB / 62 KB gz
 loading: manifest revalidated each visit; other files fetched with ?v=<generatedAt> (cache-friendly);
   airline files load only for selected airlines; routes.json only once an airport is chosen.
@@ -131,7 +131,7 @@ field_derivations: docs/data-pipeline.md ("How each field is derived") — don't
 
 where: scripts/snapshot/ (index.mjs CLI; airlines.mjs brands/colours/region; sources/*; legs.mjs; build.mjs; route-index.mjs)
 caches: data/raw (88 MB downloads) + data/cache (493 MB; tracks/<date>.ndjson.gz per day) — gitignored, keep them.
-cached_days_now: 2026-09-20 … 2026-10-04 (data/cache ≈ 530 MB)
+cached_days_now: 2026-09-20 … 2026-10-06 (data/cache ≈ 530 MB)
 timing: fetch ≈ 4 min/day at concurrency 3 (download-bound); first Ryanair pass 15–20 min (cached 10 days); build ≈ 20 s.
 recipes:
   add_a_15th_day: |
