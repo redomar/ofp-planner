@@ -2345,12 +2345,33 @@ div.empty-note p {
   cursor: pointer;
 }
 .route-names {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
   max-width: 340px;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
+}
+.route-place {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.route-names .flag {
+  width: 16px;
+  height: 12px;
+  flex: none;
+}
+.routes-tbl thead th {
+  padding: 0;
+}
+.routes-tbl th.num .th-sort {
+  justify-content: flex-end;
+}
+.routes-tbl th.num .th-arrow {
+  order: -1;
 }
 .route-als {
   display: flex;
