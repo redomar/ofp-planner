@@ -2348,7 +2348,7 @@ div.empty-note p {
 /* route cell: codes over cities | a sub-column of airport names, set off by a rule */
 .route-cell {
   display: grid;
-  grid-template-columns: 290px 250px;
+  grid-template-columns: 290px minmax(0, max-content);
   align-items: center;
 }
 .route-main {
@@ -2377,7 +2377,7 @@ div.empty-note p {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-@container (max-width: 1000px) {
+@container (max-width: 1150px) {
   .route-cell {
     grid-template-columns: 290px;
   }
