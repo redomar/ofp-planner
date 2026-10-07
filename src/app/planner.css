@@ -2359,6 +2359,10 @@ div.empty-note p {
   gap: 4px;
   min-width: 0;
 }
+.route-place > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .route-names .flag {
   width: 16px;
   height: 12px;

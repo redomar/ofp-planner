@@ -83,7 +83,7 @@ export function RoutesView({
     return (
       <span className="route-place" title={a ? airportLabel(a) : undefined}>
         {a?.country && <Flag cc={a.country} />}
-        {city(icao)}
+        <span>{city(icao)}</span>
       </span>
     );
   };
