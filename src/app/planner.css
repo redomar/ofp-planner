@@ -2331,7 +2331,7 @@ div.empty-note p {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--sheet);
+  background: var(--sunk);
 }
 .route-btn {
   display: inline-flex;
