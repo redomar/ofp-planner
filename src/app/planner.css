@@ -3510,6 +3510,12 @@ div.empty-note p {
 }
 .jr-via {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.jr-chip-avoid > span[aria-hidden] {
+  color: var(--ink-2);
 }
 .jr-chips {
   list-style: none;
@@ -4229,4 +4235,7 @@ div.empty-note p {
   .jr-tl {
     min-width: 110px;
   }
+}
+.jr-via > .jr-chips {
+  margin-top: -4px;
 }

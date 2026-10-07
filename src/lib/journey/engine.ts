@@ -31,6 +31,8 @@ export interface Spec {
   from: Place | null;
   to: Place | null;
   via: Place[];
+  /** Airports or countries no leg may land in or leave (the chosen from, via and to excepted). */
+  avoid: Place[];
   legs: LegsRule;
   /** Every leg on the same airline (brand). */
   oneAirline: boolean;
@@ -231,6 +233,22 @@ function placeSet(p: Place, nodes: Iterable<string>, pts: Map<string, Pt>): Set<
   return s;
 }
 
+/**
+ * Whether an airport is off limits. Places the journey was asked to start, stop or end at win
+ * over the avoid list, so "from Germany, avoid Germany" still starts there.
+ */
+function avoider(spec: Spec, pts: Map<string, Pt>): (icao: string) => boolean {
+  if (!spec.avoid.length) return () => false;
+  const hit = (places: Place[], icao: string) => places.some((p) => (p.startsWith("C:") ? pts.get(icao)?.country === p.slice(2) : p === icao));
+  const chosen = [spec.from, spec.to, ...spec.via].filter((p): p is Place => !!p);
+  const memo = new Map<string, boolean>();
+  return (icao) => {
+    let v = memo.get(icao);
+    if (v == null) memo.set(icao, (v = hit(spec.avoid, icao) && !hit(chosen, icao)));
+    return v;
+  };
+}
+
 /* ---------- the shared walk ---------- */
 
 interface Plan {
@@ -397,7 +415,12 @@ const vkey = (j: Journey) => j.timed!.legs.map((l) => l.f).join(",");
 
 export function searchNetwork(spec: Spec, edges: RouteEdge[], pts: Map<string, Pt>, budget = 250_000): Result {
   const reverse = !spec.from && !!spec.to;
-  const g = buildGraph(edges, pts, reverse);
+  const avoid = avoider(spec, pts);
+  const g = buildGraph(
+    edges.filter((e) => !avoid(e.o) && !avoid(e.d)),
+    pts,
+    reverse,
+  );
   const nodes = new Set([...g.out.keys(), ...g.inn.keys()]);
   const origin = reverse ? spec.to : spec.from;
   if (!origin) return empty("Choose where the journey starts or ends.");
@@ -520,10 +543,11 @@ export function searchTimed(spec: Spec, flights: TFlight[], pts: Map<string, Pt>
   // weekly instances per departure airport, sorted by OUT
   const byAirport = new Map<string, Inst[]>();
   const edgeMap = new Map<string, RouteEdge>();
+  const avoid = avoider(spec, pts);
   flights.forEach((fl, i) => {
     const o = reverse ? fl.d : fl.o;
     const d = reverse ? fl.o : fl.d;
-    if (!pts.has(o) || !pts.has(d) || o === d) return;
+    if (!pts.has(o) || !pts.has(d) || o === d || avoid(o) || avoid(d)) return;
     const days = fl.days.length ? fl.days : [1, 2, 3, 4, 5, 6, 7];
     let l = byAirport.get(o);
     if (!l) byAirport.set(o, (l = []));
@@ -778,7 +802,7 @@ function finish(col: Collector, legs: number | null, expansions: number, capped:
 function noRoute(spec: Spec): string {
   const r = spec.legs;
   const legs = r.kind === "fewest" ? "" : ` in ${r.kind === "upto" ? "up to " : ""}${r.n} leg${r.n === 1 ? "" : "s"}`;
-  return `No journey fits${legs}${spec.dutyMin != null ? " within the duty limit" : ""} with these filters.`;
+  return `No journey fits${legs}${spec.dutyMin != null ? " within the duty limit" : ""}${spec.avoid.length ? " while avoiding those places" : ""} with these filters.`;
 }
 
 function empty(reason: string, expansions = 0): Result {

@@ -243,7 +243,10 @@ export function JourneysApp() {
             <section className="panel jr-form" aria-label="Plan a journey">
               <div className="jr-route">
                 <PlacePicker label="From" value={plan.from} options={placeOpts} onChange={(from) => update({ from })} />
-                <ViaPicker via={plan.via} options={placeOpts} onChange={(via) => update({ via })} />
+                <div className="jr-via">
+                  <ViaPicker via={plan.via} options={placeOpts} onChange={(via) => update({ via })} />
+                  <AvoidPicker avoid={plan.avoid} options={placeOpts} onChange={(avoid) => update({ avoid })} />
+                </div>
                 <PlacePicker label="To" value={plan.to} options={placeOpts} onChange={(to) => update({ to })} />
                 <button
                   type="button"
@@ -605,7 +608,7 @@ export function JourneysApp() {
 function ViaPicker({ via, options, onChange }: { via: string[]; options: ReturnType<typeof placeOptions>; onChange: (v: string[]) => void }) {
   const name = (v: string) => (v.startsWith("C:") ? countryName(v.slice(2)) : v);
   return (
-    <div className="jr-via">
+    <>
       <PlacePicker
         label={via.length ? `Then via (stop ${via.length + 1})` : "Via (optional)"}
         value={null}
@@ -635,6 +638,34 @@ function ViaPicker({ via, options, onChange }: { via: string[]; options: ReturnT
           ))}
         </ol>
       )}
+    </>
+  );
+}
+
+/** Countries or airports to keep out of the journey (e.g. “avoid Germany”). */
+function AvoidPicker({ avoid, options, onChange }: { avoid: string[]; options: ReturnType<typeof placeOptions>; onChange: (v: string[]) => void }) {
+  const name = (v: string) => (v.startsWith("C:") ? countryName(v.slice(2)) : v);
+  return (
+    <div className="jr-avoid">
+      <PlacePicker
+        label="Avoid (optional)"
+        value={null}
+        options={options.filter((o) => !avoid.includes(o.value))}
+        anyLabel="Add a country or airport"
+        onChange={(v) => v && onChange([...avoid, v])}
+      />
+      {avoid.length > 0 && (
+        <ul className="jr-chips" aria-label="Places to avoid">
+          {avoid.map((v) => (
+            <li key={v} className="jr-chip jr-chip-avoid">
+              <span aria-hidden="true">⊘</span> {name(v)}
+              <button type="button" aria-label={`Stop avoiding ${name(v)}`} title="Remove" onClick={() => onChange(avoid.filter((x) => x !== v))}>
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -644,6 +675,7 @@ function OptionGuide() {
   const rows: [string, string, boolean?][] = [
     ["From", HELP.from],
     ["Via", HELP.via],
+    ["Avoid", HELP.avoid],
     ["To", HELP.to],
     ["Legs", HELP.legs],
     ["Times", HELP.times],

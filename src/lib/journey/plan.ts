@@ -12,6 +12,8 @@ export interface JourneyPlan {
   from: string | null;
   to: string | null;
   via: string[];
+  /** Airports or countries ("C:DE") to keep out of the journey. */
+  avoid: string[];
   legs: LegsRule;
   timing: Timing;
   /** Brand ICAOs; empty = every airline. */
@@ -37,6 +39,7 @@ export const EMPTY_PLAN: JourneyPlan = {
   from: null,
   to: null,
   via: [],
+  avoid: [],
   legs: { kind: "fewest" },
   timing: "network",
   al: [],
@@ -87,6 +90,7 @@ export function toSpec(p: JourneyPlan): Spec {
     from: p.from,
     to: p.to,
     via: p.via,
+    avoid: p.avoid,
     legs: p.legs,
     oneAirline: p.oneAirline,
     sort: effectiveSort(p),
@@ -115,7 +119,7 @@ const clock = (v: string | null) => {
 };
 const hhmm = (n: number) => `${String(Math.floor(n / 60)).padStart(2, "0")}${String(n % 60).padStart(2, "0")}`;
 
-/** ?from=EGBB&via=EHAM,LFPG&to=LEMD&legs=f|4|u5&t=1&al=EZY&one=1&type=A320%20family&sort=distance&seed=3&day=2&after=0600&duty=360&report=45&turn=35-180 */
+/** ?from=EGBB&via=EHAM,LFPG&to=LEMD&avoid=C:DE,LSZH&legs=f|4|u5&t=1&al=EZY&one=1&type=A320%20family&sort=distance&seed=3&day=2&after=0600&duty=360&report=45&turn=35-180 */
 export function planFromParams(q: URLSearchParams): JourneyPlan {
   const legs = q.get("legs");
   const n = legs?.match(/^(u?)(\d)$/);
@@ -129,6 +133,7 @@ export function planFromParams(q: URLSearchParams): JourneyPlan {
       .map(place)
       .filter((v): v is string => !!v)
       .slice(0, 6),
+    avoid: [...new Set((q.get("avoid") ?? "").split(",").map(place))].filter((v): v is string => !!v).slice(0, 12),
     legs: n && +n[2] >= 1 && +n[2] <= 8 ? { kind: n[1] ? "upto" : "exact", n: +n[2] } : { kind: "fewest" },
     timing: q.get("t") === "1" ? "timed" : "network",
     al: (q.get("al") ?? "").split(",").filter((a) => /^[A-Z0-9]{2,4}$/.test(a)),
@@ -153,6 +158,7 @@ export function planToParams(p: JourneyPlan, extra: Record<string, string | null
   set("from", p.from);
   set("via", p.via.join(","));
   set("to", p.to);
+  set("avoid", p.avoid.join(","));
   set("legs", p.legs.kind === "fewest" ? null : `${p.legs.kind === "upto" ? "u" : ""}${p.legs.n}`);
   set("t", p.timing === "timed" && "1");
   set("al", p.al.join(","));
@@ -177,6 +183,7 @@ export function planToParams(p: JourneyPlan, extra: Record<string, string | null
 export const HELP = {
   from: "Where the first leg leaves. A country (“Any airport in Spain”) starts from any of its airports. Leave it empty to work backwards from where you want to finish.",
   via: "Airports the journey must pass through, in this order. Each one is a stop between legs, not an extra leg of its own.",
+  avoid: "Countries or airports the journey never lands in or leaves (it may still fly over them). A from, via or to you pick wins over this list.",
   to: "Where the last leg lands. Leave it empty to roam: the journey ends wherever its legs run out. Set it to the start airport for a round trip.",
   legs: "Fewest: the smallest number of legs that gets there. Exactly: that many legs, no more, no fewer. Up to: any number from 1 to that many.",
   times:
