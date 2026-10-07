@@ -607,11 +607,11 @@ async function run() {
     ["Legs", "Times", "Detour", "Day (UTC)", "First OUT after (Z)", "Duty limit", "Report before OUT", "Turnaround"].every((t) => tips.includes(t)) ? pass(`journeys: ${tips.length} labels explain themselves on hover`) : fail(`journeys: tips ${tips}`);
     await page.locator(".jr-guide summary").click();
     const defs = await page.locator(".jr-guide .jr-defs dt").count();
-    defs === 14 ? pass("journeys: 'What the options mean' lists all 14 options") : fail(`journeys: guide has ${defs}`);
+    defs === 15 ? pass("journeys: 'What the options mean' lists all 15 options") : fail(`journeys: guide has ${defs}`);
     await page.goto(page.url().split("/journeys")[0] + "/journeys", { waitUntil: "networkidle" });
     const cards = await page.locator(".jr-ex-card").count();
     const chips = await page.locator(".jr-example").count();
-    cards === chips && cards >= 9 && (await page.locator(".jr-intro .jr-defs dt").count()) === 14 ? pass(`journeys: intro shows ${cards} examples and the option guide`) : fail(`journeys: intro ${cards}/${chips}`);
+    cards === chips && cards >= 9 && (await page.locator(".jr-intro .jr-defs dt").count()) === 15 ? pass(`journeys: intro shows ${cards} examples and the option guide`) : fail(`journeys: intro ${cards}/${chips}`);
     for (let i = 5; i < cards; i++) {
       await page.goto(page.url().split("/journeys")[0] + "/journeys", { waitUntil: "networkidle" });
       const name = await page.locator(".jr-ex-card b").nth(i).textContent();
@@ -838,6 +838,83 @@ async function run() {
     await page.goto(page.url().replace(/\/\?.*$/, "/settings"), { waitUntil: "networkidle" });
     await shot(page, "settings-day");
     errors.length ? fail(`settings: console errors ${JSON.stringify(errors)}`) : pass("settings: 0 console errors");
+    await ctx.close();
+  });
+
+  /* ---------- 1.3.1: board rows, favourites drag, route sort and flags, journeys avoid ---------- */
+  await section("1.3.1", async () => {
+    const { ctx, page, errors } = await open("/board?ap=EHAM");
+    await page.waitForSelector(".fids-tbl tbody tr", { timeout: 30000 });
+    const off = await page.$$eval(".fids-tbl tbody tr", (trs) => trs.slice(0, 12).flatMap((tr) => [...tr.cells].map((c) => Math.abs(c.getBoundingClientRect().bottom - tr.getBoundingClientRect().bottom))));
+    off.length && Math.max(...off) < 1 ? pass(`board: every cell meets its row's bottom border (${off.length} cells)`) : fail(`board: cell bottoms off by ${Math.max(...off)} px`);
+
+    // favourites: two groups seeded from real flights; drag within a group, across groups, and with the keyboard
+    await page.goto(`${base}/settings`, { waitUntil: "networkidle" });
+    const ids = await page.evaluate(async () => {
+      const fl = (await fetch("/data/airlines/EZY.json").then((r) => r.json())).flights.slice(0, 5);
+      const fav = fl.map((f, i) => ({ id: `EZY:${f.cs}:${f.o}-${f.d}:${f.days.join("")}`, al: "EZY", op: f.op, fn: f.fn, cs: f.cs, o: f.o, d: f.d, std: null, at: i, days: f.days, group: i < 3 ? "A" : "B" }));
+      localStorage.setItem("ofp-planner:favourites", JSON.stringify(fav));
+      localStorage.setItem("ofp-planner:fav-groups", JSON.stringify(["A", "B"]));
+      return fav.map((f) => f.id);
+    });
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForSelector("[data-fav]");
+    await page.evaluate(() => document.querySelector("#lib-fav-h").scrollIntoView({ block: "start" }));
+    const order = () => page.$$eval("[data-fav-group]", (gs) => Object.fromEntries(gs.map((g) => [g.dataset.favGroup, [...g.querySelectorAll("[data-fav]")].map((r) => r.dataset.fav)])));
+    const drag = async (from, to) => {
+      const a = await from.boundingBox();
+      const b = await to();
+      await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2 + 12, { steps: 3 });
+      await page.mouse.move(b.x, b.y, { steps: 8 });
+      await page.mouse.up();
+    };
+    const lastRowA = async () => {
+      const r = await page.locator('[data-fav-group="A"] [data-fav]').nth(2).boundingBox();
+      return { x: r.x + 300, y: r.y + r.height - 4 };
+    };
+    await drag(page.locator(".fl-grip").first(), lastRowA);
+    let o = await order();
+    o.A.join() === [ids[1], ids[2], ids[0]].join() ? pass("favourites: dragging a row below another reorders the group") : fail(`favourites: reorder ${JSON.stringify(o.A)}`);
+    await drag(page.locator(".fl-grip").first(), async () => {
+      const h = await page.locator('[data-fav-group="B"] .grp-head').boundingBox();
+      return { x: h.x + 300, y: h.y + h.height / 2 };
+    });
+    o = await order();
+    o.A.length === 2 && o.B.at(-1) === ids[1] ? pass("favourites: dropping on another group moves the flight to its end") : fail(`favourites: move ${JSON.stringify(o)}`);
+    await page.locator(`[data-grip="${ids[1]}"]`).focus();
+    await page.keyboard.press("ArrowUp");
+    await page.waitForTimeout(100);
+    o = await order();
+    const focused = await page.evaluate(() => document.activeElement?.dataset.grip);
+    o.B.indexOf(ids[1]) === 1 && focused === ids[1] ? pass("favourites: arrow keys on the grip move a row and keep focus") : fail(`favourites: keyboard ${JSON.stringify(o.B)} focus ${focused}`);
+    await checkPage("settings favourites after drag 1280 light", page, errors);
+
+    // map tab: city and flag on each route, distance sort
+    await page.goto(`${base}/?al=&dep=EGKK&view=map`, { waitUntil: "networkidle" });
+    await page.waitForSelector(".routes-tbl tbody tr");
+    const flags = await page.locator(".routes-tbl tbody tr").first().locator(".route-names .flag").count();
+    flags === 2 ? pass("map tab: each route shows both cities with their flags") : fail(`map tab: ${flags} flags on the first route`);
+    await page.getByRole("button", { name: "Distance" }).click();
+    const nm = (await page.locator(".routes-tbl tbody tr td:last-child").allTextContents()).map((t) => parseInt(t)).filter((n) => !Number.isNaN(n));
+    nm.length > 5 && nm.every((x, i) => !i || nm[i - 1] >= x) ? pass(`map tab: Distance sorts longest first (${nm[0]} nm)`) : fail(`map tab: distance sort ${nm.slice(0, 6)}`);
+    await page.getByRole("button", { name: "Busiest first" }).click();
+    (await page.locator(".routes-tbl th[aria-sort]").count()) === 0 ? pass("map tab: Busiest first clears the sort") : fail("map tab: sort not cleared");
+
+    // journeys: avoid Germany
+    const stops = async (qs) => {
+      await page.goto(`${base}/journeys?${qs}`, { waitUntil: "networkidle" });
+      await page.waitForFunction(() => document.querySelector(".jr-card, .jr-results .empty-note") && !document.querySelector(".jr-split.is-stale"), null, { timeout: 60000 });
+      return page.locator(".jr-card .jr-chain").evaluateAll((els) => els.map((e) => [...e.querySelectorAll(".jr-stop")].map((s) => s.textContent.trim())));
+    };
+    const plain = await stops("from=EGBB&to=LTFM&legs=2");
+    const avoided = await stops("from=EGBB&to=LTFM&legs=2&avoid=C:DE");
+    const chip = await page.locator(".jr-chip-avoid").allTextContents();
+    plain.some((s) => s.some((x) => x.startsWith("ED"))) && avoided.length && !avoided.some((s) => s.some((x) => x.startsWith("ED"))) && chip.some((c) => c.includes("Germany"))
+      ? pass(`journeys: avoid Germany drops the German stops (${plain.length} → ${avoided.length} journeys)`)
+      : fail(`journeys: avoid ${JSON.stringify(avoided.slice(0, 3))} chips ${chip}`);
+    errors.length ? fail(`1.3.1: console errors ${JSON.stringify(errors.slice(0, 2))}`) : pass("1.3.1: 0 console errors");
     await ctx.close();
   });
 

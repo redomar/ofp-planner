@@ -78,9 +78,14 @@ lib:
                    wrap-around), reversed graph/clock when only `to` is set. DFS with hop lower bounds (BFS to each waypoint),
                    distance/time bounds, branch-and-bound on the K-th best group, node budget (250k / 400k), roam branching cap 7.
                    Results grouped by airport sequence; timed groups keep ≤16 flight-chain variants with their weekdays.
-  journey/plan.ts: the form ⇄ URL (?from&via&to&legs=f|4|u5&t=1&al&one&type&sort&dir=desc&detour=1.5|3|any&seed&day&after=HHMM&duty&report&turn=35-180&j=<group>), examples.
+  journey/plan.ts: the form ⇄ URL (?from&via&to&avoid=C:DE,EDDF&legs=f|4|u5&t=1&al&one&type&sort&dir=desc&detour=1.5|3|any&seed&day&after=HHMM&duty&report&turn=35-180&j=<group>), examples.
                    List sorts: next (client-side by soonest date; engine ranks quickest) · distance · fewest (dir=desc → engine "most") · quickest · waiting · random.
   journey/dates.ts: weekly timings → next real departures from now (departures, soonest, legDate, dateLabel).
+  journey avoid:   Spec.avoid (Place[]); engine's avoider() drops edges/flights touching an avoided airport before the graph is built
+                   (so the hop/distance bounds stay right); from/to/via places are exempt. Landing/leaving only, no overflight check.
+  favourites order: the favourites array order is the order inside each group; placeFavourite(id, group, before) in saved.ts.
+                   SavedFlights drags by pointer events on the grip (setPointerCapture, elementFromPoint on [data-fav]/[data-fav-group]),
+                   arrow keys nudge; focus is put back on the grip after React moves the row.
   JourneyTimings.tsx: the timings table (sortable, legs timeline on one UTC clock); replaced the variant dropdown in 1.2.1.
   journey/worker.ts + useSearch.ts: Web Worker (new Worker(new URL("./worker.ts", import.meta.url))); data posted once per key,
                    newest request wins, busy derived in render. Turbopack also copies worker.ts into out/_next/static/media (harmless).

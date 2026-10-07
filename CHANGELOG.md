@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Board: the To/From cell stays a table cell, so every row's bottom border lines up (the split-flap cell used to end short of the row).
+- Favourites: drag a flight by its grip to reorder it within a group, or drop it on another group (or on "Drop here to take it out of its group"). Arrow keys on the grip move it up or down; Escape cancels a drag.
+- Finder, Map tab: each route shows both cities with their country flags on one line (airport name on hover). The columns sort (Route, Airlines, Flights / week, Block time, Distance; numbers biggest first on the first click); **Busiest first** returns to the default order. The map always shows the busiest routes.
+- Journeys: **Avoid** under Via: countries or airports no leg may land in or leave ("avoid Germany"); in the URL as `avoid=C:DE`. A From, Via or To you pick wins over the list. It doesn't check overflights.
+- Data: snapshot 2026-09-20 → 2026-10-06 (17 days, 68,018 flights, 584 airports, 15,683 routes).
+
 ## 1.3.0 — 2026-10-05
 
 - Board: a new page with two tabs (same panel tabs as the Finder).
