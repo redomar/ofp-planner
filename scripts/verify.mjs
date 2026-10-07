@@ -922,6 +922,54 @@ async function run() {
     await ctx.close();
   });
 
+  /* ---------- logbook: import, map, totals, add, export ---------- */
+  await section("logbook", async () => {
+    const { ctx, page, errors } = await open("/logbook");
+    await page.waitForSelector(".log-form");
+    const file = {
+      schema: "ofp-planner/logbook",
+      version: 1,
+      flights: [
+        { date: "2026-10-03", from: "EGBB", to: "LEMD", callsign: "EZY22N", flight: "U2227", type: "A20N", reg: "G-ABCD", airMin: 128, landingFpm: -407, status: "on-time" },
+        { date: "2026-10-05", from: "LOWI", to: "EGBB", callsign: "EZY34MH", type: "A20N", std: "16:00", sta: "17:50", out: "16:05", off: "16:18", on: "18:02", in: "18:10", landingFpm: 180 },
+        { date: "2026-10-06", from: "XX", to: "EGBB" },
+      ],
+    };
+    await page.locator("input[type=file]").setInputFiles({ name: "log.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
+    await page.waitForSelector(".log-tbl tbody tr");
+    const msg = await page.locator(".log-io [role=status]").innerText();
+    const rows = await page.locator(".log-tbl tbody tr:not(.log-detail)").count();
+    /2 new/.test(msg) && /Skipped 1/.test(msg) && rows === 2 ? pass("logbook: import adds good flights and names the skipped one") : fail(`logbook: import ${msg} rows ${rows}`);
+    const late = await page.locator(".log-tbl tbody tr", { hasText: "EZY34MH" }).first().innerText();
+    /LATE/.test(late) && /-180 fpm/.test(late) && /2h 05m/.test(late) ? pass("logbook: status, landing rate and block time from OOOI (late +20, -180 fpm, 2h 05m)") : fail(`logbook: derived ${late.replace(/\s+/g, " ")}`);
+    await page.waitForSelector(".log-map .map-route", { timeout: 20000 });
+    (await page.locator(".log-map .map-route").count()) === 2 ? pass("logbook: map draws each route flown") : fail("logbook: map routes");
+    const f = page.locator("#log-form");
+    await f.getByRole("combobox", { name: "From" }).fill("EGKK");
+    await page.keyboard.press("Enter");
+    await f.getByRole("combobox", { name: "To" }).fill("LFPG");
+    await page.keyboard.press("Enter");
+    await f.getByLabel("Callsign").fill("EZY8011");
+    await f.getByLabel("Landing rate (fpm)").fill("-95");
+    await f.getByRole("button", { name: "Add to logbook" }).click();
+    await page.waitForTimeout(300);
+    (await page.locator(".log-tbl tbody tr:not(.log-detail)").count()) === 3 ? pass("logbook: a flight added by hand joins the list") : fail("logbook: add by hand");
+    const [dl] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /^Export/ }).click()]);
+    const out = JSON.parse(readFileSync(await dl.path(), "utf8"));
+    out.schema === "ofp-planner/logbook" && out.flights.length === 3 ? pass("logbook: export writes the same file format back") : fail(`logbook: export ${out.schema} ${out.flights?.length}`);
+    // layout shift is measured on a fresh load with flights in the logbook
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.goto(`${base}/logbook`, { waitUntil: "networkidle" });
+    await page.waitForSelector(".log-map .map-route", { timeout: 20000 });
+    await checkPage("logbook 1280 light", page, errors);
+    await shot(page, "logbook-day");
+    await ctx.close();
+    const m = await open("/logbook", { width: 390, height: 844, theme: "dark" });
+    await m.page.waitForSelector(".log-form");
+    await checkPage("logbook 390 dark", m.page, m.errors);
+    await m.ctx.close();
+  });
+
   /* ---------- night screenshots ---------- */
   if (SHOTS) {
     const { ctx, page } = await open("/?al=EZY&dep=EGKK", { theme: "dark" });

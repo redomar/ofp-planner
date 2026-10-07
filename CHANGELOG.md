@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Logbook**: a new page for the flights you've flown. Totals (flights, block and airborne time, distance, airports, types, on-time share, average and softest landing), a map of every route flown (select a row to highlight its route), and one row per flight with its OOOI times, block and airborne time, status against the schedule (early, on time, late, delayed; ±15 min) and the landing rate with a grade (butter … very hard). Details per flight: callsign, operator, registration, scheduled times, landing g, cruise level, fuel, passengers, simulator, notes.
+  - Add or edit flights by hand; **Log this flight** on a brief starts the form from that flight.
+  - **Import** and **export** as JSON (`ofp-planner/logbook`, version 1; the format is described on the page). Re-importing a flight with the same id updates it; bad entries are skipped and named.
+  - Kept in this browser only, apart from the schedule snapshot: nothing in the Finder, Journeys or Board reads it. Settings → Clear all saved data now says it removes the logbook too.
+- Map terrain: two more height bands, 4000 m and 5000 m (Alps, Caucasus, the Iranian and Tibetan plateaus).
+
 ## 1.3.1 — 2026-10-07
 
 - Board: the To/From cell stays a table cell, so every row's bottom border lines up (the split-flap cell used to end short of the row).

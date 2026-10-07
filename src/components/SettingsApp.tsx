@@ -588,7 +588,7 @@ function Device() {
       </p>
       {confirm ? (
         <p className="note-red">
-          Remove airframes, favourites, recent flights, cached weather and preferences?{" "}
+          Remove airframes, favourites, recent flights, your logbook, cached weather and preferences? Export the logbook first if you want to keep it.{" "}
           <button
             type="button"
             className="btn btn-danger"

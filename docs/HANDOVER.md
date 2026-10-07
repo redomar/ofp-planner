@@ -48,6 +48,11 @@ pages:        # all client components; one shared TopBar (Finder · Journeys · 
               screen=1 portals the 16:9 screen into body and hides the rest (html.screen-mode); sized in cqw units.
               SimBrief: www.simbrief.com/api/xml.fetcher.php?username=…&json=v2 is CORS *; the username is kept in localStorage only.
   /brief:     src/components/BriefApp.tsx   — FlightCard, date, next leg (sample + full list), weather
+  /logbook:   src/components/LogbookApp.tsx + lib/logbook.ts — flights flown (localStorage "ofp-planner:logbook", never mixed with the snapshot):
+              totals, RouteMap of routes flown, table (OOOI "HH:MM" UTC on the OUT date, block/air, status from STD/STA vs OUT/IN ±15 min,
+              landing fpm + grade), add/edit form, JSON import/export (schema "ofp-planner/logbook" v1; parseLogFile cleans untrusted input).
+              /logbook?f=<flight id>[&d=date] prefills the form (FlightCard "Log this flight" on the brief). The user's own file lives outside
+              the repo in ../ofp-planner-logbook/ (it has their registrations).
   /settings:  src/components/SettingsApp.tsx — airframes, Display, favourites, recent, snapshot info, theme/storage
 components:
   FlightCard.tsx:  sticky foldable header (bg sunk), RouteHead, RouteMap, OOOI table, facts, SimBrief dispatch

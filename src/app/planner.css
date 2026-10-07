@@ -4282,3 +4282,189 @@ div.empty-note p {
     min-width: 110px;
   }
 }
+
+/* ---------- logbook ---------- */
+.logbook {
+  max-width: 1280px;
+}
+.log-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 1px;
+  margin: 0 0 14px;
+  border: 1px solid var(--rule);
+  background: var(--rule);
+}
+.log-totals > div {
+  padding: 8px 10px;
+  background: var(--sheet);
+}
+.log-totals dt {
+  font-family: var(--font-cond);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.log-totals dd {
+  margin: 2px 0 0;
+  font-size: 17px;
+  color: var(--ink);
+}
+.log-map {
+  margin-bottom: 14px;
+}
+.log-wrap {
+  max-height: none;
+}
+.log-tbl {
+  width: 100%;
+}
+.log-tbl thead th {
+  background: var(--sunk);
+  white-space: nowrap;
+}
+.log-tbl td {
+  vertical-align: top;
+  white-space: nowrap;
+}
+.log-tbl tbody tr:not(.log-detail) {
+  cursor: pointer;
+}
+.log-tbl tbody tr.sel > td {
+  background: var(--magenta-bg);
+}
+.log-date {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+.log-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+}
+.log-codes {
+  font-weight: 600;
+}
+.log-oooi > span + span::before {
+  content: " · ";
+  color: var(--ink-3);
+}
+.log-grade {
+  margin-left: 6px;
+}
+.log-detail > td {
+  background: var(--field);
+  white-space: normal;
+  padding: 10px 12px 12px;
+}
+.log-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px 16px;
+  margin: 0 0 10px;
+}
+.log-facts dt {
+  font-family: var(--font-cond);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.log-facts dd {
+  margin: 1px 0 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.log-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.log-form fieldset {
+  min-width: 0;
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+}
+.log-form legend {
+  margin-bottom: 8px;
+  font-family: var(--font-cond);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.log-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.log-grid > .ctl {
+  display: block;
+  min-width: 0;
+}
+.log-times {
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+}
+.log-times > .ctl:nth-last-child(-n + 2) {
+  grid-column: span 2;
+}
+.log-notes {
+  grid-column: 1 / -1;
+}
+.log-notes textarea {
+  height: auto;
+  padding: 8px 10px;
+  resize: vertical;
+}
+.log-preview {
+  margin: 0 0 10px;
+  color: var(--ink-2);
+}
+.log-file {
+  position: relative;
+  cursor: pointer;
+}
+.log-file:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.log-io > p {
+  margin: 10px 0 0;
+}
+.log-format {
+  margin-top: 14px;
+}
+.log-format summary {
+  cursor: pointer;
+  color: var(--blue);
+  font-weight: 600;
+}
+.log-example {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  background: var(--field);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+@media (max-width: 560px) {
+  .log-times > .ctl:nth-last-child(-n + 2) {
+    grid-column: auto;
+  }
+}
+.log-map-wait {
+  border: 1px solid var(--rule);
+  background: var(--m-sea);
+}
