@@ -66,6 +66,24 @@ export function moveFavourite(id: string, group: string | null) {
   writePrefs({ lastGroup: group });
 }
 
+/**
+ * Moves a favourite into `group` (null = ungrouped), just before the favourite `before`, or
+ * after the group's last flight when `before` is null. Groups list their flights in the
+ * order of the favourites array, so this is also how a group is reordered.
+ */
+export function placeFavourite(id: string, group: string | null, before: string | null) {
+  const l = readFavourites();
+  const item = l.find((x) => x.id === id);
+  if (!item || id === before) return;
+  const groups = readGroups();
+  const rest = l.filter((x) => x.id !== id);
+  const inGroup = (x: SavedFlight) => (group ? x.group === group : !x.group || !groups.includes(x.group));
+  let at = before ? rest.findIndex((x) => x.id === before) : -1;
+  if (at < 0) at = rest.findLastIndex(inGroup) + 1 || rest.length;
+  rest.splice(at, 0, { ...item, group });
+  writeJSON(KEYS.favourites, rest);
+}
+
 /* ---------- favourite groups (ordered names) ---------- */
 
 export const readGroups = () => readJSON<string[]>(KEYS.favGroups, []);

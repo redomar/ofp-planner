@@ -2,7 +2,7 @@
 
 import { Flag } from "./Flag";
 import Link from "next/link";
-import { useEffect, useMemo, useState, type SyntheticEvent } from "react";
+import { useEffect, useMemo, useState, type PointerEvent as ReactPointerEvent, type SyntheticEvent } from "react";
 import { airportLabel, cityName, hhmm } from "@/lib/data/flight";
 import { loadAirports, loadManifest, type Airport } from "@/lib/data/load";
 import type { AirlineInfo } from "@/lib/data/types";
@@ -12,6 +12,7 @@ import {
   deleteGroup,
   moveFavourite,
   moveGroup,
+  placeFavourite,
   removeFavourite,
   renameGroup,
   toggleSavedFavourite,
@@ -23,6 +24,13 @@ import { routeColor } from "@/lib/colors";
 import { overrideFor, useFnOverrides } from "@/lib/fnoverride";
 import { FlightIdent, TypeBadge, WeekStrip } from "./badges";
 import { RouteMap, type MapRoute } from "./RouteMap";
+
+type Ref = { airlines: Map<string, AirlineInfo>; airports: Map<string, Airport> } | null;
+/** Where a dragged favourite would land: in `group`, before `before` (null = at the end). `over` is the row under the pointer. */
+type DropAt = { group: string | null; before: string | null; over: string | null; pos: "before" | "after" | "into" };
+type Drag = { id: string; label: string; x: number; y: number; at: DropAt | null };
+const sameAt = (a: DropAt | null, b: DropAt | null) => a?.group === b?.group && a?.before === b?.before && a?.over === b?.over && a?.pos === b?.pos;
+const EDGE = 56;
 
 /**
  * Favourites (in groups) and recent flights as rich rows: airline tag, route with places,
@@ -43,13 +51,103 @@ export function SavedFlights({ onOpen, recentMax = 8, showRecent = true }: { onO
     };
   }, []);
 
+  const [drag, setDrag] = useState<Drag | null>(null);
+  const [said, setSaid] = useState("");
+
   if (!saved) return <div className="sk-block" aria-hidden="true" />;
   const { favourites, groups, history } = saved;
   const ungrouped = favourites.filter((f) => !f.group || !groups.includes(f.group));
   const favIds = new Set(favourites.map((f) => f.id));
+  const groupOf = (f: SavedFlight) => (f.group && groups.includes(f.group) ? f.group : null);
+  // each group's flights in display order; "" = ungrouped
+  const lists = new Map<string, SavedFlight[]>([["", ungrouped], ...groups.map((g) => [g, favourites.filter((f) => f.group === g)] as [string, SavedFlight[]])]);
+  const titleOf = (g: string | null) => g ?? "Ungrouped";
+
+  /** The drop target under the pointer: a row (above or below its middle) or a group box (its end). */
+  const dropAt = (x: number, y: number): DropAt | null => {
+    const hit = document.elementFromPoint(x, y);
+    const row = hit?.closest<HTMLElement>("[data-fav]");
+    if (row) {
+      const over = row.dataset.fav!;
+      const key = row.dataset.group ?? "";
+      const r = row.getBoundingClientRect();
+      const pos = y < r.top + r.height / 2 ? "before" : "after";
+      const list = lists.get(key) ?? [];
+      const before = pos === "before" ? over : (list[list.findIndex((f) => f.id === over) + 1]?.id ?? null);
+      return { group: key || null, before, over, pos };
+    }
+    const box = hit?.closest<HTMLElement>("[data-fav-group]");
+    return box ? { group: box.dataset.favGroup || null, before: null, over: null, pos: "into" } : null;
+  };
+
+  /** Drag by the grip with mouse, pen or touch; Escape cancels. Listeners live only for the gesture. */
+  const startDrag = (e: ReactPointerEvent<HTMLButtonElement>, f: SavedFlight, label: string) => {
+    if (e.button !== 0) return;
+    const el = e.currentTarget;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    let started = false;
+    let at: DropAt | null = null;
+    el.setPointerCapture(e.pointerId);
+    const move = (ev: PointerEvent) => {
+      if (!started && Math.hypot(ev.clientX - x0, ev.clientY - y0) < 4) return;
+      started = true;
+      const next = dropAt(ev.clientX, ev.clientY);
+      if (!sameAt(next, at)) at = next;
+      setDrag({ id: f.id, label, x: ev.clientX, y: ev.clientY, at });
+      if (ev.clientY < EDGE) window.scrollBy(0, -12);
+      else if (ev.clientY > window.innerHeight - EDGE) window.scrollBy(0, 12);
+    };
+    const stop = (commit: boolean) => {
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+      el.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("keydown", key);
+      setDrag(null);
+      if (commit && started && at) {
+        placeFavourite(f.id, at.group, at.before);
+        setSaid(`Moved ${label} to ${titleOf(at.group)}.`);
+      }
+    };
+    const up = () => stop(true);
+    const cancel = () => stop(false);
+    const key = (ev: KeyboardEvent) => ev.key === "Escape" && stop(false);
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+    el.addEventListener("pointercancel", cancel);
+    window.addEventListener("keydown", key);
+  };
+
+  /** Arrow keys on the grip move a flight up or down within its group. */
+  const nudge = (f: SavedFlight, label: string, by: -1 | 1) => {
+    const group = groupOf(f);
+    const list = lists.get(group ?? "") ?? [];
+    const i = list.findIndex((x) => x.id === f.id);
+    const j = i + by;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    placeFavourite(f.id, group, by < 0 ? list[j].id : (list[j + 1]?.id ?? null));
+    setSaid(`${label}: ${j + 1} of ${list.length} in ${titleOf(group)}.`);
+    // moving the row in the DOM drops focus; put it back on the grip
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-grip="${CSS.escape(f.id)}"]`)?.focus());
+  };
+
   const row = (f: SavedFlight, kind: "fav" | "recent") => (
-    <Row key={`${kind}-${f.id}`} f={f} kind={kind} ref_={ref} groups={groups} onOpen={onOpen} starred={favIds.has(f.id)} />
+    <Row
+      key={`${kind}-${f.id}`}
+      f={f}
+      kind={kind}
+      ref_={ref}
+      groups={groups}
+      onOpen={onOpen}
+      starred={favIds.has(f.id)}
+      groupKey={kind === "fav" ? (groupOf(f) ?? "") : undefined}
+      dragging={drag?.id === f.id}
+      drop={kind === "fav" && drag?.at?.over === f.id && drag.at.over !== drag.id ? (drag.at.pos as "before" | "after") : null}
+      onGrip={startDrag}
+      onNudge={nudge}
+    />
   );
+  const into = (g: string | null) => drag?.at?.pos === "into" && drag.at.group === g;
 
   return (
     <div className="lib">
@@ -72,18 +170,31 @@ export function SavedFlights({ onOpen, recentMax = 8, showRecent = true }: { onO
         ) : (
           <div className="lib-groups">
             {(ungrouped.length > 0 || groups.length === 0) && (
-              <Group name={null} flights={ungrouped} total={groups.length} index={-1} ref_={ref}>
+              <Group name={null} flights={ungrouped} total={groups.length} index={-1} ref_={ref} dropInto={into(null)}>
                 {ungrouped.map((f) => row(f, "fav"))}
               </Group>
             )}
             {groups.map((g, i) => {
               const items = favourites.filter((f) => f.group === g);
               return (
-                <Group key={g} name={g} flights={items} total={groups.length} index={i} last={saved.prefs.lastGroup === g} ref_={ref}>
+                <Group key={g} name={g} flights={items} total={groups.length} index={i} last={saved.prefs.lastGroup === g} ref_={ref} dropInto={into(g)}>
                   {items.map((f) => row(f, "fav"))}
                 </Group>
               );
             })}
+            {drag && ungrouped.length === 0 && groups.length > 0 && (
+              <div className={`grp grp-drop${into(null) ? " is-drop" : ""}`} data-fav-group="">
+                <p className="lib-empty small">Drop here to take it out of its group</p>
+              </div>
+            )}
+          </div>
+        )}
+        <p className="sr-only" aria-live="polite">
+          {said}
+        </p>
+        {drag?.at && (
+          <div className="fl-ghost" style={{ transform: `translate(${drag.x + 14}px, ${drag.y + 10}px)` }} aria-hidden="true">
+            {drag.label} <span className="muted">→ {titleOf(drag.at.group)}</span>
           </div>
         )}
       </section>
@@ -156,6 +267,7 @@ function Group({
   index,
   last,
   ref_,
+  dropInto,
   children,
 }: {
   name: string | null;
@@ -163,7 +275,8 @@ function Group({
   total: number;
   index: number;
   last?: boolean;
-  ref_: { airlines: Map<string, AirlineInfo>; airports: Map<string, Airport> } | null;
+  ref_: Ref;
+  dropInto: boolean;
   children: React.ReactNode;
 }) {
   const [map, setMap] = useState(false);
@@ -186,7 +299,7 @@ function Group({
   const [open, setOpen] = useState(true);
   const title = name ?? (total ? "Ungrouped" : "All favourites");
   return (
-    <div className={`grp${last ? " is-last" : ""}`}>
+    <div className={`grp${last ? " is-last" : ""}${dropInto ? " is-drop" : ""}`} data-fav-group={name ?? ""}>
       <div className="grp-head">
         {editing && name ? (
           <form
@@ -267,7 +380,7 @@ function Group({
         (flights.length ? (
           <ul className="fl-list">{children}</ul>
         ) : (
-          <p className="lib-empty small">Empty. Move a flight here with its group menu, or star one while this group is marked “new stars”.</p>
+          <p className="lib-empty small">Empty. Drag a flight here by its handle, pick this group in its menu, or star one while this group is marked “new stars”.</p>
         ))}
     </div>
   );
@@ -280,13 +393,24 @@ function Row({
   groups,
   onOpen,
   starred,
+  groupKey,
+  dragging,
+  drop,
+  onGrip,
+  onNudge,
 }: {
   f: SavedFlight;
   kind: "fav" | "recent";
-  ref_: { airlines: Map<string, AirlineInfo>; airports: Map<string, Airport> } | null;
+  ref_: Ref;
   groups: string[];
   onOpen?: (id: string) => void;
   starred: boolean;
+  /** Favourites only: the row's group ("" = ungrouped), for drop targets. */
+  groupKey?: string;
+  dragging: boolean;
+  drop: "before" | "after" | null;
+  onGrip: (e: ReactPointerEvent<HTMLButtonElement>, f: SavedFlight, label: string) => void;
+  onNudge: (f: SavedFlight, label: string, by: -1 | 1) => void;
 }) {
   const fnOv = useFnOverrides();
   const al = ref_?.airlines.get(f.al);
@@ -298,7 +422,36 @@ function Row({
   const href = `/brief?f=${encodeURIComponent(f.id)}`;
   const place = (a: Airport | undefined, icao: string) => (a ? (cityName(a) ?? airportLabel(a)) : icao);
   return (
-    <li className="fl-row">
+    <li
+      className={`fl-row${dragging ? " is-dragging" : ""}${drop ? ` drop-${drop}` : ""}`}
+      data-fav={kind === "fav" ? f.id : undefined}
+      data-group={groupKey}
+    >
+      {kind === "fav" && (
+        <button
+          type="button"
+          className="fl-grip"
+          data-grip={f.id}
+          title="Drag to reorder or move to another group (arrow keys move it up or down)"
+          aria-label={`Reorder ${ident}. Up and down arrows move it within the group.`}
+          onPointerDown={(e) => onGrip(e, f, ident)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+              e.preventDefault();
+              onNudge(f, ident, e.key === "ArrowUp" ? -1 : 1);
+            }
+          }}
+        >
+          <svg width="10" height="16" viewBox="0 0 10 16" aria-hidden="true">
+            <circle cx="2.5" cy="3" r="1.5" />
+            <circle cx="7.5" cy="3" r="1.5" />
+            <circle cx="2.5" cy="8" r="1.5" />
+            <circle cx="7.5" cy="8" r="1.5" />
+            <circle cx="2.5" cy="13" r="1.5" />
+            <circle cx="7.5" cy="13" r="1.5" />
+          </svg>
+        </button>
+      )}
       <a
         className="fl-main"
         href={href}

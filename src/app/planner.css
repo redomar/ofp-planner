@@ -2791,6 +2791,81 @@ div.empty-note p {
   border-color: var(--magenta);
 }
 
+/* favourites: drag to reorder or move between groups */
+.fl-grip {
+  flex: none;
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  margin-right: -10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-3);
+  fill: currentColor;
+  cursor: grab;
+  touch-action: none;
+}
+.fl-grip:hover,
+.fl-grip:focus-visible {
+  color: var(--ink);
+}
+.fl-grip:focus-visible {
+  outline-offset: -2px;
+}
+.fl-row.is-dragging {
+  opacity: 0.45;
+}
+.fl-row.drop-before {
+  box-shadow: inset 0 2px 0 var(--magenta);
+}
+.fl-row.drop-after {
+  box-shadow: inset 0 -2px 0 var(--magenta);
+}
+.grp.is-drop {
+  border-color: var(--magenta);
+  box-shadow: 0 0 0 1px var(--magenta);
+}
+.grp-drop {
+  border-style: dashed;
+}
+.fl-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  padding: 4px 8px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--sheet);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.18);
+  pointer-events: none;
+}
+.fl-ghost .muted {
+  font-family: var(--font-sans);
+}
+:root:has(.fl-ghost),
+:root:has(.fl-ghost) * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+@media (max-width: 560px) {
+  .fl-grip {
+    order: 2;
+    align-self: center;
+    height: 30px;
+    margin: 0 0 8px 6px;
+  }
+  .fl-actions {
+    order: 3;
+  }
+}
+
 /* favourites: a group's routes on a map */
 .grp-head {
   flex-wrap: wrap;
