@@ -1277,6 +1277,8 @@ div.empty-note p {
   --m-h3: #ddcaa4;
   --m-h4: #d9c6a0;
   --m-h5: #d2bd97;
+  --m-h6: #cab48d;
+  --m-h7: #c1aa84;
   --m-contour: rgba(120, 98, 58, 0.5);
   --m-depth-line: rgba(70, 110, 140, 0.42);
   --m-grat: rgba(70, 84, 108, 0.42);
@@ -1299,6 +1301,8 @@ div.empty-note p {
     --m-h3: #2e3138;
     --m-h4: #33353a;
     --m-h5: #3a3a3d;
+    --m-h6: #414042;
+    --m-h7: #494646;
     --m-contour: rgba(186, 172, 140, 0.5);
     --m-depth-line: rgba(120, 160, 195, 0.45);
     --m-grat: rgba(160, 176, 200, 0.38);
@@ -1321,6 +1325,8 @@ div.empty-note p {
   --m-h3: #2e3138;
   --m-h4: #33353a;
   --m-h5: #3a3a3d;
+  --m-h6: #414042;
+  --m-h7: #494646;
   --m-contour: rgba(186, 172, 140, 0.5);
   --m-depth-line: rgba(120, 160, 195, 0.45);
   --m-grat: rgba(160, 176, 200, 0.38);
@@ -1383,6 +1389,8 @@ div.empty-note p {
 .map-height.h3 { fill: var(--m-h3); }
 .map-height.h4 { fill: var(--m-h4); stroke-width: 0.95; }
 .map-height.h5 { fill: var(--m-h5); stroke-width: 0.95; }
+.map-height.h6 { fill: var(--m-h6); stroke-width: 0.95; }
+.map-height.h7 { fill: var(--m-h7); stroke-width: 0.95; }
 .map-grat,
 .map-grat-minor {
   fill: none;

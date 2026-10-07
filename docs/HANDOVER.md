@@ -61,7 +61,7 @@ components:
                    useZoom: k 0.35–12 over the fitted view (⤢ = Default view, k 1), live SVG transform during gestures, redraw ~140 ms after;
                    two-finger scroll/pinch zoom (scroll down at k=0.35 is left to the page), pointer pinch/drag, dblclick,
                    +/−/⤢ buttons top-left (the floating flight panel covers the right).
-  terrain:         public/geo/terrain.json (committed, ~470 KB / 166 KB gz) from `pnpm map:terrain`
+  terrain:         public/geo/terrain.json (committed, ~490 KB) from `pnpm map:terrain`; land bands 200/500/1000/1500/2000/3000/4000/5000 m (h0–h7), sea 200/1000/2000/4000 m (d0–d3)
                    (scripts/build-terrain.mjs: AWS Terrain Tiles z5 → 0.1° grid → d3-contour bands; Natural Earth land),
                    loaded by src/lib/terrain.ts; outlines-50m.json still built at predev (box w-75 e115 s-12 n86).
   pickers.tsx:     PlacePicker (ARIA combobox, airports + countries "C:ES"), MultiPicker, DayPicker, LengthPicker, AfterPicker
