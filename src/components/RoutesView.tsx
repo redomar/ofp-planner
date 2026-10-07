@@ -22,7 +22,9 @@ const COLS: [ColKey, string, string, boolean][] = [
   ["block", "Block time", "hide-s", true],
   ["nm", "Distance", "num hide-xs", true],
 ];
-type RouteSort = { key: ColKey; desc: boolean } | null;
+type RouteSort = { key: ColKey; desc: boolean };
+/** Busiest first: how the routes arrive, and what "Busiest first" goes back to. */
+const BUSIEST: RouteSort = { key: "weekly", desc: true };
 
 /**
  * Every route that matches the filters, whatever the ends are (airport, country or anywhere):
@@ -40,7 +42,8 @@ export function RoutesView({
   onPick: (o: string, d: string) => void;
 }) {
   const [limit, setLimit] = useState(PAGE);
-  const [sort, setSort] = useState<RouteSort>(null);
+  const [sort, setSort] = useState<RouteSort>(BUSIEST);
+  const busiest = sort.key === BUSIEST.key && sort.desc === BUSIEST.desc;
   const [prev, setPrev] = useState(routes);
   if (prev !== routes) {
     setPrev(routes);
@@ -52,7 +55,7 @@ export function RoutesView({
   };
   // the table can be re-sorted; the map always shows the busiest routes
   const rows = useMemo(() => {
-    if (!sort) return routes;
+    if (busiest) return routes; // already in this order
     const val = (r: RouteGroup): number | string | null =>
       sort.key === "route" ? `${city(r.o)} ${city(r.d)}` : sort.key === "airlines" ? r.airlines.length : sort.key === "weekly" ? r.weekly : sort.key === "block" ? r.minBlock : r.nm;
     const dir = sort.desc ? -1 : 1;
@@ -64,7 +67,7 @@ export function RoutesView({
     });
     // city only reads airports
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [routes, sort, airports]);
+  }, [routes, sort, busiest, airports]);
   const maxWeekly = Math.max(1, ...routes.map((r) => r.weekly));
   const scaleMax = Math.max(240, Math.ceil(Math.max(0, ...routes.map((r) => r.maxBlock ?? 0)) / 60) * 60);
 
@@ -81,13 +84,17 @@ export function RoutesView({
   const place = (icao: string) => {
     const a = airports?.get(icao);
     return (
-      <span className="route-place" title={a ? airportLabel(a) : undefined}>
+      <span className="route-place">
         {a?.country && <Flag cc={a.country} />}
         <span>{city(icao)}</span>
       </span>
     );
   };
-  const sortLabel = sort ? `${COLS.find((c) => c[0] === sort.key)![1].toLowerCase()}, ${sort.desc ? "highest" : "lowest"} first` : null;
+  const sortLabel = busiest ? null : `${COLS.find((c) => c[0] === sort.key)![1].toLowerCase()}, ${sort.desc ? "highest" : "lowest"} first`;
+  const apName = (icao: string) => {
+    const a = airports?.get(icao);
+    return a ? airportLabel(a) : icao;
+  };
 
   return (
     <div className="routes-view">
@@ -98,11 +105,11 @@ export function RoutesView({
         {routes.length.toLocaleString("en-GB")} {routes.length === 1 ? "route" : "routes"}
         {routes.length > MAP_MAX && ` · the map shows the ${MAP_MAX} busiest`}. Pick a route to see its flights. Block-time bars run from 0 to{" "}
         {Math.round(scaleMax / 60)} h.
-        {sort && (
+        {!busiest && (
           <>
             {" "}
             Sorted by {sortLabel}.{" "}
-            <button type="button" className="linkish" onClick={() => setSort(null)}>
+            <button type="button" className="linkish" onClick={() => setSort(BUSIEST)}>
               Busiest first
             </button>
           </>
@@ -114,7 +121,7 @@ export function RoutesView({
           <thead>
             <tr>
               {COLS.map(([k, label, cls, bigFirst]) => {
-                const on = sort?.key === k;
+                const on = sort.key === k;
                 return (
                   <th key={k} scope="col" className={cls || undefined} aria-sort={on ? (sort.desc ? "descending" : "ascending") : undefined}>
                     <button type="button" className="th-sort" onClick={() => setSort({ key: k, desc: on ? !sort.desc : bigFirst })}>
@@ -134,16 +141,24 @@ export function RoutesView({
               return (
                 <tr key={r.key} onClick={() => onPick(r.o, r.d)}>
                   <td>
-                    <button type="button" className="route-btn" onClick={(e) => (e.stopPropagation(), onPick(r.o, r.d))}>
-                      <span className="mono">{r.o}</span>
-                      <span aria-hidden="true">→</span>
-                      <span className="mono">{r.d}</span>
-                    </button>
-                    <small className="muted route-names">
-                      {place(r.o)}
-                      <span aria-hidden="true">→</span>
-                      {place(r.d)}
-                    </small>
+                    <div className="route-cell">
+                      <div className="route-main">
+                        <button type="button" className="route-btn" onClick={(e) => (e.stopPropagation(), onPick(r.o, r.d))}>
+                          <span className="mono">{r.o}</span>
+                          <span aria-hidden="true">→</span>
+                          <span className="mono">{r.d}</span>
+                        </button>
+                        <small className="muted route-names">
+                          {place(r.o)}
+                          <span aria-hidden="true">→</span>
+                          {place(r.d)}
+                        </small>
+                      </div>
+                      <small className="route-aps muted">
+                        <span title={apName(r.o)}>{apName(r.o)}</span>
+                        <span title={apName(r.d)}>{apName(r.d)}</span>
+                      </small>
+                    </div>
                   </td>
                   <td>
                     <span className="route-als">

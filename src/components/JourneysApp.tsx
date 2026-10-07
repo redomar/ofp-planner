@@ -243,10 +243,8 @@ export function JourneysApp() {
             <section className="panel jr-form" aria-label="Plan a journey">
               <div className="jr-route">
                 <PlacePicker label="From" value={plan.from} options={placeOpts} onChange={(from) => update({ from })} />
-                <div className="jr-via">
-                  <ViaPicker via={plan.via} options={placeOpts} onChange={(via) => update({ via })} />
-                  <AvoidPicker avoid={plan.avoid} options={placeOpts} onChange={(avoid) => update({ avoid })} />
-                </div>
+                <ViaPicker via={plan.via} options={placeOpts} onChange={(via) => update({ via })} />
+                <AvoidPicker avoid={plan.avoid} options={placeOpts} onChange={(avoid) => update({ avoid })} />
                 <PlacePicker label="To" value={plan.to} options={placeOpts} onChange={(to) => update({ to })} />
                 <button
                   type="button"
@@ -608,7 +606,7 @@ export function JourneysApp() {
 function ViaPicker({ via, options, onChange }: { via: string[]; options: ReturnType<typeof placeOptions>; onChange: (v: string[]) => void }) {
   const name = (v: string) => (v.startsWith("C:") ? countryName(v.slice(2)) : v);
   return (
-    <>
+    <div className="jr-via">
       <PlacePicker
         label={via.length ? `Then via (stop ${via.length + 1})` : "Via (optional)"}
         value={null}
@@ -638,7 +636,7 @@ function ViaPicker({ via, options, onChange }: { via: string[]; options: ReturnT
           ))}
         </ol>
       )}
-    </>
+    </div>
   );
 }
 

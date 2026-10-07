@@ -895,12 +895,16 @@ async function run() {
     await page.goto(`${base}/?al=&dep=EGKK&view=map`, { waitUntil: "networkidle" });
     await page.waitForSelector(".routes-tbl tbody tr");
     const flags = await page.locator(".routes-tbl tbody tr").first().locator(".route-names .flag").count();
-    flags === 2 ? pass("map tab: each route shows both cities with their flags") : fail(`map tab: ${flags} flags on the first route`);
+    const aps = await page.locator(".routes-tbl tbody tr").first().locator(".route-aps > span").count();
+    flags === 2 && aps === 2 ? pass("map tab: each route shows both cities with their flags, and the airport names beside them") : fail(`map tab: ${flags} flags, ${aps} airport names on the first route`);
+    const sorted0 = await page.locator(".routes-tbl th[aria-sort]").evaluateAll((t) => t.map((x) => `${x.textContent}:${x.getAttribute("aria-sort")}`));
+    sorted0.length === 1 && /Flights \/ week.*descending/.test(sorted0[0]) ? pass("map tab: sorted by flights a week by default") : fail(`map tab: default sort ${sorted0}`);
     await page.getByRole("button", { name: "Distance" }).click();
     const nm = (await page.locator(".routes-tbl tbody tr td:last-child").allTextContents()).map((t) => parseInt(t)).filter((n) => !Number.isNaN(n));
     nm.length > 5 && nm.every((x, i) => !i || nm[i - 1] >= x) ? pass(`map tab: Distance sorts longest first (${nm[0]} nm)`) : fail(`map tab: distance sort ${nm.slice(0, 6)}`);
     await page.getByRole("button", { name: "Busiest first" }).click();
-    (await page.locator(".routes-tbl th[aria-sort]").count()) === 0 ? pass("map tab: Busiest first clears the sort") : fail("map tab: sort not cleared");
+    const sorted1 = await page.locator(".routes-tbl th[aria-sort]").evaluateAll((t) => t.map((x) => `${x.textContent}:${x.getAttribute("aria-sort")}`));
+    sorted1.length === 1 && /Flights \/ week.*descending/.test(sorted1[0]) ? pass("map tab: Busiest first goes back to flights a week") : fail(`map tab: reset gave ${sorted1}`);
 
     // journeys: avoid Germany
     const stops = async (qs) => {

@@ -2308,6 +2308,7 @@ div.empty-note p {
 /* map tab: all routes matching the filters */
 .routes-view {
   padding: 12px 14px 14px;
+  container-type: inline-size;
 }
 .routes-note {
   margin: 10px 0 8px;
@@ -2344,14 +2345,45 @@ div.empty-note p {
   font-weight: 600;
   cursor: pointer;
 }
+/* route cell: codes over cities | a sub-column of airport names, set off by a rule */
+.route-cell {
+  display: grid;
+  grid-template-columns: 290px 250px;
+  align-items: center;
+}
+.route-main {
+  min-width: 0;
+  padding-right: 12px;
+}
 .route-names {
   display: flex;
   align-items: center;
   gap: 5px;
   font-size: 12px;
-  max-width: 340px;
   overflow: hidden;
   white-space: nowrap;
+}
+.route-aps {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-left: 12px;
+  border-left: 1px solid var(--rule);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.route-aps > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@container (max-width: 1000px) {
+  .route-cell {
+    grid-template-columns: 290px;
+  }
+  .route-aps {
+    display: none;
+  }
 }
 .route-place {
   display: inline-flex;
@@ -3505,18 +3537,16 @@ div.empty-note p {
 }
 .jr-route {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1fr) 36px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 36px;
   gap: 12px;
   align-items: start;
 }
 .jr-swap {
   margin-top: 22px;
 }
-.jr-via {
+.jr-via,
+.jr-avoid {
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
 }
 .jr-chip-avoid > span[aria-hidden] {
   color: var(--ink-2);
@@ -4150,7 +4180,7 @@ div.empty-note p {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 36px;
     grid-template-areas:
       "from to swap"
-      "via via via";
+      "via avoid avoid";
   }
   .jr-route > .combo:nth-child(1) {
     grid-area: from;
@@ -4158,7 +4188,10 @@ div.empty-note p {
   .jr-route > .jr-via {
     grid-area: via;
   }
-  .jr-route > .combo:nth-child(3) {
+  .jr-route > .jr-avoid {
+    grid-area: avoid;
+  }
+  .jr-route > .combo:nth-child(4) {
     grid-area: to;
   }
   .jr-route > .jr-swap {
@@ -4198,7 +4231,8 @@ div.empty-note p {
     grid-template-areas:
       "from from"
       "to swap"
-      "via via";
+      "via via"
+      "avoid avoid";
   }
   .jr-opts > .multi,
   .jr-timed > .multi,
@@ -4239,7 +4273,4 @@ div.empty-note p {
   .jr-tl {
     min-width: 110px;
   }
-}
-.jr-via > .jr-chips {
-  margin-top: -4px;
 }
