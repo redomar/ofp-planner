@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.4.0 — 2026-10-07
+
+- **Logbook**: a new page for the flights you've flown. Totals (flights, block and airborne time, distance, airports, types, on-time share, average and softest landing), a map of every route flown (select a row to highlight its route), and one row per flight with its OOOI times, block and airborne time, status against the schedule (early, on time, late, delayed; ±15 min) and the landing rate with a grade (butter … very hard). Details per flight: callsign, operator, registration, scheduled times, landing g, cruise level, fuel, passengers, simulator, notes.
+  - Add or edit flights by hand; **Log this flight** on a brief starts the form from that flight.
+  - **Import** and **export** as JSON (`ofp-planner/logbook`, version 1; the format is described on the page). Re-importing a flight with the same id updates it; bad entries are skipped and named.
+  - Kept in this browser only, apart from the schedule snapshot: nothing in the Finder, Journeys or Board reads it. Settings → Clear all saved data now says it removes the logbook too.
+- Map terrain: two more height bands, 4000 m and 5000 m (Alps, Caucasus, the Iranian and Tibetan plateaus).
+- Board: the To/From cell stays a table cell, so every row's bottom border lines up (the split-flap cell used to end short of the row).
+- Favourites: drag a flight by its grip to reorder it within a group, or drop it on another group (or on "Drop here to take it out of its group"). Arrow keys on the grip move it up or down; Escape cancels a drag.
+- Finder, Map tab: each route shows its codes over both cities with their country flags, and beside them, set off by a rule, the two airport names (hidden when the list is narrow). The columns sort (Route, Airlines, Flights / week, Block time, Distance; numbers biggest first on the first click), Flights / week by default; **Busiest first** returns to it. The map always shows the busiest routes. The table header has the sunk background.
+- Journeys: **Avoid** in the route row (From · Via · Avoid · To): countries or airports no leg may land in or leave ("avoid Germany"); in the URL as `avoid=C:DE`. A From, Via or To you pick wins over the list. It doesn't check overflights.
+- Data: snapshot 2026-09-20 → 2026-10-06 (17 days, 68,018 flights, 584 airports, 15,683 routes).
+
 ## 1.3.0 — 2026-10-05
 
 - Board: a new page with two tabs (same panel tabs as the Finder).

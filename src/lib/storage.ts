@@ -18,6 +18,7 @@ export const KEYS = {
   prefs: `${NS}prefs`,
   ready: `${NS}ready`,
   display: `${NS}display`,
+  logbook: `${NS}logbook`,
 } as const;
 
 function get(key: string): string | null {

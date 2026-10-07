@@ -31,7 +31,7 @@ and check the weather for the day you fly.
 ## Highlights
 
 - **No server, no API at runtime.** The schedule is a static snapshot built offline and served as JSON; filtering, maps and dispatch links all happen in the browser. The app is a static site.
-- **Real flights, real callsigns.** 65,858 flights across 57 airlines (easyJet, Ryanair, Wizz, BA, Lufthansa group, KLM/AF, Pegasus, Turkish and more), with the ATC callsigns actually flown (EJU54LH), aircraft types, operating days and tracked times.
+- **Real flights, real callsigns.** 68,018 flights across 57 airlines (easyJet, Ryanair, Wizz, BA, Lufthansa group, KLM/AF, Pegasus, Turkish and more), with the ATC callsigns actually flown (EJU54LH), aircraft types, operating days and tracked times.
 - **Find anything.** Filter by airline, origin and destination (an airport *or* a whole country), aircraft type or family, block time, days, an **After (Z)** time against OUT / OFF / ON / IN, and flight number or callsign. Every filter lives in the URL.
 - **Roll a flight.** Random flight, random destination from an airport or random origin into one, with even odds per airport so busy routes don't dominate. **Next leg** continues from where you land after a realistic turnaround.
 - **Charts, not just lists.** Destinations from an airport and every route matching the filters (Madrid → Spain, say) on an azimuthal chart: sea depth and land height contours, a lat/long grid with degrees on the edges, sea, country and mountain lettering, routes in airline colours. Zoom and pan with two fingers, pinch or the buttons.
@@ -40,7 +40,8 @@ and check the weather for the day you fly.
 - **Multi-leg journeys.** Plan a route with stops: from an airport, through stops in order, to an airport, with either end open (roam from home, or work backwards to where your duty should end). Ask for the fewest legs, exactly N or up to N, over the whole route network (any day) or as **timed connections** of real flights with a turnaround window, a day, a first departure, a **duty limit** and a detour limit. Sort the list by date, distance, legs, duty or time on the ground; every timed journey shows its dates for the coming week as a sortable timeline, soonest first. Brief or dispatch each leg, or save the journey as a favourites group.
 - **Departure board and gate screen.** An airport's departures or arrivals for the next hours as a flight information display, with remarks that follow the clock (boarding, final call, departed) and a map of where they go. Pick a flight for a gate screen in the airline's colours: destination, scheduled / new time / arrival, the boarding steps from gate open to take-off with a countdown, and destination weather. A virtual clock ("STD in 25 min") plays the sequence live for a stream; open the screen in its own window or copy a URL for an OBS browser source; set a delay, gate change or message; or load your latest SimBrief OFP.
 - **A brief for the day you fly.** Pick the date, get the Open-Meteo forecast at both ends for the planned times: a verdict for each end with advice, an illustrated scene of each airport with hazards, wind (OFP Reader's wind arrows), visibility, temperature and QNH, a through-the-day strip with your flight on it, and the forecast coded like a METAR beside the current METAR from VATSIM on printer paper. Fetched only on this page, and cached.
-- **Favourites in groups.** Star flights into groups ("Alps hops", "Ryanair B738"), open a group's routes on a map, and brief any of them in one click.
+- **Favourites in groups.** Star flights into groups ("Alps hops", "Ryanair B738"), drag them into order or into another group, open a group's routes on a map, and brief any of them in one click.
+- **Your logbook.** Keep the flights you've flown: a map of every route, totals (hours, distance, airports, on-time share, average and softest landing), and per flight the OOOI times, block and airborne time, early / on time / late / delayed, and the landing rate with a grade. Add flights by hand or from a brief, and import or export them as JSON. Kept apart from the schedule data.
 - **Explains itself.** Hover (or focus) any label, aircraft badge, flag or airline square: OOOI definitions, manufacturer and model, a country's airports and flights, which airlines fly a route.
 - **Your layout.** Airline tag style and order, aircraft badge colours, flight-card style and map codes (IATA / ICAO / off) in Settings, each with a live sample.
 - **Day and night themes**, both meeting WCAG AA contrast.
@@ -134,7 +135,9 @@ Live at **[plans.massorbit.co.uk](https://plans.massorbit.co.uk)**, deployed wit
 | See an airport's departures | **Board → Airport board**: pick an airport; departures or arrivals for the next hours with remarks from the clock |
 | Show a gate screen on stream | **Board → Gate screen** (or **Gate screen** on a flight card / Journeys leg): **Virtual** clock, then **Open screen window** or **Copy stream URL** for OBS; or load your SimBrief OFP |
 | Plan the day | **Open brief · weather →**: set the date, read the forecast and METAR |
-| Keep flights | ☆ on the card; make groups on the Brief start page or in Settings |
+| Keep flights | ☆ on the card; make groups on the Brief start page or in Settings; drag a row by its grip to reorder it or move it to another group |
+| Avoid a country | **Journeys → Avoid**: add a country or airport no leg may land in or leave |
+| Log a flight you flew | **Log this flight** on a brief, or **Logbook → Add a flight**; **Import a logbook file…** for a JSON export |
 | Add a flight number | **+ Add flight number** under a callsign-only flight |
 | Share a view | Copy the address bar: every filter, tab and the open flight are in the URL |
 | Change how things look | ⚙ **Settings → Display** |
@@ -192,9 +195,10 @@ Everything you save stays in the browser. Nothing is sent anywhere.
 | Display choices | `localStorage` | `ofp-planner:display` |
 | Finder preferences (airline, sort, view) | `localStorage` | `ofp-planner:prefs` |
 | Weather cache (forecast 60 min, METAR 10 min) | `localStorage` | `ofp-planner:wx:<ICAO>:…` |
+| Your logbook (flights flown) | `localStorage` | `ofp-planner:logbook` |
 | Theme preference | `localStorage` | `ofp-planner-theme` |
 
-Clearing site data or using a private window removes everything; **Clear all saved data** in Settings does the same on purpose.
+Clearing site data or using a private window removes everything; **Clear all saved data** in Settings does the same on purpose. Export the logbook first if you want to keep it.
 
 ## Project structure
 

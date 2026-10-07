@@ -225,6 +225,11 @@ export function FlightCard({
           <Link className="btn" href={`/board?tab=gate&f=${encodeURIComponent(f.id)}`}>
             Gate screen
           </Link>
+          {context !== "finder" && (
+            <Link className="btn" href={`/logbook?f=${encodeURIComponent(f.id)}`} title="Add this flight to your logbook once you've flown it">
+              Log this flight
+            </Link>
+          )}
           {onContinue && (
             <button type="button" className="btn" onClick={onContinue} title={`Roll an onward flight from ${f.d}`}>
               Next leg from {to?.iata ?? f.d}

@@ -1277,6 +1277,8 @@ div.empty-note p {
   --m-h3: #ddcaa4;
   --m-h4: #d9c6a0;
   --m-h5: #d2bd97;
+  --m-h6: #cab48d;
+  --m-h7: #c1aa84;
   --m-contour: rgba(120, 98, 58, 0.5);
   --m-depth-line: rgba(70, 110, 140, 0.42);
   --m-grat: rgba(70, 84, 108, 0.42);
@@ -1299,6 +1301,8 @@ div.empty-note p {
     --m-h3: #2e3138;
     --m-h4: #33353a;
     --m-h5: #3a3a3d;
+    --m-h6: #414042;
+    --m-h7: #494646;
     --m-contour: rgba(186, 172, 140, 0.5);
     --m-depth-line: rgba(120, 160, 195, 0.45);
     --m-grat: rgba(160, 176, 200, 0.38);
@@ -1321,6 +1325,8 @@ div.empty-note p {
   --m-h3: #2e3138;
   --m-h4: #33353a;
   --m-h5: #3a3a3d;
+  --m-h6: #414042;
+  --m-h7: #494646;
   --m-contour: rgba(186, 172, 140, 0.5);
   --m-depth-line: rgba(120, 160, 195, 0.45);
   --m-grat: rgba(160, 176, 200, 0.38);
@@ -1383,6 +1389,8 @@ div.empty-note p {
 .map-height.h3 { fill: var(--m-h3); }
 .map-height.h4 { fill: var(--m-h4); stroke-width: 0.95; }
 .map-height.h5 { fill: var(--m-h5); stroke-width: 0.95; }
+.map-height.h6 { fill: var(--m-h6); stroke-width: 0.95; }
+.map-height.h7 { fill: var(--m-h7); stroke-width: 0.95; }
 .map-grat,
 .map-grat-minor {
   fill: none;
@@ -2308,6 +2316,7 @@ div.empty-note p {
 /* map tab: all routes matching the filters */
 .routes-view {
   padding: 12px 14px 14px;
+  container-type: inline-size;
 }
 .routes-note {
   margin: 10px 0 8px;
@@ -2330,7 +2339,7 @@ div.empty-note p {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: var(--sheet);
+  background: var(--sunk);
 }
 .route-btn {
   display: inline-flex;
@@ -2344,13 +2353,69 @@ div.empty-note p {
   font-weight: 600;
   cursor: pointer;
 }
+/* route cell: codes over cities | a sub-column of airport names, set off by a rule */
+.route-cell {
+  display: grid;
+  grid-template-columns: 290px minmax(0, max-content);
+  align-items: center;
+}
+.route-main {
+  min-width: 0;
+  padding-right: 12px;
+}
 .route-names {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
-  max-width: 340px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.route-aps {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding-left: 12px;
+  border-left: 1px solid var(--rule);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.route-aps > span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+@container (max-width: 1150px) {
+  .route-cell {
+    grid-template-columns: 290px;
+  }
+  .route-aps {
+    display: none;
+  }
+}
+.route-place {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.route-place > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.route-names .flag {
+  width: 16px;
+  height: 12px;
+  flex: none;
+}
+.routes-tbl thead th {
+  padding: 0;
+}
+.routes-tbl th.num .th-sort {
+  justify-content: flex-end;
+}
+.routes-tbl th.num .th-arrow {
+  order: -1;
 }
 .route-als {
   display: flex;
@@ -2789,6 +2854,81 @@ div.empty-note p {
 .fav-chip.on {
   color: var(--magenta);
   border-color: var(--magenta);
+}
+
+/* favourites: drag to reorder or move between groups */
+.fl-grip {
+  flex: none;
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  margin-right: -10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-3);
+  fill: currentColor;
+  cursor: grab;
+  touch-action: none;
+}
+.fl-grip:hover,
+.fl-grip:focus-visible {
+  color: var(--ink);
+}
+.fl-grip:focus-visible {
+  outline-offset: -2px;
+}
+.fl-row.is-dragging {
+  opacity: 0.45;
+}
+.fl-row.drop-before {
+  box-shadow: inset 0 2px 0 var(--magenta);
+}
+.fl-row.drop-after {
+  box-shadow: inset 0 -2px 0 var(--magenta);
+}
+.grp.is-drop {
+  border-color: var(--magenta);
+  box-shadow: 0 0 0 1px var(--magenta);
+}
+.grp-drop {
+  border-style: dashed;
+}
+.fl-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 60;
+  padding: 4px 8px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--sheet);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  white-space: nowrap;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.18);
+  pointer-events: none;
+}
+.fl-ghost .muted {
+  font-family: var(--font-sans);
+}
+:root:has(.fl-ghost),
+:root:has(.fl-ghost) * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+@media (max-width: 560px) {
+  .fl-grip {
+    order: 2;
+    align-self: center;
+    height: 30px;
+    margin: 0 0 8px 6px;
+  }
+  .fl-actions {
+    order: 3;
+  }
 }
 
 /* favourites: a group's routes on a map */
@@ -3405,15 +3545,19 @@ div.empty-note p {
 }
 .jr-route {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1fr) 36px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 36px;
   gap: 12px;
   align-items: start;
 }
 .jr-swap {
   margin-top: 22px;
 }
-.jr-via {
+.jr-via,
+.jr-avoid {
   min-width: 0;
+}
+.jr-chip-avoid > span[aria-hidden] {
+  color: var(--ink-2);
 }
 .jr-chips {
   list-style: none;
@@ -4044,7 +4188,7 @@ div.empty-note p {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 36px;
     grid-template-areas:
       "from to swap"
-      "via via via";
+      "via avoid avoid";
   }
   .jr-route > .combo:nth-child(1) {
     grid-area: from;
@@ -4052,7 +4196,10 @@ div.empty-note p {
   .jr-route > .jr-via {
     grid-area: via;
   }
-  .jr-route > .combo:nth-child(3) {
+  .jr-route > .jr-avoid {
+    grid-area: avoid;
+  }
+  .jr-route > .combo:nth-child(4) {
     grid-area: to;
   }
   .jr-route > .jr-swap {
@@ -4092,7 +4239,8 @@ div.empty-note p {
     grid-template-areas:
       "from from"
       "to swap"
-      "via via";
+      "via via"
+      "avoid avoid";
   }
   .jr-opts > .multi,
   .jr-timed > .multi,
@@ -4133,4 +4281,190 @@ div.empty-note p {
   .jr-tl {
     min-width: 110px;
   }
+}
+
+/* ---------- logbook ---------- */
+.logbook {
+  max-width: 1280px;
+}
+.log-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 1px;
+  margin: 0 0 14px;
+  border: 1px solid var(--rule);
+  background: var(--rule);
+}
+.log-totals > div {
+  padding: 8px 10px;
+  background: var(--sheet);
+}
+.log-totals dt {
+  font-family: var(--font-cond);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.log-totals dd {
+  margin: 2px 0 0;
+  font-size: 17px;
+  color: var(--ink);
+}
+.log-map {
+  margin-bottom: 14px;
+}
+.log-wrap {
+  max-height: none;
+}
+.log-tbl {
+  width: 100%;
+}
+.log-tbl thead th {
+  background: var(--sunk);
+  white-space: nowrap;
+}
+.log-tbl td {
+  vertical-align: top;
+  white-space: nowrap;
+}
+.log-tbl tbody tr:not(.log-detail) {
+  cursor: pointer;
+}
+.log-tbl tbody tr.sel > td {
+  background: var(--magenta-bg);
+}
+.log-date {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+}
+.log-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+}
+.log-codes {
+  font-weight: 600;
+}
+.log-oooi > span + span::before {
+  content: " · ";
+  color: var(--ink-3);
+}
+.log-grade {
+  margin-left: 6px;
+}
+.log-detail > td {
+  background: var(--field);
+  white-space: normal;
+  padding: 10px 12px 12px;
+}
+.log-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px 16px;
+  margin: 0 0 10px;
+}
+.log-facts dt {
+  font-family: var(--font-cond);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.log-facts dd {
+  margin: 1px 0 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.log-acts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.log-form fieldset {
+  min-width: 0;
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+}
+.log-form legend {
+  margin-bottom: 8px;
+  font-family: var(--font-cond);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.log-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+.log-grid > .ctl {
+  display: block;
+  min-width: 0;
+}
+.log-times {
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+}
+.log-times > .ctl:nth-last-child(-n + 2) {
+  grid-column: span 2;
+}
+.log-notes {
+  grid-column: 1 / -1;
+}
+.log-notes textarea {
+  height: auto;
+  padding: 8px 10px;
+  resize: vertical;
+}
+.log-preview {
+  margin: 0 0 10px;
+  color: var(--ink-2);
+}
+.log-file {
+  position: relative;
+  cursor: pointer;
+}
+.log-file:focus-within {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.log-io > p {
+  margin: 10px 0 0;
+}
+.log-format {
+  margin-top: 14px;
+}
+.log-format summary {
+  cursor: pointer;
+  color: var(--blue);
+  font-weight: 600;
+}
+.log-example {
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  background: var(--field);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+@media (max-width: 560px) {
+  .log-times > .ctl:nth-last-child(-n + 2) {
+    grid-column: auto;
+  }
+}
+.log-map-wait {
+  border: 1px solid var(--rule);
+  background: var(--m-sea);
 }

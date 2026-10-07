@@ -103,9 +103,11 @@ export function FidsBoard({
                       <small>{al?.name ?? m.f.al}</small>
                     </button>
                   </td>
-                  <td className="fids-place">
-                    <FlapCode key={m.other} code={other?.iata ?? m.other} label={other?.iata ?? m.other} />
-                    <span>{other ? (cityName(other) ?? other.name) : m.other}</span>
+                  <td>
+                    <div className="fids-place">
+                      <FlapCode key={m.other} code={other?.iata ?? m.other} label={other?.iata ?? m.other} />
+                      <span>{other ? (cityName(other) ?? other.name) : m.other}</span>
+                    </div>
                   </td>
                   <td className="mono fids-ac">{m.f.types[0] ?? ""}</td>
                   <td className={`fids-rmk fids-${r.tone}`}>{r.text}</td>

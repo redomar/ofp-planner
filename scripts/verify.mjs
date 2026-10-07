@@ -607,11 +607,11 @@ async function run() {
     ["Legs", "Times", "Detour", "Day (UTC)", "First OUT after (Z)", "Duty limit", "Report before OUT", "Turnaround"].every((t) => tips.includes(t)) ? pass(`journeys: ${tips.length} labels explain themselves on hover`) : fail(`journeys: tips ${tips}`);
     await page.locator(".jr-guide summary").click();
     const defs = await page.locator(".jr-guide .jr-defs dt").count();
-    defs === 14 ? pass("journeys: 'What the options mean' lists all 14 options") : fail(`journeys: guide has ${defs}`);
+    defs === 15 ? pass("journeys: 'What the options mean' lists all 15 options") : fail(`journeys: guide has ${defs}`);
     await page.goto(page.url().split("/journeys")[0] + "/journeys", { waitUntil: "networkidle" });
     const cards = await page.locator(".jr-ex-card").count();
     const chips = await page.locator(".jr-example").count();
-    cards === chips && cards >= 9 && (await page.locator(".jr-intro .jr-defs dt").count()) === 14 ? pass(`journeys: intro shows ${cards} examples and the option guide`) : fail(`journeys: intro ${cards}/${chips}`);
+    cards === chips && cards >= 9 && (await page.locator(".jr-intro .jr-defs dt").count()) === 15 ? pass(`journeys: intro shows ${cards} examples and the option guide`) : fail(`journeys: intro ${cards}/${chips}`);
     for (let i = 5; i < cards; i++) {
       await page.goto(page.url().split("/journeys")[0] + "/journeys", { waitUntil: "networkidle" });
       const name = await page.locator(".jr-ex-card b").nth(i).textContent();
@@ -839,6 +839,135 @@ async function run() {
     await shot(page, "settings-day");
     errors.length ? fail(`settings: console errors ${JSON.stringify(errors)}`) : pass("settings: 0 console errors");
     await ctx.close();
+  });
+
+  /* ---------- 1.3.1: board rows, favourites drag, route sort and flags, journeys avoid ---------- */
+  await section("1.3.1", async () => {
+    const { ctx, page, errors } = await open("/board?ap=EHAM");
+    await page.waitForSelector(".fids-tbl tbody tr", { timeout: 30000 });
+    const off = await page.$$eval(".fids-tbl tbody tr", (trs) => trs.slice(0, 12).flatMap((tr) => [...tr.cells].map((c) => Math.abs(c.getBoundingClientRect().bottom - tr.getBoundingClientRect().bottom))));
+    off.length && Math.max(...off) < 1 ? pass(`board: every cell meets its row's bottom border (${off.length} cells)`) : fail(`board: cell bottoms off by ${Math.max(...off)} px`);
+
+    // favourites: two groups seeded from real flights; drag within a group, across groups, and with the keyboard
+    await page.goto(`${base}/settings`, { waitUntil: "networkidle" });
+    const ids = await page.evaluate(async () => {
+      const fl = (await fetch("/data/airlines/EZY.json").then((r) => r.json())).flights.slice(0, 5);
+      const fav = fl.map((f, i) => ({ id: `EZY:${f.cs}:${f.o}-${f.d}:${f.days.join("")}`, al: "EZY", op: f.op, fn: f.fn, cs: f.cs, o: f.o, d: f.d, std: null, at: i, days: f.days, group: i < 3 ? "A" : "B" }));
+      localStorage.setItem("ofp-planner:favourites", JSON.stringify(fav));
+      localStorage.setItem("ofp-planner:fav-groups", JSON.stringify(["A", "B"]));
+      return fav.map((f) => f.id);
+    });
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForSelector("[data-fav]");
+    await page.evaluate(() => document.querySelector("#lib-fav-h").scrollIntoView({ block: "start" }));
+    const order = () => page.$$eval("[data-fav-group]", (gs) => Object.fromEntries(gs.map((g) => [g.dataset.favGroup, [...g.querySelectorAll("[data-fav]")].map((r) => r.dataset.fav)])));
+    const drag = async (from, to) => {
+      const a = await from.boundingBox();
+      const b = await to();
+      await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2 + 12, { steps: 3 });
+      await page.mouse.move(b.x, b.y, { steps: 8 });
+      await page.mouse.up();
+    };
+    const lastRowA = async () => {
+      const r = await page.locator('[data-fav-group="A"] [data-fav]').nth(2).boundingBox();
+      return { x: r.x + 300, y: r.y + r.height - 4 };
+    };
+    await drag(page.locator(".fl-grip").first(), lastRowA);
+    let o = await order();
+    o.A.join() === [ids[1], ids[2], ids[0]].join() ? pass("favourites: dragging a row below another reorders the group") : fail(`favourites: reorder ${JSON.stringify(o.A)}`);
+    await drag(page.locator(".fl-grip").first(), async () => {
+      const h = await page.locator('[data-fav-group="B"] .grp-head').boundingBox();
+      return { x: h.x + 300, y: h.y + h.height / 2 };
+    });
+    o = await order();
+    o.A.length === 2 && o.B.at(-1) === ids[1] ? pass("favourites: dropping on another group moves the flight to its end") : fail(`favourites: move ${JSON.stringify(o)}`);
+    await page.locator(`[data-grip="${ids[1]}"]`).focus();
+    await page.keyboard.press("ArrowUp");
+    await page.waitForTimeout(100);
+    o = await order();
+    const focused = await page.evaluate(() => document.activeElement?.dataset.grip);
+    o.B.indexOf(ids[1]) === 1 && focused === ids[1] ? pass("favourites: arrow keys on the grip move a row and keep focus") : fail(`favourites: keyboard ${JSON.stringify(o.B)} focus ${focused}`);
+    await checkPage("settings favourites after drag 1280 light", page, errors);
+
+    // map tab: city and flag on each route, distance sort
+    await page.goto(`${base}/?al=&dep=EGKK&view=map`, { waitUntil: "networkidle" });
+    await page.waitForSelector(".routes-tbl tbody tr");
+    const flags = await page.locator(".routes-tbl tbody tr").first().locator(".route-names .flag").count();
+    const aps = await page.locator(".routes-tbl tbody tr").first().locator(".route-aps > span").count();
+    flags === 2 && aps === 2 ? pass("map tab: each route shows both cities with their flags, and the airport names beside them") : fail(`map tab: ${flags} flags, ${aps} airport names on the first route`);
+    const sorted0 = await page.locator(".routes-tbl th[aria-sort]").evaluateAll((t) => t.map((x) => `${x.textContent}:${x.getAttribute("aria-sort")}`));
+    sorted0.length === 1 && /Flights \/ week.*descending/.test(sorted0[0]) ? pass("map tab: sorted by flights a week by default") : fail(`map tab: default sort ${sorted0}`);
+    await page.getByRole("button", { name: "Distance" }).click();
+    const nm = (await page.locator(".routes-tbl tbody tr td:last-child").allTextContents()).map((t) => parseInt(t)).filter((n) => !Number.isNaN(n));
+    nm.length > 5 && nm.every((x, i) => !i || nm[i - 1] >= x) ? pass(`map tab: Distance sorts longest first (${nm[0]} nm)`) : fail(`map tab: distance sort ${nm.slice(0, 6)}`);
+    await page.getByRole("button", { name: "Busiest first" }).click();
+    const sorted1 = await page.locator(".routes-tbl th[aria-sort]").evaluateAll((t) => t.map((x) => `${x.textContent}:${x.getAttribute("aria-sort")}`));
+    sorted1.length === 1 && /Flights \/ week.*descending/.test(sorted1[0]) ? pass("map tab: Busiest first goes back to flights a week") : fail(`map tab: reset gave ${sorted1}`);
+
+    // journeys: avoid Germany
+    const stops = async (qs) => {
+      await page.goto(`${base}/journeys?${qs}`, { waitUntil: "networkidle" });
+      await page.waitForFunction(() => document.querySelector(".jr-card, .jr-results .empty-note") && !document.querySelector(".jr-split.is-stale"), null, { timeout: 60000 });
+      return page.locator(".jr-card .jr-chain").evaluateAll((els) => els.map((e) => [...e.querySelectorAll(".jr-stop")].map((s) => s.textContent.trim())));
+    };
+    const plain = await stops("from=EGBB&to=LTFM&legs=2");
+    const avoided = await stops("from=EGBB&to=LTFM&legs=2&avoid=C:DE");
+    const chip = await page.locator(".jr-chip-avoid").allTextContents();
+    plain.some((s) => s.some((x) => x.startsWith("ED"))) && avoided.length && !avoided.some((s) => s.some((x) => x.startsWith("ED"))) && chip.some((c) => c.includes("Germany"))
+      ? pass(`journeys: avoid Germany drops the German stops (${plain.length} → ${avoided.length} journeys)`)
+      : fail(`journeys: avoid ${JSON.stringify(avoided.slice(0, 3))} chips ${chip}`);
+    errors.length ? fail(`1.3.1: console errors ${JSON.stringify(errors.slice(0, 2))}`) : pass("1.3.1: 0 console errors");
+    await ctx.close();
+  });
+
+  /* ---------- logbook: import, map, totals, add, export ---------- */
+  await section("logbook", async () => {
+    const { ctx, page, errors } = await open("/logbook");
+    await page.waitForSelector(".log-form");
+    const file = {
+      schema: "ofp-planner/logbook",
+      version: 1,
+      flights: [
+        { date: "2026-10-03", from: "EGBB", to: "LEMD", callsign: "EZY22N", flight: "U2227", type: "A20N", reg: "G-ABCD", airMin: 128, landingFpm: -407, status: "on-time" },
+        { date: "2026-10-05", from: "LOWI", to: "EGBB", callsign: "EZY34MH", type: "A20N", std: "16:00", sta: "17:50", out: "16:05", off: "16:18", on: "18:02", in: "18:10", landingFpm: 180 },
+        { date: "2026-10-06", from: "XX", to: "EGBB" },
+      ],
+    };
+    await page.locator("input[type=file]").setInputFiles({ name: "log.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
+    await page.waitForSelector(".log-tbl tbody tr");
+    const msg = await page.locator(".log-io [role=status]").innerText();
+    const rows = await page.locator(".log-tbl tbody tr:not(.log-detail)").count();
+    /2 new/.test(msg) && /Skipped 1/.test(msg) && rows === 2 ? pass("logbook: import adds good flights and names the skipped one") : fail(`logbook: import ${msg} rows ${rows}`);
+    const late = await page.locator(".log-tbl tbody tr", { hasText: "EZY34MH" }).first().innerText();
+    /LATE/.test(late) && /-180 fpm/.test(late) && /2h 05m/.test(late) ? pass("logbook: status, landing rate and block time from OOOI (late +20, -180 fpm, 2h 05m)") : fail(`logbook: derived ${late.replace(/\s+/g, " ")}`);
+    await page.waitForSelector(".log-map .map-route", { timeout: 20000 });
+    (await page.locator(".log-map .map-route").count()) === 2 ? pass("logbook: map draws each route flown") : fail("logbook: map routes");
+    const f = page.locator("#log-form");
+    await f.getByRole("combobox", { name: "From" }).fill("EGKK");
+    await page.keyboard.press("Enter");
+    await f.getByRole("combobox", { name: "To" }).fill("LFPG");
+    await page.keyboard.press("Enter");
+    await f.getByLabel("Callsign").fill("EZY8011");
+    await f.getByLabel("Landing rate (fpm)").fill("-95");
+    await f.getByRole("button", { name: "Add to logbook" }).click();
+    await page.waitForTimeout(300);
+    (await page.locator(".log-tbl tbody tr:not(.log-detail)").count()) === 3 ? pass("logbook: a flight added by hand joins the list") : fail("logbook: add by hand");
+    const [dl] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /^Export/ }).click()]);
+    const out = JSON.parse(readFileSync(await dl.path(), "utf8"));
+    out.schema === "ofp-planner/logbook" && out.flights.length === 3 ? pass("logbook: export writes the same file format back") : fail(`logbook: export ${out.schema} ${out.flights?.length}`);
+    // layout shift is measured on a fresh load with flights in the logbook
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.goto(`${base}/logbook`, { waitUntil: "networkidle" });
+    await page.waitForSelector(".log-map .map-route", { timeout: 20000 });
+    await checkPage("logbook 1280 light", page, errors);
+    await shot(page, "logbook-day");
+    await ctx.close();
+    const m = await open("/logbook", { width: 390, height: 844, theme: "dark" });
+    await m.page.waitForSelector(".log-form");
+    await checkPage("logbook 390 dark", m.page, m.errors);
+    await m.ctx.close();
   });
 
   /* ---------- night screenshots ---------- */

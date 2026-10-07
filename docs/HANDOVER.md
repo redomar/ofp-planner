@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: v1.3.0 released 2026-10-05 (Board: airport FIDS + gate screen; Journeys 1.2) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
+  status: v1.4.0 released 2026-10-07 (Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 
@@ -48,6 +48,11 @@ pages:        # all client components; one shared TopBar (Finder · Journeys · 
               screen=1 portals the 16:9 screen into body and hides the rest (html.screen-mode); sized in cqw units.
               SimBrief: www.simbrief.com/api/xml.fetcher.php?username=…&json=v2 is CORS *; the username is kept in localStorage only.
   /brief:     src/components/BriefApp.tsx   — FlightCard, date, next leg (sample + full list), weather
+  /logbook:   src/components/LogbookApp.tsx + lib/logbook.ts — flights flown (localStorage "ofp-planner:logbook", never mixed with the snapshot):
+              totals, RouteMap of routes flown, table (OOOI "HH:MM" UTC on the OUT date, block/air, status from STD/STA vs OUT/IN ±15 min,
+              landing fpm + grade), add/edit form, JSON import/export (schema "ofp-planner/logbook" v1; parseLogFile cleans untrusted input).
+              /logbook?f=<flight id>[&d=date] prefills the form (FlightCard "Log this flight" on the brief). The user's own file lives outside
+              the repo in ../ofp-planner-logbook/ (it has their registrations).
   /settings:  src/components/SettingsApp.tsx — airframes, Display, favourites, recent, snapshot info, theme/storage
 components:
   FlightCard.tsx:  sticky foldable header (bg sunk), RouteHead, RouteMap, OOOI table, facts, SimBrief dispatch
@@ -61,7 +66,7 @@ components:
                    useZoom: k 0.35–12 over the fitted view (⤢ = Default view, k 1), live SVG transform during gestures, redraw ~140 ms after;
                    two-finger scroll/pinch zoom (scroll down at k=0.35 is left to the page), pointer pinch/drag, dblclick,
                    +/−/⤢ buttons top-left (the floating flight panel covers the right).
-  terrain:         public/geo/terrain.json (committed, ~470 KB / 166 KB gz) from `pnpm map:terrain`
+  terrain:         public/geo/terrain.json (committed, ~490 KB) from `pnpm map:terrain`; land bands 200/500/1000/1500/2000/3000/4000/5000 m (h0–h7), sea 200/1000/2000/4000 m (d0–d3)
                    (scripts/build-terrain.mjs: AWS Terrain Tiles z5 → 0.1° grid → d3-contour bands; Natural Earth land),
                    loaded by src/lib/terrain.ts; outlines-50m.json still built at predev (box w-75 e115 s-12 n86).
   pickers.tsx:     PlacePicker (ARIA combobox, airports + countries "C:ES"), MultiPicker, DayPicker, LengthPicker, AfterPicker
@@ -78,9 +83,14 @@ lib:
                    wrap-around), reversed graph/clock when only `to` is set. DFS with hop lower bounds (BFS to each waypoint),
                    distance/time bounds, branch-and-bound on the K-th best group, node budget (250k / 400k), roam branching cap 7.
                    Results grouped by airport sequence; timed groups keep ≤16 flight-chain variants with their weekdays.
-  journey/plan.ts: the form ⇄ URL (?from&via&to&legs=f|4|u5&t=1&al&one&type&sort&dir=desc&detour=1.5|3|any&seed&day&after=HHMM&duty&report&turn=35-180&j=<group>), examples.
+  journey/plan.ts: the form ⇄ URL (?from&via&to&avoid=C:DE,EDDF&legs=f|4|u5&t=1&al&one&type&sort&dir=desc&detour=1.5|3|any&seed&day&after=HHMM&duty&report&turn=35-180&j=<group>), examples.
                    List sorts: next (client-side by soonest date; engine ranks quickest) · distance · fewest (dir=desc → engine "most") · quickest · waiting · random.
   journey/dates.ts: weekly timings → next real departures from now (departures, soonest, legDate, dateLabel).
+  journey avoid:   Spec.avoid (Place[]); engine's avoider() drops edges/flights touching an avoided airport before the graph is built
+                   (so the hop/distance bounds stay right); from/to/via places are exempt. Landing/leaving only, no overflight check.
+  favourites order: the favourites array order is the order inside each group; placeFavourite(id, group, before) in saved.ts.
+                   SavedFlights drags by pointer events on the grip (setPointerCapture, elementFromPoint on [data-fav]/[data-fav-group]),
+                   arrow keys nudge; focus is put back on the grip after React moves the row.
   JourneyTimings.tsx: the timings table (sortable, legs timeline on one UTC clock); replaced the variant dropdown in 1.2.1.
   journey/worker.ts + useSearch.ts: Web Worker (new Worker(new URL("./worker.ts", import.meta.url))); data posted once per key,
                    newest request wins, busy derived in render. Turbopack also copies worker.ts into out/_next/static/media (harmless).
@@ -100,7 +110,7 @@ ids_and_urls:
 
 ## 4. Data: what exists and why
 
-snapshot_now: 57 airlines · 65,858 flights · 15,600 routes · 581 airports · window 2026-09-20 → 2026-10-04 (15 days)
+snapshot_now: 57 airlines · 68,018 flights · 15,683 routes · 584 airports · window 2026-09-20 → 2026-10-06 (17 days, built 2026-10-07)
 size: public/data ≈ 11 MB raw, ≈ 1.2 MB gzipped (biggest RYR.json 3.6 MB / 423 KB gz); routes.json 315 KB / 62 KB gz
 loading: manifest revalidated each visit; other files fetched with ?v=<generatedAt> (cache-friendly);
   airline files load only for selected airlines; routes.json only once an airport is chosen.
@@ -131,7 +141,7 @@ field_derivations: docs/data-pipeline.md ("How each field is derived") — don't
 
 where: scripts/snapshot/ (index.mjs CLI; airlines.mjs brands/colours/region; sources/*; legs.mjs; build.mjs; route-index.mjs)
 caches: data/raw (88 MB downloads) + data/cache (493 MB; tracks/<date>.ndjson.gz per day) — gitignored, keep them.
-cached_days_now: 2026-09-20 … 2026-10-04 (data/cache ≈ 530 MB)
+cached_days_now: 2026-09-20 … 2026-10-06 (data/cache ≈ 530 MB)
 timing: fetch ≈ 4 min/day at concurrency 3 (download-bound); first Ryanair pass 15–20 min (cached 10 days); build ≈ 20 s.
 recipes:
   add_a_15th_day: |

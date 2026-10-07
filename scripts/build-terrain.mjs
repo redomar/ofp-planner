@@ -13,7 +13,7 @@ import { feature } from "topojson-client";
 const require = createRequire(import.meta.url);
 const BOX = { w: -75, e: 115, s: -12, n: 85 }; // wider than any map shows, so projected edges stay filled
 const STEP = 0.1; // grid spacing in degrees (~11 km)
-const LAND_LEVELS = [200, 500, 1000, 1500, 2000, 3000];
+const LAND_LEVELS = [200, 500, 1000, 1500, 2000, 3000, 4000, 5000];
 const SEA_LEVELS = [200, 1000, 2000, 4000]; // depths
 const Z = 5;
 const N = 1 << Z;
