@@ -213,26 +213,28 @@ export function FlightCard({
             </svg>
             <span className="sr-only">(opens in a new tab)</span>
           </a>
-          {context === "finder" ? (
-            <Link className="btn" href={`/brief?f=${encodeURIComponent(f.id)}`} onClick={() => setReady(f, null, picked.value)}>
-              Open brief · weather →
+          <div className="dispatch-more">
+            {context === "finder" ? (
+              <Link className="btn" href={`/brief?f=${encodeURIComponent(f.id)}`} onClick={() => setReady(f, null, picked.value)}>
+                Open brief · weather →
+              </Link>
+            ) : (
+              <Link className="btn" href={`/?al=${f.al}&dep=${f.o}&arr=${f.d}&f=${encodeURIComponent(f.id)}`}>
+                ← Back to finder
+              </Link>
+            )}
+            <Link className="btn" href={`/board?tab=gate&f=${encodeURIComponent(f.id)}`}>
+              Gate screen
             </Link>
-          ) : (
-            <Link className="btn" href={`/?al=${f.al}&dep=${f.o}&arr=${f.d}&f=${encodeURIComponent(f.id)}`}>
-              ← Back to finder
+            <Link className="btn" href={`/logbook?f=${encodeURIComponent(f.id)}`} title="Open the logbook form prefilled with this flight (nothing is saved until you submit)">
+              Log this flight
             </Link>
-          )}
-          <Link className="btn" href={`/board?tab=gate&f=${encodeURIComponent(f.id)}`}>
-            Gate screen
-          </Link>
-          <Link className="btn" href={`/logbook?f=${encodeURIComponent(f.id)}`} title="Open the logbook form prefilled with this flight (nothing is saved until you submit)">
-            Log this flight
-          </Link>
-          {onContinue && (
-            <button type="button" className="btn" onClick={onContinue} title={`Roll an onward flight from ${f.d}`}>
-              Next leg from {to?.iata ?? f.d}
-            </button>
-          )}
+            {onContinue && (
+              <button type="button" className="btn" onClick={onContinue} title={`Roll an onward flight from ${f.d}`}>
+                Next leg from {to?.iata ?? f.d}
+              </button>
+            )}
+          </div>
         </div>
         <CopyLink url={url} />
         {fav && saved && saved.groups.length > 0 && (
