@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.1 — 2026-10-08
+
+- Logbook: **Listed time** in the form (under Times), so the time a tracker lists for a flight can be added or edited; a bad time is refused with a message. It was imported and shown but had no field.
+- Data: snapshot 2026-09-20 → 2026-10-07 (18 days, 68,927 flights, 584 airports, 15,712 routes).
+
 ## 1.4.0 — 2026-10-07
 
 - **Logbook**: a new page for the flights you've flown. Totals (flights, block and airborne time, distance, airports, types, on-time share, average and softest landing), a map of every route flown (select a row to highlight its route), and one row per flight with its OOOI times, block and airborne time, status against the schedule (early, on time, late, delayed; ±15 min) and the landing rate with a grade (butter … very hard). Details per flight: callsign, operator, registration, scheduled times, landing g, cruise level, fuel, passengers, simulator, notes.

@@ -1,6 +1,6 @@
 {
   "name": "ofp-planner",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Pick a real airline flight for your sim and send it to SimBrief. Static, client-only.",
   "author": {
     "name": "Mohamed Omar",

@@ -4416,7 +4416,7 @@ div.empty-note p {
 .log-times {
   grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
 }
-.log-times > .ctl:nth-last-child(-n + 2) {
+.log-times > .ctl:nth-last-child(-n + 3) {
   grid-column: span 2;
 }
 .log-notes {
@@ -4460,7 +4460,7 @@ div.empty-note p {
   line-height: 1.5;
 }
 @media (max-width: 560px) {
-  .log-times > .ctl:nth-last-child(-n + 2) {
+  .log-times > .ctl:nth-last-child(-n + 3) {
     grid-column: auto;
   }
 }
