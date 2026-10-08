@@ -31,7 +31,7 @@ and check the weather for the day you fly.
 ## Highlights
 
 - **No server, no API at runtime.** The schedule is a static snapshot built offline and served as JSON; filtering, maps and dispatch links all happen in the browser. The app is a static site.
-- **Real flights, real callsigns.** 68,018 flights across 57 airlines (easyJet, Ryanair, Wizz, BA, Lufthansa group, KLM/AF, Pegasus, Turkish and more), with the ATC callsigns actually flown (EJU54LH), aircraft types, operating days and tracked times.
+- **Real flights, real callsigns.** 68,927 flights across 57 airlines (easyJet, Ryanair, Wizz, BA, Lufthansa group, KLM/AF, Pegasus, Turkish and more), with the ATC callsigns actually flown (EJU54LH), aircraft types, operating days and tracked times.
 - **Find anything.** Filter by airline, origin and destination (an airport *or* a whole country), aircraft type or family, block time, days, an **After (Z)** time against OUT / OFF / ON / IN, and flight number or callsign. Every filter lives in the URL.
 - **Roll a flight.** Random flight, random destination from an airport or random origin into one, with even odds per airport so busy routes don't dominate. **Next leg** continues from where you land after a realistic turnaround.
 - **Charts, not just lists.** Destinations from an airport and every route matching the filters (Madrid → Spain, say) on an azimuthal chart: sea depth and land height contours, a lat/long grid with degrees on the edges, sea, country and mountain lettering, routes in airline colours. Zoom and pan with two fingers, pinch or the buttons.

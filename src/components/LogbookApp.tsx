@@ -299,7 +299,11 @@ function LogTable({
                     <button type="button" className="log-date" aria-expanded={open} onClick={(e) => (e.stopPropagation(), onSel(f.id))}>
                       {f.date}
                     </button>
-                    {f.started && !f.out && <small className="muted log-sub">{f.started}</small>}
+                    {f.started && !f.out && (
+                      <small className="muted log-sub" title="The time your tracker lists for the flight (time zone not given)">
+                        {f.started}
+                      </small>
+                    )}
                   </td>
                   <td>
                     <FlightIdent airline={brand} fallback={f.airline ?? "—"} ident={ident} />
@@ -459,7 +463,7 @@ function LogForm({ start, ref_, onDone }: { start: LogFlight | null; ref_: Ref |
   const build = (): LogFlight | string => {
     if (!from || !to) return "Choose where the flight left from and where it landed.";
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date)) return "Choose the date.";
-    for (const [k, label] of TIME_FIELDS) if (d[k].trim() && !clockOf(d[k])) return `${label} must be a time like 14:05.`;
+    for (const [k, label] of [...TIME_FIELDS, ["started", "Listed time"] as const]) if (d[k].trim() && !clockOf(d[k])) return `${label} must be a time like 14:05.`;
     const callsign = s("callsign")?.toUpperCase().replace(/\s+/g, "") ?? null;
     const f: LogFlight = {
       id: start?.id ?? "",
@@ -546,6 +550,18 @@ function LogForm({ start, ref_, onDone }: { start: LogFlight | null; ref_: Ref |
           ))}
           {text("blockMin", "Block (min, if no OUT/IN)", { inputMode: "numeric", placeholder: "75" })}
           {text("airMin", "Airborne (min, if no OFF/ON)", { inputMode: "numeric", placeholder: "58" })}
+          <label className="ctl">
+            <span className="ctl-label">Listed time (your tracker&apos;s, any zone)</span>
+            <input
+              className="ctl-input mono"
+              value={d.started}
+              onChange={set("started")}
+              placeholder="--:--"
+              inputMode="numeric"
+              maxLength={5}
+              aria-invalid={d.started.trim() && !clockOf(d.started) ? true : undefined}
+            />
+          </label>
         </div>
       </fieldset>
       <fieldset>
