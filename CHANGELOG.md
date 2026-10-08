@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.2 — 2026-10-09
+
+- Finder: **Log this flight** in the selected flight's panel opens the logbook form prefilled from that flight (route, callsign, flight number, airline, type, listed STD/STA; the date is today). Nothing is saved until you submit it.
+- Flight panel and brief: the buttons are grouped. **Open in SimBrief** has its own full-width row; brief, gate screen, log and next leg sit in an even grid below it.
+
 ## 1.4.1 — 2026-10-08
 
 - Logbook: **Listed time** in the form (under Times), so the time a tracker lists for a flight can be added or edited; a bad time is refused with a message. It was imported and shown but had no field.

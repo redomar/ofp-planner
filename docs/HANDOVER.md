@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: v1.4.1 released 2026-10-08 (logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
+  status: v1.4.2 released 2026-10-09 (Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 
@@ -51,7 +51,7 @@ pages:        # all client components; one shared TopBar (Finder · Journeys · 
   /logbook:   src/components/LogbookApp.tsx + lib/logbook.ts — flights flown (localStorage "ofp-planner:logbook", never mixed with the snapshot):
               totals, RouteMap of routes flown, table (OOOI "HH:MM" UTC on the OUT date, block/air, status from STD/STA vs OUT/IN ±15 min,
               landing fpm + grade), add/edit form, JSON import/export (schema "ofp-planner/logbook" v1; parseLogFile cleans untrusted input).
-              /logbook?f=<flight id>[&d=date] prefills the form (FlightCard "Log this flight" on the brief). The user's own file lives outside
+              /logbook?f=<flight id>[&d=date] prefills the form (FlightCard "Log this flight" on the brief and in the Finder panel). The user's own file lives outside
               the repo in ../ofp-planner-logbook/ (it has their registrations).
   /settings:  src/components/SettingsApp.tsx — airframes, Display, favourites, recent, snapshot info, theme/storage
 components:

@@ -1817,11 +1817,23 @@ div.empty-note p {
 }
 .dispatch-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
 }
 .dispatch-actions .btn {
   height: 38px;
+}
+.dispatch-actions > .btn-primary {
+  justify-content: center;
+}
+.dispatch-more {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+.dispatch-more .btn {
+  justify-content: center;
+  min-width: 0;
 }
 .dispatch-link {
   margin: 0;
