@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: v1.4.3 released 2026-10-09 (a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
+  status: v1.4.4 released 2026-10-09 (Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 
@@ -54,6 +54,8 @@ pages:        # all client components; one shared TopBar (Finder · Journeys · 
               /logbook?f=<flight id>[&d=date] prefills the form (FlightCard "Log this flight" on the brief and in the Finder panel). The user's own file lives outside
               the repo in ../ofp-planner-logbook/ (it has their registrations).
   /settings:  src/components/SettingsApp.tsx — airframes, Display, favourites, recent, snapshot info, theme/storage
+              backup: lib/backup.ts — every "ofp-planner:*" key (+ theme, minus wx cache) as raw strings, schema "ofp-planner/backup" v1,
+              gzipped with CompressionStream; restore replaces those keys (rolls back on a quota error) and reloads.
 components:
   FlightCard.tsx:  sticky foldable header (bg sunk), RouteHead, RouteMap, OOOI table, facts, SimBrief dispatch
   RouteHead.tsx:   departs/arrives in display.routeHead = "timeline" (user's R7, default) | "pass" (R2) | "board" (R5);
@@ -245,6 +247,15 @@ server_latch_container_alternative: |
   - A python heredoc ending in `open(p,'w').write(s)` with s undefined truncates the file — restore from git.
 
 ## 10. Open items / ideas
+
+  - NEXT (agreed 2026-10-09, release 1.5.0 on a feature branch): one row per callsign+route with per-weekday times.
+    Data: optional Flight.byDay [{days, std, sta, out, off, on, in, samples}] only when times differ; merge rows matched to the
+    same Ryanair fn; others merge unless the same callsign was seen twice on the same date. 15,149 callsign+routes are split
+    today (40,895 rows; 8,875 overlap on a weekday → phantom departures); ~70k rows → ~44k. One accessor timesOn(f, weekday).
+    Finder line shows today's time + a new "varies" mark; day/After filters use the chosen day's times. Brief: week table,
+    sched + typical per day (user wants a preview sheet first). Board follows. Journeys later (check it isn't slower/broken).
+    Browser data: no migration; findFlight falls back to brand+op+fn|cs+route when the days/~n part of an id no longer exists
+    (also fixes ids churning today when a refresh sees a new weekday). Logbook and fn overrides don't use snapshot ids.
 
   - Ryanair timetable: kept on (user decision 2026-10-05). Next releases: feature branches → release/x.y.z → PR → merge
     commit → signed tag → GitHub release; pushing main auto-deploys (Dokploy).

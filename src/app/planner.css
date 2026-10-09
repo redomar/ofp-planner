@@ -1996,6 +1996,12 @@ div.empty-note p {
 .device .btn {
   align-self: flex-start;
 }
+.device .backup-acts .btn {
+  align-self: auto;
+}
+.backup > p {
+  margin: 8px 0 0;
+}
 
 /* footer: data and licence credits on their own line, between copyright and build info */
 .site-footer-data {
@@ -4394,7 +4400,8 @@ div.empty-note p {
   font-size: 14px;
   overflow-wrap: anywhere;
 }
-.log-acts {
+.log-acts,
+.backup-acts {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -4443,11 +4450,13 @@ div.empty-note p {
   margin: 0 0 10px;
   color: var(--ink-2);
 }
-.log-file {
+.log-file,
+.backup-file {
   position: relative;
   cursor: pointer;
 }
-.log-file:focus-within {
+.log-file:focus-within,
+.backup-file:focus-within {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }

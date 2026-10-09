@@ -10,6 +10,7 @@ import { createServer } from "node:http";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { homedir } from "node:os";
+import { gunzipSync } from "node:zlib";
 import { chromium } from "playwright";
 
 const OUT = resolve("out");
@@ -837,6 +838,28 @@ async function run() {
     await checkPage("finder with alt display 1280 light", page, errors);
     await page.goto(page.url().replace(/\/\?.*$/, "/settings"), { waitUntil: "networkidle" });
     await shot(page, "settings-day");
+    // backup: download (gzip), clear everything, restore → the airframe and display choices come back
+    await page.evaluate(() => localStorage.setItem("ofp-planner:logbook", JSON.stringify([{ id: "x", date: "2026-10-03", from: "EGBB", to: "LEMD" }])));
+    const [bk] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Download a backup/ }).click()]);
+    const gz = readFileSync(await bk.path());
+    const backup = JSON.parse(gunzipSync(gz).toString("utf8"));
+    gz[0] === 0x1f && gz[1] === 0x8b && /\.json\.gz$/.test(bk.suggestedFilename()) && backup.schema === "ofp-planner/backup" && backup.entries["ofp-planner:airframes"]?.includes("G-TEST")
+      ? pass(`settings: backup downloads as gzip with everything stored (${Object.keys(backup.entries).length} keys, ${gz.length} B)`)
+      : fail(`settings: backup ${bk.suggestedFilename()} ${backup.schema} ${Object.keys(backup.entries ?? {})}`);
+    await page.getByRole("button", { name: "Clear all saved data…" }).click();
+    await page.getByRole("button", { name: "Yes, clear everything" }).click();
+    const cleared = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("ofp-planner:")).length);
+    await page.locator(".backup input[type=file]").setInputFiles({ name: "ofp-planner-backup.json.gz", mimeType: "application/gzip", buffer: gz });
+    const confirmText = await page.locator(".backup .note-red").innerText();
+    await Promise.all([page.waitForEvent("load"), page.getByRole("button", { name: "Yes, restore" }).click()]);
+    await page.waitForSelector(".airframes tbody");
+    const restored = await page.evaluate(() => Object.fromEntries(Object.keys(localStorage).filter((k) => k.startsWith("ofp-planner:")).map((k) => [k, localStorage.getItem(k)])));
+    const same = Object.entries(backup.entries).every(([k, v]) => restored[k] === v) && Object.keys(restored).length === Object.keys(backup.entries).length;
+    cleared === 0 && /1 logbook flight/.test(confirmText) && same && (await page.locator(".airframes tbody").innerText()).includes("G-TEST")
+      ? pass("settings: restoring the backup after Clear all brings every entry back exactly")
+      : fail(`settings: restore (cleared ${cleared}, confirm "${confirmText}", same ${same})`);
+    await page.locator(".backup input[type=file]").setInputFiles({ name: "x.json", mimeType: "application/json", buffer: Buffer.from('{"schema":"other"}') });
+    (await page.locator(".backup .form-err").innerText()).includes("isn't an OFP Planner backup") ? pass("settings: a file that isn't a backup is refused") : fail("settings: bad backup not refused");
     errors.length ? fail(`settings: console errors ${JSON.stringify(errors)}`) : pass("settings: 0 console errors");
     await ctx.close();
   });
