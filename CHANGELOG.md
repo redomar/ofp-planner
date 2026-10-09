@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.1 — 2026-10-09
+
+- Settings → Display → **Maps: route lines**: **Shortest way** (default, the great circle, a straight line on these maps, as before) or **Along the grid**: a rhumb line, one constant heading that crosses every meridian at the same angle, so it curves with the lines of latitude and longitude. Applies to every map (Finder, flight card and Brief, favourites, Board, Journeys, Logbook); the aircraft marker follows the chosen line.
+
 ## 1.5.0 — 2026-10-09
 
 - **One line per flight, with its times for each weekday.** A flight that leaves at different times on different days (FR658 Brussels → Dublin: 07:35Z on Mondays, 08:30Z on Wednesdays, 07:50Z at weekends) used to be split into several rows, which overlapped on some days and showed departures that don't exist. It is now one flight with its weekly pattern.
