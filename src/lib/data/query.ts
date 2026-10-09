@@ -2,7 +2,7 @@
  * The finder's query: what the filter bar holds, how it maps to the URL, and how it
  * filters, sorts, groups and rolls the flights. Pure functions, no React.
  */
-import { blockTime, familyOf, gcNm, plannedOut, span, type Block } from "./flight";
+import { blockTime, familyOf, gcNm, onDay, plannedOut, span, varies, type Block } from "./flight";
 import type { Airport, FlightRow } from "./load";
 import type { Flight } from "./types";
 
@@ -22,7 +22,7 @@ export interface Query {
   days: number[];
   /** Free text: flight number, callsign, airport. */
   text: string;
-  /** Only flights whose `ref` time is at or after this (UTC minutes, same day); null = any time. */
+  /** Only flights whose `ref` time is at or after this (UTC minutes, same day, on the chosen days' times); null = any time. */
   after: number | null;
   /** Which OOOI time `after` compares against; null = not chosen (compares OUT). */
   ref: Oooi | null;
@@ -157,8 +157,9 @@ export function filterRows(rows: Row[], q: Query, airports: Map<string, Airport>
     if (q.maxLen != null && (block == null || block.min > q.maxLen)) return false;
     if (q.days.length && f.days.length && !q.days.some((d) => f.days.includes(d))) return false;
     if (q.after != null) {
-      const t = oooiTime(f, q.ref ?? "out", q.sched);
-      if (t == null || t < q.after) return false;
+      // rows carry one day's times; with several days chosen, any of them that the flight flies may pass
+      const on = q.days.length > 1 && varies(f) ? q.days.filter((d) => !f.days.length || f.days.includes(d)).map((d) => onDay(f, d)) : [f];
+      if (!on.some((x) => (oooiTime(x, q.ref ?? "out", q.sched) ?? -1) >= q.after!)) return false;
     }
     if (text) {
       const n = f.fn ?? "";

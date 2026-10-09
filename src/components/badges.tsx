@@ -3,7 +3,8 @@
 import type { CSSProperties, ReactNode } from "react";
 import { aircraft, makerTone } from "@/lib/aircraft";
 import { routeColor, textOn } from "@/lib/colors";
-import { DAY_NAMES } from "@/lib/data/flight";
+import { DAY_NAMES, hhmm, plannedOut, varies, weekTimes } from "@/lib/data/flight";
+import type { FlightRow } from "@/lib/data/load";
 import type { AirlineInfo } from "@/lib/data/types";
 import { useDisplay, type AirlineTagStyle } from "@/lib/display";
 import { cx } from "./ui";
@@ -184,6 +185,45 @@ export function MoreTypes({ types }: { types: string[] }) {
       aria-label={`${types.length} more aircraft types: ${list}`}
     >
       <b>+{types.length}</b>
+    </span>
+  );
+}
+
+/* ---------- a time that is different on other weekdays ---------- */
+
+/**
+ * After a time in the flights table when the flight's times change through the week: an
+ * outlined VAR tag, the word "varies" under the time, or a tilde (Settings → Display). The
+ * tooltip names the day shown and the spread of departures over the week.
+ */
+export function VariesMark({ f, children }: { f: FlightRow; children: ReactNode }) {
+  const { variesMark } = useDisplay();
+  if (!varies(f)) return <>{children}</>;
+  const deps = weekTimes(f)
+    .filter((w) => w.operates)
+    .map((w) => plannedOut(w.f))
+    .filter((t): t is number => t != null);
+  const range = deps.length ? `${hhmm(Math.min(...deps))}–${hhmm(Math.max(...deps))}Z` : "";
+  const tip = `${f.day ? `${DAY_NAMES[f.day - 1]} time` : "Usual time"}; departures over the week ${range}. The brief lists every day.`;
+  if (variesMark === "word")
+    return (
+      <span className="var-word" title={tip}>
+        {children}
+        <small>varies</small>
+      </span>
+    );
+  return (
+    <span title={tip}>
+      {children}
+      {variesMark === "tilde" ? (
+        <span className="var-tilde" aria-label="varies by day">
+          ~
+        </span>
+      ) : (
+        <sup className="var-tag" aria-label="varies by day">
+          VAR
+        </sup>
+      )}
     </span>
   );
 }

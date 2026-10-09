@@ -390,7 +390,7 @@ async function run() {
   await section("after filter", async () => {
     const { ctx, page, errors } = await open("/?al=EZY&dep=EGKK&after=1200&ref=out");
     await page.waitForSelector("table.flights tbody tr");
-    const deps = await page.$$eval("table.flights tbody tr td:nth-child(4)", (tds) => tds.map((t) => t.textContent.trim()));
+    const deps = await page.$$eval("table.flights tbody tr td:nth-child(4)", (tds) => tds.map((t) => t.textContent.replace(/VAR|varies|~/g, "").trim()));
     const early = deps.filter((d) => !/^\d\d:\d\d$/.test(d) || d < "12:00");
     deps.length && !early.length ? pass(`after: ${deps.length} flights all off-block ≥ 12:00Z (first ${deps[0]})`) : fail(`after: early or blank rows ${JSON.stringify(early.slice(0, 5))}`);
     // layout checks on load, before the scripted typing (programmatic input isn't "recent input" for CLS)
@@ -862,6 +862,84 @@ async function run() {
     (await page.locator(".backup .form-err").innerText()).includes("isn't an OFP Planner backup") ? pass("settings: a file that isn't a backup is refused") : fail("settings: bad backup not refused");
     errors.length ? fail(`settings: console errors ${JSON.stringify(errors)}`) : pass("settings: 0 console errors");
     await ctx.close();
+  });
+
+  /* ---------- 1.5.0: one row per flight, times by weekday ---------- */
+  await section("1.5.0", async () => {
+    const FR = encodeURIComponent("RYR:RYR658:EBBR-EIDW:1234567");
+    const fr658 = async (page) => {
+      await page.waitForSelector("table.flights tbody tr");
+      const row = page.locator("table.flights tbody tr", { hasText: "FR658" });
+      return { n: await row.count(), dep: (await row.first().locator("td:nth-child(4)").textContent())?.trim() ?? "" };
+    };
+    const { ctx, page, errors } = await open("/?al=RYR&dep=EBBR&arr=EIDW&days=1");
+    const mon = await fr658(page);
+    await page.goto(`${base}/?al=RYR&dep=EBBR&arr=EIDW&days=3`, { waitUntil: "networkidle" });
+    const wed = await fr658(page);
+    mon.n === 1 && wed.n === 1 && /^07:35VAR$/.test(mon.dep) && /^08:30VAR$/.test(wed.dep)
+      ? pass(`per-day: FR658 is one row; Monday shows 07:35, Wednesday 08:30, with the VAR mark (${mon.dep} / ${wed.dep})`)
+      : fail(`per-day: FR658 rows/times ${JSON.stringify({ mon, wed })}`);
+    await page.goto(`${base}/?al=RYR&dep=EBBR&arr=EIDW&days=3&after=0820&ref=out&sched=1`, { waitUntil: "networkidle" });
+    const wedAfter = (await fr658(page)).n;
+    await page.goto(`${base}/?al=RYR&dep=EBBR&arr=EIDW&days=1&after=0820&ref=out&sched=1`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(400);
+    const monAfter = await page.locator("table.flights tbody tr", { hasText: "FR658" }).count();
+    await page.goto(`${base}/?al=RYR&dep=EBBR&arr=EIDW&days=1,3&after=0820&ref=out&sched=1`, { waitUntil: "networkidle" });
+    const eitherAfter = (await fr658(page)).n;
+    wedAfter === 1 && monAfter === 0 && eitherAfter === 1
+      ? pass("per-day: After 08:20Z uses the chosen day's times (Wed 08:30 in, Mon 07:35 out, Mon+Wed in)")
+      : fail(`per-day: after by day wed ${wedAfter} mon ${monAfter} either ${eitherAfter}`);
+    // the brief: Monday 12 Oct shows Monday's times and highlights Monday in the week table
+    await page.goto(`${base}/brief?f=${FR}&d=2026-10-12`, { waitUntil: "networkidle" });
+    await page.waitForSelector(".week-tbl tr.cur");
+    const cur = (await page.locator(".week-tbl tr.cur th").textContent())?.trim();
+    const oooiOut = (await page.locator(".oooi").first().locator("tbody tr").first().locator("td").first().textContent())?.trim();
+    const weekRows = await page.locator(".week-tbl tbody tr").count();
+    cur === "Mon" && oooiOut?.startsWith("07:35Z") && weekRows === 7
+      ? pass(`brief: Monday's times (STD ${oooiOut?.slice(0, 6)}), the week table's Monday row highlighted, 7 days`)
+      : fail(`brief: per-day ${cur} ${oooiOut} rows ${weekRows}`);
+    await checkPage("brief week table 1280 light", page, errors);
+    await ctx.close();
+    // the other styles from Settings → Display, and the day tabs switching the OOOI table
+    for (const [week, sel] of [
+      ["grouped", ".week-grp tbody tr"],
+      ["timeline", ".week-tl-row:not(.week-tl-axis)"],
+      ["tabs", ".week-tab"],
+    ]) {
+      const o = await open(`/brief?f=${FR}&d=2026-10-12`, { theme: week === "timeline" ? "dark" : "light" });
+      await o.page.evaluate((w) => localStorage.setItem("ofp-planner:display", JSON.stringify({ week: w })), week);
+      await o.page.reload({ waitUntil: "networkidle" });
+      await o.page.waitForSelector(sel);
+      const n = await o.page.locator(sel).count();
+      let extra = "";
+      if (week === "tabs") {
+        await o.page.getByRole("button", { name: /^Wed/ }).click();
+        extra = (await o.page.locator(".oooi").first().locator("tbody tr").first().locator("td").first().textContent())?.trim().slice(0, 6) ?? "";
+      }
+      const ok = week === "grouped" ? n === 5 : week === "timeline" ? n === 7 : n === 7 && extra === "08:30Z";
+      ok ? pass(`brief: times by day as ${week} (${n}${extra ? `, Wed tab → ${extra}` : ""})`) : fail(`brief: ${week} ${n} ${extra}`);
+      await checkPage(`brief week ${week} ${week === "timeline" ? "1280 dark" : "1280 light"}`, o.page, o.errors);
+      await o.ctx.close();
+    }
+    // phone width: the week table fits
+    const ph = await open(`/brief?f=${FR}&d=2026-10-12`, { width: 390, height: 844 });
+    await ph.page.waitForSelector(".week-tbl");
+    await checkPage("brief week table 390 light", ph.page, ph.errors);
+    await ph.ctx.close();
+    // the varies mark as a word; an id from before the merge still opens the flight; the gate screen uses that day's time
+    const w = await open("/?al=RYR&dep=EBBR&arr=EIDW&days=1");
+    await w.page.evaluate(() => localStorage.setItem("ofp-planner:display", JSON.stringify({ variesMark: "word" })));
+    await w.page.reload({ waitUntil: "networkidle" });
+    const word = (await fr658(w.page)).dep;
+    /07:35\s*varies/i.test(word) ? pass(`finder: varies mark as a word (${word.replace(/\s+/g, " ")})`) : fail(`finder: varies word ${word}`);
+    await w.page.goto(`${base}/brief?f=${encodeURIComponent("RYR:RYR658:EBBR-EIDW:234567~1")}`, { waitUntil: "networkidle" });
+    await w.page.waitForSelector(".fcard-no");
+    (await w.page.locator(".fcard-no").textContent())?.includes("658") ? pass("brief: a saved id from before the merge still finds FR658") : fail("brief: old id not found");
+    await w.page.goto(`${base}/board?tab=gate&f=${FR}&d=2026-10-14`, { waitUntil: "networkidle" });
+    await w.page.waitForSelector(".gs-status b");
+    const gs = (await w.page.locator("main").innerText()).replace(/\s+/g, " ");
+    /10:30/.test(gs) ? pass("gate screen: Wednesday's FR658 departs 10:30 local (08:30Z)") : fail(`gate screen: per-day time ${gs.slice(0, 200)}`);
+    await w.ctx.close();
   });
 
   /* ---------- 1.3.1: board rows, favourites drag, route sort and flags, journeys avoid ---------- */

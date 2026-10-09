@@ -9,7 +9,9 @@ import { routeColor } from "@/lib/colors";
 import { DEFAULT_AIRFRAMES, readAirframes, useAirframes, writeAirframes, type Airframe } from "@/lib/simbrief";
 import { applyTheme, clearAll, readTheme, storageBytes, useStorageVersion, type ThemePref } from "@/lib/storage";
 import { describeBackup, downloadBackup, readBackup, restoreBackup, type Backup } from "@/lib/backup";
-import { DEFAULT_DISPLAY, useDisplay, writeDisplay, type AirlineTagStyle } from "@/lib/display";
+import { DEFAULT_DISPLAY, useDisplay, writeDisplay, type AirlineTagStyle, type VariesMark } from "@/lib/display";
+import { hhmm, isoDay, onDay, plannedOut, varies } from "@/lib/data/flight";
+import { DayTabs, WeekTimes } from "./WeekTimes";
 import { FlightIdent, TypeBadge } from "./badges";
 import { StatusLine, TopBar } from "./chrome";
 import { SavedFlights } from "./SavedFlights";
@@ -249,6 +251,7 @@ function DisplayPrefs({ manifest }: { manifest: Manifest | null }) {
     </span>
   );
   const sample = useSampleFlight();
+  const varying = useVaryingSample();
   return (
     <div className="display-prefs">
       <fieldset className="opt-group">
@@ -366,6 +369,51 @@ function DisplayPrefs({ manifest }: { manifest: Manifest | null }) {
       </fieldset>
 
 
+      <fieldset className="opt-group">
+        <legend className="ctl-label">Flight card: times by day</legend>
+        <p className="small muted opt-intro">For flights whose times change through the week. The card’s day (the brief’s date, else today) is highlighted.</p>
+        <div className="opt-grid stack">
+          {(
+            [
+              ["table", "A1 · Week table", "A row per day: scheduled OUT/IN, typical OUT · OFF · ON · IN, how late it usually leaves and how often it was seen."],
+              ["grouped", "A2 · Grouped by timetable", "Days with the same times share a row, like an airline timetable. The shortest."],
+              ["tabs", "A3 · Day tabs", "A tab per day above the OUT · OFF · ON · IN table; pick a day to see its times there."],
+              ["timeline", "A4 · Week timeline", "Each day as a bar on one UTC clock: outline scheduled, solid typical. Shows the weekly shift at a glance."],
+            ] as const
+          ).map(([v, label, note]) => (
+            <Opt key={v} name="week" checked={d.week === v} onChange={() => writeDisplay({ week: v })} title={label} isDefault={v === "table"} note={note}>
+              {varying ? (
+                <span className="week-sample" aria-hidden="true" inert>
+                  {v === "tabs" ? <DayTabs f={varying} day={varying.day} onPick={() => undefined} /> : <WeekTimes f={varying} style={v} />}
+                </span>
+              ) : (
+                <span className="sk-block" />
+              )}
+            </Opt>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="opt-group">
+        <legend className="ctl-label">Flights table: times that vary</legend>
+        <p className="small muted opt-intro">The table shows the day’s time (the day filter’s, else today’s). This mark says other days differ.</p>
+        <div className="opt-grid">
+          {(
+            [
+              ["tag", "B1 · VAR tag", "A small outlined tag after the time."],
+              ["word", "B2 · “varies”", "The word under the time; rows get taller."],
+              ["tilde", "B3 · Tilde", "A quiet ~ after the time."],
+            ] as const
+          ).map(([v, label, note]) => (
+            <Opt key={v} name="variesMark" checked={d.variesMark === v} onChange={() => writeDisplay({ variesMark: v })} title={label} isDefault={v === "tag"} note={note}>
+              <span className="var-sample mono" aria-hidden="true">
+                <VariesSample mark={v} f={varying} />
+              </span>
+            </Opt>
+          ))}
+        </div>
+      </fieldset>
+
       <button type="button" className="chip" onClick={() => writeDisplay(DEFAULT_DISPLAY)}>
         Reset display to defaults
       </button>
@@ -426,6 +474,43 @@ function useSampleFlight() {
     };
   }, []);
   return s;
+}
+
+/** A real flight whose times change by weekday (Pegasus PGT651R Frankfurt → Antalya, else any), with today's times. */
+function useVaryingSample() {
+  const [f, setF] = useState<FlightRow | null>(null);
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const m = await loadManifest();
+      const info = m.airlines.find((a) => a.icao === "PGT") ?? m.airlines[0];
+      const rows = await loadAirline(info, m);
+      const x = rows.find((r) => r.cs === "PGT651R" && varies(r)) ?? rows.find((r) => varies(r) && r.days.length === 7) ?? rows.find(varies);
+      if (live && x) setF(onDay(x, isoDay(new Date())));
+    })().catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+  return f;
+}
+
+/** The varies mark on a sample time, as the flights table shows it with this setting. */
+function VariesSample({ mark, f }: { mark: VariesMark; f: FlightRow | null }) {
+  const t = hhmm(f ? plannedOut(f) : 760) ?? "12:40";
+  if (mark === "word")
+    return (
+      <span className="var-word">
+        {t}
+        <small>varies</small>
+      </span>
+    );
+  return (
+    <>
+      {t}
+      {mark === "tilde" ? <span className="var-tilde">~</span> : <sup className="var-tag">VAR</sup>}
+    </>
+  );
 }
 
 function DataInfo({ manifest, error }: { manifest: Manifest | null; error: string | null }) {

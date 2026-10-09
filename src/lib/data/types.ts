@@ -101,7 +101,18 @@ export interface Flight {
   in: number | null;
   /** Number of observed operations behind the OOOI medians. */
   samples: number;
+  /**
+   * Weekdays whose times differ from the ones above (another STD, or typical OUT/OFF more
+   * than 30 min off), as [days, std, sta, out, off, on, in]. Days not listed use the flight's
+   * own times. Absent when every day runs alike. Read through onDay() in data/flight.ts.
+   */
+  byDay?: DayTimes[];
+  /** Tracked sightings per weekday, Mon..Sun (absent for timetable-only flights). */
+  seen?: number[];
 }
+
+/** [ISO weekdays, std, sta, out, off, on, in] (UTC minutes, null when unknown). */
+export type DayTimes = [number[], number | null, number | null, number | null, number | null, number | null, number | null];
 
 /** public/data/routes.json — flights per airline on every route: routes[orig][dest][brand] = flights. */
 export interface RoutesFile {

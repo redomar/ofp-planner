@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { airportLabel, dur, familyOf, flightNo, hhmm, plannedOut } from "@/lib/data/flight";
+import { airportLabel, dayGroups, dur, familyOf, flightNo, hhmm, plannedOut } from "@/lib/data/flight";
 import { enrich, queryToParams, EMPTY_QUERY } from "@/lib/data/query";
 import { loadRoutes, useDataset, type Airport, type FlightRow } from "@/lib/data/load";
 import type { AirlineInfo } from "@/lib/data/types";
@@ -157,7 +157,8 @@ export function JourneysApp() {
     const rows: FlightRow[] = [];
     const flights: TFlight[] = [];
     let untimed = 0;
-    for (const f of data.flights) {
+    // a flight whose times change through the week goes in once per set of weekdays that run alike
+    for (const { days, f } of data.flights.flatMap(dayGroups)) {
       if (want.length && !f.types.some((t) => want.includes(t) || want.includes(familyOf(t)))) continue;
       const r = enrich(f, airports);
       const block = r.block?.min ?? null;
@@ -168,7 +169,7 @@ export function JourneysApp() {
         continue;
       }
       rows.push(f);
-      flights.push({ o: f.o, d: f.d, al: f.al, dep, block, days: f.days });
+      flights.push({ o: f.o, d: f.d, al: f.al, dep, block, days });
     }
     return {
       key: `timed|${plan.al.join(",")}|${want.join(",")}|${flights.length}|${manifest.generatedAt}`,

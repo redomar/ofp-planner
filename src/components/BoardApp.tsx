@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { cityName, dur } from "@/lib/data/flight";
+import { cityName, dur, isoDay, onDay } from "@/lib/data/flight";
 import { findFlight, loadRoutes, useDataset, type FlightRow } from "@/lib/data/load";
 import { routeColor } from "@/lib/colors";
 import { applyFn, useFnOverrides } from "@/lib/fnoverride";
@@ -219,7 +219,8 @@ export function BoardApp() {
     if (!snapFlight || snapFlight.id !== gate.f) return null;
     const f = applyFn(snapFlight, fnOv);
     const std = (gate.d ? depOn(f, gate.d) : null) ?? nextDep(f, minute - 30 * MIN);
-    return std != null ? fromSnapshot(f, std, airports, airlines.get(f.al) ?? null) : null;
+    // block, taxi and typical lateness from the times of the day it departs
+    return std != null ? fromSnapshot(onDay(f, isoDay(new Date(std))), std, airports, airlines.get(f.al) ?? null) : null;
   }, [airports, airlines, gate.sb, gate.f, gate.d, ofp, snapFlight, fnOv, minute]);
 
   // destination weather at arrival, for the info strip

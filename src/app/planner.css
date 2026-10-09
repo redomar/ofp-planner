@@ -2020,6 +2020,38 @@ div.empty-note p {
   }
 }
 
+/* a time that is different on other weekdays (Settings → Display: tag / word / tilde) */
+.var-tag {
+  margin-left: 3px;
+  padding: 0 2px;
+  border: 1px solid var(--ink-3);
+  border-radius: 2px;
+  font-family: var(--font-cond);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ink-2);
+  vertical-align: 3px;
+}
+.var-word {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.1;
+}
+.var-word small {
+  font-family: var(--font-cond);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.var-tilde {
+  margin-left: 2px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
 /* a typical (tracked) time standing in for an unpublished schedule */
 .obs {
   text-decoration: underline dotted var(--ink-3);
@@ -4488,4 +4520,187 @@ div.empty-note p {
 .log-map-wait {
   border: 1px solid var(--rule);
   background: var(--m-sea);
+}
+
+/* ---------- flight card: times by day (Settings → Display: table / grouped / tabs / timeline) ---------- */
+.week {
+  container-type: inline-size;
+}
+.week-title {
+  margin: 0 0 6px;
+  font-family: var(--font-cond);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.week-tbl table {
+  table-layout: auto;
+}
+.week-tbl th,
+.week-tbl td {
+  padding: 4px 6px;
+  white-space: nowrap;
+}
+.week-tbl td .mono {
+  display: inline;
+  font-size: 13px;
+}
+.week-tbl tr.cur th,
+.week-tbl tr.cur td {
+  background: var(--magenta-bg);
+}
+.week-tbl tr.cur th {
+  color: var(--magenta);
+  box-shadow: inset 3px 0 0 var(--magenta);
+}
+.week-grp .wk i {
+  width: 13px;
+  height: 16px;
+  font-size: 10px;
+}
+@container (max-width: 480px) {
+  .week-tbl .wk-opt {
+    display: none;
+  }
+  .week-tbl th,
+  .week-tbl td {
+    padding: 4px 4px;
+  }
+}
+.week-tabs {
+  display: flex;
+  gap: 4px;
+}
+.week-tab {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 5px 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--field);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.week-tab b {
+  font-family: var(--font-cond);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.week-tab:hover {
+  border-color: var(--rule-strong);
+}
+.week-tab.on {
+  border-color: var(--magenta);
+  background: var(--magenta-bg);
+  color: var(--magenta);
+}
+@container (max-width: 420px) {
+  .week-tab .mono {
+    font-size: 10.5px;
+  }
+}
+.week-tl {
+  font-size: 13px;
+}
+.week-tl-row {
+  display: grid;
+  grid-template-columns: 44px 1fr 48px;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  border-bottom: 1px solid var(--grid);
+}
+.week-tl-row.cur {
+  background: var(--magenta-bg);
+}
+.week-tl-row.cur .week-tl-day {
+  color: var(--magenta);
+}
+.week-tl-axis {
+  height: 22px;
+  border-bottom-color: var(--rule);
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+.week-tl-day {
+  padding-left: 6px;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.week-tl-track {
+  position: relative;
+  height: 100%;
+}
+.week-tl-t {
+  position: absolute;
+  top: 3px;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.week-tl-sched {
+  position: absolute;
+  top: 5px;
+  height: 14px;
+  box-sizing: border-box;
+  border: 1.5px solid var(--ink-3);
+  border-radius: 2px;
+}
+.week-tl-obs {
+  position: absolute;
+  top: 9px;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--ink);
+}
+.week-tl-row.cur .week-tl-obs {
+  background: var(--magenta);
+}
+.week-tl-tick {
+  position: absolute;
+  top: 6px;
+  width: 2px;
+  height: 12px;
+  background: var(--sheet);
+  box-shadow: 0 0 0 1px var(--ink);
+}
+.week-key {
+  position: static;
+  display: inline-block;
+  width: 22px;
+  margin: 0 2px;
+  vertical-align: middle;
+}
+.week-key.week-tl-sched {
+  height: 10px;
+}
+
+/* settings: samples for the times-by-day and varies choices */
+.opt-intro {
+  margin: 0 0 8px;
+}
+.week-sample {
+  display: block;
+  width: 100%;
+  font-size: 13px;
+  pointer-events: none;
+}
+.week-sample .week-title {
+  display: none;
+}
+.var-sample {
+  display: inline-block;
+  font-size: 14px;
 }

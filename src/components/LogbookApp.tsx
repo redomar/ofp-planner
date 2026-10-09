@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from "react";
-import { airportLabel, cityName, dur, gcNm, hhmm } from "@/lib/data/flight";
+import { airportLabel, cityName, dur, gcNm, hhmm, isoDay, onDay } from "@/lib/data/flight";
 import { findFlight, loadAirports, loadManifest, type Airport } from "@/lib/data/load";
 import type { AirlineInfo } from "@/lib/data/types";
 import {
@@ -73,14 +73,17 @@ export function LogbookApp() {
     const id = q.get("f");
     if (!id) return;
     let live = true;
-    Promise.all([findFlight(id), loadManifest()]).then(([f, m]) => {
-      if (!live || !f) return;
-      const iata = m.airlines.find((a) => a.icao === f.al)?.iata ?? null;
+    Promise.all([findFlight(id), loadManifest()]).then(([base, m]) => {
+      if (!live || !base) return;
+      const iata = m.airlines.find((a) => a.icao === base.al)?.iata ?? null;
       const ready = readReady();
       const d = q.get("d") ?? (ready?.flight.id === id ? ready.date : null);
+      const date = d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : new Date().toISOString().slice(0, 10);
+      // listed STD/STA of that weekday (they change through the week for some flights)
+      const f = onDay(base, isoDay(new Date(`${date}T00:00:00Z`)));
       setEditing({
         id: "",
-        date: d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : new Date().toISOString().slice(0, 10),
+        date,
         from: f.o,
         to: f.d,
         callsign: f.cs,

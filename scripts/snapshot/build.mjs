@@ -74,7 +74,7 @@ export async function observe(dates, airports, sdRoutes, { onlyBrand = null } = 
         let o = r.o;
         let d = r.d;
         // one end unseen: the VRS callsign route fills it in when it agrees with the seen end
-        if ((!o) !== (!d)) {
+        if (!o !== !d) {
           for (const codes of sdRoutes.get(leg.cs) ?? []) {
             for (let i = 0; i + 1 < codes.length; i++) {
               if (o && codes[i] === o.icao && airports.byIcao.has(codes[i + 1])) d = airports.byIcao.get(codes[i + 1]);
@@ -164,6 +164,117 @@ function numericFn(brand, cs, sdAirlines) {
   return m[1];
 }
 
+/** UTC date of an observation ("2026-10-05"), for telling two flights on one day from one flight on two days. */
+const obDate = (ob) => new Date(ob.ms.off ?? ob.ms.out ?? ob.ms.on ?? ob.ms.in).toISOString().slice(0, 10);
+
+/** Which timetabled flight number most observations fit (same weekday, −20…+150 min off-block), or null without a majority. */
+function voteFn(list, tt) {
+  const votes = [];
+  for (const ob of list) {
+    const dep = ob.ms.out ?? (ob.ms.off != null ? ob.ms.off - 12 * 60000 : null);
+    if (dep == null) continue;
+    const depMin = minOfDay(dep);
+    let best = null;
+    let bestScore = Infinity;
+    for (const row of tt) {
+      if (row.dow !== ob.dow) continue;
+      const delay = wrap(depMin - row.std);
+      if (delay < -20 || delay > 150) continue;
+      const score = delay < 0 ? -delay * 3 : delay;
+      if (score < bestScore) [best, bestScore] = [row, score];
+    }
+    if (best) votes.push(best.fn);
+  }
+  const top = mode(votes);
+  return top && votes.filter((v) => v === top).length * 2 >= votes.length ? top : null;
+}
+
+/** A flight number's timetable rows → weekday → { std, sta } (the most common times on that weekday). */
+function schedByDay(rows) {
+  const out = new Map();
+  for (let dow = 1; dow <= 7; dow++) {
+    const day = rows.filter((r) => r.dow === dow);
+    if (!day.length) continue;
+    const std = mode(day.map((r) => r.std));
+    out.set(dow, { std, sta: mode(day.filter((r) => r.std === std).map((r) => r.sta)) });
+  }
+  return out;
+}
+
+/** Typical OUT/OFF/ON/IN of some observations: circular medians, dropping gate times that don't fit their wheels times. */
+function typical(list) {
+  const med = (key) => circularMedian(list.map((ob) => (ob.ms[key] == null ? null : minOfDay(ob.ms[key]))));
+  let [out, off, on, inn] = [med("out"), med("off"), med("on"), med("in")];
+  // medians come from different subsets; drop gate times that don't fit their wheels times
+  if (out != null && off != null && !(wrap(off - out) >= 3 && wrap(off - out) <= 60)) out = null;
+  if (inn != null && on != null && !(wrap(inn - on) >= 1 && wrap(inn - on) <= 45)) inn = null;
+  if (off != null && on != null && !(wrap(on - off) >= 15)) [off, on] = [null, null];
+  return { out, off, on, in: inn };
+}
+
+const TIMES = ["std", "sta", "out", "off", "on", "in"];
+/** A day's typical times with the gaps (an end not tracked that weekday) taken from the whole flight, moved to that day's time. */
+function fill(t, all) {
+  const k = ["off", "out", "on", "in"].find((k) => t[k] != null && all[k] != null);
+  if (!k) return t;
+  const by = wrap(t[k] - all[k]);
+  return Object.fromEntries(["out", "off", "on", "in"].map((x) => [x, t[x] ?? (all[x] == null ? null : (((all[x] + by) % 1440) + 1440) % 1440)]));
+}
+const depOf = (t) => t.std ?? t.out ?? (t.off != null ? t.off - 12 : null);
+const shift = (t, by) => Object.fromEntries(Object.entries(t).map(([k, v]) => [k, v == null ? null : (((v + by) % 1440) + 1440) % 1440]));
+
+/**
+ * The weekly pattern: the flight-level times (the set most days share) plus, when some days
+ * differ (another STD, or typical OUT/OFF more than 30 min off), `byDay` lists the other weekdays
+ * as [days, std, sta, out, off, on, in]. Per-day typical times need two sightings that weekday; one sighting counts only
+ * when it's clearly a different time (> 40 min off); otherwise the whole-flight typical stands in,
+ * moved by the day's schedule difference. Ends not tracked on a weekday come from the whole flight,
+ * moved to that day's time. `seen` counts the sightings per weekday.
+ */
+function timesByDay(days, list, sched) {
+  const all = typical(list);
+  const mainStd = sched ? mode([...sched.values()].map((s) => s.std)) : null;
+  const per = new Map();
+  for (const dow of days) {
+    const s = sched?.get(dow) ?? { std: null, sta: null };
+    const on = list.filter((ob) => ob.dow === dow);
+    const fallback = shift(all, s.std != null && mainStd != null ? s.std - mainStd : 0);
+    let t = fallback;
+    if (on.length >= 2) t = fill(typical(on), all);
+    else if (on.length === 1) {
+      const one = typical(on);
+      const a = depOf(one);
+      const b = depOf(fallback);
+      if (a != null && b != null && Math.abs(wrap(a - b)) > 40) t = fill(one, all);
+    }
+    per.set(dow, { std: s.std, sta: s.sta, ...t });
+  }
+  const key = (t) => TIMES.map((k) => t[k] ?? "").join(",");
+  const groups = new Map();
+  for (const [dow, t] of per) {
+    const g = groups.get(key(t)) ?? { days: [], ...t };
+    g.days.push(dow);
+    groups.set(key(t), g);
+  }
+  const ordered = [...groups.values()].sort((a, b) => b.days.length - a.days.length || +(b.std === mainStd) - +(a.std === mainStd) || a.days[0] - b.days[0]);
+  const main = ordered[0] ?? { std: null, sta: null, ...all };
+  const far = (a, b) => a != null && b != null && Math.abs(wrap(a - b)) > 30;
+  const differs = ordered.some((g) => g.std !== main.std || far(g.out, all.out) || far(g.off, all.off));
+  const seen = [1, 2, 3, 4, 5, 6, 7].map((dow) => list.filter((ob) => ob.dow === dow).length);
+  const flat = differs ? main : { ...all, std: main.std, sta: main.sta };
+  return {
+    days,
+    std: flat.std ?? null,
+    sta: flat.sta ?? null,
+    out: flat.out ?? null,
+    off: flat.off ?? null,
+    on: flat.on ?? null,
+    in: flat.in ?? null,
+    ...(differs && ordered.length > 1 ? { byDay: ordered.slice(1).map((g) => [g.days.sort(), ...TIMES.map((k) => g[k] ?? null)]) } : {}),
+    ...(list.length ? { seen } : {}),
+  };
+}
+
 export async function build({ dates, airports, sdRoutes, sdAirlines, types, ryanair = true, onlyBrand = null, refresh = false }) {
   const obs = await observe(dates, airports, sdRoutes, { onlyBrand });
 
@@ -210,120 +321,91 @@ export async function build({ dates, airports, sdRoutes, sdAirlines, types, ryan
   }
 
   const fileFlights = new Map(AIRLINES.map((a) => [a.icao, []]));
-  const ryMatched = new Map(); // route → Set(fn) matched to an observed flight
+  const ryConsumed = new Map(); // route → Set(fn) already given a row from observations
+  const byNumber = new Map(); // Ryanair: `${o}|${d}|${fn}` → observations of every callsign flying that number
   for (const [k, all] of groups) {
     const [brandIcao, op, cs, o, d] = k.split("|");
     const brand = AIRLINES.find((a) => a.icao === brandIcao);
     const tt = brandIcao === "RYR" ? timetables.get(`${o}-${d}`) : undefined;
-    // the same callsign can fly the route at different times on different weekdays:
-    // one flight entry per departure-time cluster
-    const matchedClusters = [];
-    for (const list of clusterByTime(all)) {
-      let fn = null;
-      let std = null;
-      let sta = null;
-      let ttDays = null;
-      if (tt) {
-        // vote over observations: which scheduled departure (same weekday) does each fit?
-        const votes = [];
-        for (const ob of list) {
-          const dep = ob.ms.out ?? (ob.ms.off != null ? ob.ms.off - 12 * 60000 : null);
-          if (dep == null) continue;
-          const depMin = minOfDay(dep);
-          let best = null;
-          let bestScore = Infinity;
-          for (const row of tt) {
-            if (row.dow !== ob.dow) continue;
-            const delay = wrap(depMin - row.std);
-            if (delay < -20 || delay > 150) continue;
-            const score = delay < 0 ? -delay * 3 : delay;
-            if (score < bestScore) [best, bestScore] = [row, score];
-          }
-          if (best) votes.push(best);
-        }
-        const top = mode(votes.map((v) => v.fn));
-        if (top && votes.filter((v) => v.fn === top).length * 2 >= votes.length) {
-          fn = top;
-          const rows = tt.filter((r) => r.fn === top);
-          std = mode(votes.filter((v) => v.fn === top).map((v) => v.std));
-          sta = mode(rows.filter((r) => r.std === std).map((r) => r.sta));
-          ttDays = [...new Set(rows.filter((r) => Math.abs(wrap(r.std - std)) <= 40).map((r) => r.dow))].sort();
-          if (!ryMatched.has(`${o}-${d}`)) ryMatched.set(`${o}-${d}`, new Set());
-          ryMatched.get(`${o}-${d}`).add([top, std]);
-        }
+    // the same callsign flies the route at different times on different weekdays (and delays
+    // split a time into two clusters): each departure-time cluster votes for a timetable
+    // flight number, then clusters merge into one flight unless they were seen on the same date
+    const clusters = clusterByTime(all).map((list) => ({ list, fn: tt ? voteFn(list, tt) : null, dates: new Set(list.map(obDate)) }));
+    const buckets = [];
+    for (const c of clusters.sort((a, b) => b.list.length - a.list.length)) {
+      // a lone sighting joins only a weekday the flight already flies (a delay); on a new weekday it stays a one-off
+      const lone = c.list.length === 1 ? c.list[0].dow : null;
+      const b = buckets.find(
+        (b) => (b.fn == null || c.fn == null || b.fn === c.fn) && ![...c.dates].some((x) => b.dates.has(x)) && (lone == null || b.list.some((ob) => ob.dow === lone)),
+      );
+      if (!b) buckets.push({ list: [...c.list], fn: c.fn, dates: new Set(c.dates) });
+      else {
+        b.list.push(...c.list);
+        b.fn ??= c.fn;
+        for (const x of c.dates) b.dates.add(x);
       }
-      // clusters matched to the same scheduled flight are one flight (delays split them)
-      const same = std != null && matchedClusters.find((c) => c.fn === fn && c.std === std);
-      if (same) {
-        same.list.push(...list);
+    }
+    // groups of two or more that never share a date are one flight too (another time on other weekdays)
+    for (let i = buckets.length - 1; i > 0; i--) {
+      const c = buckets[i];
+      if (c.list.length < 2) continue;
+      const b = buckets.slice(0, i).find((b) => b.list.length >= 2 && (b.fn == null || c.fn == null || b.fn === c.fn) && ![...c.dates].some((x) => b.dates.has(x)));
+      if (!b) continue;
+      b.list.push(...c.list);
+      b.fn ??= c.fn;
+      for (const x of c.dates) b.dates.add(x);
+      buckets.splice(i, 1);
+    }
+    for (const { list, fn: voted } of buckets) {
+      // a callsign that is the number (RYR4312) belongs to that timetabled flight even when its times didn't vote
+      const num = numericFn(brand, cs, sdAirlines);
+      const ttFn = voted ?? (num && tt?.some((r) => r.fn === num) ? num : null);
+      // Ryanair flies one flight number under different callsigns on different days: one flight per number
+      if (ttFn) {
+        const key = `${o}|${d}|${ttFn}`;
+        const r = byNumber.get(key) ?? { brandIcao, op, o, d, list: [], fn: ttFn, tt };
+        r.list.push(...list);
+        byNumber.set(key, r);
         continue;
       }
-      matchedClusters.push({ list, fn, std, sta, ttDays });
+      emit(brandIcao, op, cs, o, d, list, num, null);
     }
-    for (const { list, fn: ttFn, std, sta, ttDays } of matchedClusters) {
-      const fn = ttFn ?? numericFn(brand, cs, sdAirlines);
-      // a one-off sighting is more likely a diversion, positioning or ad-hoc flight
-      if (list.length < 2 && !ttDays) continue;
-      const typeCounts = new Map();
-      for (const ob of list) {
-        const t = types.get(ob.hex);
-        if (t) typeCounts.set(t, (typeCounts.get(t) ?? 0) + 1);
-      }
-      const med = (key) => circularMedian(list.map((ob) => (ob.ms[key] == null ? null : minOfDay(ob.ms[key]))));
-      let [out, off, on, inn] = [med("out"), med("off"), med("on"), med("in")];
-      // medians come from different subsets; drop gate times that don't fit their wheels times
-      if (out != null && off != null && !(wrap(off - out) >= 3 && wrap(off - out) <= 60)) out = null;
-      if (inn != null && on != null && !(wrap(inn - on) >= 1 && wrap(inn - on) <= 45)) inn = null;
-      if (off != null && on != null && !(wrap(on - off) >= 15)) [off, on] = [null, null];
-      fileFlights.get(brandIcao).push({
-        op,
-        fn,
-        cs,
-        o,
-        d,
-        types: [...typeCounts.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t),
-        days: ttDays ?? [...new Set(list.map((ob) => ob.dow))].sort(),
-        std,
-        sta,
-        out,
-        off,
-        on,
-        in: inn,
-        samples: list.length,
-      });
+  }
+  for (const { brandIcao, op, o, d, list, fn, tt } of byNumber.values()) {
+    if (!ryConsumed.has(`${o}-${d}`)) ryConsumed.set(`${o}-${d}`, new Set());
+    ryConsumed.get(`${o}-${d}`).add(fn);
+    emit(brandIcao, op, mode(list.map((ob) => ob.cs)), o, d, list, fn, schedByDay(tt.filter((r) => r.fn === fn)));
+  }
+
+  function emit(brandIcao, op, cs, o, d, list, fn, sched) {
+    // a one-off sighting is more likely a diversion, positioning or ad-hoc flight
+    if (list.length < 2 && !sched) return;
+    const typeCounts = new Map();
+    for (const ob of list) {
+      const t = types.get(ob.hex);
+      if (t) typeCounts.set(t, (typeCounts.get(t) ?? 0) + 1);
     }
+    const days = sched ? [...sched.keys()].sort() : [...new Set(list.map((ob) => ob.dow))].sort();
+    fileFlights.get(brandIcao).push({
+      op,
+      fn,
+      cs,
+      o,
+      d,
+      types: [...typeCounts.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t),
+      ...timesByDay(days, list, sched),
+      samples: list.length,
+    });
   }
 
   // timetable flights we never saw (coverage gaps): add them without callsign/type/OOOI
   for (const [route, rows] of timetables) {
     const [o, d] = route.split("-");
-    const matched = [...(ryMatched.get(route) ?? [])];
-    const byFn = new Map(); // fn → clusters of rows by STD (±40 min)
-    for (const r of rows) {
-      if (matched.some(([fn, std]) => fn === r.fn && Math.abs(wrap(r.std - std)) <= 40)) continue;
-      if (!byFn.has(r.fn)) byFn.set(r.fn, []);
-      const clusters = byFn.get(r.fn);
-      const c = clusters.find((cl) => Math.abs(wrap(cl[0].std - r.std)) <= 40);
-      if (c) c.push(r);
-      else clusters.push([r]);
-    }
-    for (const [fn, rs] of [...byFn].flatMap(([fn, cls]) => cls.map((c) => [fn, c]))) {
-      fileFlights.get("RYR").push({
-        op: "RYR",
-        fn,
-        cs: null,
-        o,
-        d,
-        types: [],
-        days: [...new Set(rs.map((r) => r.dow))].sort(),
-        std: mode(rs.map((r) => r.std)),
-        sta: mode(rs.map((r) => r.sta)),
-        out: null,
-        off: null,
-        on: null,
-        in: null,
-        samples: 0,
-      });
+    const used = ryConsumed.get(route) ?? new Set();
+    for (const fn of new Set(rows.map((r) => r.fn))) {
+      if (used.has(fn)) continue;
+      const sched = schedByDay(rows.filter((r) => r.fn === fn));
+      fileFlights.get("RYR").push({ op: "RYR", fn, cs: null, o, d, types: [], ...timesByDay([...sched.keys()].sort(), [], sched), samples: 0 });
     }
   }
 

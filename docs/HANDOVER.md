@@ -79,7 +79,13 @@ lib:
   data/types.ts:   the data contract with the pipeline (manifest, airports, airlines/<ICAO>, routes)
   data/load.ts:    fetch + in-memory cache; useDataset(airlines|"all"); findFlight(id); loadRoutes()
   data/query.ts:   Query ↔ URL, filterRows, sortRows, groupByOtherEnd, roll, pickNextLeg, oooiTime, parseClock
-  data/flight.ts:  gcNm, blockTime (scheduled → observed → estimated), hhmm/dur/localHHMM, flightNo/fltnum/plannedOut, families
+  data/flight.ts:  gcNm, blockTime (scheduled → observed → estimated), hhmm/dur/localHHMM, flightNo/fltnum/plannedOut, families;
+                   onDay(f, isoWeekday) = cached copy with that weekday's times (byDay), base = the original row; varies(f);
+                   weekTimes(f) (Mon..Sun for the week section); dayGroups(f) (weekdays that run alike; Journeys input)
+  per-day times (1.5.0): Finder rows = onDay(f, day filter's single day ?? today); Brief = onDay(f, weekday of the date);
+                   Board/gate per date; After with several days = any day. FlightCard → WeekTimes.tsx (A1 table, A2 grouped,
+                   A3 DayTabs, A4 timeline; display.week) and badges VariesMark (display.variesMark tag/word/tilde).
+                   findFlight falls back to brand:op+fn|cs:route when the days/~n part of a saved id no longer exists.
   journey/engine.ts: pure multi-leg search (no app imports; runs in Node with --experimental-strip-types for testing).
                    network mode over routes.json edges; timed mode over weekly flight instances (day × OUT, week minutes,
                    wrap-around), reversed graph/clock when only `to` is set. DFS with hop lower bounds (BFS to each waypoint),
@@ -112,7 +118,7 @@ ids_and_urls:
 
 ## 4. Data: what exists and why
 
-snapshot_now: 57 airlines · 69,935 flights · 15,731 routes · 584 airports · window 2026-09-20 → 2026-10-08 (19 days, built 2026-10-09)
+snapshot_now (branch feature/1.5.0-per-day): 57 airlines · 41,593 flights (one per weekly pattern; main/1.4.4 has 69,935 rows) · 15,802 routes · 584 airports · window 2026-09-20 → 2026-10-08 (19 days)
 size: public/data ≈ 11 MB raw, ≈ 1.2 MB gzipped (biggest RYR.json 3.6 MB / 423 KB gz); routes.json 315 KB / 62 KB gz
 loading: manifest revalidated each visit; other files fetched with ?v=<generatedAt> (cache-friendly);
   airline files load only for selected airlines; routes.json only once an airport is chosen.
@@ -248,15 +254,10 @@ server_latch_container_alternative: |
 
 ## 10. Open items / ideas
 
-  - NEXT (agreed 2026-10-09, release 1.5.0 on a feature branch): one row per callsign+route with per-weekday times.
-    Data: optional Flight.byDay [{days, std, sta, out, off, on, in, samples}] only when times differ; merge rows matched to the
-    same Ryanair fn; others merge unless the same callsign was seen twice on the same date. 15,149 callsign+routes are split
-    today (40,895 rows; 8,875 overlap on a weekday → phantom departures); ~70k rows → ~44k. One accessor timesOn(f, weekday).
-    Finder line shows today's time + a new "varies" mark; day/After filters use the chosen day's times. Brief: week table,
-    sched + typical per day (user wants a preview sheet first). Board follows. Journeys later (check it isn't slower/broken).
-    Browser data: no migration; findFlight falls back to brand+op+fn|cs+route when the days/~n part of an id no longer exists
-    (also fixes ids churning today when a refresh sees a new weekday). Logbook and fn overrides don't use snapshot ids.
-
+  - 1.5.0 per-day times: built on local branch feature/1.5.0-per-day (NOT pushed; user said don't push until asked).
+    Remaining before release: user review, then release/1.5.0 → main, tag, push, data:push (the server's live data overlay must be
+    replaced too, or it keeps serving the old rows). Possible follow-ups: Journeys UI could show each leg's weekday times in the
+    timings table; 116 numbered callsigns on other airlines still have two rows (seen twice on one date = two flights).
   - Ryanair timetable: kept on (user decision 2026-10-05). Next releases: feature branches → release/x.y.z → PR → merge
     commit → signed tag → GitHub release; pushing main auto-deploys (Dokploy).
   - Refresh the snapshot after 25 Oct 2026 (winter schedule) and periodically after; consider a longer window

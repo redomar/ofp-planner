@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import type { AirlineInfo } from "@/lib/data/types";
-import { airportLabel, dur, flightNo, hhmm, localHHMM } from "@/lib/data/flight";
+import { DAY_NAMES, airportLabel, blockTime, dur, flightNo, hhmm, localHHMM, onDay, varies } from "@/lib/data/flight";
 import type { Airport } from "@/lib/data/load";
 import type { Row } from "@/lib/data/query";
 import { cleanFn, setFnOverride } from "@/lib/fnoverride";
@@ -15,6 +15,8 @@ import { RouteMap } from "./RouteMap";
 import { Badge, Tip, V } from "./ui";
 import { GLOSSARY } from "@/lib/glossary";
 import { routeColor } from "@/lib/colors";
+import { useDisplay } from "@/lib/display";
+import { DayTabs, WeekTimes } from "./WeekTimes";
 
 /** The selected flight: route, map, OOOI times, facts, and dispatch to SimBrief. */
 export function FlightCard({
@@ -69,6 +71,13 @@ export function FlightCard({
   useEffect(() => {
     pushHistory(fRef.current);
   }, [f.id]);
+  // Times through the week (flights whose times change by weekday): a section under the OOOI
+  // table, or day tabs that switch the table (Settings → Display). Tabs start on the card's day.
+  const display = useDisplay();
+  const weekVaries = varies(f);
+  const [tab, setTab] = useState<number | null>(null);
+  const shown: Row = tab != null && tab !== f.day ? { ...row, f: onDay(f, tab), block: blockTime(onDay(f, tab), nm) } : row;
+
   // Folded: only the header shows (it stays pinned while the card scrolls), so the table behind is visible.
   const [folded, setFolded] = useState(false);
   const bodyId = useId();
@@ -142,7 +151,9 @@ export function FlightCard({
         />
       )}
 
-      <Oooi row={row} from={from} to={to} />
+      {weekVaries && display.week === "tabs" && <DayTabs f={f} day={shown.f.day} onPick={setTab} />}
+      <Oooi row={shown} from={from} to={to} />
+      {weekVaries && display.week !== "tabs" && <WeekTimes f={f} style={display.week} />}
 
       <dl className="facts">
         <div>
@@ -444,11 +455,29 @@ function Oooi({ row, from, to }: { row: Row; from: Airport | undefined; to: Airp
         </tbody>
       </table>
       <p className="oooi-note">
-        {anyObs ? `Typical = median of ${f.samples} tracked ${f.samples === 1 ? "flight" : "flights"}.` : "No tracked times for this flight in the snapshot."}{" "}
+        {f.day && varies(f) ? (
+          <>
+            <b>{DAY_NAMES[f.day - 1]} times.</b> {dayNote(f, f.day)}
+          </>
+        ) : anyObs ? (
+          `Typical = median of ${f.samples} tracked ${f.samples === 1 ? "flight" : "flights"}.`
+        ) : (
+          "No tracked times for this flight in the snapshot."
+        )}{" "}
         All times UTC (Z) with local time (LT).
       </p>
     </div>
   );
+}
+
+/** Where a weekday's typical times come from, for flights whose times change through the week. */
+function dayNote(f: Row["f"], day: number): string {
+  const b = f.base ?? f;
+  const n = b.seen?.[day - 1] ?? 0;
+  const name = `${["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][day - 1]}${n === 1 ? "" : "s"}`;
+  if (!b.seen) return "No tracked times; scheduled times only.";
+  if (n >= 2) return `Typical = median of ${n} tracked ${name} (${b.samples} over the week).`;
+  return `Typical = the flight’s usual times, moved to this day (${n} tracked ${name}; ${b.samples} over the week).`;
 }
 
 function CopyLink({ url }: { url: string }) {
