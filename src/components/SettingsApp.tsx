@@ -8,6 +8,7 @@ import type { Manifest } from "@/lib/data/types";
 import { routeColor } from "@/lib/colors";
 import { DEFAULT_AIRFRAMES, readAirframes, useAirframes, writeAirframes, type Airframe } from "@/lib/simbrief";
 import { applyTheme, clearAll, readTheme, storageBytes, useStorageVersion, type ThemePref } from "@/lib/storage";
+import { describeBackup, downloadBackup, readBackup, restoreBackup, type Backup } from "@/lib/backup";
 import { DEFAULT_DISPLAY, useDisplay, writeDisplay, type AirlineTagStyle } from "@/lib/display";
 import { FlightIdent, TypeBadge } from "./badges";
 import { StatusLine, TopBar } from "./chrome";
@@ -586,9 +587,10 @@ function Device() {
         Stored in this browser: <span className="mono">{bytes == null ? "…" : `${(bytes / 1024).toFixed(1)} KB`}</span>{" "}
         <Badge tone="green">private</Badge>
       </p>
+      <BackupRestore onRestored={() => setBytes(storageBytes())} />
       {confirm ? (
         <p className="note-red">
-          Remove airframes, favourites, recent flights, your logbook, cached weather and preferences? Export the logbook first if you want to keep it.{" "}
+          Remove airframes, favourites, recent flights, your logbook, cached weather and preferences? Download a backup first if you want to keep them.{" "}
           <button
             type="button"
             className="btn btn-danger"
@@ -608,6 +610,59 @@ function Device() {
         <button type="button" className="btn" onClick={() => setConfirm(true)}>
           Clear all saved data…
         </button>
+      )}
+    </div>
+  );
+}
+
+/** Download everything stored here as one .json.gz, or put a backup back (replaces what's here, then reloads). */
+function BackupRestore({ onRestored }: { onRestored: () => void }) {
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [pending, setPending] = useState<{ name: string; b: Backup } | null>(null);
+  const onFile = async (file: File | undefined) => {
+    if (!file) return;
+    setPending(null);
+    const r = await readBackup(file);
+    if ("error" in r) return setMsg({ ok: false, text: r.error });
+    setMsg(null);
+    setPending({ name: file.name, b: r });
+  };
+  const restore = () => {
+    if (!pending) return;
+    if (!restoreBackup(pending.b)) return setMsg({ ok: false, text: "The browser refused to store the backup (storage full?). Nothing was changed." });
+    setPending(null);
+    onRestored();
+    window.location.reload();
+  };
+  return (
+    <div className="backup">
+      <div className="backup-acts">
+        <button type="button" className="btn" onClick={() => void downloadBackup().catch(() => setMsg({ ok: false, text: "This browser can't make the backup file." }))}>
+          Download a backup (.json.gz)
+        </button>
+        <label className="btn backup-file">
+          Restore from a backup…
+          <input type="file" accept=".gz,.json,application/gzip,application/json" className="sr-only" onChange={(e) => (onFile(e.target.files?.[0]), (e.target.value = ""))} />
+        </label>
+      </div>
+      {pending ? (
+        <p className="note-red">
+          {pending.name}
+          {pending.b.createdAt && ` (${pending.b.createdAt.slice(0, 16).replace("T", " ")}Z)`}: {describeBackup(pending.b)}. Replace everything stored in this browser with it?{" "}
+          <button type="button" className="btn btn-danger" onClick={restore}>
+            Yes, restore
+          </button>{" "}
+          <button type="button" className="btn" onClick={() => setPending(null)}>
+            Cancel
+          </button>
+        </p>
+      ) : (
+        <p className="small muted">Airframes, favourites, recent flights, your logbook, flight numbers and preferences in one file, to keep or move to another browser.</p>
+      )}
+      {msg && (
+        <p className={msg.ok ? "small" : "form-err"} role="status">
+          {msg.text}
+        </p>
       )}
     </div>
   );

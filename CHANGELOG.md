@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.4 — 2026-10-09
+
+- Settings → Appearance & storage: **Download a backup (.json.gz)** saves everything this site keeps in your browser (airframes, favourites and groups, recent flights, the ready flight, your logbook, flight numbers you typed, display choices, theme, SimBrief username, folded sections) as one gzipped file. **Restore from a backup…** shows what the file holds, asks, then puts it all back exactly and reloads; if the browser refuses part-way, the previous data is put back. The weather cache is left out (it goes stale within the hour). Clear all saved data now suggests downloading a backup first.
+
 ## 1.4.3 — 2026-10-09
 
 - Logbook: a **Status** chosen in the form (early, on time, late, delayed) now overrides the one worked out from the times. Only Cancelled used to stick; any other choice was replaced by the status from STD/STA against OUT/IN whenever those times were filled in. "From the times" still works it out.
