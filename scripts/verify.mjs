@@ -879,6 +879,11 @@ async function run() {
     mon.n === 1 && wed.n === 1 && /^07:35VAR$/.test(mon.dep) && /^08:30VAR$/.test(wed.dep)
       ? pass(`per-day: FR658 is one row; Monday shows 07:35, Wednesday 08:30, with the VAR mark (${mon.dep} / ${wed.dep})`)
       : fail(`per-day: FR658 rows/times ${JSON.stringify({ mon, wed })}`);
+    for (const q of ["FR658", "FR 658"]) {
+      await page.goto(`${base}/?al=RYR&dep=EBBR&arr=EIDW&q=${encodeURIComponent(q)}`, { waitUntil: "networkidle" });
+      const n = (await fr658(page)).n;
+      n === 1 ? pass(`search: "${q}" (IATA code) finds FR658`) : fail(`search: "${q}" found ${n} FR658 rows`);
+    }
     await page.goto(`${base}/?al=RYR&dep=EBBR&arr=EIDW&days=3&after=0820&ref=out&sched=1`, { waitUntil: "networkidle" });
     const wedAfter = (await fr658(page)).n;
     await page.goto(`${base}/?al=RYR&dep=EBBR&arr=EIDW&days=1&after=0820&ref=out&sched=1`, { waitUntil: "networkidle" });

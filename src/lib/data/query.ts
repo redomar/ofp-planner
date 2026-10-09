@@ -163,7 +163,7 @@ export function filterRows(rows: Row[], q: Query, airports: Map<string, Airport>
     }
     if (text) {
       const n = f.fn ?? "";
-      const hay = `${f.al}${n} ${f.op}${n} ${f.cs ?? ""} ${f.o} ${f.d} ${n}`;
+      const hay = `${f.al}${n} ${f.op}${n} ${f.iata ?? ""}${n} ${f.cs ?? ""} ${f.o} ${f.d} ${n}`;
       if (!hay.includes(text)) return false;
     }
     return true;

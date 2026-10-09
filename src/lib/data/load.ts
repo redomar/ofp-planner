@@ -25,6 +25,8 @@ export interface Airport {
 export interface FlightRow extends Flight {
   /** Brand airline ICAO (the file it came from). */
   al: string;
+  /** Brand IATA code ("FR"), so the finder's text search matches "FR658" as well as "RYR658". */
+  iata?: string | null;
   /** Stable id: brand:op+number-or-callsign:orig-dest:days, e.g. "EZY:EJU54LH:LEMD-LFSB:4". */
   id: string;
   /** types was empty in the snapshot and holds the airline's most common type instead. */
@@ -88,7 +90,7 @@ export function loadAirline(info: AirlineInfo, m: Manifest): Promise<FlightRow[]
         seen.set(id, n + 1);
         if (n) id += `~${n}`;
         const guess = !fl.types.length && !!common;
-        return { ...fl, types: guess ? [common!] : fl.types, typeGuessed: guess, al: info.icao, id };
+        return { ...fl, types: guess ? [common!] : fl.types, typeGuessed: guess, al: info.icao, iata: info.iata, id };
       });
       airlineDone.set(info.icao, rows);
       return rows;

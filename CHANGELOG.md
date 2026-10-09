@@ -9,6 +9,7 @@
   - Board and gate screen: each date uses that weekday's times. Logbook "Log this flight" fills in that day's STD/STA.
   - Journeys: a flight whose times change is searched once per set of weekdays that run alike, so timed journeys use the right time each day. Searches take the same time or less (EGBB → LOWI in 5 legs: 255 → 167 ms in Node).
   - Saved favourites, recent flights and shared links keep working: an id from before the merge (its days or "~n" part no longer exists) finds the same airline, number or callsign and route.
+- Finder: **Flight or callsign** now finds a flight by its airline's IATA code too: "FR658" or "FR 658" as well as "RYR658" (only the ICAO form matched before).
 
 ## 1.4.4 — 2026-10-09
 
