@@ -83,18 +83,71 @@ export function daysLabel(days: number[]): string | null {
 /** ISO weekday of a Date in UTC (1 = Mon). */
 export const isoDay = (d: Date) => ((d.getUTCDay() + 6) % 7) + 1;
 
+/* ---------- times by weekday ---------- */
+
+const dayCache = new WeakMap<FlightRow, Map<number, FlightRow>>();
+
+/**
+ * The flight with the times it runs on ISO weekday `day` (from byDay; days not listed use the
+ * flight's own times). Same id; `base` keeps the row it came from so any day can be derived
+ * again. Rows that run alike every day come back unchanged. Cached, so it's cheap per render.
+ */
+export function onDay(f: FlightRow, day: number): FlightRow {
+  const b = f.base ?? f;
+  if (!b.byDay) return f;
+  let m = dayCache.get(f);
+  if (!m) dayCache.set(f, (m = new Map()));
+  const hit = m.get(day);
+  if (hit) return hit;
+  const g = b.byDay.find(([days]) => days.includes(day));
+  const t = g ? { std: g[1], sta: g[2], out: g[3], off: g[4], on: g[5], in: g[6] } : { std: b.std, sta: b.sta, out: b.out, off: b.off, on: b.on, in: b.in };
+  const row = { ...f, ...t, day, base: b };
+  m.set(day, row);
+  return row;
+}
+
+/** Whether the flight's times change through the week. */
+export const varies = (f: FlightRow) => !!(f.base ?? f).byDay;
+
+export interface WeekDay {
+  day: number;
+  operates: boolean;
+  f: FlightRow;
+  /** Tracked sightings that weekday (null for timetable-only flights). */
+  seen: number | null;
+}
+/** Mon..Sun with each day's times, for the brief's week table. */
+export function weekTimes(f: FlightRow): WeekDay[] {
+  const b = f.base ?? f;
+  return [1, 2, 3, 4, 5, 6, 7].map((day) => ({ day, operates: !b.days.length || b.days.includes(day), f: onDay(f, day), seen: b.seen ? b.seen[day - 1] : null }));
+}
+
+/** The operating days split by their times: one entry per set of weekdays that run alike (one entry when nothing varies). */
+export function dayGroups(f: FlightRow): { days: number[]; f: FlightRow }[] {
+  if (!varies(f)) return [{ days: f.days, f }];
+  const key = (x: FlightRow) => [x.std, x.sta, x.out, x.off, x.on, x.in].join(",");
+  const out: { days: number[]; f: FlightRow }[] = [];
+  for (const w of weekTimes(f)) {
+    if (!w.operates) continue;
+    const g = out.find((g) => key(g.f) === key(w.f));
+    if (g) g.days.push(w.day);
+    else out.push({ days: [w.day], f: w.f });
+  }
+  return out;
+}
+
 /**
  * The next UTC departure of a flight on or after `from`: the first operating day whose
  * STD is still ahead. Unknown days count as daily; unknown STD gives the date at 12:00Z.
  */
 export function nextDeparture(f: FlightRow, from: Date = new Date()): Date {
-  const std = f.std ?? 720;
   for (let i = 0; i < 8; i++) {
-    const d = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate() + i, 0, std));
+    const day0 = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate() + i));
+    const d = new Date(day0.getTime() + (onDay(f, isoDay(day0)).std ?? 720) * 60_000);
     if (d.getTime() < from.getTime()) continue;
     if (!f.days.length || f.days.includes(isoDay(d))) return d;
   }
-  return new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate() + 1, 0, std));
+  return new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate() + 1, 0, f.std ?? 720));
 }
 
 /**

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { airportLabel, daysLabel, DAY_NAMES, dur, flightNo, hhmm, isoDay, nextDeparture, plannedOut } from "@/lib/data/flight";
+import { airportLabel, daysLabel, DAY_NAMES, dur, flightNo, hhmm, isoDay, nextDeparture, onDay, plannedOut } from "@/lib/data/flight";
 import { findFlight, loadAirline, loadAirports, loadManifest, type Airport } from "@/lib/data/load";
 import { enrich, pickNextLeg, type Row } from "@/lib/data/query";
 import type { Manifest } from "@/lib/data/types";
@@ -80,7 +80,9 @@ export function BriefApp() {
   const { airports, manifest } = state;
   // the user's flight number (added on the card) applies as soon as it's saved
   const fnOv = useFnOverrides();
-  const row = useMemo(() => (state.row ? enrich(applyFn(state.row.f, fnOv), airports) : null), [state.row, fnOv, airports]);
+  // the times of the weekday you fly (they change through the week for some flights)
+  const day = date ? isoDay(new Date(`${date}T00:00:00Z`)) : null;
+  const row = useMemo(() => (state.row ? enrich(applyFn(day ? onDay(state.row.f, day) : state.row.f, fnOv), airports) : null), [state.row, fnOv, airports, day]);
 
 
   const f = row?.f ?? null;
@@ -112,7 +114,9 @@ export function BriefApp() {
     const info = manifest.airlines.find((a) => a.icao === row.f.al);
     void (info ? loadAirline(info, manifest) : Promise.resolve([])).then((own) => {
       if (!live) return;
-      const from = own.filter((x) => x.o === row.f.d).map((x) => enrich(x, airports));
+      // onward flights with the times of the day this one lands
+      const landDay = times?.arr ? isoDay(times.arr) : day;
+      const from = own.filter((x) => x.o === row.f.d).map((x) => enrich(landDay ? onDay(x, landDay) : x, airports));
       setSample({ for: row.f.id, row: pickNextLeg(from, row.f, readPrefs().spread) });
     });
     return () => {
@@ -120,7 +124,7 @@ export function BriefApp() {
     };
     // a new sample per flight, and on "another"
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rowId, manifest, sampleRound]);
+  }, [rowId, manifest, sampleRound, day]);
   const sampleRow = sample && sample.for === rowId ? sample.row : undefined;
 
   const takeSample = () => {

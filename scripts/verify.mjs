@@ -390,7 +390,7 @@ async function run() {
   await section("after filter", async () => {
     const { ctx, page, errors } = await open("/?al=EZY&dep=EGKK&after=1200&ref=out");
     await page.waitForSelector("table.flights tbody tr");
-    const deps = await page.$$eval("table.flights tbody tr td:nth-child(4)", (tds) => tds.map((t) => t.textContent.trim()));
+    const deps = await page.$$eval("table.flights tbody tr td:nth-child(4)", (tds) => tds.map((t) => t.textContent.replace(/VAR|varies|~/g, "").trim()));
     const early = deps.filter((d) => !/^\d\d:\d\d$/.test(d) || d < "12:00");
     deps.length && !early.length ? pass(`after: ${deps.length} flights all off-block ≥ 12:00Z (first ${deps[0]})`) : fail(`after: early or blank rows ${JSON.stringify(early.slice(0, 5))}`);
     // layout checks on load, before the scripted typing (programmatic input isn't "recent input" for CLS)
@@ -864,6 +864,89 @@ async function run() {
     await ctx.close();
   });
 
+  /* ---------- 1.5.0: one row per flight, times by weekday ---------- */
+  await section("1.5.0", async () => {
+    const FR = encodeURIComponent("RYR:RYR658:EBBR-EIDW:1234567");
+    const fr658 = async (page) => {
+      await page.waitForSelector("table.flights tbody tr");
+      const row = page.locator("table.flights tbody tr", { hasText: "FR658" });
+      return { n: await row.count(), dep: (await row.first().locator("td:nth-child(4)").textContent())?.trim() ?? "" };
+    };
+    const { ctx, page, errors } = await open("/?al=RYR&dep=EBBR&arr=EIDW&days=1");
+    const mon = await fr658(page);
+    await page.goto(`${base}/?al=RYR&dep=EBBR&arr=EIDW&days=3`, { waitUntil: "networkidle" });
+    const wed = await fr658(page);
+    mon.n === 1 && wed.n === 1 && /^07:35VAR$/.test(mon.dep) && /^08:30VAR$/.test(wed.dep)
+      ? pass(`per-day: FR658 is one row; Monday shows 07:35, Wednesday 08:30, with the VAR mark (${mon.dep} / ${wed.dep})`)
+      : fail(`per-day: FR658 rows/times ${JSON.stringify({ mon, wed })}`);
+    for (const q of ["FR658", "FR 658"]) {
+      await page.goto(`${base}/?al=RYR&dep=EBBR&arr=EIDW&q=${encodeURIComponent(q)}`, { waitUntil: "networkidle" });
+      const n = (await fr658(page)).n;
+      n === 1 ? pass(`search: "${q}" (IATA code) finds FR658`) : fail(`search: "${q}" found ${n} FR658 rows`);
+    }
+    await page.goto(`${base}/?al=RYR&dep=EBBR&arr=EIDW&days=3&after=0820&ref=out&sched=1`, { waitUntil: "networkidle" });
+    const wedAfter = (await fr658(page)).n;
+    await page.goto(`${base}/?al=RYR&dep=EBBR&arr=EIDW&days=1&after=0820&ref=out&sched=1`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(400);
+    const monAfter = await page.locator("table.flights tbody tr", { hasText: "FR658" }).count();
+    await page.goto(`${base}/?al=RYR&dep=EBBR&arr=EIDW&days=1,3&after=0820&ref=out&sched=1`, { waitUntil: "networkidle" });
+    const eitherAfter = (await fr658(page)).n;
+    wedAfter === 1 && monAfter === 0 && eitherAfter === 1
+      ? pass("per-day: After 08:20Z uses the chosen day's times (Wed 08:30 in, Mon 07:35 out, Mon+Wed in)")
+      : fail(`per-day: after by day wed ${wedAfter} mon ${monAfter} either ${eitherAfter}`);
+    // the brief: Monday 12 Oct shows Monday's times and highlights Monday in the week table
+    await page.goto(`${base}/brief?f=${FR}&d=2026-10-12`, { waitUntil: "networkidle" });
+    await page.waitForSelector(".week-tbl tr.cur");
+    const cur = (await page.locator(".week-tbl tr.cur th").textContent())?.trim();
+    const oooiOut = (await page.locator(".oooi").first().locator("tbody tr").first().locator("td").first().textContent())?.trim();
+    const weekRows = await page.locator(".week-tbl tbody tr").count();
+    cur === "Mon" && oooiOut?.startsWith("07:35Z") && weekRows === 7
+      ? pass(`brief: Monday's times (STD ${oooiOut?.slice(0, 6)}), the week table's Monday row highlighted, 7 days`)
+      : fail(`brief: per-day ${cur} ${oooiOut} rows ${weekRows}`);
+    await checkPage("brief week table 1280 light", page, errors);
+    await ctx.close();
+    // the other styles from Settings → Display, and the day tabs switching the OOOI table
+    for (const [week, sel] of [
+      ["grouped", ".week-grp tbody tr"],
+      ["timeline", ".week-tl-row:not(.week-tl-axis)"],
+      ["tabs", ".week-tab"],
+    ]) {
+      const o = await open(`/brief?f=${FR}&d=2026-10-12`, { theme: week === "timeline" ? "dark" : "light" });
+      await o.page.evaluate((w) => localStorage.setItem("ofp-planner:display", JSON.stringify({ week: w })), week);
+      await o.page.reload({ waitUntil: "networkidle" });
+      await o.page.waitForSelector(sel);
+      const n = await o.page.locator(sel).count();
+      let extra = "";
+      if (week === "tabs") {
+        await o.page.getByRole("button", { name: /^Wed/ }).click();
+        extra = (await o.page.locator(".oooi").first().locator("tbody tr").first().locator("td").first().textContent())?.trim().slice(0, 6) ?? "";
+      }
+      const ok = week === "grouped" ? n === 5 : week === "timeline" ? n === 7 : n === 7 && extra === "08:30Z";
+      ok ? pass(`brief: times by day as ${week} (${n}${extra ? `, Wed tab → ${extra}` : ""})`) : fail(`brief: ${week} ${n} ${extra}`);
+      await checkPage(`brief week ${week} ${week === "timeline" ? "1280 dark" : "1280 light"}`, o.page, o.errors);
+      await o.ctx.close();
+    }
+    // phone width: the week table fits
+    const ph = await open(`/brief?f=${FR}&d=2026-10-12`, { width: 390, height: 844 });
+    await ph.page.waitForSelector(".week-tbl");
+    await checkPage("brief week table 390 light", ph.page, ph.errors);
+    await ph.ctx.close();
+    // the varies mark as a word; an id from before the merge still opens the flight; the gate screen uses that day's time
+    const w = await open("/?al=RYR&dep=EBBR&arr=EIDW&days=1");
+    await w.page.evaluate(() => localStorage.setItem("ofp-planner:display", JSON.stringify({ variesMark: "word" })));
+    await w.page.reload({ waitUntil: "networkidle" });
+    const word = (await fr658(w.page)).dep;
+    /07:35\s*varies/i.test(word) ? pass(`finder: varies mark as a word (${word.replace(/\s+/g, " ")})`) : fail(`finder: varies word ${word}`);
+    await w.page.goto(`${base}/brief?f=${encodeURIComponent("RYR:RYR658:EBBR-EIDW:234567~1")}`, { waitUntil: "networkidle" });
+    await w.page.waitForSelector(".fcard-no");
+    (await w.page.locator(".fcard-no").textContent())?.includes("658") ? pass("brief: a saved id from before the merge still finds FR658") : fail("brief: old id not found");
+    await w.page.goto(`${base}/board?tab=gate&f=${FR}&d=2026-10-14`, { waitUntil: "networkidle" });
+    await w.page.waitForSelector(".gs-status b");
+    const gs = (await w.page.locator("main").innerText()).replace(/\s+/g, " ");
+    /10:30/.test(gs) ? pass("gate screen: Wednesday's FR658 departs 10:30 local (08:30Z)") : fail(`gate screen: per-day time ${gs.slice(0, 200)}`);
+    await w.ctx.close();
+  });
+
   /* ---------- 1.3.1: board rows, favourites drag, route sort and flags, journeys avoid ---------- */
   await section("1.3.1", async () => {
     const { ctx, page, errors } = await open("/board?ap=EHAM");
@@ -947,6 +1030,7 @@ async function run() {
 
   /* ---------- logbook: import, map, totals, add, export ---------- */
   await section("logbook", async () => {
+    const ROW = ".log-tbl tbody tr:not(.log-detail):not(.log-month)";
     const { ctx, page, errors } = await open("/logbook");
     await page.waitForSelector(".log-form");
     const file = {
@@ -961,12 +1045,39 @@ async function run() {
     await page.locator("input[type=file]").setInputFiles({ name: "log.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
     await page.waitForSelector(".log-tbl tbody tr");
     const msg = await page.locator(".log-io [role=status]").innerText();
-    const rows = await page.locator(".log-tbl tbody tr:not(.log-detail)").count();
+    const rows = await page.locator(ROW).count();
     /2 new/.test(msg) && /Skipped 1/.test(msg) && rows === 2 ? pass("logbook: import adds good flights and names the skipped one") : fail(`logbook: import ${msg} rows ${rows}`);
-    const late = await page.locator(".log-tbl tbody tr", { hasText: "EZY34MH" }).first().innerText();
-    /LATE/.test(late) && /-180 fpm/.test(late) && /2h 05m/.test(late) ? pass("logbook: status, landing rate and block time from OOOI (late +20, -180 fpm, 2h 05m)") : fail(`logbook: derived ${late.replace(/\s+/g, " ")}`);
+    const late = await page.locator(ROW, { hasText: "EZY34MH" }).first().innerText();
+    /LATE/.test(late) && /-180(?!\d)/.test(late) && /2h 05m/.test(late) ? pass("logbook: status, landing rate and block time from OOOI (late +20, -180 fpm, 2h 05m)") : fail(`logbook: derived ${late.replace(/\s+/g, " ")}`);
     await page.waitForSelector(".log-map .map-route", { timeout: 20000 });
     (await page.locator(".log-map .map-route").count()) === 2 ? pass("logbook: map draws each route flown") : fail("logbook: map routes");
+    // the list: month headings, a scrolling box, hover → route on the map, tooltips for times and airports
+    const month = await page.locator(".log-tbl .log-month").first().innerText();
+    const box = await page.locator(".log-wrap").evaluate((el) => getComputedStyle(el).maxHeight);
+    /OCTOBER 2026/i.test(month) && /2 flights/.test(month) && box !== "none" ? pass(`logbook: flights under month headings in a box of at most ${box} (${month.replace(/\s+/g, " ")})`) : fail(`logbook: month ${month} box ${box}`);
+    await page.locator(ROW, { hasText: "EZY34MH" }).first().hover();
+    await page.waitForTimeout(200);
+    const lit = await page.locator(".log-map .map-route.on").count();
+    await page.locator(ROW, { hasText: "EZY34MH" }).first().locator(".log-status").hover();
+    await page.waitForTimeout(200);
+    const timesTip = await page.locator("#ofp-tip").innerText();
+    lit === 1 && /OUT\s+16:05Z\s+sched 16:00 · \+5m/.test(timesTip) && /IN\s+18:10Z/.test(timesTip) && /Block 2h 05m/.test(timesTip)
+      ? pass("logbook: hovering a flight lights its route; its status shows OUT/OFF/ON/IN against the schedule")
+      : fail(`logbook: hover lit ${lit}, tip ${timesTip.replace(/\s+/g, " ")}`);
+    await page.locator(ROW, { hasText: "EZY34MH" }).first().locator(".log-place").first().hover();
+    await page.waitForTimeout(200);
+    const apTip = await page.locator("#ofp-tip").innerText();
+    /Innsbruck/.test(apTip) && /Austria/.test(apTip) && /ICAO\s+LOWI/.test(apTip) && /IATA\s+INN/.test(apTip) && /1 time/.test(apTip)
+      ? pass("logbook: an airport's city shows its name, country, codes and your visits")
+      : fail(`logbook: airport tip ${apTip.replace(/\s+/g, " ")}`);
+    await page.getByRole("button", { name: "Punctuality" }).click();
+    await page.waitForTimeout(200);
+    const bars = await page.locator(".log-tbl .log-bar").count();
+    const barTip = await page.locator(ROW, { hasText: "EZY34MH" }).first().locator(".log-bar").getAttribute("aria-label");
+    await page.getByRole("button", { name: "Airports" }).click();
+    bars === 1 && barTip === "scheduled 16:00–17:50Z, flown 16:05–18:10Z" && (await page.locator(".log-tbl .log-place").count()) === 4
+      ? pass("logbook: the Punctuality switch shows scheduled vs flown bars (none for a flight without times), and Airports switches back")
+      : fail(`logbook: punctuality bars ${bars} ${barTip}`);
     const f = page.locator("#log-form");
     await f.getByRole("combobox", { name: "From" }).fill("EGKK");
     await page.keyboard.press("Enter");
@@ -976,20 +1087,20 @@ async function run() {
     await f.getByLabel("Landing rate (fpm)").fill("-95");
     await f.getByRole("button", { name: "Add to logbook" }).click();
     await page.waitForTimeout(300);
-    (await page.locator(".log-tbl tbody tr:not(.log-detail)").count()) === 3 ? pass("logbook: a flight added by hand joins the list") : fail("logbook: add by hand");
-    await page.locator(".log-tbl tbody tr", { hasText: "EZY22N" }).first().click();
+    (await page.locator(ROW).count()) === 3 ? pass("logbook: a flight added by hand joins the list") : fail("logbook: add by hand");
+    await page.locator(ROW, { hasText: "U2227" }).first().click();
     await page.locator(".log-detail").getByRole("button", { name: "Edit" }).click();
     await f.getByLabel(/Listed time/).fill("17:35");
     await f.getByRole("button", { name: "Save changes" }).click();
     await page.waitForTimeout(300);
-    const edited = await page.locator(".log-tbl tbody tr", { hasText: "EZY22N" }).first().innerText();
-    /17:35/.test(edited) && (await page.locator(".log-tbl tbody tr:not(.log-detail)").count()) === 3 ? pass("logbook: editing a flight's listed time updates it in place") : fail(`logbook: edit listed time ${edited.replace(/\s+/g, " ")}`);
-    await page.locator(".log-tbl tbody tr", { hasText: "EZY34MH" }).first().click();
+    const edited = (await page.locator(ROW, { hasText: "U2227" }).first().locator(".log-status").getAttribute("data-tip-rows")) ?? "";
+    /17:35/.test(edited) && (await page.locator(ROW).count()) === 3 ? pass("logbook: editing a flight's listed time updates it in place") : fail(`logbook: edit listed time ${edited}`);
+    await page.locator(ROW, { hasText: "EZY34MH" }).first().click();
     await page.locator(".log-detail").getByRole("button", { name: "Edit" }).click();
     await f.getByLabel("Status").selectOption("delayed");
     await f.getByRole("button", { name: "Save changes" }).click();
     await page.waitForTimeout(300);
-    const chosen = await page.locator(".log-tbl tbody tr", { hasText: "EZY34MH" }).first().innerText();
+    const chosen = await page.locator(ROW, { hasText: "EZY34MH" }).first().innerText();
     /DELAYED/.test(chosen) && !/LATE/.test(chosen) ? pass("logbook: a chosen status overrides the one from the times (late → delayed)") : fail(`logbook: chosen status ${chosen.replace(/\s+/g, " ")}`);
     const [dl] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /^Export/ }).click()]);
     const out = JSON.parse(readFileSync(await dl.path(), "utf8"));
@@ -1000,10 +1111,35 @@ async function run() {
     await page.waitForSelector(".log-map .map-route", { timeout: 20000 });
     await checkPage("logbook 1280 light", page, errors);
     await shot(page, "logbook-day");
+    // Settings → Display: flight strips
+    await page.evaluate(() => localStorage.setItem("ofp-planner:display", JSON.stringify({ logbook: "strips" })));
+    await page.goto(`${base}/logbook`, { waitUntil: "networkidle" });
+    await page.waitForSelector(".log-strips .strip");
+    const strips = await page.locator(".log-strips .strip").count();
+    await page.locator(".strip", { hasText: "EZY34MH" }).first().hover();
+    await page.waitForTimeout(200);
+    const stripLit = await page.locator(".log-map .map-route.on").count();
+    await page.locator(".strip", { hasText: "EZY34MH" }).locator(".log-date").click();
+    const stripOpen = await page.locator(".strip-detail").getByRole("button", { name: "Edit" }).count();
+    strips === 3 && stripLit === 1 && stripOpen === 1 && !(await page.locator(".log-tbl").count())
+      ? pass("logbook: flight strips (Settings) list every flight, light the route on hover and open the details")
+      : fail(`logbook: strips ${strips} lit ${stripLit} open ${stripOpen}`);
+    await checkPage("logbook strips 1280 light", page, errors);
     await ctx.close();
     const m = await open("/logbook", { width: 390, height: 844, theme: "dark" });
     await m.page.waitForSelector(".log-form");
     await checkPage("logbook 390 dark", m.page, m.errors);
+    for (const style of ["table", "strips"]) {
+      await m.page.evaluate((s) => {
+        localStorage.setItem("ofp-planner:display", JSON.stringify({ logbook: s }));
+        localStorage.setItem("ofp-planner:logbook", JSON.stringify([{ id: "a", date: "2026-10-05", from: "LOWI", to: "EGBB", callsign: "EZY34MH", flight: "U2234", type: "A20N", std: "16:00", sta: "17:50", out: "16:05", in: "18:10", landingFpm: -180 }]));
+      }, style);
+      await m.page.goto(`${base}/logbook`, { waitUntil: "networkidle" });
+      await m.page.waitForSelector(".log-wrap");
+      const w = await m.page.locator(".log-wrap").evaluate((el) => [el.scrollWidth, el.clientWidth]);
+      w[0] <= w[1] ? pass(`logbook: ${style} fits a 390 px phone without sideways scrolling`) : fail(`logbook: ${style} at 390 is ${w[0]} in ${w[1]}`);
+      await checkPage(`logbook ${style} 390 dark`, m.page, m.errors);
+    }
     await m.ctx.close();
   });
 

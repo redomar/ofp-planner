@@ -10,7 +10,7 @@ import { routeColor, textOn } from "@/lib/colors";
 import { GLOSSARY } from "@/lib/glossary";
 import { useFontsReady, widestLabel } from "@/lib/measure";
 import { RouteMap } from "./RouteMap";
-import { FlightIdent, MoreTypes, TypeBadge, WeekStrip, freqLabel } from "./badges";
+import { FlightIdent, MoreTypes, TypeBadge, VariesMark, WeekStrip, freqLabel } from "./badges";
 import { Tip, cx } from "./ui";
 import { countryName } from "@/lib/places";
 
@@ -133,10 +133,14 @@ export function FlightTable({
                     <span className="mono">{f.d}</span> <small className="muted city">{name(f.d)}</small>
                   </td>
                   <td className="mono num">
-                    <Clock sched={f.std} obs={f.out ?? f.off} kind={f.out != null ? "OUT" : "OFF"} />
+                    <VariesMark f={f}>
+                      <Clock sched={f.std} obs={f.out ?? f.off} kind={f.out != null ? "OUT" : "OFF"} />
+                    </VariesMark>
                   </td>
                   <td className="mono num hide-s c-arr">
-                    <Clock sched={f.sta} obs={f.in ?? f.on} kind={f.in != null ? "IN" : "ON"} />
+                    <VariesMark f={f}>
+                      <Clock sched={f.sta} obs={f.in ?? f.on} kind={f.in != null ? "IN" : "ON"} />
+                    </VariesMark>
                   </td>
                   <td className="mono num">
                     {dur(r.block?.min) ?? "—"}

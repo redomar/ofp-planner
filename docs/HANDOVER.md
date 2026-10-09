@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: v1.4.4 released 2026-10-09 (Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
+  status: v1.5.0 released 2026-10-09 (one row per flight with per-weekday times, Brief/Finder/Board by day, logbook list redone: month table, punctuality switch, flight strips; 1.4.4: Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 
@@ -50,7 +50,11 @@ pages:        # all client components; one shared TopBar (Finder · Journeys · 
   /brief:     src/components/BriefApp.tsx   — FlightCard, date, next leg (sample + full list), weather
   /logbook:   src/components/LogbookApp.tsx + lib/logbook.ts — flights flown (localStorage "ofp-planner:logbook", never mixed with the snapshot):
               totals, RouteMap of routes flown, table (OOOI "HH:MM" UTC on the OUT date, block/air, status from STD/STA vs OUT/IN ±15 min,
-              landing fpm + grade; a recorded/chosen status wins over the derived one), add/edit form, JSON import/export (schema "ofp-planner/logbook" v1; parseLogFile cleans untrusted input).
+              landing fpm + grade; a recorded/chosen status wins over the derived one), add/edit form,
+              list (1.5.0): scrolling box (max min(640px,72vh), sticky header); Display.logbook "table" (rows under month headings, Finder flight cell,
+              From/To with an airport tooltip) or "strips" (ATC flight progress strips); Display.logBars = the table's Punctuality switch
+              (scheduled-vs-flown bar per row). OOOI times live in the status badge's tooltip (data-tip-rows); hovering a row makes its route the
+              map's active one (draw-in + plane animation already in RouteMap CSS). JSON import/export (schema "ofp-planner/logbook" v1; parseLogFile cleans untrusted input).
               /logbook?f=<flight id>[&d=date] prefills the form (FlightCard "Log this flight" on the brief and in the Finder panel). The user's own file lives outside
               the repo in ../ofp-planner-logbook/ (it has their registrations).
   /settings:  src/components/SettingsApp.tsx — airframes, Display, favourites, recent, snapshot info, theme/storage
@@ -79,7 +83,13 @@ lib:
   data/types.ts:   the data contract with the pipeline (manifest, airports, airlines/<ICAO>, routes)
   data/load.ts:    fetch + in-memory cache; useDataset(airlines|"all"); findFlight(id); loadRoutes()
   data/query.ts:   Query ↔ URL, filterRows, sortRows, groupByOtherEnd, roll, pickNextLeg, oooiTime, parseClock
-  data/flight.ts:  gcNm, blockTime (scheduled → observed → estimated), hhmm/dur/localHHMM, flightNo/fltnum/plannedOut, families
+  data/flight.ts:  gcNm, blockTime (scheduled → observed → estimated), hhmm/dur/localHHMM, flightNo/fltnum/plannedOut, families;
+                   onDay(f, isoWeekday) = cached copy with that weekday's times (byDay), base = the original row; varies(f);
+                   weekTimes(f) (Mon..Sun for the week section); dayGroups(f) (weekdays that run alike; Journeys input)
+  per-day times (1.5.0): Finder rows = onDay(f, day filter's single day ?? today); Brief = onDay(f, weekday of the date);
+                   Board/gate per date; After with several days = any day. FlightCard → WeekTimes.tsx (A1 table, A2 grouped,
+                   A3 DayTabs, A4 timeline; display.week) and badges VariesMark (display.variesMark tag/word/tilde).
+                   findFlight falls back to brand:op+fn|cs:route when the days/~n part of a saved id no longer exists.
   journey/engine.ts: pure multi-leg search (no app imports; runs in Node with --experimental-strip-types for testing).
                    network mode over routes.json edges; timed mode over weekly flight instances (day × OUT, week minutes,
                    wrap-around), reversed graph/clock when only `to` is set. DFS with hop lower bounds (BFS to each waypoint),
@@ -112,7 +122,7 @@ ids_and_urls:
 
 ## 4. Data: what exists and why
 
-snapshot_now: 57 airlines · 69,935 flights · 15,731 routes · 584 airports · window 2026-09-20 → 2026-10-08 (19 days, built 2026-10-09)
+snapshot_now: 57 airlines · 41,593 flights (one per weekly pattern; 1.4.4 had 69,935 rows) · 15,802 routes · 584 airports · window 2026-09-20 → 2026-10-08 (19 days)
 size: public/data ≈ 11 MB raw, ≈ 1.2 MB gzipped (biggest RYR.json 3.6 MB / 423 KB gz); routes.json 315 KB / 62 KB gz
 loading: manifest revalidated each visit; other files fetched with ?v=<generatedAt> (cache-friendly);
   airline files load only for selected airlines; routes.json only once an airport is chosen.
@@ -248,15 +258,9 @@ server_latch_container_alternative: |
 
 ## 10. Open items / ideas
 
-  - NEXT (agreed 2026-10-09, release 1.5.0 on a feature branch): one row per callsign+route with per-weekday times.
-    Data: optional Flight.byDay [{days, std, sta, out, off, on, in, samples}] only when times differ; merge rows matched to the
-    same Ryanair fn; others merge unless the same callsign was seen twice on the same date. 15,149 callsign+routes are split
-    today (40,895 rows; 8,875 overlap on a weekday → phantom departures); ~70k rows → ~44k. One accessor timesOn(f, weekday).
-    Finder line shows today's time + a new "varies" mark; day/After filters use the chosen day's times. Brief: week table,
-    sched + typical per day (user wants a preview sheet first). Board follows. Journeys later (check it isn't slower/broken).
-    Browser data: no migration; findFlight falls back to brand+op+fn|cs+route when the days/~n part of an id no longer exists
-    (also fixes ids churning today when a refresh sees a new weekday). Logbook and fn overrides don't use snapshot ids.
-
+  - After 1.5.0 (per-day times): Journeys UI could show each leg's weekday times in the timings table; 116 numbered callsigns
+    on other airlines still have two rows (seen twice on one date = two flights). Data releases need pnpm data:push too
+    (the server's live data overlay shadows the data baked into the image).
   - Ryanair timetable: kept on (user decision 2026-10-05). Next releases: feature branches → release/x.y.z → PR → merge
     commit → signed tag → GitHub release; pushing main auto-deploys (Dokploy).
   - Refresh the snapshot after 25 Oct 2026 (winter schedule) and periodically after; consider a longer window

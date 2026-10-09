@@ -1,7 +1,7 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState, type ReactNode, type SyntheticEvent } from "react";
-import { airportLabel, cityName, dur, gcNm, hhmm } from "@/lib/data/flight";
+import { Fragment, useEffect, useMemo, useState, type CSSProperties, type ReactNode, type SyntheticEvent } from "react";
+import { airportLabel, cityName, dur, gcNm, hhmm, isoDay, onDay } from "@/lib/data/flight";
 import { findFlight, loadAirports, loadManifest, type Airport } from "@/lib/data/load";
 import type { AirlineInfo } from "@/lib/data/types";
 import {
@@ -29,6 +29,8 @@ import {
 } from "@/lib/logbook";
 import { readReady } from "@/lib/saved";
 import { useStorageVersion } from "@/lib/storage";
+import { useDisplay, writeDisplay } from "@/lib/display";
+import { useFontsReady, widestLabel } from "@/lib/measure";
 import { routeColor } from "@/lib/colors";
 import { FlightIdent, TypeBadge } from "./badges";
 import { StatusLine, TopBar } from "./chrome";
@@ -50,6 +52,7 @@ export function LogbookApp() {
   const log = useMemo(() => (v < 0 ? null : readLog()), [v]);
   const [ref, setRef] = useState<Ref | null>(null);
   const [sel, setSel] = useState<string | null>(null);
+  const [hover, setHover] = useState<string | null>(null);
   const [editing, setEditing] = useState<LogFlight | null>(null);
   const [formKey, setFormKey] = useState(0);
 
@@ -73,14 +76,17 @@ export function LogbookApp() {
     const id = q.get("f");
     if (!id) return;
     let live = true;
-    Promise.all([findFlight(id), loadManifest()]).then(([f, m]) => {
-      if (!live || !f) return;
-      const iata = m.airlines.find((a) => a.icao === f.al)?.iata ?? null;
+    Promise.all([findFlight(id), loadManifest()]).then(([base, m]) => {
+      if (!live || !base) return;
+      const iata = m.airlines.find((a) => a.icao === base.al)?.iata ?? null;
       const ready = readReady();
       const d = q.get("d") ?? (ready?.flight.id === id ? ready.date : null);
+      const date = d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : new Date().toISOString().slice(0, 10);
+      // listed STD/STA of that weekday (they change through the week for some flights)
+      const f = onDay(base, isoDay(new Date(`${date}T00:00:00Z`)));
       setEditing({
         id: "",
-        date: d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : new Date().toISOString().slice(0, 10),
+        date,
         from: f.o,
         to: f.d,
         callsign: f.cs,
@@ -113,12 +119,13 @@ export function LogbookApp() {
               {flights.length ? (
                 <>
                   <Totals flights={flights} ref_={ref} />
-                  <LogMap flights={flights} ref_={ref} sel={sel} />
-                  <LogTable
+                  <LogMap flights={flights} ref_={ref} sel={hover ?? sel} />
+                  <LogList
                     flights={flights}
                     ref_={ref}
                     sel={sel}
                     onSel={(id) => setSel((s) => (s === id ? null : id))}
+                    onHover={setHover}
                     onEdit={(f) => {
                       setEditing(f);
                       setFormKey((k) => k + 1);
@@ -232,174 +239,357 @@ function LogMap({ flights, ref_, sel }: { flights: LogFlight[]; ref_: Ref | null
   return <RouteMap routes={routes} height={420} label={`Map of the ${routes.length} routes you've flown.`} className="log-map" />;
 }
 
-/* ---------- table ---------- */
+/* ---------- list: table (by month, or punctuality bars) or flight strips ---------- */
 
-function LogTable({
-  flights,
-  ref_,
-  sel,
-  onSel,
-  onEdit,
-}: {
+type ListProps = {
   flights: LogFlight[];
   ref_: Ref | null;
   sel: string | null;
   onSel: (id: string) => void;
+  onHover: (id: string | null) => void;
   onEdit: (f: LogFlight) => void;
-}) {
-  const [confirm, setConfirm] = useState<string | null>(null);
-  const place = (icao: string) => {
-    const a = ref_?.airports.get(icao);
-    return (
-      <span className="route-place" title={a ? airportLabel(a) : undefined}>
-        {a?.country && <Flag cc={a.country} />}
-        <span>{a ? (cityName(a) ?? airportLabel(a)) : icao}</span>
-      </span>
-    );
+};
+
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const WDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const toMin = (t: string | null | undefined) => (t ? +t.slice(0, 2) * 60 + +t.slice(3, 5) : null);
+/** "8 Oct", with the year when it isn't this year ("8 Oct 25"). */
+function shortDate(iso: string) {
+  const s = `${+iso.slice(8, 10)} ${MONTHS[+iso.slice(5, 7) - 1].slice(0, 3)}`;
+  return iso.slice(0, 4) === new Date().toISOString().slice(0, 4) ? s : `${s} ${iso.slice(2, 4)}`;
+}
+const weekday = (iso: string) => WDAYS[new Date(`${iso}T12:00:00Z`).getUTCDay()];
+
+/** Every flight cell gets the same width (widest number, widest airline name), as in the Finder. */
+function useIdentWidths(flights: LogFlight[], ref_: Ref | null) {
+  const fontsReady = useFontsReady();
+  return useMemo(() => {
+    let id = 4;
+    const names = new Set<string>();
+    for (const f of flights) {
+      id = Math.max(id, (f.flight ?? f.callsign ?? "—").length);
+      names.add(ref_?.brands.get(f.airline ?? "")?.name ?? f.airline ?? "—");
+    }
+    return { ["--id-w" as string]: `${id}ch`, ["--al-w" as string]: `${Math.min(150, widestLabel(names)) + 1}px` } as CSSProperties;
+    // fontsReady re-measures once the face has loaded
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flights, ref_, fontsReady]);
+}
+
+const tipChip = (label: string) => ({ label, color: "transparent", ink: "var(--sheet)" });
+
+/** The status badge's tooltip: OUT/OFF/ON/IN against the schedule, block and airborne. */
+function timesTip(f: LogFlight): Record<string, string> | null {
+  const s = statusOf(f);
+  const rel = (a: string | null | undefined, b: string | null | undefined) => {
+    const d = a && b ? (((toMin(a)! - toMin(b)! + 720 + 1440) % 1440) - 720) : null;
+    return d == null ? "" : `  sched ${b} · ${d === 0 ? "±0" : d > 0 ? `+${d}m` : `−${-d}m`}`;
   };
+  const rows = [
+    ["OUT", f.out, rel(f.out, f.std)],
+    ["OFF", f.off, ""],
+    ["ON", f.on, ""],
+    ["IN", f.in, rel(f.in, f.sta)],
+  ]
+    .filter(([, t]) => t)
+    .map(([k, t, n]) => ({ chip: tipChip(k!), text: `${t}Z${n}` }));
+  if (!rows.length) for (const [k, t] of [["STD", f.std], ["STA", f.sta]] as const) if (t) rows.push({ chip: tipChip(k), text: `${t}Z` });
+  if (f.started && !f.out) rows.push({ chip: tipChip("LISTED"), text: `${f.started} (zone not given)` });
+  if (!rows.length && !s) return null;
+  const dd = depDelay(f);
+  const ad = arrDelay(f);
+  const delays = [dd != null && `dep ${signed(dd)}`, ad != null && `arr ${signed(ad)}`].filter(Boolean).join(" · ");
+  const block = blockOf(f);
+  const air = airOf(f);
+  return {
+    "data-tip-title": [s ? STATUS_LABEL[s] : "Times", delays].filter(Boolean).join(" · "),
+    "data-tip": block != null || air != null ? `Block ${dur(block) ?? "—"}, airborne ${dur(air) ?? "—"}.` : s === "cancelled" ? "Not flown." : "No block time logged.",
+    "data-tip-rows": JSON.stringify(rows),
+    ...(rows.length ? { "data-tip-note": "Times UTC" } : {}),
+  };
+}
+
+function Status({ f, className }: { f: LogFlight; className?: string }) {
+  const s = statusOf(f);
+  const tip = timesTip(f);
+  const label = s ? STATUS_LABEL[s] : "Times";
+  if (!s && !tip) return <span className="muted">—</span>;
   return (
-    <div className="tbl-wrap log-wrap">
-      <table className="tbl log-tbl">
-        <caption className="sr-only">Flights flown, newest first. Select a row to see its details and highlight its route.</caption>
+    <span className={cx(s ? `badge ${STATUS_TONE[s]}` : "log-times-chip", "log-status", className)} tabIndex={0} {...tip}>
+      {label}
+    </span>
+  );
+}
+
+/** An airport: code and city; hovering shows its name, city and country, codes, elevation and your visits. */
+function Place({ icao, ref_, visits }: { icao: string; ref_: Ref | null; visits: Map<string, number> }) {
+  const a = ref_?.airports.get(icao);
+  const city = a ? (cityName(a) ?? airportLabel(a)) : null;
+  const n = visits.get(icao) ?? 0;
+  const rows = a
+    ? [
+        { chip: tipChip("ICAO"), text: a.icao },
+        ...(a.iata ? [{ chip: tipChip("IATA"), text: a.iata }] : []),
+        ...(a.elevFt != null ? [{ chip: tipChip("ELEV"), text: `${a.elevFt.toLocaleString("en-GB")} ft` }] : []),
+        ...(a.tz ? [{ chip: tipChip("ZONE"), text: a.tz }] : []),
+      ]
+    : [];
+  return (
+    <span
+      className="log-place"
+      tabIndex={a ? 0 : undefined}
+      data-tip={a ? [city, a.country ? countryName(a.country) : null].filter(Boolean).join(", ") : undefined}
+      data-tip-title={a?.name}
+      data-tip-rows={a ? JSON.stringify(rows) : undefined}
+      data-tip-note={a ? `In your logbook ${n} ${n === 1 ? "time" : "times"}` : undefined}
+    >
+      <span className="mono">{icao}</span>{" "}
+      {a && (
+        <small className="muted city">
+          {a.country && <Flag cc={a.country} />}
+          <span>{city}</span>
+        </small>
+      )}
+    </span>
+  );
+}
+
+/** Scheduled block as an outline and the flown one solid in the airline colour, on one scale for the whole list. */
+function useBarScale(flights: LogFlight[]) {
+  return useMemo(() => {
+    let lo = 0;
+    let hi = 60;
+    for (const f of flights) {
+      const s = toMin(f.std ?? f.out);
+      if (s == null) continue;
+      for (const t of [f.out, f.in, f.sta]) {
+        const m = toMin(t);
+        if (m == null) continue;
+        let d = ((m - s + 1440) % 1440);
+        if (d > 1200) d -= 1440; // early off-block: slightly before the schedule
+        lo = Math.min(lo, Math.max(-90, d));
+        hi = Math.max(hi, Math.min(18 * 60, d));
+      }
+    }
+    return { lo, hi };
+  }, [flights]);
+}
+
+function PunctBar({ f, color, scale }: { f: LogFlight; color: string; scale: { lo: number; hi: number } }) {
+  const s0 = toMin(f.std ?? f.out);
+  if (s0 == null) return <span className="muted">—</span>;
+  const rel = (t: string | null | undefined) => {
+    const m = toMin(t);
+    if (m == null) return null;
+    const d = (m - s0 + 1440) % 1440;
+    return d > 1200 ? d - 1440 : d;
+  };
+  const pc = (m: number) => `${(((m - scale.lo) / (scale.hi - scale.lo)) * 100).toFixed(2)}%`;
+  const bar = (a: number | null, z: number | null, cls: string, style?: CSSProperties) =>
+    a != null && z != null ? <i className={cls} style={{ left: pc(a), width: `calc(${pc(Math.max(z, a + 2))} - ${pc(a)})`, ...style }} /> : null;
+  const sched = f.std && f.sta ? `scheduled ${f.std}–${f.sta}Z` : null;
+  const flown = f.out && f.in ? `flown ${f.out}–${f.in}Z` : null;
+  return (
+    <span className="log-bar" role="img" aria-label={[sched, flown].filter(Boolean).join(", ") || "No times"} {...timesTip(f)}>
+      {bar(rel(f.std), rel(f.sta), "log-bar-s")}
+      {bar(rel(f.out), rel(f.in), "log-bar-o", { background: color })}
+    </span>
+  );
+}
+
+function Landing({ f }: { f: LogFlight }) {
+  const g = landingGrade(f.landingFpm);
+  if (f.landingFpm == null) return <span className="muted">—</span>;
+  return (
+    <>
+      <span className="mono">{f.landingFpm}</span>
+      {g && <span className={`badge ${g.tone} log-grade`}>{g.label}</span>}
+    </>
+  );
+}
+
+function Details({ f, brand, onEdit }: { f: LogFlight; brand: AirlineInfo | undefined; onEdit: (f: LogFlight) => void }) {
+  const [confirm, setConfirm] = useState(false);
+  const block = blockOf(f);
+  const air = airOf(f);
+  return (
+    <>
+      <dl className="log-facts">
+        {fact("Date", f.date)}
+        {fact("Callsign", f.callsign)}
+        {fact("Flight", f.flight)}
+        {fact("Operator", f.airline ? `${f.airline}${brand ? ` · ${brand.name}` : ""}` : null)}
+        {fact("Aircraft", [f.type, f.reg].filter(Boolean).join(" · ") || null)}
+        {fact("Scheduled", f.std || f.sta ? `${f.std ?? "--:--"} → ${f.sta ?? "--:--"} Z` : null)}
+        {fact("OOOI", f.out || f.off || f.on || f.in ? `${f.out ?? "--:--"} · ${f.off ?? "--:--"} · ${f.on ?? "--:--"} · ${f.in ?? "--:--"} Z` : null)}
+        {fact("Block / air", block != null || air != null ? `${dur(block) ?? "—"} / ${dur(air) ?? "—"}` : null)}
+        {fact("Landing", f.landingFpm != null ? `${f.landingFpm} fpm${f.landingG != null ? ` · ${f.landingG} g` : ""}` : null)}
+        {fact("Cruise", f.cruiseFl != null ? `FL${f.cruiseFl}` : null)}
+        {fact("Fuel", f.fuelKg != null ? `${f.fuelKg.toLocaleString("en-GB")} kg` : null)}
+        {fact("Passengers", f.pax)}
+        {fact("Simulator", f.sim)}
+        {fact("Listed time", f.started)}
+        {fact("Source", f.source)}
+        {fact("Notes", f.notes)}
+      </dl>
+      <div className="log-acts">
+        <button type="button" className="btn" onClick={() => onEdit(f)}>
+          Edit
+        </button>
+        {confirm ? (
+          <>
+            <span className="small">Delete this flight?</span>
+            <button type="button" className="btn btn-danger" onClick={() => (deleteFlight(f.id), setConfirm(false))}>
+              Delete
+            </button>
+            <button type="button" className="btn" onClick={() => setConfirm(false)}>
+              Keep
+            </button>
+          </>
+        ) : (
+          <button type="button" className="btn" onClick={() => setConfirm(true)}>
+            Delete…
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
+function LogList(props: ListProps) {
+  const d = useDisplay();
+  const strips = d.logbook === "strips";
+  return (
+    <>
+      <div className="log-bar-head">
+        <span className="small muted">Hover a flight to see it on the map, and its status for the times. Select it for everything logged.</span>
+        {!strips && (
+          <span className="log-view" role="group" aria-label="The table shows">
+            <button type="button" className={cx("chip", !d.logBars && "on")} aria-pressed={!d.logBars} onClick={() => writeDisplay({ logBars: false })}>
+              Airports
+            </button>
+            <button type="button" className={cx("chip", d.logBars && "on")} aria-pressed={d.logBars} onClick={() => writeDisplay({ logBars: true })}>
+              Punctuality
+            </button>
+          </span>
+        )}
+      </div>
+      {strips ? <LogStrips {...props} /> : <LogTable {...props} bars={d.logBars} />}
+    </>
+  );
+}
+
+function LogTable({ flights, ref_, sel, onSel, onHover, onEdit, bars }: ListProps & { bars: boolean }) {
+  const widths = useIdentWidths(flights, ref_);
+  const scale = useBarScale(flights);
+  const visits = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const f of flights) for (const a of [f.from, f.to]) m.set(a, (m.get(a) ?? 0) + 1);
+    return m;
+  }, [flights]);
+  const cols = 8;
+  // the first (newest) flight of each month gets the month's heading above it
+  const firsts = useMemo(() => {
+    const s = new Set<string>();
+    let m = "";
+    for (const f of flights) {
+      if (f.date.slice(0, 7) === m) continue;
+      m = f.date.slice(0, 7);
+      s.add(f.id);
+    }
+    return s;
+  }, [flights]);
+  return (
+    <div className="tbl-wrap log-wrap" onMouseLeave={() => onHover(null)}>
+      <table className={cx("tbl log-tbl", bars && "log-tbl-bars")} style={widths}>
+        <caption className="sr-only">Flights flown, newest first{bars ? "" : ", by month"}. Select a row to see its details.</caption>
         <thead>
           <tr>
-            <th scope="col">Date</th>
+            <th scope="col">{bars ? "Date" : "Day"}</th>
             <th scope="col">Flight</th>
-            <th scope="col">Route</th>
+            {bars ? (
+              <>
+                <th scope="col">Route</th>
+                <th scope="col" className="hide-s">
+                  Sched vs flown
+                </th>
+              </>
+            ) : (
+              <>
+                <th scope="col">From</th>
+                <th scope="col">To</th>
+              </>
+            )}
+            <th scope="col" className="num hide-xs">
+              Block
+            </th>
             <th scope="col" className="hide-s">
               Aircraft
             </th>
-            <th scope="col" className="hide-s">
-              OUT · OFF · ON · IN <span className="muted">(Z)</span>
-            </th>
-            <th scope="col" className="num">
-              Block · air
-            </th>
             <th scope="col">Status</th>
-            <th scope="col" className="num">
-              Landing
+            <th scope="col" className="num hide-xs" title="Touchdown rate, feet per minute">
+              Landing <span className="muted">fpm</span>
             </th>
           </tr>
         </thead>
         <tbody>
           {flights.map((f) => {
             const brand = ref_?.brands.get(f.airline ?? "");
-            const s = statusOf(f);
-            const g = landingGrade(f.landingFpm);
-            const block = blockOf(f);
-            const air = airOf(f);
-            const dd = depDelay(f);
-            const ad = arrDelay(f);
             const open = sel === f.id;
-            const ident = f.flight ?? f.callsign ?? "—";
+            const block = blockOf(f);
             return (
               <Fragment key={f.id}>
-                <tr className={cx(open && "sel")} onClick={() => onSel(f.id)}>
+                {!bars && firsts.has(f.id) && <MonthRow ym={f.date.slice(0, 7)} flights={flights} cols={cols} />}
+                <tr className={cx(open && "sel")} onClick={() => onSel(f.id)} onMouseEnter={() => onHover(f.id)}>
                   <td className="mono">
-                    <button type="button" className="log-date" aria-expanded={open} onClick={(e) => (e.stopPropagation(), onSel(f.id))}>
-                      {f.date}
+                    <button type="button" className="log-date" aria-expanded={open} title={f.date} onClick={(e) => (e.stopPropagation(), onSel(f.id))} onFocus={() => onHover(f.id)}>
+                      {bars ? (
+                        shortDate(f.date)
+                      ) : (
+                        <>
+                          <span className="muted log-wd">{weekday(f.date)}</span> {+f.date.slice(8, 10)}
+                        </>
+                      )}
                     </button>
-                    {f.started && !f.out && (
-                      <small className="muted log-sub" title="The time your tracker lists for the flight (time zone not given)">
-                        {f.started}
-                      </small>
-                    )}
                   </td>
-                  <td>
-                    <FlightIdent airline={brand} fallback={f.airline ?? "—"} ident={ident} />
-                    {f.flight && f.callsign && <small className="muted mono log-sub">{f.callsign}</small>}
+                  <td title={f.flight && f.callsign ? `Callsign ${f.callsign}` : undefined}>
+                    <FlightIdent airline={brand} fallback={f.airline ?? "—"} ident={f.flight ?? f.callsign ?? "—"} />
                   </td>
-                  <td>
-                    <span className="mono log-codes">
-                      {f.from} <span aria-hidden="true">→</span> {f.to}
-                    </span>
-                    <small className="muted route-names">
-                      {place(f.from)}
-                      <span aria-hidden="true">→</span>
-                      {place(f.to)}
-                    </small>
-                  </td>
-                  <td className="hide-s">
+                  {bars ? (
+                    <>
+                      <td className="mono">
+                        {f.from} <span aria-hidden="true">→</span>
+                        <span className="sr-only">to</span> {f.to}
+                      </td>
+                      <td className="hide-s">
+                        <PunctBar f={f} color={routeColor(brand)} scale={scale} />
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td>
+                        <Place icao={f.from} ref_={ref_} visits={visits} />
+                      </td>
+                      <td>
+                        <Place icao={f.to} ref_={ref_} visits={visits} />
+                      </td>
+                    </>
+                  )}
+                  <td className="mono num hide-xs">{dur(block) ?? <span className="muted">—</span>}</td>
+                  <td className="hide-s" title={f.reg ?? undefined}>
                     {f.type ? <TypeBadge type={f.type} airline={brand} /> : <span className="muted">—</span>}
-                    {f.reg && <small className="muted mono log-sub">{f.reg}</small>}
-                  </td>
-                  <td className="hide-s mono log-oooi">
-                    {f.out || f.off || f.on || f.in ? (
-                      <>
-                        {[f.out, f.off, f.on, f.in].map((t, i) => (
-                          <span key={i} className={t ? undefined : "muted"}>
-                            {t ?? "--:--"}
-                          </span>
-                        ))}
-                      </>
-                    ) : (
-                      <span className="muted">—</span>
-                    )}
-                    {(f.std || f.sta) && (
-                      <small className="muted log-sub">
-                        sched {f.std ?? "--:--"}–{f.sta ?? "--:--"}
-                      </small>
-                    )}
-                  </td>
-                  <td className="mono num">
-                    {dur(block) ?? "—"}
-                    <small className="muted log-sub">{dur(air) ?? "—"}</small>
                   </td>
                   <td>
-                    {s ? <span className={`badge ${STATUS_TONE[s]}`}>{STATUS_LABEL[s]}</span> : <span className="muted">—</span>}
-                    {(ad != null || dd != null) && (
-                      <small className="muted mono log-sub">
-                        {dd != null && `dep ${signed(dd)}`}
-                        {dd != null && ad != null && " · "}
-                        {ad != null && `arr ${signed(ad)}`}
-                      </small>
-                    )}
+                    <Status f={f} />
                   </td>
-                  <td className="num">
-                    {f.landingFpm != null ? <span className="mono">{f.landingFpm} fpm</span> : <span className="muted">—</span>}
-                    {g && <span className={`badge ${g.tone} log-grade`}>{g.label}</span>}
+                  <td className="num hide-xs">
+                    <Landing f={f} />
                   </td>
                 </tr>
                 {open && (
                   <tr className="log-detail">
-                    <td colSpan={8}>
-                      <dl className="log-facts">
-                        {fact("Callsign", f.callsign)}
-                        {fact("Flight", f.flight)}
-                        {fact("Operator", f.airline ? `${f.airline}${brand ? ` · ${brand.name}` : ""}` : null)}
-                        {fact("Aircraft", [f.type, f.reg].filter(Boolean).join(" · ") || null)}
-                        {fact("Scheduled", f.std || f.sta ? `${f.std ?? "--:--"} → ${f.sta ?? "--:--"} Z` : null)}
-                        {fact("OOOI", f.out || f.off || f.on || f.in ? `${f.out ?? "--:--"} · ${f.off ?? "--:--"} · ${f.on ?? "--:--"} · ${f.in ?? "--:--"} Z` : null)}
-                        {fact("Block / air", block != null || air != null ? `${dur(block) ?? "—"} / ${dur(air) ?? "—"}` : null)}
-                        {fact("Landing", f.landingFpm != null ? `${f.landingFpm} fpm${f.landingG != null ? ` · ${f.landingG} g` : ""}` : null)}
-                        {fact("Cruise", f.cruiseFl != null ? `FL${f.cruiseFl}` : null)}
-                        {fact("Fuel", f.fuelKg != null ? `${f.fuelKg.toLocaleString("en-GB")} kg` : null)}
-                        {fact("Passengers", f.pax)}
-                        {fact("Simulator", f.sim)}
-                        {fact("Listed time", f.started)}
-                        {fact("Source", f.source)}
-                        {fact("Notes", f.notes)}
-                      </dl>
-                      <div className="log-acts">
-                        <button type="button" className="btn" onClick={() => onEdit(f)}>
-                          Edit
-                        </button>
-                        {confirm === f.id ? (
-                          <>
-                            <span className="small">Delete this flight?</span>
-                            <button type="button" className="btn btn-danger" onClick={() => (deleteFlight(f.id), setConfirm(null))}>
-                              Delete
-                            </button>
-                            <button type="button" className="btn" onClick={() => setConfirm(null)}>
-                              Keep
-                            </button>
-                          </>
-                        ) : (
-                          <button type="button" className="btn" onClick={() => setConfirm(f.id)}>
-                            Delete…
-                          </button>
-                        )}
-                      </div>
+                    <td colSpan={cols}>
+                      <Details f={f} brand={brand} onEdit={onEdit} />
                     </td>
                   </tr>
                 )}
@@ -408,6 +598,90 @@ function LogTable({
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function MonthRow({ ym, flights, cols }: { ym: string; flights: LogFlight[]; cols: number }) {
+  const inM = flights.filter((f) => f.date.startsWith(ym));
+  const block = inM.reduce((a, f) => a + (blockOf(f) ?? 0), 0);
+  const routes = new Set(inM.map((f) => `${f.from}-${f.to}`)).size;
+  return (
+    <tr className="log-month">
+      <th scope="rowgroup" colSpan={cols}>
+        {MONTHS[+ym.slice(5, 7) - 1]} {ym.slice(0, 4)}
+        <span className="mono">
+          {inM.length} {inM.length === 1 ? "flight" : "flights"}
+          {block ? ` · ${dur(block)} block` : ""} · {routes} {routes === 1 ? "route" : "routes"}
+        </span>
+      </th>
+    </tr>
+  );
+}
+
+/** W5: ATC flight progress strips, one per flight, in a rack. */
+function LogStrips({ flights, ref_, sel, onSel, onHover, onEdit }: ListProps) {
+  const widths = useIdentWidths(flights, ref_);
+  const city = (icao: string) => {
+    const a = ref_?.airports.get(icao);
+    return a ? (cityName(a) ?? airportLabel(a)) : "";
+  };
+  return (
+    <div className="log-wrap log-strips" style={widths} onMouseLeave={() => onHover(null)}>
+      <ul aria-label="Flights flown, newest first. Select a strip to see its details.">
+        {flights.map((f) => {
+          const brand = ref_?.brands.get(f.airline ?? "");
+          const open = sel === f.id;
+          return (
+            <li key={f.id} className={cx("strip", open && "sel")} style={{ ["--c" as string]: routeColor(brand) }} onMouseEnter={() => onHover(f.id)}>
+              <div className="strip-row" onClick={() => onSel(f.id)}>
+                <span className="strip-cs">
+                  <button type="button" className="log-date" aria-expanded={open} onClick={(e) => (e.stopPropagation(), onSel(f.id))} onFocus={() => onHover(f.id)}>
+                    <FlightIdent airline={brand} fallback={f.airline ?? "—"} ident={f.flight ?? f.callsign ?? "—"} />
+                  </button>
+                  <small className="mono">{f.flight && f.callsign ? f.callsign : " "}</small>
+                </span>
+                <span className="strip-ac">
+                  <b className="mono">{f.type ?? "—"}</b>
+                  <small className="mono">{f.reg ?? " "}</small>
+                </span>
+                <span className="strip-ap">
+                  <b className="mono">{f.from}</b>
+                  <small>{city(f.from)}</small>
+                </span>
+                <span className="strip-to" aria-hidden="true">
+                  ▸
+                </span>
+                <span className="sr-only">to</span>
+                <span className="strip-ap">
+                  <b className="mono">{f.to}</b>
+                  <small>{city(f.to)}</small>
+                </span>
+                <span className="strip-n">
+                  <small>Block</small>
+                  <b className="mono">{dur(blockOf(f)) ?? "—"}</b>
+                </span>
+                <span className="strip-n">
+                  <small>V/S</small>
+                  <b className="mono">{f.landingFpm ?? "—"}</b>
+                </span>
+                <span className="strip-d mono">
+                  <span>{shortDate(f.date).split(" ").slice(0, 2).join(" ")}</span>
+                  <small>{f.date.slice(0, 4)}</small>
+                </span>
+                <span className="strip-st">
+                  <Status f={f} className="strip-stamp" />
+                </span>
+              </div>
+              {open && (
+                <div className="strip-detail">
+                  <Details f={f} brand={brand} onEdit={onEdit} />
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

@@ -5,7 +5,7 @@
  * The snapshot has no live data. "Expected" times come from how a flight typically runs against
  * its schedule (tracked OUT vs STD, IN vs STA); anything else (a delay, a gate) is the user's.
  */
-import { blockTime, gcNm, isoDay, plannedOut, span } from "../data/flight";
+import { blockTime, gcNm, isoDay, onDay, plannedOut, span } from "../data/flight";
 import type { Airport, FlightRow } from "../data/load";
 
 export const MIN = 60_000;
@@ -51,22 +51,24 @@ const operates = (f: FlightRow, day0: number) => !f.days.length || f.days.includ
 export function movements(flights: FlightRow[], airports: Map<string, Airport> | null, icao: string, side: Side, fromMs: number, toMs: number): Movement[] {
   const out: Movement[] = [];
   const seen = new Set<string>();
-  for (const f of flights) {
-    if ((side === "dep" ? f.o : f.d) !== icao) continue;
-    const dep = plannedOut(f);
-    if (dep == null) continue;
-    const a = airports?.get(f.o);
-    const b = airports?.get(f.d);
+  for (const base of flights) {
+    if ((side === "dep" ? base.o : base.d) !== icao) continue;
+    const a = airports?.get(base.o);
+    const b = airports?.get(base.d);
     const nm = a && b ? gcNm(a, b) : null;
-    const block = blockTime(f, nm)?.min ?? null;
-    let arrOff: number | null = null;
-    if (side === "arr") {
-      const arr = f.sta ?? f.in ?? (f.on != null ? f.on + 6 : null);
-      arrOff = arr != null ? span(dep, arr) : block;
-      if (arrOff == null) continue;
-    }
     for (let d = dayStart(fromMs) - 2 * DAY; d <= toMs; d += DAY) {
-      if (!operates(f, d)) continue;
+      if (!operates(base, d)) continue;
+      // each date with its weekday's times (they change through the week for some flights)
+      const f = onDay(base, isoDay(new Date(d)));
+      const dep = plannedOut(f);
+      if (dep == null) continue;
+      const block = blockTime(f, nm)?.min ?? null;
+      let arrOff: number | null = null;
+      if (side === "arr") {
+        const arr = f.sta ?? f.in ?? (f.on != null ? f.on + 6 : null);
+        arrOff = arr != null ? span(dep, arr) : block;
+        if (arrOff == null) continue;
+      }
       const depMs = d + dep * MIN;
       const ms = side === "dep" ? depMs : depMs + (arrOff as number) * MIN;
       if (ms < fromMs || ms > toMs) continue;
@@ -89,11 +91,11 @@ export function movements(flights: FlightRow[], airports: Map<string, Airport> |
   return out.sort((x, y) => x.ms - y.ms || x.f.id.localeCompare(y.f.id));
 }
 
-/** The next departure of a flight at or after `fromMs` (ms), from its planned off-block. */
+/** The next departure of a flight at or after `fromMs` (ms), from its planned off-block that weekday. */
 export function nextDep(f: FlightRow, fromMs: number): number | null {
-  const dep = plannedOut(f);
-  if (dep == null) return null;
   for (let d = dayStart(fromMs); d < fromMs + 9 * DAY; d += DAY) {
+    const dep = plannedOut(onDay(f, isoDay(new Date(d))));
+    if (dep == null) continue;
     const ms = d + dep * MIN;
     if (ms >= fromMs && operates(f, d)) return ms;
   }
@@ -102,10 +104,10 @@ export function nextDep(f: FlightRow, fromMs: number): number | null {
 
 /** Departure of a flight on a given UTC date ("YYYY-MM-DD"), if it runs that day. */
 export function depOn(f: FlightRow, date: string): number | null {
-  const dep = plannedOut(f);
   const d0 = Date.parse(`${date}T00:00:00Z`);
-  if (dep == null || !Number.isFinite(d0) || !operates(f, d0)) return null;
-  return d0 + dep * MIN;
+  if (!Number.isFinite(d0) || !operates(f, d0)) return null;
+  const dep = plannedOut(onDay(f, isoDay(new Date(d0))));
+  return dep == null ? null : d0 + dep * MIN;
 }
 
 /* ---------- the boarding sequence ---------- */

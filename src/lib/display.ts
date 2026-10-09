@@ -18,11 +18,22 @@ export interface Display {
   mapCodes: MapCodes;
   /** How the flight card shows departs / arrives. */
   routeHead: RouteHeadStyle;
+  /** How the flight card shows a flight's times through the week (A1–A4). */
+  week: WeekStyle;
+  /** How the flights table marks a time that's different on other days (B1–B3). */
+  variesMark: VariesMark;
+  /** How the logbook lists flights: a table (rows by month) or ATC flight progress strips. */
+  logbook: LogbookStyle;
+  /** Logbook table: a punctuality bar per flight (scheduled vs flown) instead of the airports. */
+  logBars: boolean;
 }
+export type WeekStyle = "table" | "grouped" | "tabs" | "timeline";
+export type VariesMark = "tag" | "word" | "tilde";
 export type MapCodes = "iata" | "icao" | "off";
+export type LogbookStyle = "table" | "strips";
 export type RouteHeadStyle = "timeline" | "pass" | "board";
 
-export const DEFAULT_DISPLAY: Display = { airlineTag: "solid", flightFirst: true, typeColour: "maker", typeTheme: "full", mapCodes: "iata", routeHead: "timeline" };
+export const DEFAULT_DISPLAY: Display = { airlineTag: "solid", flightFirst: true, typeColour: "maker", typeTheme: "full", mapCodes: "iata", routeHead: "timeline", week: "table", variesMark: "tag", logbook: "table", logBars: false };
 
 export const readDisplay = (): Display => {
   const d = { ...DEFAULT_DISPLAY, ...readJSON<Partial<Display> & { mapCodes?: MapCodes | boolean }>(KEYS.display, {}) };

@@ -678,6 +678,28 @@ main {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+/* labelled rows (data-tip-rows): chip and value on one line */
+#ofp-tip .tip-row {
+  display: grid;
+  grid-template-columns: minmax(3.6em, auto) 1fr;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+#ofp-tip .tip-row .tip-chip {
+  margin: 0;
+  width: auto;
+  text-align: center;
+}
+#ofp-tip .tip-row > span:last-child {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre;
+}
+#ofp-tip .tip-note {
+  display: block;
+  margin-top: 6px;
+}
 #ofp-tip b {
   display: block;
   font-family: var(--font-mono);

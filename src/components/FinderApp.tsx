@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { airportLabel } from "@/lib/data/flight";
+import { airportLabel, isoDay, onDay } from "@/lib/data/flight";
 import { findFlight, loadRoutes, useDataset, type FlightRow } from "@/lib/data/load";
 import {
   EMPTY_QUERY,
@@ -75,7 +75,10 @@ export function FinderApp() {
   }, [q, view, placeCc, selId, ready]);
 
   const fnOv = useFnOverrides();
-  const rows = useMemo(() => data.flights.map((f) => enrich(applyFn(f, fnOv), airports)), [data.flights, airports, fnOv]);
+  // times shown are for one weekday: the day filter's when it holds one day, else today (UTC)
+  const [today] = useState(() => isoDay(new Date()));
+  const viewDay = q.days.length === 1 ? q.days[0] : today;
+  const rows = useMemo(() => data.flights.map((f) => enrich(applyFn(onDay(f, viewDay), fnOv), airports)), [data.flights, airports, fnOv, viewDay]);
   const filtered = useMemo(() => filterRows(rows, q, airports), [rows, q, airports]);
   const nameOf = useCallback((icao: string) => airportLabel(airports?.get(icao)) || icao, [airports]);
   const sorted = useMemo(() => sortRows(filtered, sort, nameOf), [filtered, sort, nameOf]);
@@ -100,7 +103,10 @@ export function FinderApp() {
   );
 
   // Selected flight: from the loaded rows, or fetched by id (a link to an airline not selected).
-  const selected = useMemo(() => (selId ? (rows.find((r) => r.f.id === selId) ?? (extra?.f.id === selId ? extra : null)) : null), [rows, selId, extra]);
+  const selected = useMemo(
+    () => (selId ? (rows.find((r) => r.f.id === selId) ?? (extra?.f.id === selId ? enrich(onDay(extra.f, viewDay), airports) : null)) : null),
+    [rows, selId, extra, viewDay, airports],
+  );
   useEffect(() => {
     if (!selId || selected || !manifest) return;
     let live = true;

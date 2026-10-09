@@ -25,12 +25,17 @@ export interface Airport {
 export interface FlightRow extends Flight {
   /** Brand airline ICAO (the file it came from). */
   al: string;
+  /** Brand IATA code ("FR"), so the finder's text search matches "FR658" as well as "RYR658". */
+  iata?: string | null;
   /** Stable id: brand:op+number-or-callsign:orig-dest:days, e.g. "EZY:EJU54LH:LEMD-LFSB:4". */
   id: string;
   /** types was empty in the snapshot and holds the airline's most common type instead. */
   typeGuessed: boolean;
   /** fn was added by the user (Settings-free: from the flight card), not from the data. */
   fnUser?: boolean;
+  /** Set by onDay(): the ISO weekday whose times this copy carries, and the row it was made from. */
+  day?: number;
+  base?: FlightRow;
 }
 
 const BASE = "/data/";
@@ -85,7 +90,7 @@ export function loadAirline(info: AirlineInfo, m: Manifest): Promise<FlightRow[]
         seen.set(id, n + 1);
         if (n) id += `~${n}`;
         const guess = !fl.types.length && !!common;
-        return { ...fl, types: guess ? [common!] : fl.types, typeGuessed: guess, al: info.icao, id };
+        return { ...fl, types: guess ? [common!] : fl.types, typeGuessed: guess, al: info.icao, iata: info.iata, id };
       });
       airlineDone.set(info.icao, rows);
       return rows;
@@ -172,5 +177,15 @@ export async function findFlight(id: string): Promise<FlightRow | null> {
   const info = m.airlines.find((a) => a.icao === brand);
   if (!info) return null;
   const rows = await loadAirline(info, m);
-  return rows.find((r) => r.id === id) ?? null;
+  return rows.find((r) => r.id === id) ?? rows.find(sameFlight(id)) ?? null;
 }
+
+/**
+ * Ids end in the operating days (and "~n" for duplicates), which change when a snapshot sees
+ * a flight on a new weekday or merges two rows of one flight. A saved id that no longer exists
+ * falls back to the same airline, operator, number or callsign and route.
+ */
+const sameFlight = (id: string) => {
+  const stem = id.split(":").slice(0, 3).join(":");
+  return (r: FlightRow) => r.id.split(":").slice(0, 3).join(":") === stem;
+};

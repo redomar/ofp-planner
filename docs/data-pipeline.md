@@ -38,11 +38,14 @@ Code: `scripts/snapshot/`
 - `routes.json` — flights per airline on every route, `orig → dest → brand → flights` (written by `route-index.mjs`, also runnable on its own). Lets the app show which airlines serve an airport without downloading every airline file.
 - `airlines/<ICAO>.json` — `{schema, airline, flights: Flight[]}`, minified
 
-A **flight** is one `(operator, callsign, origin, destination)` at one departure time
-(observations clustered within ±40 min), seen at least twice in the window or confirmed by a
-timetable. Airlines often fly the same callsign at different times on different weekdays, so
-one callsign can appear as several flights with different `days`. Clock times are minutes
-after 00:00 UTC.
+A **flight** is one `(operator, callsign, origin, destination)` flown on a weekly pattern, seen
+at least twice in the window or confirmed by a timetable. Observations are first clustered by
+departure time (±40 min); clusters then merge into one flight unless the callsign was seen twice
+on the same date (two real flights that day). A lone sighting joins only a weekday the flight
+already flies (a delay); on a new weekday it's dropped as a one-off. Ryanair flights matched to
+the same timetable flight number on a route are one flight whatever callsign flew them (the most
+common callsign is kept). When the times differ by weekday, `byDay` carries them (below).
+Clock times are minutes after 00:00 UTC.
 
 ## Sources
 
@@ -71,7 +74,7 @@ after 00:00 UTC.
   callsigns (`EJU54LH`) have no public mapping to a flight number, so `fn` is `null`.
 - **types** — ICAO type of each airframe that flew it (tar1090-db, VRS for gaps), most frequent first.
 - **days** — ISO weekdays (1 = Mon) it was observed on, in the origin's local time; for
-  timetable matches, the timetabled weekdays.
+  timetable matches, every weekday the flight number is timetabled.
 - **std / sta** — Ryanair timetable only (local times converted to UTC with the airport's
   time zone). `null` elsewhere: no open timetable source exists for the other airlines.
 - **out / off / on / in** — medians (circular, so midnight is safe) over the observations:
@@ -81,6 +84,15 @@ after 00:00 UTC.
     OUT = movement after a parked spell of ≥ 8 min; IN = first stop of ≥ 2 min (or the track
     ending stopped). Ground coverage is patchy, so these are often `null`.
 - **samples** — how many observed operations back the medians.
+- **byDay** — only when some weekday runs differently (another STD, or typical OUT/OFF more than
+  30 min off): `[days, std, sta, out, off, on, in]` for the weekdays that differ from the flight's
+  own times (which are those of the most days, ties to the most common STD). Per weekday: STD/STA
+  from the timetable (most common time that weekday); typical times are that weekday's medians when
+  it was seen at least twice; one sighting counts only when it's clearly another time (> 40 min);
+  otherwise the whole flight's typical times, moved by that day's schedule difference. Ends not
+  tracked on a weekday are filled from the whole flight, moved to that day's time. The app reads
+  them through `onDay(f, weekday)` (`src/lib/data/flight.ts`).
+- **seen** — tracked sightings per weekday, Mon..Sun (absent for timetable-only flights).
 
 ## Rerunning
 
