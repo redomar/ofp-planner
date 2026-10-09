@@ -9,6 +9,12 @@
   - Board and gate screen: each date uses that weekday's times. Logbook "Log this flight" fills in that day's STD/STA.
   - Journeys: a flight whose times change is searched once per set of weekdays that run alike, so timed journeys use the right time each day. Searches take the same time or less (EGBB → LOWI in 5 legs: 255 → 167 ms in Node).
   - Saved favourites, recent flights and shared links keep working: an id from before the merge (its days or "~n" part no longer exists) finds the same airline, number or callsign and route.
+- **Logbook list, redone.** The list scrolls in its own box (header row stays put) instead of making the page as long as the logbook, and fits the page width down to a phone, with no sideways scrolling.
+  - **Table** (default): flights under month headings with that month's flights, block time and routes, in rows like the Finder's: the flight cell follows Settings → Display (airline tag style and order), From and To with the city. Hovering an airport shows its name, city and country, ICAO/IATA, elevation, time zone and how often it's in your logbook.
+  - The OUT · OFF · ON · IN column is gone: hover (or focus) the **status** to see each time against the schedule, with block and airborne time. Everything else is still in the row's details.
+  - **Hovering a flight shows it on the map**: its route draws in and the aircraft appears.
+  - **Punctuality** switch above the table: a bar per flight instead of the airports, the scheduled block as an outline and the flown one solid in the airline colour, on one scale.
+  - Settings → Display → **Logbook**: **Flight strips**, one paper strip per flight like an ATC flight progress board (airline colour band, flight and callsign, aircraft and registration, route, block, touchdown rate, date and a stamped status). Light and dark.
 - Finder: **Flight or callsign** now finds a flight by its airline's IATA code too: "FR658" or "FR 658" as well as "RYR658" (only the ICAO form matched before).
 
 ## 1.4.4 — 2026-10-09

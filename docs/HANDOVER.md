@@ -50,7 +50,11 @@ pages:        # all client components; one shared TopBar (Finder · Journeys · 
   /brief:     src/components/BriefApp.tsx   — FlightCard, date, next leg (sample + full list), weather
   /logbook:   src/components/LogbookApp.tsx + lib/logbook.ts — flights flown (localStorage "ofp-planner:logbook", never mixed with the snapshot):
               totals, RouteMap of routes flown, table (OOOI "HH:MM" UTC on the OUT date, block/air, status from STD/STA vs OUT/IN ±15 min,
-              landing fpm + grade; a recorded/chosen status wins over the derived one), add/edit form, JSON import/export (schema "ofp-planner/logbook" v1; parseLogFile cleans untrusted input).
+              landing fpm + grade; a recorded/chosen status wins over the derived one), add/edit form,
+              list (1.5.0): scrolling box (max min(640px,72vh), sticky header); Display.logbook "table" (rows under month headings, Finder flight cell,
+              From/To with an airport tooltip) or "strips" (ATC flight progress strips); Display.logBars = the table's Punctuality switch
+              (scheduled-vs-flown bar per row). OOOI times live in the status badge's tooltip (data-tip-rows); hovering a row makes its route the
+              map's active one (draw-in + plane animation already in RouteMap CSS). JSON import/export (schema "ofp-planner/logbook" v1; parseLogFile cleans untrusted input).
               /logbook?f=<flight id>[&d=date] prefills the form (FlightCard "Log this flight" on the brief and in the Finder panel). The user's own file lives outside
               the repo in ../ofp-planner-logbook/ (it has their registrations).
   /settings:  src/components/SettingsApp.tsx — airframes, Display, favourites, recent, snapshot info, theme/storage

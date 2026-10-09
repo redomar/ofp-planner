@@ -414,10 +414,64 @@ function DisplayPrefs({ manifest }: { manifest: Manifest | null }) {
         </div>
       </fieldset>
 
+      <fieldset className="opt-group">
+        <legend className="ctl-label">Logbook: flights flown</legend>
+        <div className="opt-grid">
+          {(
+            [
+              ["table", "Table", "A row per flight under month headings. The table’s Punctuality switch swaps the airports for a scheduled-vs-flown bar."],
+              ["strips", "Flight strips", "A paper strip per flight, like an ATC flight progress board: airline colour band, callsign, route and a stamped status."],
+            ] as const
+          ).map(([v, label, note]) => (
+            <Opt key={v} name="logbook" checked={d.logbook === v} onChange={() => writeDisplay({ logbook: v })} title={label} isDefault={v === "table"} note={note}>
+              <LogbookSample style={v} />
+            </Opt>
+          ))}
+        </div>
+      </fieldset>
+
       <button type="button" className="chip" onClick={() => writeDisplay(DEFAULT_DISPLAY)}>
         Reset display to defaults
       </button>
     </div>
+  );
+}
+
+/** Two made-up flights drawn the way each logbook style lists them. */
+function LogbookSample({ style }: { style: "table" | "strips" }) {
+  const rows = [
+    ["Thu 8", "EGKK", "LEZL", "Gatwick", "Seville", "2h 10m", "b-green", "On time", "#ff6600"],
+    ["Tue 6", "EBBR", "EIDW", "Brussels", "Dublin", "1h 51m", "b-red", "Late", "#073590"],
+  ] as const;
+  if (style === "strips")
+    return (
+      <span className="log-sample log-strips" aria-hidden="true">
+        {rows.map(([day, o, dst, , , blk, tone, st, c]) => (
+          <span key={day} className="strip log-sample-strip" style={{ ["--c" as string]: c }}>
+            <b className="mono">{o}</b>
+            <span>▸</span>
+            <b className="mono">{dst}</b>
+            <span className="mono">{blk}</span>
+            <span className={`badge ${tone} strip-stamp`}>{st}</span>
+          </span>
+        ))}
+      </span>
+    );
+  return (
+    <span className="log-sample log-sample-tbl" aria-hidden="true">
+      <span className="log-sample-month">October 2026</span>
+      {rows.map(([day, o, dst, a, b, blk, tone, st]) => (
+        <span key={day} className="log-sample-row">
+          <span className="mono muted">{day}</span>
+          <span className="mono">{o}</span>
+          <small className="muted">{a}</small>
+          <span className="mono">{dst}</span>
+          <small className="muted">{b}</small>
+          <span className="mono">{blk}</span>
+          <span className={`badge ${tone}`}>{st}</span>
+        </span>
+      ))}
+    </span>
   );
 }
 
