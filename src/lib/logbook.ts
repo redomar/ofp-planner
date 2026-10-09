@@ -215,14 +215,14 @@ export const airOf = (f: LogFlight) => span(f.off, f.on) ?? f.airMin ?? null;
 export const depDelay = (f: LogFlight) => diff(f.std, f.out);
 export const arrDelay = (f: LogFlight) => diff(f.sta, f.in);
 
-/** Early / on time / late from the arrival (15 min either side counts as on time); delayed when it left 15+ min late but made it up. */
+/** The recorded status when there is one; else early / on time / late from the arrival (15 min either side counts as on time); delayed when it left 15+ min late but made it up. */
 export function statusOf(f: LogFlight): LogStatus | null {
-  if (f.status === "cancelled") return "cancelled";
+  if (f.status) return f.status;
   const a = arrDelay(f);
   const d = depDelay(f);
   if (a != null) return a < -15 ? "early" : a > 15 ? "late" : d != null && d > 15 ? "delayed" : "on-time";
   if (d != null) return d > 15 ? "delayed" : "on-time";
-  return f.status ?? null;
+  return null;
 }
 export const STATUS_TONE: Record<LogStatus, string> = { early: "b-blue", "on-time": "b-green", late: "b-red", delayed: "b-amber", cancelled: "b-ink" };
 
