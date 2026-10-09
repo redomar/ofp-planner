@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.5.0 — unreleased
+## 1.5.0 — 2026-10-09
 
 - **One line per flight, with its times for each weekday.** A flight that leaves at different times on different days (FR658 Brussels → Dublin: 07:35Z on Mondays, 08:30Z on Wednesdays, 07:50Z at weekends) used to be split into several rows, which overlapped on some days and showed departures that don't exist. It is now one flight with its weekly pattern.
   - Data: rows of the same callsign and route merge unless it was seen twice on the same date; Ryanair rows with the same flight number merge whatever the callsign. A delayed flight now counts as a sighting of its weekday instead of being dropped. Days whose times differ carry their own scheduled and typical times; days seen only once fall back to the flight's usual times. Snapshot: 41,593 flights (was 69,935 rows for the same 19 days; the drop is duplicates, not lost data), 15,772 of them vary by day. Files are slightly smaller.

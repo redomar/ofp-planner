@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: v1.4.4 released 2026-10-09 (Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
+  status: v1.5.0 released 2026-10-09 (one row per flight with per-weekday times, Brief/Finder/Board by day, logbook list redone: month table, punctuality switch, flight strips; 1.4.4: Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 
@@ -122,7 +122,7 @@ ids_and_urls:
 
 ## 4. Data: what exists and why
 
-snapshot_now (branch feature/1.5.0-per-day): 57 airlines · 41,593 flights (one per weekly pattern; main/1.4.4 has 69,935 rows) · 15,802 routes · 584 airports · window 2026-09-20 → 2026-10-08 (19 days)
+snapshot_now: 57 airlines · 41,593 flights (one per weekly pattern; 1.4.4 had 69,935 rows) · 15,802 routes · 584 airports · window 2026-09-20 → 2026-10-08 (19 days)
 size: public/data ≈ 11 MB raw, ≈ 1.2 MB gzipped (biggest RYR.json 3.6 MB / 423 KB gz); routes.json 315 KB / 62 KB gz
 loading: manifest revalidated each visit; other files fetched with ?v=<generatedAt> (cache-friendly);
   airline files load only for selected airlines; routes.json only once an airport is chosen.
@@ -258,10 +258,9 @@ server_latch_container_alternative: |
 
 ## 10. Open items / ideas
 
-  - 1.5.0 per-day times: built on local branch feature/1.5.0-per-day (NOT pushed; user said don't push until asked).
-    Remaining before release: user review, then release/1.5.0 → main, tag, push, data:push (the server's live data overlay must be
-    replaced too, or it keeps serving the old rows). Possible follow-ups: Journeys UI could show each leg's weekday times in the
-    timings table; 116 numbered callsigns on other airlines still have two rows (seen twice on one date = two flights).
+  - After 1.5.0 (per-day times): Journeys UI could show each leg's weekday times in the timings table; 116 numbered callsigns
+    on other airlines still have two rows (seen twice on one date = two flights). Data releases need pnpm data:push too
+    (the server's live data overlay shadows the data baked into the image).
   - Ryanair timetable: kept on (user decision 2026-10-05). Next releases: feature branches → release/x.y.z → PR → merge
     commit → signed tag → GitHub release; pushing main auto-deploys (Dokploy).
   - Refresh the snapshot after 25 Oct 2026 (winter schedule) and periodically after; consider a longer window
