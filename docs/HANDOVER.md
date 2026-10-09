@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: v1.4.2 released 2026-10-09 (Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
+  status: v1.4.3 released 2026-10-09 (a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 
@@ -50,7 +50,7 @@ pages:        # all client components; one shared TopBar (Finder · Journeys · 
   /brief:     src/components/BriefApp.tsx   — FlightCard, date, next leg (sample + full list), weather
   /logbook:   src/components/LogbookApp.tsx + lib/logbook.ts — flights flown (localStorage "ofp-planner:logbook", never mixed with the snapshot):
               totals, RouteMap of routes flown, table (OOOI "HH:MM" UTC on the OUT date, block/air, status from STD/STA vs OUT/IN ±15 min,
-              landing fpm + grade), add/edit form, JSON import/export (schema "ofp-planner/logbook" v1; parseLogFile cleans untrusted input).
+              landing fpm + grade; a recorded/chosen status wins over the derived one), add/edit form, JSON import/export (schema "ofp-planner/logbook" v1; parseLogFile cleans untrusted input).
               /logbook?f=<flight id>[&d=date] prefills the form (FlightCard "Log this flight" on the brief and in the Finder panel). The user's own file lives outside
               the repo in ../ofp-planner-logbook/ (it has their registrations).
   /settings:  src/components/SettingsApp.tsx — airframes, Display, favourites, recent, snapshot info, theme/storage
@@ -110,7 +110,7 @@ ids_and_urls:
 
 ## 4. Data: what exists and why
 
-snapshot_now: 57 airlines · 68,927 flights · 15,712 routes · 584 airports · window 2026-09-20 → 2026-10-07 (18 days, built 2026-10-08)
+snapshot_now: 57 airlines · 69,935 flights · 15,731 routes · 584 airports · window 2026-09-20 → 2026-10-08 (19 days, built 2026-10-09)
 size: public/data ≈ 11 MB raw, ≈ 1.2 MB gzipped (biggest RYR.json 3.6 MB / 423 KB gz); routes.json 315 KB / 62 KB gz
 loading: manifest revalidated each visit; other files fetched with ?v=<generatedAt> (cache-friendly);
   airline files load only for selected airlines; routes.json only once an airport is chosen.
@@ -141,7 +141,7 @@ field_derivations: docs/data-pipeline.md ("How each field is derived") — don't
 
 where: scripts/snapshot/ (index.mjs CLI; airlines.mjs brands/colours/region; sources/*; legs.mjs; build.mjs; route-index.mjs)
 caches: data/raw (88 MB downloads) + data/cache (493 MB; tracks/<date>.ndjson.gz per day) — gitignored, keep them.
-cached_days_now: 2026-09-20 … 2026-10-07 (data/cache ≈ 530 MB)
+cached_days_now: 2026-09-20 … 2026-10-08 (data/cache ≈ 530 MB)
 timing: fetch ≈ 4 min/day at concurrency 3 (download-bound); first Ryanair pass 15–20 min (cached 10 days); build ≈ 20 s.
 recipes:
   add_a_15th_day: |

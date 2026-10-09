@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.3 — 2026-10-09
+
+- Logbook: a **Status** chosen in the form (early, on time, late, delayed) now overrides the one worked out from the times. Only Cancelled used to stick; any other choice was replaced by the status from STD/STA against OUT/IN whenever those times were filled in. "From the times" still works it out.
+- Data: snapshot 2026-09-20 → 2026-10-08 (19 days, 69,935 flights, 584 airports, 15,731 routes).
+
 ## 1.4.2 — 2026-10-09
 
 - Finder: **Log this flight** in the selected flight's panel opens the logbook form prefilled from that flight (route, callsign, flight number, airline, type, listed STD/STA; the date is today). Nothing is saved until you submit it.

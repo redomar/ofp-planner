@@ -961,6 +961,13 @@ async function run() {
     await page.waitForTimeout(300);
     const edited = await page.locator(".log-tbl tbody tr", { hasText: "EZY22N" }).first().innerText();
     /17:35/.test(edited) && (await page.locator(".log-tbl tbody tr:not(.log-detail)").count()) === 3 ? pass("logbook: editing a flight's listed time updates it in place") : fail(`logbook: edit listed time ${edited.replace(/\s+/g, " ")}`);
+    await page.locator(".log-tbl tbody tr", { hasText: "EZY34MH" }).first().click();
+    await page.locator(".log-detail").getByRole("button", { name: "Edit" }).click();
+    await f.getByLabel("Status").selectOption("delayed");
+    await f.getByRole("button", { name: "Save changes" }).click();
+    await page.waitForTimeout(300);
+    const chosen = await page.locator(".log-tbl tbody tr", { hasText: "EZY34MH" }).first().innerText();
+    /DELAYED/.test(chosen) && !/LATE/.test(chosen) ? pass("logbook: a chosen status overrides the one from the times (late → delayed)") : fail(`logbook: chosen status ${chosen.replace(/\s+/g, " ")}`);
     const [dl] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /^Export/ }).click()]);
     const out = JSON.parse(readFileSync(await dl.path(), "utf8"));
     out.schema === "ofp-planner/logbook" && out.flights.length === 3 ? pass("logbook: export writes the same file format back") : fail(`logbook: export ${out.schema} ${out.flights?.length}`);
