@@ -16,6 +16,8 @@ export interface Display {
   typeTheme: "side" | "full";
   /** Airport codes beside destinations on maps (codes that would overlap are skipped). */
   mapCodes: MapCodes;
+  /** Route lines on maps: the shortest way (great circle, straight on these maps) or a constant heading along the grid (rhumb line). */
+  mapLines: MapLines;
   /** How the flight card shows departs / arrives. */
   routeHead: RouteHeadStyle;
   /** How the flight card shows a flight's times through the week (A1–A4). */
@@ -30,10 +32,11 @@ export interface Display {
 export type WeekStyle = "table" | "grouped" | "tabs" | "timeline";
 export type VariesMark = "tag" | "word" | "tilde";
 export type MapCodes = "iata" | "icao" | "off";
+export type MapLines = "great" | "rhumb";
 export type LogbookStyle = "table" | "strips";
 export type RouteHeadStyle = "timeline" | "pass" | "board";
 
-export const DEFAULT_DISPLAY: Display = { airlineTag: "solid", flightFirst: true, typeColour: "maker", typeTheme: "full", mapCodes: "iata", routeHead: "timeline", week: "table", variesMark: "tag", logbook: "table", logBars: false };
+export const DEFAULT_DISPLAY: Display = { airlineTag: "solid", flightFirst: true, typeColour: "maker", typeTheme: "full", mapCodes: "iata", mapLines: "great", routeHead: "timeline", week: "table", variesMark: "tag", logbook: "table", logBars: false };
 
 export const readDisplay = (): Display => {
   const d = { ...DEFAULT_DISPLAY, ...readJSON<Partial<Display> & { mapCodes?: MapCodes | boolean }>(KEYS.display, {}) };

@@ -346,6 +346,22 @@ function DisplayPrefs({ manifest }: { manifest: Manifest | null }) {
       </fieldset>
 
       <fieldset className="opt-group">
+        <legend className="ctl-label">Maps: route lines</legend>
+        <div className="opt-grid">
+          {(
+            [
+              ["great", "Shortest way", "The great circle, the way flights are planned. On these maps it’s a straight line."],
+              ["rhumb", "Along the grid", "A rhumb line: one constant heading, crossing every meridian at the same angle, so it curves with the lines of latitude and longitude."],
+            ] as const
+          ).map(([v, label, note]) => (
+            <Opt key={v} name="mapLines" checked={d.mapLines === v} onChange={() => writeDisplay({ mapLines: v })} title={label} isDefault={v === "great"} note={note}>
+              <LinesSketch mode={v} />
+            </Opt>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="opt-group">
         <legend className="ctl-label">Flight card: departs / arrives</legend>
         <div className="opt-grid stack">
           {(
@@ -472,6 +488,33 @@ function LogbookSample({ style }: { style: "table" | "strips" }) {
         </span>
       ))}
     </span>
+  );
+}
+
+/** A sketch for the route-lines setting: the grid as it looks on these maps, and one long route drawn each way. */
+function LinesSketch({ mode }: { mode: "great" | "rhumb" }) {
+  const d = mode === "great" ? "M34 46L206 46" : "M34 46Q120 92 206 46";
+  return (
+    <svg className="mini-map" viewBox="0 0 240 124" role="img" aria-label={mode === "great" ? "A route drawn as a straight line" : "A route curving with the grid"}>
+      <rect width="240" height="124" className="map-sea" />
+      <path className="map-land" d="M0 70 C40 60 70 80 100 74 C140 66 170 50 240 56 L240 124 L0 124 Z" />
+      <path className="map-grat" d="M-20 20Q120 66 260 20M-20 52Q120 98 260 52M-20 84Q120 130 260 84M40 124L80 0M120 124V0M200 124L160 0" />
+      <g className="map-route on">
+        <path className="map-casing" d={d} style={{ strokeWidth: 3.4, fill: "none" }} />
+        <path className="map-line" d={d} style={{ stroke: "#ff6600", strokeWidth: 1.8, fill: "none", animation: "none", strokeDasharray: "none", strokeDashoffset: 0 }} />
+      </g>
+      {[
+        [34, 46, "LGW"],
+        [206, 46, "AYT"],
+      ].map(([x, y, c]) => (
+        <g key={c} className="map-port" transform={`translate(${x} ${y})`}>
+          <circle className="map-dot" r="3.4" />
+          <text x="0" y="-8" textAnchor="middle">
+            {c}
+          </text>
+        </g>
+      ))}
+    </svg>
   );
 }
 

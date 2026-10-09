@@ -1129,6 +1129,33 @@ async function run() {
     const m = await open("/logbook", { width: 390, height: 844, theme: "dark" });
     await m.page.waitForSelector(".log-form");
     await checkPage("logbook 390 dark", m.page, m.errors);
+    // Settings → Display → route lines: great circle (straight here) or rhumb line (bends with the grid)
+    const bend = async (lines) => {
+      await m.page.evaluate((l) => {
+        localStorage.setItem("ofp-planner:display", JSON.stringify({ mapLines: l }));
+        localStorage.setItem("ofp-planner:logbook", JSON.stringify([{ id: "b", date: "2026-10-05", from: "EGKK", to: "LTAI", callsign: "EZY1", landingFpm: -100 }]));
+      }, lines);
+      await m.page.goto(`${base}/logbook`, { waitUntil: "networkidle" });
+      await m.page.waitForSelector(".log-map .map-line");
+      await m.page.waitForTimeout(1600);
+      // furthest the drawn line strays from the straight chord between its ends, in px
+      return m.page.locator(".log-map .map-line").first().evaluate((el) => {
+        const n = el.getTotalLength();
+        const a = el.getPointAtLength(0);
+        const b = el.getPointAtLength(n);
+        let max = 0;
+        for (let i = 1; i < 20; i++) {
+          const p = el.getPointAtLength((n * i) / 20);
+          max = Math.max(max, Math.abs((b.x - a.x) * (a.y - p.y) - (a.x - p.x) * (b.y - a.y)) / Math.hypot(b.x - a.x, b.y - a.y));
+        }
+        return Math.round(max * 10) / 10;
+      });
+    };
+    const great = await bend("great");
+    const rhumb = await bend("rhumb");
+    great < 1.5 && rhumb > 4
+      ? pass(`map lines: shortest way is straight (${great} px off the chord), along the grid bends (${rhumb} px) — Gatwick → Antalya`)
+      : fail(`map lines: great ${great} px, rhumb ${rhumb} px`);
     for (const style of ["table", "strips"]) {
       await m.page.evaluate((s) => {
         localStorage.setItem("ofp-planner:display", JSON.stringify({ logbook: s }));

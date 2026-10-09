@@ -3,7 +3,7 @@
 import { geoAzimuthalEquidistant, geoDistance, geoGraticule, geoInterpolate, geoPath, type GeoProjection } from "d3-geo";
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { Airport } from "@/lib/data/load";
-import { useDisplay, type MapCodes } from "@/lib/display";
+import { useDisplay, type MapCodes, type MapLines } from "@/lib/display";
 import { COUNTRIES, RANGES, SEAS } from "@/lib/maplabels";
 import { useOutlines, type Outlines } from "@/lib/outlines";
 import { useTerrain, type Terrain } from "@/lib/terrain";
@@ -67,6 +67,7 @@ export function RouteMap({
   const outlines = useOutlines();
   const terrain = useTerrain();
   const display = useDisplay();
+  const lineStyle = display.mapLines;
   const [hover, setHover] = useState<string | null>(null);
   const ref = useRef<HTMLElement>(null);
   const [W, setW] = useState(0);
@@ -103,7 +104,7 @@ export function RouteMap({
     const lines: GeoJSON.Feature<GeoJSON.LineString>[] = routes.map((r) => ({
       type: "Feature",
       properties: {},
-      geometry: { type: "LineString", coordinates: [[r.from.lon, r.from.lat], [r.to.lon, r.to.lat]] },
+      geometry: { type: "LineString", coordinates: trackCoords(r, lineStyle) },
     }));
     const maxSpan = Math.max(...routes.map((r) => geoDistance([r.from.lon, r.from.lat], [r.to.lon, r.to.lat])));
     // room for labels, and for the degree labels on the bottom and left edges
@@ -118,7 +119,7 @@ export function RouteMap({
     const minSpan = 0.075;
     if (maxSpan < minSpan) proj.scale(proj.scale() * (maxSpan / minSpan));
     return { rotate: proj.rotate(), scale: proj.scale(), translate: proj.translate() };
-  }, [routes, W, H]);
+  }, [routes, W, H, lineStyle]);
 
   const zoom = useZoom(ref, W, H, fit);
   const z = zoom.committed;
@@ -152,6 +153,7 @@ export function RouteMap({
           onPick={onPick}
           label={label}
           codes={display.mapCodes}
+          lines={display.mapLines}
           transform={zoom.transform}
         />
       ) : (
@@ -259,6 +261,7 @@ function Drawn({
   onPick,
   label,
   codes,
+  lines,
   transform,
 }: {
   view: View;
@@ -271,6 +274,7 @@ function Drawn({
   onPick?: (icao: string) => void;
   label: string;
   codes: MapCodes;
+  lines: MapLines;
   /** Live pinch/scroll zoom applied on top of the last drawn view until it's redrawn. */
   transform: string | undefined;
 }) {
@@ -285,7 +289,7 @@ function Drawn({
       else ports.set(a.icao, { a, ends: 1, route: r });
     }
   const active = routes.find((r) => r.active) ?? (routes.length === 1 ? routes[0] : null);
-  const plane = active ? planeAt(proj, active) : null;
+  const plane = active ? planeAt(proj, active, lines) : null;
 
   // Destination codes (Settings → Display): placed busiest-first, skipping overlaps; the hub always.
   const labelled = new Set<string>();
@@ -368,7 +372,7 @@ function Drawn({
         ))}
       </g>
       {ordered.map((r) => {
-        const d = path({ type: "LineString", coordinates: [[r.from.lon, r.from.lat], [r.to.lon, r.to.lat]] }) ?? "";
+        const d = path({ type: "LineString", coordinates: trackCoords(r, lines) }) ?? "";
         const strong = r.active || r.key === hover || routes.length === 1;
         return (
           <g
@@ -433,9 +437,37 @@ function Drawn({
   );
 }
 
-/** Aircraft marker at the great-circle midpoint, pointing along the track. */
-function planeAt(proj: GeoProjection, r: MapRoute) {
-  const ip = geoInterpolate([r.from.lon, r.from.lat], [r.to.lon, r.to.lat]);
+/**
+ * A point along the route at t (0–1): the great circle (the shortest way; straight lines on these
+ * maps), or the rhumb line, a constant heading that crosses every meridian at the same angle and so
+ * curves with the grid (straight on a Mercator chart).
+ */
+function track(r: MapRoute, lines: MapLines): (t: number) => [number, number] {
+  if (lines === "great") return geoInterpolate([r.from.lon, r.from.lat], [r.to.lon, r.to.lat]);
+  const rad = Math.PI / 180;
+  const merc = (lat: number) => Math.log(Math.tan(Math.PI / 4 + (Math.max(-89, Math.min(89, lat)) * rad) / 2));
+  const y0 = merc(r.from.lat);
+  const y1 = merc(r.to.lat);
+  let dLon = r.to.lon - r.from.lon;
+  if (dLon > 180) dLon -= 360;
+  if (dLon < -180) dLon += 360;
+  return (t) => {
+    const y = y0 + (y1 - y0) * t;
+    const lon = r.from.lon + dLon * t;
+    return [((lon + 540) % 360) - 180, (2 * Math.atan(Math.exp(y)) - Math.PI / 2) / rad];
+  };
+}
+
+/** The route as a line to draw: its two ends for a great circle (d3 draws the arc), else points along the rhumb line. */
+function trackCoords(r: MapRoute, lines: MapLines): [number, number][] {
+  if (lines === "great") return [[r.from.lon, r.from.lat], [r.to.lon, r.to.lat]];
+  const at = track(r, lines);
+  return Array.from({ length: 49 }, (_, i) => at(i / 48));
+}
+
+/** Aircraft marker at the route's midpoint, pointing along the track. */
+function planeAt(proj: GeoProjection, r: MapRoute, lines: MapLines) {
+  const ip = track(r, lines);
   const a = proj(ip(0.5));
   const b = proj(ip(0.52));
   if (!a || !b) return null;
