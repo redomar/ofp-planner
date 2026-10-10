@@ -14,7 +14,7 @@ import { dateLabel, departures, legDate, relDay, soonest, type Departure } from 
 import { useJourneySearch } from "@/lib/journey/useSearch";
 import type { JourneyData } from "@/lib/journey/worker";
 import { countryName, placeOptions } from "@/lib/places";
-import { saveJourney } from "@/lib/saved";
+import { saveJourney, type SavedJourney } from "@/lib/saved";
 import { defaultChoice, flightDispatch, simbriefUrl, typeChoices, useAirframes } from "@/lib/simbrief";
 import { AirlineTag, FlightIdent, TypeBadge } from "./badges";
 import { StatusLine, TopBar } from "./chrome";
@@ -40,7 +40,7 @@ export function JourneysApp() {
   const [dep, setDep] = useState<{ vi: number; day: number } | null>(null);
   const [now] = useState(() => Date.now());
   const [shown, setShown] = useState(PAGE);
-  const [saved, setSaved] = useState<string | null>(null);
+  const [saved, setSaved] = useState<SavedJourney | null>(null);
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search);
@@ -875,7 +875,7 @@ function JourneyDetail({
   airports: Map<string, Airport>;
   airlines: Map<string, AirlineInfo>;
   reportMin: number;
-  saved: string | null;
+  saved: SavedJourney | null;
   onSave: (name: string, flights: FlightRow[]) => void;
   onTime: () => void;
 }) {
@@ -1035,7 +1035,22 @@ function JourneyDetail({
             </button>
             {saved && (
               <span className="small" role="status">
-                Saved as “{saved}”. It’s on the <Link href="/brief">Brief</Link> start page and in Settings.
+                Saved as “{saved.name}”. It’s on the <Link href="/brief">Brief</Link> start page and in Settings.
+                {saved.shared.length > 0 && (
+                  <span className="jr-shared">
+                    <span className="badge b-amber">Shared</span>{" "}
+                    {saved.shared.map((s, i) => {
+                      const f = flights.find((x) => x.id === s.id);
+                      return (
+                        <span key={s.id}>
+                          {i > 0 && "; "}
+                          <b className="mono">{f ? flightNo(f, airlines.get(f.al)?.iata ?? null) : s.id}</b> is also in {s.groups.map((g) => `“${g}”`).join(", ")}
+                        </span>
+                      );
+                    })}
+                    . {saved.shared.length === 1 ? "It stays" : "They stay"} in both groups.
+                  </span>
+                )}
               </span>
             )}
           </>

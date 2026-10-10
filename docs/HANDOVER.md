@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: v1.5.1 released 2026-10-09 (map route lines: great circle or rhumb line, Settings → Display; 1.5.0: one row per flight with per-weekday times, Brief/Finder/Board by day, logbook list redone: month table, punctuality switch, flight strips; 1.4.4: Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
+  status: v1.5.2 ready on feature/shared-favourites, not released (a flight in several favourites groups; shared legs marked); v1.5.1 released 2026-10-09 (map route lines: great circle or rhumb line, Settings → Display; 1.5.0: one row per flight with per-weekday times, Brief/Finder/Board by day, logbook list redone: month table, punctuality switch, flight strips; 1.4.4: Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 
@@ -205,9 +205,13 @@ server_latch_container_alternative: |
     (a new object on every storage change caused an update loop with pushHistory).
   - Favourites: SavedFlight.group (null = ungrouped), groups list in "ofp-planner:fav-groups", prefs.lastGroup =
     where new stars go. SavedFlights.tsx renders favourites by group + recent, on the brief start page and Settings.
+    1.5.2: a flight may be in several groups = several entries with the same id, one per group (unique by group+id).
+    A flight is ungrouped (one entry) or in ≥1 groups, never both: writeFavourites() tidies on every write. Entry ops take
+    the group: moveFavourite(id, from, to), placeFavourite(id, from, group, before), removeFavourite(id, group?) (no group =
+    everywhere, the star), setInGroup (card ticks); groupsById() for the shared marks. saveJourney returns {name, shared}.
   - Journeys (1.2): timed legs use plannedOut (or IN − block) and blockTime; flights with neither are left out of timed search.
     Duty = report (default 45 min) → last IN. Turnaround window 35 min–3 h by default. "Save as a favourites group" (saveJourney in saved.ts)
-    writes a new uniquely named group with the legs in order. The form renders only after the URL is read (no CLS on shared links).
+    writes a new uniquely named group with the legs in order (legs in other groups stay there too). The form renders only after the URL is read (no CLS on shared links).
     Detour cap (1.2.1): total ≤ max(f × shortest path through the stops, + 250 nm), f = 2 by default; off for round trips and open ends.
     Brief accepts ?d=YYYY-MM-DD (Journeys passes each leg's date).
   - Clear filters resets everything including the airline (→ all airlines).

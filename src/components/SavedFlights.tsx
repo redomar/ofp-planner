@@ -10,6 +10,7 @@ import {
   addGroup,
   clearHistory,
   deleteGroup,
+  groupsById,
   moveFavourite,
   moveGroup,
   placeFavourite,
@@ -28,7 +29,7 @@ import { RouteMap, type MapRoute } from "./RouteMap";
 type Ref = { airlines: Map<string, AirlineInfo>; airports: Map<string, Airport> } | null;
 /** Where a dragged favourite would land: in `group`, before `before` (null = at the end). `over` is the row under the pointer. */
 type DropAt = { group: string | null; before: string | null; over: string | null; pos: "before" | "after" | "into" };
-type Drag = { id: string; label: string; x: number; y: number; at: DropAt | null };
+type Drag = { id: string; from: string | null; label: string; x: number; y: number; at: DropAt | null };
 const sameAt = (a: DropAt | null, b: DropAt | null) => a?.group === b?.group && a?.before === b?.before && a?.over === b?.over && a?.pos === b?.pos;
 const EDGE = 56;
 
@@ -53,10 +54,13 @@ export function SavedFlights({ onOpen, recentMax = 8, showRecent = true }: { onO
 
   const [drag, setDrag] = useState<Drag | null>(null);
   const [said, setSaid] = useState("");
+  // a flight in several groups: hovering or focusing one of its rows lights up the others
+  const [twin, setTwin] = useState<string | null>(null);
 
   if (!saved) return <div className="sk-block" aria-hidden="true" />;
   const { favourites, groups, history } = saved;
-  const ungrouped = favourites.filter((f) => !f.group || !groups.includes(f.group));
+  const inGroups = groupsById(favourites, groups);
+  const ungrouped = favourites.filter((f) => !inGroups.get(f.id)?.length);
   const favIds = new Set(favourites.map((f) => f.id));
   const groupOf = (f: SavedFlight) => (f.group && groups.includes(f.group) ? f.group : null);
   // each group's flights in display order; "" = ungrouped
@@ -94,7 +98,7 @@ export function SavedFlights({ onOpen, recentMax = 8, showRecent = true }: { onO
       started = true;
       const next = dropAt(ev.clientX, ev.clientY);
       if (!sameAt(next, at)) at = next;
-      setDrag({ id: f.id, label, x: ev.clientX, y: ev.clientY, at });
+      setDrag({ id: f.id, from: groupOf(f), label, x: ev.clientX, y: ev.clientY, at });
       if (ev.clientY < EDGE) window.scrollBy(0, -12);
       else if (ev.clientY > window.innerHeight - EDGE) window.scrollBy(0, 12);
     };
@@ -105,7 +109,7 @@ export function SavedFlights({ onOpen, recentMax = 8, showRecent = true }: { onO
       window.removeEventListener("keydown", key);
       setDrag(null);
       if (commit && started && at) {
-        placeFavourite(f.id, at.group, at.before);
+        placeFavourite(f.id, groupOf(f), at.group, at.before);
         setSaid(`Moved ${label} to ${titleOf(at.group)}.`);
       }
     };
@@ -125,28 +129,37 @@ export function SavedFlights({ onOpen, recentMax = 8, showRecent = true }: { onO
     const i = list.findIndex((x) => x.id === f.id);
     const j = i + by;
     if (i < 0 || j < 0 || j >= list.length) return;
-    placeFavourite(f.id, group, by < 0 ? list[j].id : (list[j + 1]?.id ?? null));
+    placeFavourite(f.id, group, group, by < 0 ? list[j].id : (list[j + 1]?.id ?? null));
     setSaid(`${label}: ${j + 1} of ${list.length} in ${titleOf(group)}.`);
     // moving the row in the DOM drops focus; put it back on the grip
-    requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-grip="${CSS.escape(f.id)}"]`)?.focus());
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-fav-group="${CSS.escape(group ?? "")}"] [data-grip="${CSS.escape(f.id)}"]`)?.focus());
   };
 
-  const row = (f: SavedFlight, kind: "fav" | "recent") => (
-    <Row
-      key={`${kind}-${f.id}`}
-      f={f}
-      kind={kind}
-      ref_={ref}
-      groups={groups}
-      onOpen={onOpen}
-      starred={favIds.has(f.id)}
-      groupKey={kind === "fav" ? (groupOf(f) ?? "") : undefined}
-      dragging={drag?.id === f.id}
-      drop={kind === "fav" && drag?.at?.over === f.id && drag.at.over !== drag.id ? (drag.at.pos as "before" | "after") : null}
-      onGrip={startDrag}
-      onNudge={nudge}
-    />
-  );
+  const row = (f: SavedFlight, kind: "fav" | "recent") => {
+    const g = kind === "fav" ? groupOf(f) : null;
+    const self = drag?.id === f.id && drag.from === g;
+    const over = kind === "fav" && drag?.at?.over === f.id && (drag.at.group ?? null) === g && !self;
+    const others = kind === "fav" ? (inGroups.get(f.id) ?? []).filter((x) => x !== g) : [];
+    return (
+      <Row
+        key={`${kind}-${g ?? ""}-${f.id}`}
+        f={f}
+        kind={kind}
+        ref_={ref}
+        groups={groups}
+        onOpen={onOpen}
+        starred={favIds.has(f.id)}
+        groupKey={kind === "fav" ? (g ?? "") : undefined}
+        others={others}
+        twin={others.length > 0 && twin === f.id}
+        onTwin={setTwin}
+        dragging={self}
+        drop={over ? (drag!.at!.pos as "before" | "after") : null}
+        onGrip={startDrag}
+        onNudge={nudge}
+      />
+    );
+  };
   const into = (g: string | null) => drag?.at?.pos === "into" && drag.at.group === g;
 
   return (
@@ -157,7 +170,7 @@ export function SavedFlights({ onOpen, recentMax = 8, showRecent = true }: { onO
             <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" className="lib-star">
               <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" />
             </svg>
-            Favourites <span className="lib-count mono">{favourites.length}</span>
+            Favourites <span className="lib-count mono">{favIds.size}</span>
           </h3>
           <NewGroup />
         </header>
@@ -170,14 +183,15 @@ export function SavedFlights({ onOpen, recentMax = 8, showRecent = true }: { onO
         ) : (
           <div className="lib-groups">
             {(ungrouped.length > 0 || groups.length === 0) && (
-              <Group name={null} flights={ungrouped} total={groups.length} index={-1} ref_={ref} dropInto={into(null)}>
+              <Group name={null} flights={ungrouped} total={groups.length} index={-1} ref_={ref} dropInto={into(null)} shared={0}>
                 {ungrouped.map((f) => row(f, "fav"))}
               </Group>
             )}
             {groups.map((g, i) => {
               const items = favourites.filter((f) => f.group === g);
+              const shared = items.filter((f) => (inGroups.get(f.id)?.length ?? 0) > 1).length;
               return (
-                <Group key={g} name={g} flights={items} total={groups.length} index={i} last={saved.prefs.lastGroup === g} ref_={ref} dropInto={into(g)}>
+                <Group key={g} name={g} flights={items} total={groups.length} index={i} last={saved.prefs.lastGroup === g} ref_={ref} dropInto={into(g)} shared={shared}>
                   {items.map((f) => row(f, "fav"))}
                 </Group>
               );
@@ -268,6 +282,7 @@ function Group({
   last,
   ref_,
   dropInto,
+  shared,
   children,
 }: {
   name: string | null;
@@ -277,6 +292,8 @@ function Group({
   last?: boolean;
   ref_: Ref;
   dropInto: boolean;
+  /** How many of its flights are in other groups too. */
+  shared: number;
   children: React.ReactNode;
 }) {
   const [map, setMap] = useState(false);
@@ -326,6 +343,17 @@ function Group({
             <span className="lib-count mono">{flights.length}</span>
             {last && <span className="badge b-blue">new stars</span>}
           </button>
+        )}
+        {!editing && shared > 0 && (
+          <span
+            className="badge b-amber grp-shared"
+            tabIndex={0}
+            data-tip={`${shared === 1 ? "One flight here is" : `${shared} flights here are`} in another group too. Removing ${shared === 1 ? "it" : "one"} here keeps it there.`}
+            data-tip-title="Shared flights"
+            data-tip-note="Hover a flight to light up its other rows"
+          >
+            {shared} shared
+          </span>
         )}
         {!editing && flights.length > 0 && (
           <button
@@ -394,6 +422,9 @@ function Row({
   onOpen,
   starred,
   groupKey,
+  others,
+  twin,
+  onTwin,
   dragging,
   drop,
   onGrip,
@@ -407,6 +438,11 @@ function Row({
   starred: boolean;
   /** Favourites only: the row's group ("" = ungrouped), for drop targets. */
   groupKey?: string;
+  /** Favourites only: the other groups this flight is in. */
+  others: string[];
+  /** Light up as the twin of a hovered row in another group. */
+  twin: boolean;
+  onTwin: (id: string | null) => void;
   dragging: boolean;
   drop: "before" | "after" | null;
   onGrip: (e: ReactPointerEvent<HTMLButtonElement>, f: SavedFlight, label: string) => void;
@@ -423,9 +459,13 @@ function Row({
   const place = (a: Airport | undefined, icao: string) => (a ? (cityName(a) ?? airportLabel(a)) : icao);
   return (
     <li
-      className={`fl-row${dragging ? " is-dragging" : ""}${drop ? ` drop-${drop}` : ""}`}
+      className={`fl-row${dragging ? " is-dragging" : ""}${drop ? ` drop-${drop}` : ""}${others.length ? " is-shared" : ""}${twin ? " is-twin" : ""}`}
       data-fav={kind === "fav" ? f.id : undefined}
       data-group={groupKey}
+      onMouseEnter={others.length ? () => onTwin(f.id) : undefined}
+      onMouseLeave={others.length ? () => onTwin(null) : undefined}
+      onFocus={others.length ? () => onTwin(f.id) : undefined}
+      onBlur={others.length ? () => onTwin(null) : undefined}
     >
       {kind === "fav" && (
         <button
@@ -463,10 +503,24 @@ function Row({
               }
             : undefined
         }
-        aria-label={`Brief ${ident}, ${place(o, f.o)} to ${place(d, f.d)}${dep != null ? `, departs ${hhmm(dep)} UTC` : ""}`}
+        aria-label={`Brief ${ident}, ${place(o, f.o)} to ${place(d, f.d)}${dep != null ? `, departs ${hhmm(dep)} UTC` : ""}${others.length ? `. Also in ${others.join(", ")}` : ""}`}
       >
         <span className="fl-ident">
           <FlightIdent airline={al} fallback={f.al} ident={ident} />
+          {others.length > 0 && (
+            <span
+              className="badge b-amber fl-shared"
+              aria-hidden="true"
+              data-tip={`Also in ${others.map((g) => `“${g}”`).join(", ")}. Removing or moving it here leaves ${others.length === 1 ? "that group" : "those groups"} as they are.`}
+              data-tip-title="In more than one group"
+            >
+              <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true">
+                <rect x="1" y="3.5" width="7" height="7" rx="1" fill="none" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M4 3.5V2a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H8" fill="none" stroke="currentColor" strokeWidth="1.4" />
+              </svg>
+              +{others.length}
+            </span>
+          )}
         </span>
         <span className="fl-route">
           <span className="fl-codes mono">
@@ -489,13 +543,14 @@ function Row({
           <select
             className="ctl-input fl-group"
             aria-label={`Group for ${ident}`}
-            value={f.group && groups.includes(f.group) ? f.group : ""}
-            onChange={(e) => moveFavourite(f.id, e.target.value || null)}
+            value={groupKey ?? ""}
+            onChange={(e) => moveFavourite(f.id, groupKey || null, e.target.value || null)}
           >
-            <option value="">Ungrouped</option>
+            {!others.length && <option value="">Ungrouped</option>}
             {groups.map((g) => (
-              <option key={g} value={g}>
+              <option key={g} value={g} disabled={others.includes(g)}>
                 {g}
+                {others.includes(g) ? " (already in)" : ""}
               </option>
             ))}
           </select>
@@ -519,7 +574,13 @@ function Row({
           </button>
         )}
         {kind === "fav" && (
-          <button type="button" className="icon-chip" title="Remove from favourites" aria-label={`Remove ${ident} from favourites`} onClick={() => removeFavourite(f.id)}>
+          <button
+            type="button"
+            className="icon-chip"
+            title={others.length ? `Remove from ${groupKey} (stays in ${others.join(", ")})` : "Remove from favourites"}
+            aria-label={others.length ? `Remove ${ident} from ${groupKey}; it stays in ${others.join(", ")}` : `Remove ${ident} from favourites`}
+            onClick={() => removeFavourite(f.id, groupKey || null)}
+          >
             ×
           </button>
         )}

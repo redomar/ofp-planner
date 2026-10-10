@@ -5048,3 +5048,50 @@ div.empty-note p {
 .log-sample-row .badge {
   font-size: 10px;
 }
+
+/* favourites: one flight in several groups (a leg two saved journeys share) */
+.fl-shared {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  cursor: default;
+}
+.grp-shared {
+  font-size: 11.5px;
+  cursor: default;
+}
+.fl-row.is-shared {
+  box-shadow: inset 3px 0 0 var(--amber);
+}
+.fl-row.is-twin {
+  background: color-mix(in srgb, var(--amber) 16%, var(--sheet));
+}
+.fl-ident {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.fl-ident .fl-shared {
+  flex: none;
+}
+.fl-row.is-shared.drop-before {
+  box-shadow: inset 3px 0 0 var(--amber), inset 0 2px 0 var(--magenta);
+}
+.fl-row.is-shared.drop-after {
+  box-shadow: inset 3px 0 0 var(--amber), inset 0 -2px 0 var(--magenta);
+}
+.jr-shared {
+  display: block;
+  margin-top: 4px;
+}
+.fav-group {
+  flex-wrap: wrap;
+}
+.fav-group-chip.on {
+  border-style: solid;
+  border-color: var(--magenta);
+  color: var(--magenta);
+}

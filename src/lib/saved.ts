@@ -45,43 +45,82 @@ const toSaved = (f: FlightRow): SavedFlight => ({
 
 /* ---------- favourites ---------- */
 
+/*
+ * A flight can sit in several groups (one leg shared by two saved journeys): the favourites
+ * array then holds one entry per group, all with the same id. A flight is either ungrouped
+ * (one entry) or in one or more groups, never both.
+ */
 export const readFavourites = () => readJSON<SavedFlight[]>(KEYS.favourites, []);
-/** Starring adds to the group last chosen (Settings → favourites, or the flight card). */
+/** The entry's group, or null when ungrouped (or its group no longer exists). */
+const groupIn = (x: SavedFlight, groups: string[]) => (x.group && groups.includes(x.group) ? x.group : null);
+/** Drops an ungrouped copy of a flight that is also in a group, and repeats of one flight in one group. */
+function tidy(l: SavedFlight[]): SavedFlight[] {
+  const groups = readGroups();
+  const grouped = new Set(l.filter((x) => groupIn(x, groups)).map((x) => x.id));
+  const seen = new Set<string>();
+  return l.filter((x) => {
+    const g = groupIn(x, groups);
+    const k = `${g ?? ""}|${x.id}`;
+    if ((!g && grouped.has(x.id)) || seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+const writeFavourites = (l: SavedFlight[]) => writeJSON(KEYS.favourites, tidy(l));
+/** Is this entry the one for `id` in `group` (null = ungrouped)? */
+const isEntry = (id: string, group: string | null, groups = readGroups()) => (x: SavedFlight) => x.id === id && groupIn(x, groups) === group;
+
+/** Starring adds to the group last chosen (Settings → favourites, or the flight card); unstarring removes it from every group. */
 export function toggleFavourite(f: FlightRow) {
   const l = readFavourites();
   const group = readGroups().includes(readPrefs().lastGroup ?? "") ? readPrefs().lastGroup : null;
-  writeJSON(KEYS.favourites, l.some((x) => x.id === f.id) ? l.filter((x) => x.id !== f.id) : [{ ...toSaved(f), group }, ...l]);
+  writeFavourites(l.some((x) => x.id === f.id) ? l.filter((x) => x.id !== f.id) : [{ ...toSaved(f), group }, ...l]);
 }
 /** Star or unstar a saved (e.g. recent) flight without loading it. */
 export function toggleSavedFavourite(s: SavedFlight) {
   const l = readFavourites();
   const group = readGroups().includes(readPrefs().lastGroup ?? "") ? readPrefs().lastGroup : null;
-  writeJSON(KEYS.favourites, l.some((x) => x.id === s.id) ? l.filter((x) => x.id !== s.id) : [{ ...s, group, at: Date.now() }, ...l]);
+  writeFavourites(l.some((x) => x.id === s.id) ? l.filter((x) => x.id !== s.id) : [{ ...s, group, at: Date.now() }, ...l]);
 }
-export function moveFavourite(id: string, group: string | null) {
-  writeJSON(
-    KEYS.favourites,
-    readFavourites().map((x) => (x.id === id ? { ...x, group } : x)),
-  );
-  writePrefs({ lastGroup: group });
+/** Moves the flight's entry in `from` to `to`; if it's already in `to`, the two merge. */
+export function moveFavourite(id: string, from: string | null, to: string | null) {
+  const is = isEntry(id, from);
+  writeFavourites(readFavourites().map((x) => (is(x) ? { ...x, group: to } : x)));
+  writePrefs({ lastGroup: to });
+}
+/** Adds a starred flight to `group` too, or takes it out (it stays in its other groups, or ungrouped). */
+export function setInGroup(f: FlightRow, group: string, on: boolean) {
+  const l = readFavourites();
+  const groups = readGroups();
+  if (on) {
+    const base = l.find((x) => x.id === f.id);
+    writeFavourites([...l, { ...(base ?? toSaved(f)), group, at: Date.now() }]);
+    writePrefs({ lastGroup: group });
+    return;
+  }
+  const rest = l.filter((x) => !isEntry(f.id, group, groups)(x));
+  const left = rest.some((x) => x.id === f.id);
+  const base = l.find((x) => x.id === f.id);
+  writeFavourites(left || !base ? rest : [...rest, { ...base, group: null }]);
 }
 
 /**
- * Moves a favourite into `group` (null = ungrouped), just before the favourite `before`, or
- * after the group's last flight when `before` is null. Groups list their flights in the
- * order of the favourites array, so this is also how a group is reordered.
+ * Moves a favourite from group `from` into `group` (null = ungrouped), just before the favourite
+ * `before`, or after the group's last flight when `before` is null. Groups list their flights in
+ * the order of the favourites array, so this is also how a group is reordered. If the flight is
+ * already in `group`, the dragged copy joins it there.
  */
-export function placeFavourite(id: string, group: string | null, before: string | null) {
+export function placeFavourite(id: string, from: string | null, group: string | null, before: string | null) {
   const l = readFavourites();
-  const item = l.find((x) => x.id === id);
-  if (!item || id === before) return;
   const groups = readGroups();
-  const rest = l.filter((x) => x.id !== id);
-  const inGroup = (x: SavedFlight) => (group ? x.group === group : !x.group || !groups.includes(x.group));
-  let at = before ? rest.findIndex((x) => x.id === before) : -1;
+  const item = l.find(isEntry(id, from, groups));
+  if (!item || (id === before && from === group)) return;
+  const rest = l.filter((x) => x !== item && !isEntry(id, group, groups)(x));
+  const inGroup = (x: SavedFlight) => groupIn(x, groups) === group;
+  let at = before ? rest.findIndex((x) => x.id === before && inGroup(x)) : -1;
   if (at < 0) at = rest.findLastIndex(inGroup) + 1 || rest.length;
   rest.splice(at, 0, { ...item, group });
-  writeJSON(KEYS.favourites, rest);
+  writeFavourites(rest);
 }
 
 /* ---------- favourite groups (ordered names) ---------- */
@@ -105,10 +144,10 @@ export function renameGroup(from: string, to: string): boolean {
   if (readPrefs().lastGroup === from) writePrefs({ lastGroup: n });
   return true;
 }
-/** Removes a group; its flights stay favourites, ungrouped. */
+/** Removes a group; its flights stay favourites: in their other groups, or ungrouped. */
 export function deleteGroup(name: string) {
   writeJSON(KEYS.favGroups, readGroups().filter((x) => x !== name));
-  writeJSON(KEYS.favourites, readFavourites().map((x) => (x.group === name ? { ...x, group: null } : x)));
+  writeFavourites(readFavourites().map((x) => (x.group === name ? { ...x, group: null } : x)));
   if (readPrefs().lastGroup === name) writePrefs({ lastGroup: null });
 }
 export function moveGroup(name: string, by: -1 | 1) {
@@ -119,25 +158,46 @@ export function moveGroup(name: string, by: -1 | 1) {
   [g[i], g[j]] = [g[j], g[i]];
   writeJSON(KEYS.favGroups, g);
 }
-export function removeFavourite(id: string) {
-  writeJSON(KEYS.favourites, readFavourites().filter((x) => x.id !== id));
+/** Removes the flight from `group` only (null = ungrouped), or from favourites altogether when `group` is undefined. */
+export function removeFavourite(id: string, group?: string | null) {
+  const is = group === undefined ? (x: SavedFlight) => x.id === id : isEntry(id, group);
+  writeFavourites(readFavourites().filter((x) => !is(x)));
+}
+
+/** The groups each favourite is in, by flight id (ungrouped flights map to []). */
+export function groupsById(favourites: SavedFlight[], groups: string[]): Map<string, string[]> {
+  const m = new Map<string, string[]>();
+  for (const x of favourites) {
+    const g = groupIn(x, groups);
+    const l = m.get(x.id) ?? [];
+    if (g && !l.includes(g)) l.push(g);
+    m.set(x.id, l);
+  }
+  return m;
+}
+
+export interface SavedJourney {
+  name: string;
+  /** Legs that were already in other groups and are now in both: flight id → those groups. */
+  shared: { id: string; groups: string[] }[];
 }
 
 /**
  * Saves a journey's flights as a new favourites group named `name` (made unique with a
- * number), in leg order. Flights already starred move into the group. Returns the group name.
+ * number), in leg order. A leg already in another group stays there as well, so saving one
+ * journey never takes a leg away from another; those legs are returned as `shared`.
  */
-export function saveJourney(name: string, flights: FlightRow[]): string {
+export function saveJourney(name: string, flights: FlightRow[]): SavedJourney {
   const base = cleanName(name) || "Journey";
   const taken = new Set(readGroups().map((g) => g.toLowerCase()));
   let n = base;
   for (let i = 2; taken.has(n.toLowerCase()); i++) n = `${base.slice(0, 36)} ${i}`;
+  const before = groupsById(readFavourites(), readGroups());
   writeJSON(KEYS.favGroups, [...readGroups(), n]);
-  const ids = new Set(flights.map((f) => f.id));
-  const rest = readFavourites().filter((x) => !ids.has(x.id));
-  writeJSON(KEYS.favourites, [...flights.map((f) => ({ ...toSaved(f), group: n })), ...rest]);
+  writeFavourites([...flights.map((f) => ({ ...toSaved(f), group: n })), ...readFavourites()]);
   writePrefs({ lastGroup: n });
-  return n;
+  const shared = flights.flatMap((f) => (before.get(f.id)?.length ? [{ id: f.id, groups: before.get(f.id)! }] : []));
+  return { name: n, shared };
 }
 
 /* ---------- history (most recent first, capped) ---------- */

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.2 — 2026-10-10
+
+- **A flight can be in more than one favourites group.** Saving a journey whose leg was already in another saved journey used to move that leg out of the first group, leaving it a leg short without a word. Now the leg stays in both.
+  - Journeys: after **Save as a favourites group**, the note names any leg that was already in another group ("Shared: U2 1234 is also in “EGBB → LEMD via 1 stop”. It stays in both groups.").
+  - Favourites (Brief start page and Settings): a shared flight has an amber edge and a **+1** mark next to its number (hover: which other groups), and its group says **N shared**. Hovering or focusing it lights up its row in the other groups. **×** on a shared row takes it out of that group only; the row's group menu greys out the groups it's already in. Removing a group keeps its flights wherever else they are.
+  - Flight card: **In groups** is now a tick per group instead of one menu, so a starred flight can join several; it says when it's shared. The star still removes the flight from every group.
+  - A leg already lost this way isn't brought back: add it again from the journey or the flight card.
+
 ## 1.5.1 — 2026-10-09
 
 - Settings → Display → **Maps: route lines**: **Shortest way** (default, the great circle, a straight line on these maps, as before) or **Along the grid**: a rhumb line, one constant heading that crosses every meridian at the same angle, so it curves with the lines of latitude and longitude. Applies to every map (Finder, flight card and Brief, favourites, Board, Journeys, Logbook); the aircraft marker follows the chosen line.
