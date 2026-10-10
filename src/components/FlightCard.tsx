@@ -7,7 +7,7 @@ import { DAY_NAMES, airportLabel, blockTime, dur, flightNo, hhmm, localHHMM, onD
 import type { Airport } from "@/lib/data/load";
 import type { Row } from "@/lib/data/query";
 import { cleanFn, setFnOverride } from "@/lib/fnoverride";
-import { moveFavourite, pushHistory, setReady, toggleFavourite, useSaved } from "@/lib/saved";
+import { pushHistory, setInGroup, setReady, toggleFavourite, useSaved } from "@/lib/saved";
 import { defaultChoice, flightDispatch, simbriefUrl, typeChoices, useAirframes } from "@/lib/simbrief";
 import { TypeBadge, WeekStrip, freqLabel } from "./badges";
 import { RouteHead } from "./RouteHead";
@@ -54,6 +54,7 @@ export function FlightCard({
   const saved = useSaved();
   const frames = useAirframes();
   const fav = saved?.favourites.some((x) => x.id === f.id) ?? false;
+  const favIn = saved ? saved.favourites.filter((x) => x.id === f.id && x.group && saved.groups.includes(x.group)).map((x) => x.group!) : [];
   const choices = typeChoices(f, frames);
   // Parents key this card by flight id, so the choice resets to the default per flight.
   const [choice, setChoice] = useState<string | null>(null);
@@ -111,8 +112,8 @@ export function FlightCard({
           type="button"
           className={`btn btn-icon fav${fav ? " on" : ""}`}
           aria-pressed={fav}
-          aria-label={fav ? "Remove from favourites" : "Add to favourites"}
-          title={fav ? "Favourite" : "Add to favourites"}
+          aria-label={fav ? (favIn.length > 1 ? `Remove from favourites (all ${favIn.length} groups)` : "Remove from favourites") : "Add to favourites"}
+          title={fav ? (favIn.length > 1 ? `Favourite, in ${favIn.length} groups` : "Favourite") : "Add to favourites"}
           onClick={() => toggleFavourite(f)}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
@@ -249,24 +250,22 @@ export function FlightCard({
         </div>
         <CopyLink url={url} />
         {fav && saved && saved.groups.length > 0 && (
-          <label className="fav-group">
+          <div className="fav-group" role="group" aria-label="Favourite groups">
             <span className="fav-group-star" aria-hidden="true">
               ★
             </span>
-            <span className="ctl-label">Favourite group</span>
-            <select
-              className="ctl-input"
-              value={saved.favourites.find((x) => x.id === f.id)?.group ?? ""}
-              onChange={(e) => moveFavourite(f.id, e.target.value || null)}
-            >
-              <option value="">Ungrouped</option>
-              {saved.groups.map((g) => (
-                <option key={g} value={g}>
+            <span className="ctl-label">In groups</span>
+            {saved.groups.map((g) => {
+              const on = favIn.includes(g);
+              return (
+                <button key={g} type="button" className={`chip fav-group-chip${on ? " on" : ""}`} aria-pressed={on} onClick={() => setInGroup(f, g, !on)}>
+                  {on && <span aria-hidden="true">✓ </span>}
                   {g}
-                </option>
-              ))}
-            </select>
-          </label>
+                </button>
+              );
+            })}
+            {favIn.length > 1 && <span className="badge b-amber">shared by {favIn.length}</span>}
+          </div>
         )}
         {extra}
       </div>

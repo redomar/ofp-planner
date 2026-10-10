@@ -442,7 +442,7 @@ async function run() {
     await page.waitForSelector("table.flights tbody tr");
     await page.locator("table.flights tbody tr").nth(1).click();
     await page.getByRole("button", { name: "Add to favourites" }).click();
-    const grp = await page.locator(".fav-group select").inputValue();
+    const grp = (await page.locator(".fav-group-chip.on").allTextContents()).map((t) => t.replace(/^✓\s*/, "")).join();
     grp === "Alps hops" ? pass("favourites: a new star goes into the last group used") : fail(`favourites: star went to "${grp}"`);
     await page.goto(page.url().replace(/\/\?.*$/, "/brief"), { waitUntil: "networkidle" });
     await page.waitForSelector(".grp .fl-row");
@@ -1167,6 +1167,54 @@ async function run() {
       w[0] <= w[1] ? pass(`logbook: ${style} fits a 390 px phone without sideways scrolling`) : fail(`logbook: ${style} at 390 is ${w[0]} in ${w[1]}`);
       await checkPage(`logbook ${style} 390 dark`, m.page, m.errors);
     }
+    await m.ctx.close();
+  });
+
+  /* ---------- 1.5.2: one flight in two favourite groups (a leg two saved journeys share) ---------- */
+  await section("shared favourites", async () => {
+    const { ctx, page, errors } = await open("/journeys?from=EGBB&via=EHAM&to=LEMD&t=1&sort=quickest");
+    await page.waitForFunction(() => document.querySelector(".jr-card") && !document.querySelector(".jr-split.is-stale"), null, { timeout: 60000 });
+    // the same journey saved twice: both groups keep both legs
+    for (let i = 0; i < 2; i++) {
+      await page.getByRole("button", { name: "Save as a favourites group" }).click();
+      await page.waitForFunction((n) => document.querySelector(".jr-acts [role=status]")?.textContent.includes(n ? "via 1 stop 2" : "via 1 stop"), i);
+    }
+    const said = await page.locator(".jr-acts [role=status]").textContent();
+    /Shared/.test(said) && /also in “EGBB → LEMD via 1 stop”/.test(said) ? pass("shared favourites: saving a journey says which legs are already in another group") : fail(`shared favourites: status "${said}"`);
+    await page.goto(`${base}/settings`, { waitUntil: "networkidle" });
+    await page.waitForSelector("[data-fav]");
+    const g1 = '[data-fav-group="EGBB → LEMD via 1 stop"]';
+    const g2 = '[data-fav-group="EGBB → LEMD via 1 stop 2"]';
+    const rows = async (g) => page.locator(`${g} .fl-row`).count();
+    const [a, b] = [await rows(g1), await rows(g2)];
+    const head = await page.locator(`${g1} .grp-shared`).textContent();
+    a === 2 && b === 2 && /2 shared/.test(head) ? pass("shared favourites: both groups keep both legs and say 2 shared") : fail(`shared favourites: rows ${a}/${b} head "${head}"`);
+    await page.locator(`${g1} .fl-row`).first().hover();
+    const lit = await page.locator(`${g2} .fl-row.is-twin`).count();
+    lit === 1 ? pass("shared favourites: hovering a shared leg lights its row in the other group") : fail(`shared favourites: ${lit} twins lit`);
+    const id = await page.locator(`${g1} .fl-row`).first().getAttribute("data-fav");
+    await page.locator(`${g1} .fl-row`).first().getByRole("button", { name: /stays in/ }).click();
+    const after = [await rows(g1), await rows(g2), await page.locator(`${g2} [data-fav="${id}"]`).count()];
+    after.join() === "1,2,1" ? pass("shared favourites: removing a shared leg from one group keeps it in the other") : fail(`shared favourites: after remove ${after}`);
+    await checkPage("settings shared favourites 1280 light", page, errors);
+    // the flight card: ticks for each group, and a note when it's in more than one
+    await page.goto(`${base}/brief?f=${encodeURIComponent(id)}`, { waitUntil: "networkidle" });
+    await page.waitForSelector(".fav-group-chip");
+    const on1 = await page.locator(".fav-group-chip.on").count();
+    await page.locator(".fav-group-chip:not(.on)", { hasText: /via 1 stop$/ }).click();
+    const on2 = await page.locator(".fav-group-chip.on").count();
+    const note = await page.locator(".fav-group .badge").textContent();
+    on1 === 1 && on2 === 2 && /shared by 2/.test(note) ? pass("shared favourites: the flight card adds a starred flight to another group as well") : fail(`shared favourites: card ${on1}→${on2} "${note}"`);
+    await ctx.close();
+    const m = await open("/settings", { width: 390, height: 844, theme: "dark" });
+    await m.page.evaluate((fid) => {
+      const f = { id: fid, al: "EZY", op: "EZY", fn: null, cs: "EZY1", o: "EGBB", d: "EHAM", std: null, at: 0 };
+      localStorage.setItem("ofp-planner:favourites", JSON.stringify([{ ...f, group: "A" }, { ...f, group: "B" }]));
+      localStorage.setItem("ofp-planner:fav-groups", JSON.stringify(["A", "B"]));
+    }, id);
+    await m.page.reload({ waitUntil: "networkidle" });
+    await m.page.waitForSelector(".fl-shared");
+    await checkPage("settings shared favourites 390 dark", m.page, m.errors);
     await m.ctx.close();
   });
 
