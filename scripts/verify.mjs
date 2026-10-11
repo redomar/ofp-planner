@@ -1254,6 +1254,41 @@ async function run() {
     await ctx.close();
   });
 
+  /* ---------- 1.6.0: airports guessed from the climb-out (Pristina has no low coverage) ---------- */
+  await section("guessed airports", async () => {
+    const { ctx, page, errors } = await open("/?al=EWG&dep=BKPR&arr=EDDF");
+    const rows = async () => {
+      await page.waitForFunction(() => document.querySelector("table.flights tbody tr, .empty-note, .empty"), null, { timeout: 30000 });
+      await page.waitForTimeout(300);
+      return page.$$eval("table.flights tbody tr", (trs) => trs.map((tr) => tr.textContent));
+    };
+    const hidden = (await rows()).filter((t) => /EWG18UG|18UG/.test(t)).length;
+    await page.evaluate(() => localStorage.setItem("ofp-planner:display", JSON.stringify({ guessed: true })));
+    await page.reload({ waitUntil: "networkidle" });
+    const shown = await rows();
+    const marks = await page.locator("table.flights tbody tr .guess-mark").count();
+    hidden === 0 && shown.length >= 1 && marks >= 1
+      ? pass(`guessed airports: EW6612 Pristina → Frankfurt (origin guessed) hidden by default, listed with the mark when on (${shown.length} row, ${marks} mark)`)
+      : fail(`guessed airports: hidden ${hidden}, shown ${shown.length}, marks ${marks}`);
+    await page.locator("table.flights tbody tr").first().click();
+    await page.waitForSelector(".fcard .guess-mark:visible");
+    const cardMarks = await page.locator(".fcard .guess-mark:visible").count();
+    // the panel scrolls into place first, and any scroll closes tooltips
+    await page.waitForTimeout(1200);
+    await page.mouse.move(5, 5);
+    await page.locator(".fcard .guess-mark:visible").first().hover();
+    await page.waitForTimeout(250);
+    const tip = await page.locator("#ofp-tip").innerText();
+    cardMarks === 1 && /Origin guessed/.test(tip) && /Prishtina|Pristina/.test(tip)
+      ? pass("guessed airports: the flight card marks the guessed origin and explains it on hover")
+      : fail(`guessed airports: ${cardMarks} card marks, tip "${tip.replace(/\s+/g, " ")}"`);
+    await checkPage("finder guessed airport 1280 light", page, errors);
+    await page.goto(`${base}/settings`, { waitUntil: "networkidle" });
+    await page.waitForSelector(".guess-sample");
+    await checkPage("settings guessed airports 1280 light", page, errors);
+    await ctx.close();
+  });
+
   /* ---------- night screenshots ---------- */
   if (SHOTS) {
     const { ctx, page } = await open("/?al=EZY&dep=EGKK", { theme: "dark" });

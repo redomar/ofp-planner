@@ -203,6 +203,11 @@ server_latch_container_alternative: |
     AirlineInfo.extra) are left out of pickers, useDataset("all", { extra }), Board brands and route counts unless set
     to "extra" or named explicitly (URL ?al=, favourites, logbook, brief). Helpers: listedAirline / hiddenAirlines in
     src/lib/display.ts; useManifest() in load.ts. Picker options take tag: "Extra+".
+    Guessed airports (1.6.0): legs.mjs inferEnds() (climb-out/descent cone, ≤30 NM, ±45°, 150–1200 ft/NM) runs in
+    build.mjs only when an end is unknown after the VRS fill; a second pass keeps the best candidate the brand has
+    ≥3 confirmed legs at (lone unserved candidates made 737s "land" at La Gomera). Flight.inf "o"|"d"|"od";
+    useDataset() drops inf rows unless display.guessed; GuessMark/guessedEnd in badges.tsx (Finder table, RouteHead).
+    legs.mjs TURN_FT: a ≥20 min gap with a descent < FL150 before and a climb < FL150 after splits the leg.
   - Flights table: Freq column (2× / Daily) then a 7-letter week strip; flight number and airline tag widths come
     from the whole filtered result (mono ch for numbers, canvas-measured text for names), so columns line up.
   - Weather is fetched only on the Brief (never on the Finder), cached (forecast 60 min, METAR 10 min).

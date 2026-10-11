@@ -5126,3 +5126,29 @@ div.empty-note p {
   gap: 6px;
   white-space: nowrap;
 }
+
+/* an airport guessed from the climb-out or descent (Flight.inf) */
+.guess-mark {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -2px;
+  margin-left: 3px;
+  color: var(--amber);
+  cursor: help;
+  border-radius: 50%;
+}
+.guess-mark:focus-visible {
+  outline-offset: 1px;
+}
+.guess-sample {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}
+.guess-sample-off {
+  width: 100%;
+  color: var(--ink-2);
+  font-style: italic;
+}

@@ -10,7 +10,7 @@ import { routeColor, textOn } from "@/lib/colors";
 import { GLOSSARY } from "@/lib/glossary";
 import { useFontsReady, widestLabel } from "@/lib/measure";
 import { RouteMap } from "./RouteMap";
-import { FlightIdent, MoreTypes, TypeBadge, VariesMark, WeekStrip, freqLabel } from "./badges";
+import { FlightIdent, GuessMark, MoreTypes, TypeBadge, VariesMark, WeekStrip, freqLabel, guessedEnd } from "./badges";
 import { Tip, cx } from "./ui";
 import { countryName } from "@/lib/places";
 
@@ -127,10 +127,12 @@ export function FlightTable({
                     </button>
                   </td>
                   <td>
-                    <span className="mono">{f.o}</span> <small className="muted city">{name(f.o)}</small>
+                    <span className="mono">{f.o}</span>
+                    {guessedEnd(f, "o") && <GuessMark side="o" name={name(f.o)} />} <small className="muted city">{name(f.o)}</small>
                   </td>
                   <td>
-                    <span className="mono">{f.d}</span> <small className="muted city">{name(f.d)}</small>
+                    <span className="mono">{f.d}</span>
+                    {guessedEnd(f, "d") && <GuessMark side="d" name={name(f.d)} />} <small className="muted city">{name(f.d)}</small>
                   </td>
                   <td className="mono num">
                     <VariesMark f={f}>

@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "generatedAt": "2026-10-11T00:32:18.104Z",
+ "generatedAt": "2026-10-11T01:11:42.332Z",
  "coverage": {
   "from": "2026-09-20",
   "to": "2026-10-08"
@@ -12,7 +12,7 @@
    "url": "https://github.com/adsblol",
    "licence": "ODbL 1.0",
    "provides": "observed flights: callsigns, routes, days of week, OUT/OFF/ON/IN times",
-   "fetchedAt": "2026-10-11T00:31:44.871Z"
+   "fetchedAt": "2026-10-11T01:11:14.565Z"
   },
   {
    "id": "standing-data",
@@ -20,7 +20,7 @@
    "url": "https://github.com/vradarserver/standing-data",
    "licence": "CC0 1.0",
    "provides": "callsign routes where one end was unseen; positioning-flight patterns; aircraft types (gaps) — commit d856ef1",
-   "fetchedAt": "2026-10-11T00:31:44.871Z"
+   "fetchedAt": "2026-10-11T01:11:14.565Z"
   },
   {
    "id": "tar1090-db",
@@ -28,7 +28,7 @@
    "url": "https://github.com/wiedehopf/tar1090-db",
    "licence": "community database, no licence stated; only type designators used",
    "provides": "aircraft type per airframe",
-   "fetchedAt": "2026-10-11T00:31:44.871Z"
+   "fetchedAt": "2026-10-11T01:11:14.565Z"
   },
   {
    "id": "ourairports",
@@ -36,7 +36,7 @@
    "url": "https://ourairports.com/data/",
    "licence": "Public domain",
    "provides": "airports, coordinates, elevation, IATA codes",
-   "fetchedAt": "2026-10-11T00:31:44.871Z"
+   "fetchedAt": "2026-10-11T01:11:14.565Z"
   },
   {
    "id": "mwgg-airports",
@@ -44,7 +44,7 @@
    "url": "https://github.com/mwgg/Airports",
    "licence": "MIT",
    "provides": "airport time zones",
-   "fetchedAt": "2026-10-11T00:31:44.871Z"
+   "fetchedAt": "2026-10-11T01:11:14.565Z"
   },
   {
    "id": "ryanair",
@@ -52,7 +52,7 @@
    "url": "https://www.ryanair.com/gb/en/cheap-flights/timetable",
    "licence": "Ryanair website data; non-commercial use",
    "provides": "Ryanair flight numbers and STD/STA (next 14 days, matched by weekday)",
-   "fetchedAt": "2026-10-11T00:31:44.871Z"
+   "fetchedAt": "2026-10-11T01:11:14.565Z"
   }
  ],
  "airlines": [
@@ -74,7 +74,7 @@
     "RYS"
    ],
    "file": "data/airlines/RYR.json",
-   "flights": 8301
+   "flights": 8321
   },
   {
    "icao": "EZY",
@@ -92,7 +92,7 @@
     "EZS"
    ],
    "file": "data/airlines/EZY.json",
-   "flights": 3821
+   "flights": 3828
   },
   {
    "icao": "WZZ",
@@ -110,7 +110,7 @@
     "WMT"
    ],
    "file": "data/airlines/WZZ.json",
-   "flights": 2112
+   "flights": 2121
   },
   {
    "icao": "TOM",
@@ -130,7 +130,7 @@
     "BLX"
    ],
    "file": "data/airlines/TOM.json",
-   "flights": 1805
+   "flights": 1825
   },
   {
    "icao": "EXS",
@@ -146,7 +146,7 @@
     "EXS"
    ],
    "file": "data/airlines/EXS.json",
-   "flights": 1399
+   "flights": 1404
   },
   {
    "icao": "DLH",
@@ -165,7 +165,7 @@
     "DLA"
    ],
    "file": "data/airlines/DLH.json",
-   "flights": 1365
+   "flights": 1368
   },
   {
    "icao": "TRA",
@@ -182,7 +182,7 @@
     "TVF"
    ],
    "file": "data/airlines/TRA.json",
-   "flights": 1290
+   "flights": 1296
   },
   {
    "icao": "SAS",
@@ -200,7 +200,7 @@
     "CIR"
    ],
    "file": "data/airlines/SAS.json",
-   "flights": 1242
+   "flights": 1249
   },
   {
    "icao": "NOZ",
@@ -219,7 +219,7 @@
     "NAX"
    ],
    "file": "data/airlines/NOZ.json",
-   "flights": 1138
+   "flights": 1139
   },
   {
    "icao": "CFG",
@@ -236,7 +236,7 @@
     "CIB"
    ],
    "file": "data/airlines/CFG.json",
-   "flights": 1118
+   "flights": 1127
   },
   {
    "icao": "THY",
@@ -252,7 +252,25 @@
     "THY"
    ],
    "file": "data/airlines/THY.json",
-   "flights": 1104
+   "flights": 1107
+  },
+  {
+   "icao": "EWG",
+   "iata": "EW",
+   "name": "Eurowings",
+   "callsign": "EUROWINGS",
+   "country": "DE",
+   "colors": {
+    "primary": "#A3195B",
+    "secondary": "#FFC800"
+   },
+   "operators": [
+    "EWG",
+    "EWE",
+    "EWL"
+   ],
+   "file": "data/airlines/EWG.json",
+   "flights": 1083
   },
   {
    "icao": "BAW",
@@ -271,25 +289,7 @@
     "SHT"
    ],
    "file": "data/airlines/BAW.json",
-   "flights": 1071
-  },
-  {
-   "icao": "EWG",
-   "iata": "EW",
-   "name": "Eurowings",
-   "callsign": "EUROWINGS",
-   "country": "DE",
-   "colors": {
-    "primary": "#A3195B",
-    "secondary": "#FFC800"
-   },
-   "operators": [
-    "EWG",
-    "EWE",
-    "EWL"
-   ],
-   "file": "data/airlines/EWG.json",
-   "flights": 1069
+   "flights": 1072
   },
   {
    "icao": "VLG",
@@ -305,7 +305,7 @@
     "VLG"
    ],
    "file": "data/airlines/VLG.json",
-   "flights": 1002
+   "flights": 1007
   },
   {
    "icao": "PGT",
@@ -321,24 +321,7 @@
     "PGT"
    ],
    "file": "data/airlines/PGT.json",
-   "flights": 753
-  },
-  {
-   "icao": "AFR",
-   "iata": "AF",
-   "name": "Air France",
-   "callsign": "AIRFRANS",
-   "country": "FR",
-   "colors": {
-    "primary": "#002157",
-    "secondary": "#E40521"
-   },
-   "operators": [
-    "AFR",
-    "HOP"
-   ],
-   "file": "data/airlines/AFR.json",
-   "flights": 745
+   "flights": 755
   },
   {
    "icao": "IBE",
@@ -356,7 +339,24 @@
     "ANE"
    ],
    "file": "data/airlines/IBE.json",
-   "flights": 732
+   "flights": 748
+  },
+  {
+   "icao": "AFR",
+   "iata": "AF",
+   "name": "Air France",
+   "callsign": "AIRFRANS",
+   "country": "FR",
+   "colors": {
+    "primary": "#002157",
+    "secondary": "#E40521"
+   },
+   "operators": [
+    "AFR",
+    "HOP"
+   ],
+   "file": "data/airlines/AFR.json",
+   "flights": 745
   },
   {
    "icao": "KLM",
@@ -389,7 +389,7 @@
     "VOE"
    ],
    "file": "data/airlines/VOE.json",
-   "flights": 624
+   "flights": 635
   },
   {
    "icao": "SXS",
@@ -405,7 +405,7 @@
     "SXS"
    ],
    "file": "data/airlines/SXS.json",
-   "flights": 560
+   "flights": 562
   },
   {
    "icao": "LOT",
@@ -437,7 +437,7 @@
     "WIF"
    ],
    "file": "data/airlines/WIF.json",
-   "flights": 536
+   "flights": 546
   },
   {
    "icao": "AEE",
@@ -454,7 +454,7 @@
     "OAL"
    ],
    "file": "data/airlines/AEE.json",
-   "flights": 514
+   "flights": 515
   },
   {
    "icao": "SWR",
@@ -518,7 +518,7 @@
     "QTR"
    ],
    "file": "data/airlines/QTR.json",
-   "flights": 444
+   "flights": 445
   },
   {
    "icao": "ITY",
@@ -552,7 +552,7 @@
     "TVQ"
    ],
    "file": "data/airlines/TVS.json",
-   "flights": 383
+   "flights": 385
   },
   {
    "icao": "TAP",
@@ -619,7 +619,23 @@
     "BTI"
    ],
    "file": "data/airlines/BTI.json",
-   "flights": 293
+   "flights": 294
+  },
+  {
+   "icao": "LGL",
+   "iata": "LG",
+   "name": "Luxair",
+   "callsign": "LUXAIR",
+   "country": "LU",
+   "colors": {
+    "primary": "#00A1DE",
+    "secondary": "#2B2A29"
+   },
+   "operators": [
+    "LGL"
+   ],
+   "file": "data/airlines/LGL.json",
+   "flights": 285
   },
   {
    "icao": "ABY",
@@ -640,22 +656,6 @@
    "flights": 282
   },
   {
-   "icao": "LGL",
-   "iata": "LG",
-   "name": "Luxair",
-   "callsign": "LUXAIR",
-   "country": "LU",
-   "colors": {
-    "primary": "#00A1DE",
-    "secondary": "#2B2A29"
-   },
-   "operators": [
-    "LGL"
-   ],
-   "file": "data/airlines/LGL.json",
-   "flights": 281
-  },
-  {
    "icao": "UAE",
    "iata": "EK",
    "name": "Emirates",
@@ -669,7 +669,7 @@
     "UAE"
    ],
    "file": "data/airlines/UAE.json",
-   "flights": 278
+   "flights": 279
   },
   {
    "icao": "DAH",
@@ -685,7 +685,7 @@
     "DAH"
    ],
    "file": "data/airlines/DAH.json",
-   "flights": 272
+   "flights": 275
   },
   {
    "icao": "BEL",
@@ -719,7 +719,7 @@
     "CXI"
    ],
    "file": "data/airlines/CAI.json",
-   "flights": 265
+   "flights": 268
   },
   {
    "icao": "FDB",
@@ -738,6 +738,22 @@
    "flights": 247
   },
   {
+   "icao": "ASL",
+   "iata": "JU",
+   "name": "Air Serbia",
+   "callsign": "AIR SERBIA",
+   "country": "RS",
+   "colors": {
+    "primary": "#0D2D6C",
+    "secondary": "#C8102E"
+   },
+   "operators": [
+    "ASL"
+   ],
+   "file": "data/airlines/ASL.json",
+   "flights": 244
+  },
+  {
    "icao": "IBB",
    "iata": "NT",
    "name": "Binter",
@@ -752,23 +768,7 @@
     "NAY"
    ],
    "file": "data/airlines/IBB.json",
-   "flights": 242
-  },
-  {
-   "icao": "ASL",
-   "iata": "JU",
-   "name": "Air Serbia",
-   "callsign": "AIR SERBIA",
-   "country": "RS",
-   "colors": {
-    "primary": "#0D2D6C",
-    "secondary": "#C8102E"
-   },
-   "operators": [
-    "ASL"
-   ],
-   "file": "data/airlines/ASL.json",
-   "flights": 240
+   "flights": 243
   },
   {
    "icao": "RAM",
@@ -848,7 +848,7 @@
     "RJA"
    ],
    "file": "data/airlines/RJA.json",
-   "flights": 189
+   "flights": 190
   },
   {
    "icao": "LOG",
@@ -913,7 +913,7 @@
     "CTN"
    ],
    "file": "data/airlines/CTN.json",
-   "flights": 173
+   "flights": 174
   },
   {
    "icao": "MSR",
@@ -961,7 +961,7 @@
     "GFA"
    ],
    "file": "data/airlines/GFA.json",
-   "flights": 102
+   "flights": 103
   },
   {
    "icao": "TAR",
@@ -1249,6 +1249,23 @@
    "extra": true
   },
   {
+   "icao": "RSC",
+   "iata": "PM",
+   "name": "Canaryfly",
+   "callsign": "CANARYFLY",
+   "country": "ES",
+   "colors": {
+    "primary": "#0055A4",
+    "secondary": "#FFCC00"
+   },
+   "operators": [
+    "RSC"
+   ],
+   "file": "data/airlines/RSC.json",
+   "flights": 16,
+   "extra": true
+  },
+  {
    "icao": "FLI",
    "iata": "RC",
    "name": "Atlantic Airways",
@@ -1280,23 +1297,6 @@
    ],
    "file": "data/airlines/ENT.json",
    "flights": 7,
-   "extra": true
-  },
-  {
-   "icao": "RSC",
-   "iata": "PM",
-   "name": "Canaryfly",
-   "callsign": "CANARYFLY",
-   "country": "ES",
-   "colors": {
-    "primary": "#0055A4",
-    "secondary": "#FFCC00"
-   },
-   "operators": [
-    "RSC"
-   ],
-   "file": "data/airlines/RSC.json",
-   "flights": 5,
    "extra": true
   },
   {
@@ -1353,8 +1353,8 @@
  ],
  "counts": {
   "airlines": 77,
-  "flights": 43088,
+  "flights": 43274,
   "airports": 599,
-  "routes": 16109
+  "routes": 16169
  }
 }

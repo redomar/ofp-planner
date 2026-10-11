@@ -30,6 +30,8 @@ export interface Display {
   logBars: boolean;
   /** Which airlines pickers and "all airlines" list: the common ones, or those plus the Extra+ brands added in 1.6.0. */
   airlines: AirlineSet;
+  /** List flights with an airport guessed from the climb-out or descent (Flight.inf). */
+  guessed: boolean;
 }
 export type AirlineSet = "common" | "extra";
 export type WeekStyle = "table" | "grouped" | "tabs" | "timeline";
@@ -39,7 +41,7 @@ export type MapLines = "great" | "rhumb";
 export type LogbookStyle = "table" | "strips";
 export type RouteHeadStyle = "timeline" | "pass" | "board";
 
-export const DEFAULT_DISPLAY: Display = { airlineTag: "solid", flightFirst: true, typeColour: "maker", typeTheme: "full", mapCodes: "iata", mapLines: "great", routeHead: "timeline", week: "table", variesMark: "tag", logbook: "table", logBars: false, airlines: "common" };
+export const DEFAULT_DISPLAY: Display = { airlineTag: "solid", flightFirst: true, typeColour: "maker", typeTheme: "full", mapCodes: "iata", mapLines: "great", routeHead: "timeline", week: "table", variesMark: "tag", logbook: "table", logBars: false, airlines: "common", guessed: false };
 
 export const readDisplay = (): Display => {
   const d = { ...DEFAULT_DISPLAY, ...readJSON<Partial<Display> & { mapCodes?: MapCodes | boolean }>(KEYS.display, {}) };

@@ -7,6 +7,7 @@ import type { Airport, FlightRow } from "@/lib/data/load";
 import { useDisplay, type RouteHeadStyle } from "@/lib/display";
 import { GLOSSARY } from "@/lib/glossary";
 import { ReplayFlapCode } from "./FlapCode";
+import { GuessMark, guessedEnd } from "./badges";
 import { Flag } from "./Flag";
 import { Tip, V } from "./ui";
 
@@ -67,7 +68,7 @@ function Z({ m, big }: { m: Moment | null; big?: boolean }) {
 const local = (m: Moment | null, a: Airport | undefined) => (m && a?.tz ? `${localHHMM(m.t, a.tz)} LT · ${tzLabel(a.tz)}` : null);
 
 /** Code flaps + city line, linked to the finder on the brief. */
-function Place({ a, icao, size, placeHref, align }: { a: Airport | undefined; icao: string; size?: "s"; placeHref?: Props["placeHref"]; align?: "r" }) {
+function Place({ a, icao, size, placeHref, align, guess }: { a: Airport | undefined; icao: string; size?: "s"; placeHref?: Props["placeHref"]; align?: "r"; guess?: "o" | "d" }) {
   const inner = (
     <>
       <span className={`code-flap${size ? " s" : ""}`}>
@@ -77,6 +78,7 @@ function Place({ a, icao, size, placeHref, align }: { a: Airport | undefined; ic
         {a?.country && <Flag cc={a.country} />}
         <b>{a ? city(a, icao) : <V v={null} w={8} />}</b>
         {a?.iata && <span className="mono muted">{a.iata}</span>}
+        {guess && <GuessMark side={guess} name={a ? city(a, icao) : icao} />}
       </p>
     </>
   );
@@ -146,13 +148,13 @@ function Timeline({ f, from, to, blockMin, nm, onPlace, placeHref, t }: WithTime
       <div className="rh-ends">
         <div className="fcard-end dep">
           <span className="ctl-label">Departs</span>
-          <Place a={from} icao={f.o} placeHref={placeHref} />
+          <Place a={from} icao={f.o} placeHref={placeHref} guess={guessedEnd(f, "o") ? "o" : undefined} />
           <p className="rh-ap">{from?.name}</p>
         </div>
         <Mid blockMin={blockMin} nm={nm} />
         <div className="fcard-end arr">
           <span className="ctl-label">Arrives</span>
-          <Place a={to} icao={f.d} placeHref={placeHref} align="r" />
+          <Place a={to} icao={f.d} placeHref={placeHref} align="r" guess={guessedEnd(f, "d") ? "d" : undefined} />
           <p className="rh-ap">{to?.name}</p>
         </div>
       </div>
@@ -207,7 +209,7 @@ function Pass({ f, from, to, blockMin, nm, onPlace, placeHref, t }: WithTimes) {
       <div className="rh-pass">
         <div className="fcard-end dep stub">
           <span className="ctl-label">From</span>
-          <Place a={from} icao={f.o} placeHref={placeHref} />
+          <Place a={from} icao={f.o} placeHref={placeHref} guess={guessedEnd(f, "o") ? "o" : undefined} />
           <p className="rh-ap">{from?.name}</p>
         </div>
         <div className="perf">
@@ -215,7 +217,7 @@ function Pass({ f, from, to, blockMin, nm, onPlace, placeHref, t }: WithTimes) {
         </div>
         <div className="fcard-end arr stub">
           <span className="ctl-label">To</span>
-          <Place a={to} icao={f.d} placeHref={placeHref} align="r" />
+          <Place a={to} icao={f.d} placeHref={placeHref} align="r" guess={guessedEnd(f, "d") ? "d" : undefined} />
           <p className="rh-ap">{to?.name}</p>
         </div>
         <div className="strip">
@@ -267,6 +269,7 @@ function Board({ f, from, to, blockMin, nm, onPlace, placeHref, t }: WithTimes) 
           <b>{city(a, icao).toUpperCase()}</b>
         )}
         {m?.kind === "est" && <Est />}
+        {guessedEnd(f, side === "dep" ? "o" : "d") && <GuessMark side={side === "dep" ? "o" : "d"} name={city(a, icao)} />}
       </span>
     </div>
   );

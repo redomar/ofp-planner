@@ -104,6 +104,12 @@ export interface Flight {
   /** Number of observed operations behind the OOOI medians. */
   samples: number;
   /**
+   * An end never seen near the ground, only guessed from the climb-out ("o") or the descent ("d"):
+   * the airport behind the climb (or ahead of the descent) that the airline flies to on other
+   * flights. Absent when both ends were seen. Listed only with Settings → Display → guessed airports.
+   */
+  inf?: "o" | "d" | "od";
+  /**
    * Weekdays whose times differ from the ones above (another STD, or typical OUT/OFF more
    * than 30 min off), as [days, std, sta, out, off, on, in]. Days not listed use the flight's
    * own times. Absent when every day runs alike. Read through onDay() in data/flight.ts.
