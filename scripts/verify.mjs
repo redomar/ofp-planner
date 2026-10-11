@@ -1218,6 +1218,42 @@ async function run() {
     await m.ctx.close();
   });
 
+  /* ---------- 1.6.0: Extra+ airlines listed only when Settings → Display asks for them ---------- */
+  await section("extra airlines", async () => {
+    const { ctx, page, errors } = await open("/?al=");
+    const extras = await page.evaluate(async () => (await fetch("/data/manifest.json").then((r) => r.json())).airlines.filter((a) => a.extra).map((a) => [a.icao, a.name]));
+    if (!extras.length) {
+      pass("extra airlines: skipped, no Extra+ airlines in this snapshot");
+      await ctx.close();
+      return;
+    }
+    const [icao, name] = extras[0];
+    const listed = async () => {
+      await page.waitForSelector("table.flights tbody tr", { timeout: 30000 });
+      await page.locator(".filters .multi-btn").first().click();
+      await page.waitForSelector(".multi-pop li");
+      const r = await page.evaluate(() => [...document.querySelectorAll(".multi-pop li")].map((l) => [l.querySelector(".multi-label")?.firstChild?.textContent, !!l.querySelector(".multi-tag")]));
+      await page.keyboard.press("Escape");
+      return r;
+    };
+    const off = await listed();
+    !off.some(([n]) => n === name) ? pass(`extra airlines: hidden from the Finder picker by default (${name})`) : fail(`extra airlines: ${name} listed by default`);
+    await page.evaluate(() => localStorage.setItem("ofp-planner:display", JSON.stringify({ airlines: "extra" })));
+    await page.reload({ waitUntil: "networkidle" });
+    const on = await listed();
+    on.some(([n, tag]) => n === name && tag) ? pass(`extra airlines: Common + Extra+ lists ${name} with its tag`) : fail(`extra airlines: ${name} not listed with Extra+ on`);
+    // a link naming an Extra+ airline still loads it with the default setting
+    await page.evaluate(() => localStorage.removeItem("ofp-planner:display"));
+    await page.goto(`${base}/?al=${icao}`, { waitUntil: "networkidle" });
+    await page.waitForSelector("table.flights tbody tr", { timeout: 30000 });
+    const rows = await page.locator("table.flights tbody tr").count();
+    rows > 0 ? pass(`extra airlines: ?al=${icao} still shows its ${rows} flights with Extra+ hidden`) : fail(`extra airlines: ?al=${icao} shows nothing`);
+    await page.goto(`${base}/settings`, { waitUntil: "networkidle" });
+    await page.waitForSelector(".al-set");
+    await checkPage("settings extra airlines 1280 light", page, errors);
+    await ctx.close();
+  });
+
   /* ---------- night screenshots ---------- */
   if (SHOTS) {
     const { ctx, page } = await open("/?al=EZY&dep=EGKK", { theme: "dark" });

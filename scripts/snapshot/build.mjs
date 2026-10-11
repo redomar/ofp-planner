@@ -447,6 +447,7 @@ export function writeOutput({ fileFlights, usedRyanair, dates }, airports, sourc
       operators: a.operators,
       file,
       flights: flights.length,
+      ...(a.extra ? { extra: true } : {}),
     });
   }
 

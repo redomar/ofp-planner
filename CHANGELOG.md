@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.0 — 2026-10-11 (unreleased)
+
+- **More airlines.** Regional airlines that fly under brands already in the planner are now counted: **Air Nostrum** (Iberia Regional), **BA Shuttle** (British Airways UK domestic), **Emerald Airlines** (Aer Lingus Regional) and **Binter Canarias** (the Canary inter-island hops). Iberia 474 → 732 flights, British Airways 920 → 1,071, Aer Lingus 250 → 340, Binter 125 → 242.
+- **20 new airlines (Extra+):** Sky Express, Aeroitalia, Edelweiss, Discover Airlines, Air Corsica, TAROM, Eastern Airways, Kuwait Airways, Aurigny, Freebird Airlines, Arkia, Marabu, Nouvelair, Azores Airlines, Atlantic Airways, Enter Air, Canaryfly, Air Greenland, Neos and Cabo Verde Airlines. They come from 5–8 October only (Mon–Thu), so they show those weekdays, and flights seen once (weekly charters and island routes) aren't in yet. A later full download fills them in.
+- **Greenland** is part of the region now (Air Greenland Copenhagen ↔ Nuuk, Icelandair to Greenland).
+- Snapshot: 43,088 flights (was 41,593), 77 airlines.
+- Settings → Display → **Airlines: which to list**: **Common** (default, the airlines the planner has always had) or **Common + Extra+**, which adds the smaller leisure, regional and island airlines added in this release, tagged **Extra+** in the pickers. The Finder and Journeys airline pickers, "all airlines" searches, the Board and the route counts follow it; a link, favourite or logbook flight that names an Extra+ airline still opens it.
+
 ## 1.5.2 — 2026-10-10
 
 - **A flight can be in more than one favourites group.** Saving a journey whose leg was already in another saved journey used to move that leg out of the first group, leaving it a leg short without a word. Now the leg stays in both.
