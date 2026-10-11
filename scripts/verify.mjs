@@ -1218,6 +1218,77 @@ async function run() {
     await m.ctx.close();
   });
 
+  /* ---------- Extra+ airlines listed only when Settings → Display asks for them ---------- */
+  await section("extra airlines", async () => {
+    const { ctx, page, errors } = await open("/?al=");
+    const extras = await page.evaluate(async () => (await fetch("/data/manifest.json").then((r) => r.json())).airlines.filter((a) => a.extra).map((a) => [a.icao, a.name]));
+    if (!extras.length) {
+      pass("extra airlines: skipped, no Extra+ airlines in this snapshot");
+      await ctx.close();
+      return;
+    }
+    const [icao, name] = extras[0];
+    const listed = async () => {
+      await page.waitForSelector("table.flights tbody tr", { timeout: 30000 });
+      await page.locator(".filters .multi-btn").first().click();
+      await page.waitForSelector(".multi-pop li");
+      const r = await page.evaluate(() => [...document.querySelectorAll(".multi-pop li")].map((l) => [l.querySelector(".multi-label")?.firstChild?.textContent, !!l.querySelector(".multi-tag")]));
+      await page.keyboard.press("Escape");
+      return r;
+    };
+    const off = await listed();
+    !off.some(([n]) => n === name) ? pass(`extra airlines: hidden from the Finder picker by default (${name})`) : fail(`extra airlines: ${name} listed by default`);
+    await page.evaluate(() => localStorage.setItem("ofp-planner:display", JSON.stringify({ airlines: "extra" })));
+    await page.reload({ waitUntil: "networkidle" });
+    const on = await listed();
+    on.some(([n, tag]) => n === name && tag) ? pass(`extra airlines: Common + Extra+ lists ${name} with its tag`) : fail(`extra airlines: ${name} not listed with Extra+ on`);
+    // a link naming an Extra+ airline still loads it with the default setting
+    await page.evaluate(() => localStorage.removeItem("ofp-planner:display"));
+    await page.goto(`${base}/?al=${icao}`, { waitUntil: "networkidle" });
+    await page.waitForSelector("table.flights tbody tr", { timeout: 30000 });
+    const rows = await page.locator("table.flights tbody tr").count();
+    rows > 0 ? pass(`extra airlines: ?al=${icao} still shows its ${rows} flights with Extra+ hidden`) : fail(`extra airlines: ?al=${icao} shows nothing`);
+    await page.goto(`${base}/settings`, { waitUntil: "networkidle" });
+    await page.waitForSelector(".al-set");
+    await checkPage("settings extra airlines 1280 light", page, errors);
+    await ctx.close();
+  });
+
+  /* ---------- airports guessed from the climb-out (Pristina has no low coverage) ---------- */
+  await section("guessed airports", async () => {
+    const { ctx, page, errors } = await open("/?al=EWG&dep=BKPR&arr=EDDF");
+    const rows = async () => {
+      await page.waitForFunction(() => document.querySelector("table.flights tbody tr, .empty-note, .empty"), null, { timeout: 30000 });
+      await page.waitForTimeout(300);
+      return page.$$eval("table.flights tbody tr", (trs) => trs.map((tr) => tr.textContent));
+    };
+    const hidden = (await rows()).filter((t) => /EWG18UG|18UG/.test(t)).length;
+    await page.evaluate(() => localStorage.setItem("ofp-planner:display", JSON.stringify({ guessed: true })));
+    await page.reload({ waitUntil: "networkidle" });
+    const shown = await rows();
+    const marks = await page.locator("table.flights tbody tr .guess-mark").count();
+    hidden === 0 && shown.length >= 1 && marks >= 1
+      ? pass(`guessed airports: EW6612 Pristina → Frankfurt (origin guessed) hidden by default, listed with the mark when on (${shown.length} row, ${marks} mark)`)
+      : fail(`guessed airports: hidden ${hidden}, shown ${shown.length}, marks ${marks}`);
+    await page.locator("table.flights tbody tr").first().click();
+    await page.waitForSelector(".fcard .guess-mark:visible");
+    const cardMarks = await page.locator(".fcard .guess-mark:visible").count();
+    // the panel scrolls into place first, and any scroll closes tooltips
+    await page.waitForTimeout(1200);
+    await page.mouse.move(5, 5);
+    await page.locator(".fcard .guess-mark:visible").first().hover();
+    await page.waitForTimeout(250);
+    const tip = await page.locator("#ofp-tip").innerText();
+    cardMarks === 1 && /Origin guessed/.test(tip) && /Prishtina|Pristina/.test(tip)
+      ? pass("guessed airports: the flight card marks the guessed origin and explains it on hover")
+      : fail(`guessed airports: ${cardMarks} card marks, tip "${tip.replace(/\s+/g, " ")}"`);
+    await checkPage("finder guessed airport 1280 light", page, errors);
+    await page.goto(`${base}/settings`, { waitUntil: "networkidle" });
+    await page.waitForSelector(".guess-sample");
+    await checkPage("settings guessed airports 1280 light", page, errors);
+    await ctx.close();
+  });
+
   /* ---------- night screenshots ---------- */
   if (SHOTS) {
     const { ctx, page } = await open("/?al=EZY&dep=EGKK", { theme: "dark" });

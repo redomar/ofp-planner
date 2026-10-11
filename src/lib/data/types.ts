@@ -47,6 +47,8 @@ export interface AirlineInfo {
   /** Path relative to public/, e.g. "data/airlines/EZY.json". */
   file: string;
   flights: number;
+  /** One of the smaller Extra+ brands, listed only when Settings → Display shows Extra+ airlines. */
+  extra?: boolean;
 }
 
 /** public/data/airports.json — only airports referenced by some flight. */
@@ -101,6 +103,12 @@ export interface Flight {
   in: number | null;
   /** Number of observed operations behind the OOOI medians. */
   samples: number;
+  /**
+   * An end never seen near the ground, only guessed from the climb-out ("o") or the descent ("d"):
+   * the airport behind the climb (or ahead of the descent) that the airline flies to on other
+   * flights. Absent when both ends were seen. Listed only with Settings → Display → guessed airports.
+   */
+  inf?: "o" | "d" | "od";
   /**
    * Weekdays whose times differ from the ones above (another STD, or typical OUT/OFF more
    * than 30 min off), as [days, std, sta, out, off, on, in]. Days not listed use the flight's

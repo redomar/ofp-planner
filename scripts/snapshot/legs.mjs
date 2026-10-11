@@ -15,11 +15,23 @@
 //   IN   on-block: continuous ground coverage from landing to the first stop that lasts
 //        ≥ 2 min or after which the transponder goes quiet for ≥ 10 min. 2–45 min after ON.
 // Anything not met → null. Times are seconds since 00:00 UTC of the track's day.
+//
+// Climb-out fallback (inferEnd, used by the build only when an end is still unknown after the
+// standing-data fill): some airports have no low-altitude coverage (Pristina: nothing seen below
+// ~8 000 ft), so a departure first shows up climbing well above 7 000 ft. If the first point is
+// below 15 000 ft and still climbing, a scheduled airport within 30 NM behind it, in line with the
+// track (±45°) and at a plausible climb gradient (150–1 200 ft/NM), is a candidate origin;
+// mirrored for a descent into the destination. The build takes the likeliest candidate the airline
+// is seen flying to on other flights (3+ confirmed legs), and skips the leg when there is none. Such ends are
+// flagged (Flight.inf) and listed only when Settings → Display asks for them.
 import { nearestAirport } from "./sources/reference.mjs";
 import { distNm } from "./util.mjs";
 
 const GAP_LANDING_S = 20 * 60; // gap while low: could have landed unseen
 const GAP_ANY_S = 100 * 60; // any gap longer than this ends a leg
+// a gap with a descent below FL150 before it and a climb below FL150 after it is a turnaround at an
+// airport with no low coverage (Pristina: last seen descending at ~11 000 ft, back climbing at 12 000 ft)
+const TURN_FT = 15000;
 const LOW_FT = 10000;
 const GROUND_CHAIN_GAP_S = 240;
 const PARKED_S = 8 * 60;
@@ -62,7 +74,9 @@ export function segment(points, events, dayEnd) {
     cur = null;
   };
   let prev = null;
-  for (const pt of points) {
+  let prev2 = null;
+  for (let k = 0; k < points.length; k++) {
+    const pt = points[k];
     if (prev && pt.t === prev.t) continue;
     const cs = callsignAt(events, pt.t);
     const gap = prev ? pt.t - prev.t : 0;
@@ -79,7 +93,9 @@ export function segment(points, events, dayEnd) {
       }
     } else {
       if (cur) {
-        const lowGap = gap > GAP_LANDING_S && (prev.alt < LOW_FT || pt.alt < LOW_FT);
+        const next = points[k + 1];
+        const turn = prev.alt < TURN_FT && pt.alt < TURN_FT && prev2 != null && prev2.alt > prev.alt && next != null && next.alt > pt.alt;
+        const lowGap = gap > GAP_LANDING_S && (prev.alt < LOW_FT || pt.alt < LOW_FT || turn);
         const changed = cs && cur.cs && cs !== cur.cs;
         // a callsign that changes in the first minutes is the crew updating a stale one
         if (changed && !lowGap && gap <= GAP_ANY_S && pt.t - cur.pts[0].t < 10 * 60) cur.cs = cs;
@@ -93,6 +109,7 @@ export function segment(points, events, dayEnd) {
       if (!cur.cs && cs) cur.cs = cs;
       cur.pts.push(pt);
     }
+    prev2 = prev;
     prev = pt;
   }
   let open = null;
@@ -102,6 +119,53 @@ export function segment(points, events, dayEnd) {
     else close();
   }
   return { legs, open };
+}
+
+const INFER_MAX_FT = 15000;
+const INFER_MAX_NM = 30;
+const INFER_MAX_DEG = 45;
+
+/** Initial great-circle bearing a → b, degrees. */
+function bearing(lat1, lon1, lat2, lon2) {
+  const r = Math.PI / 180;
+  const y = Math.sin((lon2 - lon1) * r) * Math.cos(lat2 * r);
+  const x = Math.cos(lat1 * r) * Math.sin(lat2 * r) - Math.sin(lat1 * r) * Math.cos(lat2 * r) * Math.cos((lon2 - lon1) * r);
+  return (Math.atan2(y, x) / r + 360) % 360;
+}
+const angleDiff = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
+
+/**
+ * Airports a leg may have left from ("o": behind its first point, which must be climbing) or gone
+ * to ("d": ahead of its last point, which must be descending), most likely first. See the header.
+ */
+export function inferEnds(pts, airports, side) {
+  const first = side === "o";
+  const p = first ? pts[0] : pts[pts.length - 1];
+  if (p.alt < 0 || p.alt > INFER_MAX_FT) return [];
+  // a point 2–8 min further into (or back from) the flight gives the track and the vertical trend
+  const want = first ? p.t + 120 : p.t - 120;
+  const q = first ? pts.find((x) => x.t >= want && x.t <= p.t + 480) : [...pts].reverse().find((x) => x.t <= want && x.t >= p.t - 480);
+  if (!q || q.alt < p.alt + 1000) return [];
+  // direction from p away from the flight: back along the climb, or on along the descent
+  const away = bearing(q.lat, q.lon, p.lat, p.lon);
+  const found = [];
+  const la = Math.floor(p.lat);
+  const lo = Math.floor(p.lon);
+  for (let i = -1; i <= 1; i++) {
+    for (let j = -1; j <= 1; j++) {
+      for (const a of airports.index.get(`${la + i},${lo + j}`) ?? []) {
+        if (!a.sched) continue;
+        const dist = distNm(p.lat, p.lon, a.lat, a.lon);
+        if (dist > INFER_MAX_NM || dist < 1) continue;
+        const off = angleDiff(bearing(p.lat, p.lon, a.lat, a.lon), away);
+        if (off > INFER_MAX_DEG) continue;
+        const grad = (p.alt - (a.elev ?? 0)) / dist;
+        if (grad < 150 || grad > 1200) continue;
+        found.push({ a, score: off / 15 + dist / 10 });
+      }
+    }
+  }
+  return found.sort((x, y) => x.score - y.score).map((x) => x.a);
 }
 
 function agl(pt, ap) {

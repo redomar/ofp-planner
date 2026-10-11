@@ -23,6 +23,7 @@ import { familyOf } from "@/lib/data/flight";
 import { DEFAULT_PREFS, readPrefs, writePrefs } from "@/lib/saved";
 import { applyFn, readFnOverrides, useFnOverrides } from "@/lib/fnoverride";
 import { routeColor } from "@/lib/colors";
+import { hiddenAirlines, listedAirline, useDisplay } from "@/lib/display";
 import { StatusLine, TopBar } from "./chrome";
 import { FlightCard } from "./FlightCard";
 import { AfterPicker, DayPicker, LengthPicker, MultiPicker, PlacePicker, type MultiOption, type PlaceOption } from "./pickers";
@@ -63,7 +64,8 @@ export function FinderApp() {
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
-  const data = useDataset(ready ? (q.al.length ? q.al : "all") : []);
+  const airlineSet = useDisplay().airlines;
+  const data = useDataset(ready ? (q.al.length ? q.al : "all") : [], { extra: airlineSet === "extra" });
   const { airports, airlines, manifest } = data;
 
   // Mirror state into the URL so a reload or a shared link reopens the same view.
@@ -145,31 +147,36 @@ export function FinderApp() {
   const placeCounts = useMemo(() => {
     if (!wantRoutes || !routes || !airports) return null;
     const counts = new Map<string, number>();
+    // Extra+ airlines count only when listed (Settings → Display) or picked
+    const hidden = hiddenAirlines(manifest, airlineSet, q.al);
     const origins = q.dep && !q.dep.startsWith("C:") ? [q.dep] : Object.keys(routes);
     for (const o of origins) {
       if (!placeMatches(q.dep, o, airports)) continue;
       for (const [d, byAl] of Object.entries(routes[o] ?? {})) {
         if (!placeMatches(q.arr, d, airports)) continue;
-        for (const [al, n] of Object.entries(byAl)) counts.set(al, (counts.get(al) ?? 0) + n);
+        for (const [al, n] of Object.entries(byAl)) if (!hidden.has(al)) counts.set(al, (counts.get(al) ?? 0) + n);
       }
     }
     return counts;
-  }, [wantRoutes, routes, airports, q.dep, q.arr]);
+  }, [wantRoutes, routes, airports, q.dep, q.arr, q.al, manifest, airlineSet]);
 
   const airlineOptions = useMemo<MultiOption[]>(() => {
-    const opts = (manifest?.airlines ?? []).map((a) => ({
-      value: a.icao,
-      label: a.name,
-      detail: [a.iata, a.icao].filter(Boolean).join(" / "),
-      swatch: routeColor(a),
-      count: placeCounts ? (placeCounts.get(a.icao) ?? 0) : a.flights,
-      dim: placeCounts ? !placeCounts.get(a.icao) : false,
-    }));
+    const opts = (manifest?.airlines ?? [])
+      .filter((a) => listedAirline(a, airlineSet, q.al))
+      .map((a) => ({
+        value: a.icao,
+        label: a.name,
+        detail: [a.iata, a.icao].filter(Boolean).join(" / "),
+        swatch: routeColor(a),
+        tag: a.extra ? "Extra+" : undefined,
+        count: placeCounts ? (placeCounts.get(a.icao) ?? 0) : a.flights,
+        dim: placeCounts ? !placeCounts.get(a.icao) : false,
+      }));
     // flying here first (most flights first), then the rest alphabetically
     return placeCounts
       ? opts.sort((a, b) => Number(a.dim) - Number(b.dim) || (a.dim ? a.label.localeCompare(b.label) : b.count - a.count))
       : opts.sort((a, b) => a.label.localeCompare(b.label));
-  }, [manifest, placeCounts]);
+  }, [manifest, placeCounts, airlineSet, q.al]);
   const placeName = (p: string | null) => (p ? (p.startsWith("C:") ? countryName(p.slice(2)) : (airports?.get(p)?.iata ?? p)) : null);
   const routeLabel = [placeName(q.dep), placeName(q.arr)].filter(Boolean).join(" → ");
 

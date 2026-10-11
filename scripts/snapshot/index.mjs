@@ -37,7 +37,8 @@ if (args.cache) process.env.SNAPSHOT_CACHE = args.cache;
 
 const { log, OUT, RAW } = await import("./util.mjs");
 const { AIRLINES } = await import("./airlines.mjs");
-const { fetchDay } = await import("./sources/adsblol.mjs");
+const { fetchDay, allAirlinesPath } = await import("./sources/adsblol.mjs");
+const { existsSync } = await import("node:fs");
 const ref = await import("./sources/reference.mjs");
 const { build, writeOutput, cachedDates } = await import("./build.mjs");
 
@@ -85,6 +86,8 @@ if (args.stage === "build" || args.stage === "all") {
     console.error("No cached ADS-B days in range; run with --stage fetch first.");
     process.exit(1);
   }
+  const full = useDates.filter((d) => existsSync(allAirlinesPath(d))).length;
+  if (full < useDates.length) log(`${full}/${useDates.length} cached days hold every airline; the others only the airlines listed when they were fetched (re-fetch them with --refresh)`);
   const sources = [
     { id: "adsblol", name: "adsb.lol globe history", url: "https://github.com/adsblol", licence: "ODbL 1.0", provides: "observed flights: callsigns, routes, days of week, OUT/OFF/ON/IN times", fetchedAt },
     { id: "standing-data", name: "Virtual Radar Server standing data", url: "https://github.com/vradarserver/standing-data", licence: "CC0 1.0", provides: `callsign routes where one end was unseen; positioning-flight patterns; aircraft types (gaps) — commit ${sd.sha.split(" ")[0].slice(0, 7)}`, fetchedAt },

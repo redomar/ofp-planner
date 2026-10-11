@@ -6,7 +6,8 @@
  * browser caches them until a new snapshot is published. Each file is fetched at most
  * once per page load and shared by every component.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useDisplay } from "../display";
 import type { AirlineFile, AirlineInfo, AirportRow, AirportsFile, Flight, Manifest, RoutesFile } from "./types";
 
 export interface Airport {
@@ -101,6 +102,23 @@ export function loadAirline(info: AirlineInfo, m: Manifest): Promise<FlightRow[]
   return p;
 }
 
+/** The manifest once loaded (null until then); for pages that need the airline list before choosing what to load. */
+export function useManifest(): Manifest | null {
+  const [m, setM] = useState<Manifest | null>(manifestDone);
+  useEffect(() => {
+    if (m) return;
+    let live = true;
+    loadManifest().then(
+      (x) => live && setM(x),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [m]);
+  return m;
+}
+
 let routesP: Promise<RoutesFile["routes"]> | null = null;
 /** The route index (orig → dest → brand → flights), fetched the first time an airport is chosen. */
 export function loadRoutes(): Promise<RoutesFile["routes"]> {
@@ -124,10 +142,11 @@ export interface Dataset {
   progress: number;
 }
 
-function snapshot(want: string[] | "all", error: string | null): Dataset {
+function snapshot(want: string[] | "all", error: string | null, extra: boolean): Dataset {
   const m = manifestDone;
   const airlines = new Map((m?.airlines ?? []).map((a) => [a.icao, a]));
-  const ids = want === "all" ? [...airlines.keys()] : want.filter((w) => airlines.has(w));
+  // "all" is every listed airline: the Extra+ brands only when Settings → Display asks for them
+  const ids = want === "all" ? [...airlines.values()].filter((a) => extra || !a.extra).map((a) => a.icao) : want.filter((w) => airlines.has(w));
   const flights: FlightRow[] = [];
   const loading: string[] = [];
   for (const id of ids) {
@@ -142,20 +161,23 @@ function snapshot(want: string[] | "all", error: string | null): Dataset {
 
 /**
  * The flights of `want` (brand ICAOs, or "all"), plus the manifest and airports.
+ * "all" includes the Extra+ airlines only with `extra` (Settings → Display → Airlines).
  * Re-renders as files arrive so the table fills progressively.
  */
-export function useDataset(want: string[] | "all"): Dataset {
-  const key = want === "all" ? "*" : [...want].sort().join(",");
-  const [state, setState] = useState<Dataset>(() => snapshot(want, null));
+export function useDataset(want: string[] | "all", { extra = false }: { extra?: boolean } = {}): Dataset {
+  const key = want === "all" ? (extra ? "**" : "*") : [...want].sort().join(",");
+  const [state, setState] = useState<Dataset>(() => snapshot(want, null, extra));
   useEffect(() => {
     let live = true;
-    const list: string[] | "all" = key === "*" ? "all" : key ? key.split(",") : [];
-    const update = (err: string | null = null) => live && setState(snapshot(list, err));
+    const all = key === "*" || key === "**";
+    const withExtra = key === "**";
+    const list: string[] | "all" = all ? "all" : key ? key.split(",") : [];
+    const update = (err: string | null = null) => live && setState(snapshot(list, err, withExtra));
     update();
     loadManifest()
       .then((m) => {
         update();
-        const infos = list === "all" ? m.airlines : m.airlines.filter((a) => list.includes(a.icao));
+        const infos = list === "all" ? m.airlines.filter((a) => withExtra || !a.extra) : m.airlines.filter((a) => list.includes(a.icao));
         return Promise.all([
           loadAirports().then(() => update()),
           // a few at a time, so the first airlines show while the rest download
@@ -167,7 +189,9 @@ export function useDataset(want: string[] | "all"): Dataset {
       live = false;
     };
   }, [key]);
-  return state;
+  // flights with a guessed airport (Flight.inf) only when Settings → Display asks for them
+  const { guessed } = useDisplay();
+  return useMemo(() => (guessed ? state : { ...state, flights: state.flights.filter((f) => !f.inf) }), [state, guessed]);
 }
 
 /** Fetch every flight of every airline (used by search-by-id and the brief page). */

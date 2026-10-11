@@ -9,10 +9,10 @@ import { routeColor } from "@/lib/colors";
 import { DEFAULT_AIRFRAMES, readAirframes, useAirframes, writeAirframes, type Airframe } from "@/lib/simbrief";
 import { applyTheme, clearAll, readTheme, storageBytes, useStorageVersion, type ThemePref } from "@/lib/storage";
 import { describeBackup, downloadBackup, readBackup, restoreBackup, type Backup } from "@/lib/backup";
-import { DEFAULT_DISPLAY, useDisplay, writeDisplay, type AirlineTagStyle, type VariesMark } from "@/lib/display";
+import { DEFAULT_DISPLAY, useDisplay, writeDisplay, type AirlineSet, type AirlineTagStyle, type VariesMark } from "@/lib/display";
 import { hhmm, isoDay, onDay, plannedOut, varies } from "@/lib/data/flight";
 import { DayTabs, WeekTimes } from "./WeekTimes";
-import { FlightIdent, TypeBadge } from "./badges";
+import { FlightIdent, GuessMark, TypeBadge } from "./badges";
 import { StatusLine, TopBar } from "./chrome";
 import { SavedFlights } from "./SavedFlights";
 import { CollapseProvider } from "./collapse";
@@ -255,6 +255,50 @@ function DisplayPrefs({ manifest }: { manifest: Manifest | null }) {
   return (
     <div className="display-prefs">
       <fieldset className="opt-group">
+        <legend className="ctl-label">Airlines: which to list</legend>
+        <div className="opt-grid">
+          {(
+            [
+              ["common", "Common", "The airlines the planner has always had: the big low-cost, leisure and network brands."],
+              ["extra", "Common + Extra+", "Also the smaller leisure, regional and island airlines added most recently (Edelweiss, Discover, Aurigny, Air Greenland…), marked Extra+ in the pickers."],
+            ] as const
+          ).map(([v, label, note]) => (
+            <Opt key={v} name="airlines" checked={d.airlines === v} onChange={() => writeDisplay({ airlines: v })} title={label} isDefault={v === "common"} note={note}>
+              <AirlineSetSample set={v} manifest={manifest} />
+            </Opt>
+          ))}
+        </div>
+        <p className="small muted">Pickers, “all airlines” searches, the Board and route counts follow this. A link, favourite or logbook flight that names an Extra+ airline still opens it.</p>
+      </fieldset>
+
+      <fieldset className="opt-group">
+        <legend className="ctl-label">Guessed airports</legend>
+        <div className="opt-grid two">
+          {([false, true] as const).map((g) => (
+            <Opt
+              key={String(g)}
+              name="guessed"
+              checked={d.guessed === g}
+              onChange={() => writeDisplay({ guessed: g })}
+              title={g ? "Show them, marked" : "Hide them"}
+              isDefault={!g}
+              note={g ? "Also list flights whose airport is guessed, marked with a dashed ring." : "Only flights seen at both airports."}
+            >
+              <span className="guess-sample">
+                <span className="mono">BKPR</span>
+                {g ? <GuessMark side="o" name="Pristina" /> : null} <small className="muted">Pristina</small> <span aria-hidden="true">→</span> <span className="mono">EDDF</span> <small className="muted">Frankfurt</small>
+                {!g && <small className="guess-sample-off">not listed</small>}
+              </span>
+            </Opt>
+          ))}
+        </div>
+        <p className="small muted">
+          Some airports have no ADS-B coverage near the ground (Pristina, Skiathos, Zakynthos, Florence…), so their flights are only seen once airborne. The airport is then taken from the climb-out or the
+          descent, among airports the airline is seen flying to: right most of the time, but a guess. A link or favourite to such a flight still opens it.
+        </p>
+      </fieldset>
+
+      <fieldset className="opt-group">
         <legend className="ctl-label">Airline name tag</legend>
         <div className="opt-grid">
           {TAG_STYLES.map(([v, label, note]) => (
@@ -454,6 +498,33 @@ function DisplayPrefs({ manifest }: { manifest: Manifest | null }) {
 }
 
 /** Two made-up flights drawn the way each logbook style lists them. */
+/** The option's airlines: how many, and a few of them by colour. */
+function AirlineSetSample({ set, manifest }: { set: AirlineSet; manifest: Manifest | null }) {
+  if (!manifest) return <span className="sk-block" />;
+  const common = manifest.airlines.filter((a) => !a.extra);
+  const extra = manifest.airlines.filter((a) => a.extra);
+  const shown = set === "extra" ? extra : common;
+  const top = [...shown].sort((a, b) => b.flights - a.flights).slice(0, 4);
+  return (
+    <span className="al-set" aria-hidden="true">
+      <span className="al-set-n mono">
+        {set === "extra" ? `${common.length} + ${extra.length} Extra+` : `${common.length} airlines`}
+      </span>
+      {top.length ? (
+        top.map((a) => (
+          <span key={a.icao} className="al-set-row">
+            <span className="al-dot" style={{ background: routeColor(a) }} />
+            {a.name}
+            {a.extra && <span className="multi-tag">Extra+</span>}
+          </span>
+        ))
+      ) : (
+        <span className="al-set-row muted">None in this snapshot yet</span>
+      )}
+    </span>
+  );
+}
+
 function LogbookSample({ style }: { style: "table" | "strips" }) {
   const rows = [
     ["Thu 8", "EGKK", "LEZL", "Gatwick", "Seville", "2h 10m", "b-green", "On time", "#ff6600"],
@@ -721,6 +792,7 @@ function DataInfo({ manifest, error }: { manifest: Manifest | null; error: strin
                 <tr key={a.icao}>
                   <td>
                     <span className="al-dot" style={{ background: routeColor(a) }} aria-hidden="true" /> {a.name}
+                    {a.extra && <span className="multi-tag">Extra+</span>}
                   </td>
                   <td className="mono">
                     {a.iata ?? "—"} / {a.icao}

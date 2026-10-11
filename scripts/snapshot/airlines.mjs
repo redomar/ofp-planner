@@ -12,6 +12,8 @@
 // colors:    brand colours (hex) from each airline's livery/brand guidelines; primary draws
 //            the route line, secondary is trim. Approximate where the brand uses gradients.
 // timetable: an optional public timetable source used to add flight numbers and STD/STA.
+// extra:     true for the smaller / leisure / regional brands (the "Extra+" set). The app lists them
+//            only when Settings → Display → Airlines is "Common + Extra+"; links that name one still work.
 
 export const AIRLINES = [
   // ---- low-cost / leisure -------------------------------------------------------------
@@ -31,12 +33,19 @@ export const AIRLINES = [
   { icao: "CFG", iata: "DE", name: "Condor", callsign: "CONDOR", country: "DE", operators: ["CFG", "CIB"], colors: ["#FDC300", "#1D1D1B"], numericFn: true },
   { icao: "CAI", iata: "XC", name: "Corendon", callsign: "CORENDON", country: "TR", operators: ["CAI", "CND", "CXI"], colors: ["#E3003A", "#002F6C"], numericFn: true },
   { icao: "TVS", iata: "QS", name: "Smartwings", callsign: "SKYTRAVEL", country: "CZ", operators: ["TVS", "TVP", "TVQ"], colors: ["#0A3D8F", "#E2001A"], numericFn: true },
+  { icao: "EDW", iata: "WK", name: "Edelweiss", callsign: "EDELWEISS", country: "CH", operators: ["EDW"], colors: ["#B5123E", "#C8B48A"], numericFn: true, extra: true },
+  { icao: "OCN", iata: "4Y", name: "Discover Airlines", callsign: "DISCOVER", country: "DE", operators: ["OCN"], colors: ["#5C3A92", "#F5B335"], numericFn: true, extra: true },
+  { icao: "MBU", iata: "DI", name: "Marabu", callsign: "MARABU", country: "DE", operators: ["MBU"], colors: ["#00838F", "#F28C28"], numericFn: true, extra: true },
+  { icao: "NOS", iata: "NO", name: "Neos", callsign: "MOONFLOWER", country: "IT", operators: ["NOS"], colors: ["#0D2240", "#A7A9AC"], numericFn: true, extra: true },
+  { icao: "ENT", iata: "E4", name: "Enter Air", callsign: "ENTER", country: "PL", operators: ["ENT"], colors: ["#E2231A", "#7AB800"], numericFn: true, extra: true },
+  { icao: "FHY", iata: "FH", name: "Freebird Airlines", callsign: "FREEBIRD AIRLINES", country: "TR", operators: ["FHY"], colors: ["#D2232A", "#1B2A4A"], numericFn: true, extra: true },
+  { icao: "AEZ", iata: "XZ", name: "Aeroitalia", callsign: "AEROITALIA", country: "IT", operators: ["AEZ"], colors: ["#0B2A4A", "#00965E"], numericFn: true, extra: true },
   { icao: "ABY", iata: "G9", name: "Air Arabia", callsign: "ARABIA", country: "AE", operators: ["ABY", "MAC", "ABN"], colors: ["#E21A23", "#6D6E71"], numericFn: true },
   { icao: "FDB", iata: "FZ", name: "flydubai", callsign: "SKYDUBAI", country: "AE", operators: ["FDB"], colors: ["#003D73", "#F26E22"], numericFn: true },
   // ---- network carriers -----------------------------------------------------------------
-  { icao: "BAW", iata: "BA", name: "British Airways", callsign: "SPEEDBIRD", country: "GB", operators: ["BAW", "CFE", "EFW"], colors: ["#075AAA", "#EB2226"], numericFn: true },
-  { icao: "IBE", iata: "IB", name: "Iberia", callsign: "IBERIA", country: "ES", operators: ["IBE", "IBS"], colors: ["#D7192D", "#FFCC00"], numericFn: true },
-  { icao: "EIN", iata: "EI", name: "Aer Lingus", callsign: "SHAMROCK", country: "IE", operators: ["EIN", "EUK"], colors: ["#006272", "#78BE20"], numericFn: true },
+  { icao: "BAW", iata: "BA", name: "British Airways", callsign: "SPEEDBIRD", country: "GB", operators: ["BAW", "CFE", "EFW", "SHT"], colors: ["#075AAA", "#EB2226"], numericFn: true },
+  { icao: "IBE", iata: "IB", name: "Iberia", callsign: "IBERIA", country: "ES", operators: ["IBE", "IBS", "ANE"], colors: ["#D7192D", "#FFCC00"], numericFn: true },
+  { icao: "EIN", iata: "EI", name: "Aer Lingus", callsign: "SHAMROCK", country: "IE", operators: ["EIN", "EUK", "EAI"], colors: ["#006272", "#78BE20"], numericFn: true },
   { icao: "DLH", iata: "LH", name: "Lufthansa", callsign: "LUFTHANSA", country: "DE", operators: ["DLH", "CLH", "LHX", "DLA"], colors: ["#05164D", "#F9BA00"], numericFn: true },
   { icao: "SWR", iata: "LX", name: "SWISS", callsign: "SWISS", country: "CH", operators: ["SWR"], colors: ["#E2001A", "#1A1A1A"], numericFn: true },
   { icao: "AUA", iata: "OS", name: "Austrian", callsign: "AUSTRIAN", country: "AT", operators: ["AUA"], colors: ["#D81E05", "#1A1A1A"], numericFn: true },
@@ -51,6 +60,16 @@ export const AIRLINES = [
   { icao: "FIN", iata: "AY", name: "Finnair", callsign: "FINNAIR", country: "FI", operators: ["FIN"], colors: ["#0B1560", "#B3B9D6"], numericFn: true },
   { icao: "BTI", iata: "BT", name: "airBaltic", callsign: "AIRBALTIC", country: "LV", operators: ["BTI"], colors: ["#BED600", "#1A1A1A"], numericFn: true },
   { icao: "ICE", iata: "FI", name: "Icelandair", callsign: "ICEAIR", country: "IS", operators: ["ICE"], colors: ["#0D2C6C", "#FFB71B"], numericFn: true },
+  { icao: "FLI", iata: "RC", name: "Atlantic Airways", callsign: "FAROELINE", country: "FO", operators: ["FLI"], colors: ["#00346E", "#6CACE4"], numericFn: true, extra: true },
+  { icao: "GRL", iata: "GL", name: "Air Greenland", callsign: "GREENLAND", country: "GL", operators: ["GRL"], colors: ["#CE1126", "#5B6770"], numericFn: true, extra: true },
+  { icao: "RZO", iata: "S4", name: "Azores Airlines", callsign: "AIR AZORES", country: "PT", operators: ["RZO"], colors: ["#5B2B82", "#00A0AF"], numericFn: true, extra: true },
+  { icao: "TCV", iata: "VR", name: "Cabo Verde Airlines", callsign: "CABOVERDE", country: "CV", operators: ["TCV"], colors: ["#003893", "#F7D116"], numericFn: true, extra: true },
+  { icao: "RSC", iata: "PM", name: "Canaryfly", callsign: "CANARYFLY", country: "ES", operators: ["RSC"], colors: ["#0055A4", "#FFCC00"], numericFn: true, extra: true },
+  { icao: "SEH", iata: "GQ", name: "Sky Express", callsign: "AIR CRETE", country: "GR", operators: ["SEH"], colors: ["#2A2F7F", "#7FC4E8"], numericFn: true, extra: true },
+  { icao: "EAG", iata: "T3", name: "Eastern Airways", callsign: "EASTFLIGHT", country: "GB", operators: ["EAG"], colors: ["#1C2D5A", "#C9A227"], numericFn: true, extra: true },
+  { icao: "AUR", iata: "GR", name: "Aurigny", callsign: "AYLINE", country: "GG", operators: ["AUR"], colors: ["#003A70", "#FFD100"], numericFn: true, extra: true },
+  { icao: "ROT", iata: "RO", name: "TAROM", callsign: "TAROM", country: "RO", operators: ["ROT"], colors: ["#00326E", "#9DB6D9"], numericFn: true, extra: true },
+  { icao: "CCM", iata: "XK", name: "Air Corsica", callsign: "CORSICA", country: "FR", operators: ["CCM"], colors: ["#C8102E", "#1B365D"], numericFn: true, extra: true },
   { icao: "AEA", iata: "UX", name: "Air Europa", callsign: "EUROPA", country: "ES", operators: ["AEA"], colors: ["#0A2C79", "#B5975A"], numericFn: true },
   { icao: "CTN", iata: "OU", name: "Croatia Airlines", callsign: "CROATIA", country: "HR", operators: ["CTN"], colors: ["#003F87", "#E30613"], numericFn: true },
   { icao: "ASL", iata: "JU", name: "Air Serbia", callsign: "AIR SERBIA", country: "RS", operators: ["ASL"], colors: ["#0D2D6C", "#C8102E"], numericFn: true },
@@ -58,7 +77,7 @@ export const AIRLINES = [
   { icao: "KMM", iata: "KM", name: "KM Malta Airlines", callsign: "MALTA", country: "MT", operators: ["KMM"], colors: ["#D21034", "#1A1A1A"], numericFn: true },
   { icao: "LOG", iata: "LM", name: "Loganair", callsign: "LOGAN", country: "GB", operators: ["LOG"], colors: ["#003863", "#E4002B"], numericFn: true },
   { icao: "WIF", iata: "WF", name: "Widerøe", callsign: "WIDEROE", country: "NO", operators: ["WIF"], colors: ["#2B6FB0", "#7CC4E8"], numericFn: true },
-  { icao: "IBB", iata: "NT", name: "Binter", callsign: "BINTER", country: "ES", operators: ["IBB"], colors: ["#00843D", "#004B87"], numericFn: true },
+  { icao: "IBB", iata: "NT", name: "Binter", callsign: "BINTER", country: "ES", operators: ["IBB", "NAY"], colors: ["#00843D", "#004B87"], numericFn: true },
   // ---- Turkey, Middle East, North Africa --------------------------------------------------
   { icao: "THY", iata: "TK", name: "Turkish Airlines", callsign: "TURKISH", country: "TR", operators: ["THY"], colors: ["#C70A0C", "#1A1A1A"], numericFn: true },
   { icao: "UAE", iata: "EK", name: "Emirates", callsign: "EMIRATES", country: "AE", operators: ["UAE"], colors: ["#D71921", "#B79A5B"], numericFn: true },
@@ -68,19 +87,22 @@ export const AIRLINES = [
   { icao: "OMA", iata: "WY", name: "Oman Air", callsign: "OMAN AIR", country: "OM", operators: ["OMA"], colors: ["#A7804F", "#00505C"], numericFn: true },
   { icao: "SVA", iata: "SV", name: "Saudia", callsign: "SAUDIA", country: "SA", operators: ["SVA"], colors: ["#006C35", "#C5A572"], numericFn: true },
   { icao: "RJA", iata: "RJ", name: "Royal Jordanian", callsign: "JORDANIAN", country: "JO", operators: ["RJA"], colors: ["#A4855C", "#1A1A1A"], numericFn: true },
+  { icao: "KAC", iata: "KU", name: "Kuwait Airways", callsign: "KUWAITI", country: "KW", operators: ["KAC"], colors: ["#0057A8", "#00A3E0"], numericFn: true, extra: true },
+  { icao: "AIZ", iata: "IZ", name: "Arkia", callsign: "ARKIA", country: "IL", operators: ["AIZ"], colors: ["#0055A5", "#ED1C24"], numericFn: true, extra: true },
   { icao: "MEA", iata: "ME", name: "Middle East Airlines", callsign: "CEDAR JET", country: "LB", operators: ["MEA"], colors: ["#00843D", "#C8102E"], numericFn: true },
   { icao: "ELY", iata: "LY", name: "El Al", callsign: "ELAL", country: "IL", operators: ["ELY"], colors: ["#0E2A72", "#8DA2C8"], numericFn: true },
   { icao: "MSR", iata: "MS", name: "EgyptAir", callsign: "EGYPTAIR", country: "EG", operators: ["MSR"], colors: ["#1F3463", "#C9A04B"], numericFn: true },
   { icao: "RAM", iata: "AT", name: "Royal Air Maroc", callsign: "ROYALAIR MAROC", country: "MA", operators: ["RAM"], colors: ["#C1272D", "#006233"], numericFn: true },
   { icao: "TAR", iata: "TU", name: "Tunisair", callsign: "TUNAIR", country: "TN", operators: ["TAR"], colors: ["#E3001B", "#1A1A1A"], numericFn: true },
+  { icao: "LBT", iata: "BJ", name: "Nouvelair", callsign: "NOUVELAIR", country: "TN", operators: ["LBT"], colors: ["#0067B1", "#F39200"], numericFn: true, extra: true },
   { icao: "DAH", iata: "AH", name: "Air Algérie", callsign: "AIR ALGERIE", country: "DZ", operators: ["DAH"], colors: ["#E2001A", "#006233"], numericFn: true },
 ];
 
 /** ISO-2 countries treated as the Europe / EMEA short-haul region (both ends must be in it). */
 export const REGION = new Set(
   (
-    // Europe (incl. microstates, Faroe, Gibraltar, Svalbard) and the Atlantic islands via PT/ES
-    "AD AL AT BA BE BG BY CH CY CZ DE DK EE ES FI FO FR GB GG GI GR HR HU IE IM IS IT JE LI LT LU LV MC MD ME MK MT NL NO PL PT RO RS RU SE SI SJ SK SM UA VA XK " +
+    // Europe (incl. microstates, Faroe, Gibraltar, Svalbard), Greenland, and the Atlantic islands via PT/ES
+    "GL AD AL AT BA BE BG BY CH CY CZ DE DK EE ES FI FO FR GB GG GI GR HR HU IE IM IS IT JE LI LT LU LV MC MD ME MK MT NL NO PL PT RO RS RU SE SI SJ SK SM UA VA XK " +
     // Caucasus and Turkey
     "AM AZ GE TR " +
     // Middle East
@@ -91,7 +113,7 @@ export const REGION = new Set(
 );
 
 /** Bounding box (lat/lon) of the region, used to drop ADS-B points early. */
-export const BBOX = { latMin: 10, latMax: 75, lonMin: -32, lonMax: 64 };
+export const BBOX = { latMin: 10, latMax: 78, lonMin: -74, lonMax: 64 }; // west to Greenland (Qaanaaq −69°)
 
 const byOp = new Map();
 for (const a of AIRLINES) for (const op of a.operators) byOp.set(op, a);
