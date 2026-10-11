@@ -1218,7 +1218,7 @@ async function run() {
     await m.ctx.close();
   });
 
-  /* ---------- 1.6.0: Extra+ airlines listed only when Settings → Display asks for them ---------- */
+  /* ---------- Extra+ airlines listed only when Settings → Display asks for them ---------- */
   await section("extra airlines", async () => {
     const { ctx, page, errors } = await open("/?al=");
     const extras = await page.evaluate(async () => (await fetch("/data/manifest.json").then((r) => r.json())).airlines.filter((a) => a.extra).map((a) => [a.icao, a.name]));
@@ -1254,7 +1254,7 @@ async function run() {
     await ctx.close();
   });
 
-  /* ---------- 1.6.0: airports guessed from the climb-out (Pristina has no low coverage) ---------- */
+  /* ---------- airports guessed from the climb-out (Pristina has no low coverage) ---------- */
   await section("guessed airports", async () => {
     const { ctx, page, errors } = await open("/?al=EWG&dep=BKPR&arr=EDDF");
     const rows = async () => {

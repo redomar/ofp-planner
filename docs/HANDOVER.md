@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: v1.6.0 in progress on main, uncommitted→committed locally (77 airlines: 20 Extra+ brands, regional operators, Greenland; Extra+ toggle); v1.5.2 released 2026-10-10 (a flight in several favourites groups; shared journey legs kept and marked; 1.5.1: map route lines: great circle or rhumb line, Settings → Display; 1.5.0: one row per flight with per-weekday times, Brief/Finder/Board by day, logbook list redone: month table, punctuality switch, flight strips; 1.4.4: Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
+  status: unreleased work on branch feature/more-airlines, draft PR (77 airlines: 20 Extra+ brands, regional operators, Greenland; Extra+ toggle; guessed airports). It carries no version: number it at release, and rebuild public/data after merging rather than merging data files; never data:push from the branch; v1.5.2 released 2026-10-10 (a flight in several favourites groups; shared journey legs kept and marked; 1.5.1: map route lines: great circle or rhumb line, Settings → Display; 1.5.0: one row per flight with per-weekday times, Brief/Finder/Board by day, logbook list redone: month table, punctuality switch, flight strips; 1.4.4: Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 
@@ -154,7 +154,7 @@ field_derivations: docs/data-pipeline.md ("How each field is derived") — don't
 where: scripts/snapshot/ (index.mjs CLI; airlines.mjs brands/colours/region; sources/*; legs.mjs; build.mjs; route-index.mjs)
 caches: data/raw (88 MB downloads) + data/cache (493 MB; tracks/<date>.ndjson.gz per day) — gitignored, keep them.
 cached_days_now: 2026-09-20 … 2026-10-08 (data/cache ≈ 750 MB). 10-05…10-08 hold EVERY airline-style callsign
-  (marked by tracks/<date>.all, since 1.6.0); older days hold only the airlines listed when fetched. Re-fetch those
+  (marked by tracks/<date>.all, since the more-airlines work); older days hold only the airlines listed when fetched. Re-fetch those
   with --stage fetch --refresh --days N --end D to give the Extra+ brands full weeks (≈ 4.5 min/day, GitHub-capped ~4 MB/s).
 timing: fetch ≈ 4 min/day at concurrency 3 (download-bound); first Ryanair pass 15–20 min (cached 10 days); build ≈ 20 s.
 recipes:
@@ -199,11 +199,11 @@ server_latch_container_alternative: |
     (taxi-out 12 min, taxi-in 6 min); same day only (no wrap past midnight); flights with no usable time excluded.
   - Display settings (Settings → Display): airline tag solid (default) / tinted / split / edge; flight first
     (default) or airline first; aircraft badges by maker (default) or airline, fully coloured (default) or edge.
-    Airlines (1.6.0): display.airlines "common" (default) | "extra". Brands with extra: true in airlines.mjs (→ manifest
+    Airlines (Extra+): display.airlines "common" (default) | "extra". Brands with extra: true in airlines.mjs (→ manifest
     AirlineInfo.extra) are left out of pickers, useDataset("all", { extra }), Board brands and route counts unless set
     to "extra" or named explicitly (URL ?al=, favourites, logbook, brief). Helpers: listedAirline / hiddenAirlines in
     src/lib/display.ts; useManifest() in load.ts. Picker options take tag: "Extra+".
-    Guessed airports (1.6.0): legs.mjs inferEnds() (climb-out/descent cone, ≤30 NM, ±45°, 150–1200 ft/NM) runs in
+    Guessed airports: legs.mjs inferEnds() (climb-out/descent cone, ≤30 NM, ±45°, 150–1200 ft/NM) runs in
     build.mjs only when an end is unknown after the VRS fill; a second pass keeps the best candidate the brand has
     ≥3 confirmed legs at (lone unserved candidates made 737s "land" at La Gomera). Flight.inf "o"|"d"|"od";
     useDataset() drops inf rows unless display.guessed; GuessMark/guessedEnd in badges.tsx (Finder table, RouteHead).
