@@ -227,3 +227,34 @@ export function VariesMark({ f, children }: { f: FlightRow; children: ReactNode 
     </span>
   );
 }
+
+/* ---------- an airport guessed from the climb-out or descent ---------- */
+
+/** Was this end of the flight (origin "o" / destination "d") guessed rather than seen? */
+export const guessedEnd = (f: { inf?: string }, side: "o" | "d") => !!f.inf?.includes(side);
+
+/**
+ * A dashed ring next to an airport the flight was never seen at: no low-altitude ADS-B coverage
+ * there, so the airport is taken from the climb-out (origin) or descent (destination). Hover or
+ * focus explains it.
+ */
+export function GuessMark({ side, name }: { side: "o" | "d"; name?: string | null }) {
+  const where = name ?? "this airport";
+  const how = side === "o" ? `first seen climbing out, already well above the ground, and ${where} is the airport behind its climb` : `last seen descending, still well above the ground, and ${where} is the airport ahead of its descent`;
+  return (
+    <span
+      className="guess-mark"
+      tabIndex={0}
+      role="img"
+      aria-label={`${side === "o" ? "Origin" : "Destination"} guessed`}
+      data-tip={`Receivers don't see aircraft near the ground at ${where}. This flight was ${how}, among airports the airline flies to.`}
+      data-tip-title={side === "o" ? "Origin guessed" : "Destination guessed"}
+      data-tip-note="Settings → Display → Guessed airports"
+    >
+      <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true">
+        <circle cx="7" cy="7" r="5.6" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2.2 1.8" />
+        <circle cx="7" cy="7" r="1.7" fill="currentColor" />
+      </svg>
+    </span>
+  );
+}

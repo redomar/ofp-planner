@@ -6,7 +6,8 @@
  * browser caches them until a new snapshot is published. Each file is fetched at most
  * once per page load and shared by every component.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useDisplay } from "../display";
 import type { AirlineFile, AirlineInfo, AirportRow, AirportsFile, Flight, Manifest, RoutesFile } from "./types";
 
 export interface Airport {
@@ -188,7 +189,9 @@ export function useDataset(want: string[] | "all", { extra = false }: { extra?: 
       live = false;
     };
   }, [key]);
-  return state;
+  // flights with a guessed airport (Flight.inf) only when Settings → Display asks for them
+  const { guessed } = useDisplay();
+  return useMemo(() => (guessed ? state : { ...state, flights: state.flights.filter((f) => !f.inf) }), [state, guessed]);
 }
 
 /** Fetch every flight of every airline (used by search-by-id and the brief page). */

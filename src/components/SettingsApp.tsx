@@ -12,7 +12,7 @@ import { describeBackup, downloadBackup, readBackup, restoreBackup, type Backup 
 import { DEFAULT_DISPLAY, useDisplay, writeDisplay, type AirlineSet, type AirlineTagStyle, type VariesMark } from "@/lib/display";
 import { hhmm, isoDay, onDay, plannedOut, varies } from "@/lib/data/flight";
 import { DayTabs, WeekTimes } from "./WeekTimes";
-import { FlightIdent, TypeBadge } from "./badges";
+import { FlightIdent, GuessMark, TypeBadge } from "./badges";
 import { StatusLine, TopBar } from "./chrome";
 import { SavedFlights } from "./SavedFlights";
 import { CollapseProvider } from "./collapse";
@@ -269,6 +269,33 @@ function DisplayPrefs({ manifest }: { manifest: Manifest | null }) {
           ))}
         </div>
         <p className="small muted">Pickers, “all airlines” searches, the Board and route counts follow this. A link, favourite or logbook flight that names an Extra+ airline still opens it.</p>
+      </fieldset>
+
+      <fieldset className="opt-group">
+        <legend className="ctl-label">Guessed airports</legend>
+        <div className="opt-grid two">
+          {([false, true] as const).map((g) => (
+            <Opt
+              key={String(g)}
+              name="guessed"
+              checked={d.guessed === g}
+              onChange={() => writeDisplay({ guessed: g })}
+              title={g ? "Show them, marked" : "Hide them"}
+              isDefault={!g}
+              note={g ? "Also list flights whose airport is guessed, marked with a dashed ring." : "Only flights seen at both airports."}
+            >
+              <span className="guess-sample">
+                <span className="mono">BKPR</span>
+                {g ? <GuessMark side="o" name="Pristina" /> : null} <small className="muted">Pristina</small> <span aria-hidden="true">→</span> <span className="mono">EDDF</span> <small className="muted">Frankfurt</small>
+                {!g && <small className="guess-sample-off">not listed</small>}
+              </span>
+            </Opt>
+          ))}
+        </div>
+        <p className="small muted">
+          Some airports have no ADS-B coverage near the ground (Pristina, Skiathos, Zakynthos, Florence…), so their flights are only seen once airborne. The airport is then taken from the climb-out or the
+          descent, among airports the airline is seen flying to: right most of the time, but a guess. A link or favourite to such a flight still opens it.
+        </p>
       </fieldset>
 
       <fieldset className="opt-group">

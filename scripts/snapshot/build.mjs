@@ -6,7 +6,7 @@ import { createInterface } from "node:readline";
 import { createReadStream } from "node:fs";
 import { createGunzip } from "node:zlib";
 import { AIRLINES, REGION, brandForOperator } from "./airlines.mjs";
-import { resolveLeg, segment, unpack } from "./legs.mjs";
+import { inferEnds, resolveLeg, segment, unpack } from "./legs.mjs";
 import { tracksDir } from "./sources/adsblol.mjs";
 import { fetchRyanair } from "./sources/ryanair.mjs";
 import { OUT, circularMedian, ensureDir, log, mode } from "./util.mjs";
@@ -51,7 +51,27 @@ async function* readTracks(file) {
 export async function observe(dates, airports, sdRoutes, { onlyBrand = null } = {}) {
   const obs = [];
   let carry = new Map(); // hex → {pts, events} with t relative to the next day
-  let stats = { legs: 0, resolved: 0, viaSd: 0, region: 0 };
+  let stats = { legs: 0, resolved: 0, viaSd: 0, viaInfer: 0, region: 0 };
+  const pending = []; // legs with one end to infer
+  const record = (brand, op, cs, hex, o, d, r, inf, dayMs) => {
+    stats.resolved++;
+    if (!REGION.has(o.country) || !REGION.has(d.country)) return;
+    stats.region++;
+    const t0ms = dayMs + r.t0 * 1000;
+    const sec = (s) => (s == null ? null : dayMs + s * 1000);
+    obs.push({
+      brand: brand.icao,
+      op,
+      cs,
+      hex,
+      o: o.icao,
+      d: d.icao,
+      inf,
+      // weekday at the origin, local time, from OUT/OFF or first sighting
+      dow: isoDow((r.off != null ? sec(r.off) : t0ms) + (o.tz ? tzOffset(o.tz, t0ms) : 0) * 60000),
+      ms: { out: sec(r.out), off: sec(r.off), on: sec(r.on), in: sec(r.in) },
+    });
+  };
   for (const date of dates) {
     const file = join(tracksDir(), `${date}.ndjson.gz`);
     if (!existsSync(file)) continue;
@@ -86,23 +106,16 @@ export async function observe(dates, airports, sdRoutes, { onlyBrand = null } = 
             }
           }
         }
+        // still unseen (no low coverage there): candidates behind the climb-out / ahead of the
+        // descent, chosen once every day is read (see below)
+        if (!o !== !d) {
+          const side = o ? "d" : "o";
+          const cands = inferEnds(leg.pts, airports, side);
+          if (cands.length) pending.push({ brand, op, cs: leg.cs, hex, o, d, r, side, cands, p: side === "o" ? leg.pts[0] : leg.pts[leg.pts.length - 1], dayMs });
+          continue;
+        }
         if (!o || !d || o.icao === d.icao) continue;
-        stats.resolved++;
-        if (!REGION.has(o.country) || !REGION.has(d.country)) continue;
-        stats.region++;
-        const t0ms = dayMs + r.t0 * 1000;
-        const sec = (s) => (s == null ? null : dayMs + s * 1000);
-        obs.push({
-          brand: brand.icao,
-          op,
-          cs: leg.cs,
-          hex,
-          o: o.icao,
-          d: d.icao,
-          // weekday at the origin, local time, from OUT/OFF or first sighting
-          dow: isoDow((r.off != null ? sec(r.off) : t0ms) + (o.tz ? tzOffset(o.tz, t0ms) : 0) * 60000),
-          ms: { out: sec(r.out), off: sec(r.off), on: sec(r.on), in: sec(r.in) },
-        });
+        record(brand, op, leg.cs, hex, o, d, r, "", dayMs);
       }
     };
     for await (const rec of readTracks(file)) {
@@ -121,7 +134,28 @@ export async function observe(dates, airports, sdRoutes, { onlyBrand = null } = 
     carry = nextCarry;
     log(`observe ${date}: ${obs.length} observations so far`);
   }
-  log(`observe: ${stats.legs} airline legs, ${stats.resolved} with both ends (${stats.viaSd} via standing-data), ${stats.region} in region`);
+  // inferred ends: only an airport the airline is seen flying to on other flights (the likeliest
+  // such candidate). A lone unserved candidate isn't enough: approaches into Tenerife South that
+  // pass La Gomera made 737s "land" there.
+  // "seen flying to" = at least 3 confirmed legs there, so a stray nearest-airport match (an approach
+  // into Tenerife South passing La Gomera) doesn't count
+  const visits = new Map();
+  for (const ob of obs) for (const a of [ob.o, ob.d]) visits.set(`${ob.brand}|${a}`, (visits.get(`${ob.brand}|${a}`) ?? 0) + 1);
+  const serves = (brand, a) => (visits.get(`${brand}|${a.icao}`) ?? 0) >= 3;
+  for (const pl of pending) {
+    const pick = pl.cands.find((a) => serves(pl.brand.icao, a));
+    if (!pick) continue;
+    const o = pl.side === "o" ? pick : pl.o;
+    const d = pl.side === "d" ? pick : pl.d;
+    if (o.icao === d.icao) continue;
+    // OFF/ON estimated from a typical climb (2 000 ft/min) and descent (1 000 ft/min incl. approach)
+    const h = Math.max(0, pl.p.alt - (pick.elev ?? 0));
+    if (pl.side === "o") pl.r.off = pl.p.t - Math.round((h / 2000) * 60);
+    else pl.r.on = pl.p.t + Math.round((h / 1000) * 60);
+    stats.viaInfer++;
+    record(pl.brand, pl.op, pl.cs, pl.hex, o, d, pl.r, pl.side, pl.dayMs);
+  }
+  log(`observe: ${stats.legs} airline legs, ${stats.resolved} with both ends (${stats.viaSd} via standing-data, ${stats.viaInfer} inferred from the climb or descent), ${stats.region} in region`);
   return obs;
 }
 
@@ -395,6 +429,8 @@ export async function build({ dates, airports, sdRoutes, sdAirlines, types, ryan
       types: [...typeCounts.entries()].sort((a, b) => b[1] - a[1]).map(([t]) => t),
       ...timesByDay(days, list, sched),
       samples: list.length,
+      // an end that was only ever inferred from the climb-out ("o") or descent ("d"), never seen
+      ...(list.every((ob) => ob.inf) ? { inf: [...new Set(list.map((ob) => ob.inf))].sort().reverse().join("") } : {}),
     });
   }
 
