@@ -47,7 +47,7 @@ export interface AirlineInfo {
   /** Path relative to public/, e.g. "data/airlines/EZY.json". */
   file: string;
   flights: number;
-  /** One of the smaller brands added in 1.6.0, listed only when Settings → Display shows Extra+ airlines. */
+  /** One of the smaller Extra+ brands, listed only when Settings → Display shows Extra+ airlines. */
   extra?: boolean;
 }
 

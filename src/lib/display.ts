@@ -28,7 +28,7 @@ export interface Display {
   logbook: LogbookStyle;
   /** Logbook table: a punctuality bar per flight (scheduled vs flown) instead of the airports. */
   logBars: boolean;
-  /** Which airlines pickers and "all airlines" list: the common ones, or those plus the Extra+ brands added in 1.6.0. */
+  /** Which airlines pickers and "all airlines" list: the common ones, or those plus the Extra+ brands. */
   airlines: AirlineSet;
   /** List flights with an airport guessed from the climb-out or descent (Flight.inf). */
   guessed: boolean;

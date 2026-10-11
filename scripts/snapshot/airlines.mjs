@@ -12,7 +12,7 @@
 // colors:    brand colours (hex) from each airline's livery/brand guidelines; primary draws
 //            the route line, secondary is trim. Approximate where the brand uses gradients.
 // timetable: an optional public timetable source used to add flight numbers and STD/STA.
-// extra:     true for the smaller / leisure / regional brands added in 1.6.0. The app lists them
+// extra:     true for the smaller / leisure / regional brands (the "Extra+" set). The app lists them
 //            only when Settings → Display → Airlines is "Common + Extra+"; links that name one still work.
 
 export const AIRLINES = [

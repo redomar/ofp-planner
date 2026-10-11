@@ -260,7 +260,7 @@ function DisplayPrefs({ manifest }: { manifest: Manifest | null }) {
           {(
             [
               ["common", "Common", "The airlines the planner has always had: the big low-cost, leisure and network brands."],
-              ["extra", "Common + Extra+", "Also the smaller leisure, regional and island airlines added in 1.6.0 (Edelweiss, Discover, Aurigny, Air Greenland…), marked Extra+ in the pickers."],
+              ["extra", "Common + Extra+", "Also the smaller leisure, regional and island airlines added most recently (Edelweiss, Discover, Aurigny, Air Greenland…), marked Extra+ in the pickers."],
             ] as const
           ).map(([v, label, note]) => (
             <Opt key={v} name="airlines" checked={d.airlines === v} onChange={() => writeDisplay({ airlines: v })} title={label} isDefault={v === "common"} note={note}>
