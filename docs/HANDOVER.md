@@ -153,7 +153,7 @@ ids_and_urls:
 
 ## 4. Data: what exists and why
 
-snapshot_now: 57 airlines · 41,593 flights (one per weekly pattern; 1.4.4 had 69,935 rows) · 15,802 routes · 584 airports · window 2026-09-20 → 2026-10-08 (19 days)
+snapshot_now: 77 airlines (20 Extra+) · 45,332 flights (157 with a guessed airport) · 16,468 routes · 607 airports · window 2026-09-20 → 2026-10-13 (24 days); main still has 57 airlines · 41,593 flights to 10-08
 size: public/data ≈ 11 MB raw, ≈ 1.2 MB gzipped (biggest RYR.json 3.6 MB / 423 KB gz); routes.json 315 KB / 62 KB gz
 loading: manifest revalidated each visit; other files fetched with ?v=<generatedAt> (cache-friendly);
   airline files load only for selected airlines; routes.json only once an airport is chosen.
@@ -184,7 +184,7 @@ field_derivations: docs/data-pipeline.md ("How each field is derived") — don't
 
 where: scripts/snapshot/ (index.mjs CLI; airlines.mjs brands/colours/region; sources/*; legs.mjs; build.mjs; route-index.mjs)
 caches: data/raw (88 MB downloads) + data/cache (493 MB; tracks/<date>.ndjson.gz per day) — gitignored, keep them.
-cached_days_now: 2026-09-20 … 2026-10-08 (data/cache ≈ 750 MB). 10-05…10-08 hold EVERY airline-style callsign
+cached_days_now: 2026-09-20 … 2026-10-13 (data/cache ≈ 1 GB). 10-05…10-13 hold EVERY airline-style callsign
   (marked by tracks/<date>.all, since the more-airlines work); older days hold only the airlines listed when fetched. Re-fetch those
   with --stage fetch --refresh --days N --end D to give the Extra+ brands full weeks (≈ 4.5 min/day, GitHub-capped ~4 MB/s).
 timing: fetch ≈ 4 min/day at concurrency 3 (download-bound); first Ryanair pass 15–20 min (cached 10 days); build ≈ 20 s.
