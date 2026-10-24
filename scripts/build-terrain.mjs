@@ -1,6 +1,6 @@
-// Builds public/geo/terrain.json: the map's land, height bands and sea-depth bands for the region,
-// as small vector polygons the browser projects like the coastlines. Run by hand (needs network):
-//   node scripts/build-terrain.mjs            (≈ 1 min; output is committed)
+// Builds public/geo/terrain.json: the maps' land, height bands and sea-depth bands for the whole
+// globe, as small vector polygons the browser projects like the coastlines. Run by hand (needs network):
+//   node scripts/build-terrain.mjs            (≈ 3 min; output is committed)
 // Elevation: AWS Terrain Tiles (Terrarium encoding, open data; sources include SRTM, GMTED2010,
 // ETOPO1). Land: Natural Earth 1:50m (public domain), clipped to the region.
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -11,11 +11,12 @@ import { PNG } from "pngjs";
 import { feature } from "topojson-client";
 
 const require = createRequire(import.meta.url);
-const BOX = { w: -75, e: 115, s: -12, n: 85 }; // wider than any map shows, so projected edges stay filled
+const BOX = { w: -180, e: 180, s: -90, n: 90 };
 const STEP = 0.1; // grid spacing in degrees (~11 km)
 const LAND_LEVELS = [200, 500, 1000, 1500, 2000, 3000, 4000, 5000];
 const SEA_LEVELS = [200, 1000, 2000, 4000]; // depths
 const Z = 5;
+const MERC = 85.05; // the tiles stop here; the poles take the nearest row
 const N = 1 << Z;
 const Q = 100; // coordinates stored in hundredths of a degree
 
@@ -24,7 +25,7 @@ const Q = 100; // coordinates stored in hundredths of a degree
 const tx = (lon) => ((lon + 180) / 360) * N;
 const ty = (lat) => ((1 - Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360)) / Math.PI) / 2) * N;
 const x0 = Math.floor(tx(BOX.w)), x1 = Math.floor(tx(BOX.e - 1e-9));
-const y0 = Math.floor(ty(BOX.n)), y1 = Math.floor(ty(BOX.s + 1e-9));
+const y0 = Math.floor(ty(Math.min(BOX.n, MERC))), y1 = Math.floor(ty(Math.max(BOX.s, -MERC) + 1e-9));
 const MW = (x1 - x0 + 1) * 256, MH = (y1 - y0 + 1) * 256;
 const mosaic = new Float32Array(MW * MH);
 
@@ -54,6 +55,7 @@ console.log(`fetching ${jobs.length} elevation tiles (z${Z})…`);
 for (let i = 0; i < jobs.length; i += 6) await Promise.all(jobs.slice(i, i + 6).map(([x, y]) => tile(x, y)));
 
 function elev(lon, lat) {
+  lat = Math.max(-MERC + 0.01, Math.min(MERC - 0.01, lat));
   const fx = (tx(lon) - x0) * 256, fy = (ty(lat) - y0) * 256;
   const ix = Math.max(0, Math.min(MW - 2, Math.floor(fx))), iy = Math.max(0, Math.min(MH - 2, Math.floor(fy)));
   const ax = fx - ix, ay = fy - iy, i = iy * MW + ix;
@@ -80,7 +82,15 @@ function smooth(a) {
   return out;
 }
 
-const toLonLat = ([i, j]) => [BOX.w + i * STEP, BOX.n - j * STEP];
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+// Signed area on the lon/lat plane (positive = anticlockwise with north up).
+const planar = (ring) => ring.reduce((a, [x, y], k) => { const [x2, y2] = ring[(k + 1) % ring.length]; return a + x * y2 - x2 * y; }, 0) / 2;
+/**
+ * Rings are wound the way d3-geo reads them (outer clockwise, holes anticlockwise, north up), so a
+ * band bigger than a hemisphere (the open ocean) still means its planar inside.
+ */
+const wind = (poly) => poly.map((ring, k) => ((planar(ring) < 0) === (k === 0) ? ring : ring.slice().reverse()));
 
 // Douglas–Peucker on a ring (degrees)
 function simplify(pts, tol) {
@@ -109,7 +119,10 @@ function encodePolys(polys, tol, minPts = 4) {
     const rings = [];
     for (const ring of poly) {
       const s = simplify(ring, tol);
-      if (s.length < minPts) continue;
+      if (s.length < minPts) {
+        if (!rings.length) break; // a lost outer ring would turn its holes inside out
+        continue;
+      }
       const flat = [];
       let px = 0, py = 0;
       for (const [lon, lat] of s) {
@@ -119,23 +132,53 @@ function encodePolys(polys, tol, minPts = 4) {
         px = x; py = y;
       }
       if (flat.length >= minPts * 2) rings.push(flat);
+      else if (!rings.length) break;
     }
     if (rings.length) out.push(rings);
   }
   return out;
 }
 
-const bands = (values, levels) =>
-  contours().size([GW, GH]).thresholds(levels)(Array.from(values)).map((c) => ({
-    v: c.value,
-    p: encodePolys(c.coordinates.map((poly) => poly.map((ring) => ring.map(toLonLat))), 0.04),
-  }));
+/**
+ * Bands are contoured in 30° tiles, each reaching PAD grid steps into its neighbours (across ±180°
+ * too), so a map can skip the tiles it can't see and the fills overlap instead of leaving a seam.
+ * Each tile's polygons close along its own edges; the client leaves those stretches out of the
+ * contour lines. Tile bounds are stored once, in hundredths of a degree like the rings.
+ */
+const TILE = 30;
+const PAD = 2;
+const PERIOD = GW - 1; // columns 0 and GW − 1 are both ±180°
+const tiles = [];
+for (let lat = BOX.n; lat > BOX.s; lat -= TILE)
+  for (let lon = BOX.w; lon < BOX.e; lon += TILE) {
+    const i0 = Math.round((lon - BOX.w) / STEP) - PAD, i1 = Math.round((lon + TILE - BOX.w) / STEP) + PAD;
+    const j0 = Math.max(0, Math.round((BOX.n - lat) / STEP) - PAD), j1 = Math.min(GH - 1, Math.round((BOX.n - lat + TILE) / STEP) + PAD);
+    tiles.push({ i0, i1, j0, j1, b: [BOX.w + i0 * STEP, BOX.n - j1 * STEP, BOX.w + i1 * STEP, BOX.n - j0 * STEP] });
+  }
+const bands = (values, levels) => {
+  const out = levels.map((v) => ({ v, p: [], t: [] }));
+  tiles.forEach((tile, ti) => {
+    const w = tile.i1 - tile.i0 + 1, h = tile.j1 - tile.j0 + 1;
+    const sub = new Array(w * h);
+    for (let j = 0; j < h; j++)
+      for (let i = 0; i < w; i++) sub[j * w + i] = values[(tile.j0 + j) * GW + ((((tile.i0 + i) % PERIOD) + PERIOD) % PERIOD)];
+    const [lo0, la0, lo1, la1] = tile.b;
+    // polygons close along the tile's edge, which lands exactly on its bounds
+    const toLonLat = ([i, j]) => [clamp(BOX.w + (tile.i0 + i) * STEP, lo0, lo1), clamp(BOX.n - (tile.j0 + j) * STEP, la0, la1)];
+    contours().size([w, h]).thresholds(levels)(sub).forEach((c, k) => {
+      const p = encodePolys(c.coordinates.map((poly) => wind(poly.map((ring) => ring.map(toLonLat)))), 0.04);
+      out[k].p.push(...p);
+      out[k].t.push(...p.map(() => ti));
+    });
+  });
+  return out;
+};
 
 console.log("contouring…");
 const land = bands(smooth(grid), LAND_LEVELS);
 const sea = bands(smooth(neg), SEA_LEVELS);
 
-/* ---------- Natural Earth land, clipped to the box (planar clip on lon/lat) ---------- */
+/* ---------- Natural Earth land (planar lon/lat rings) ---------- */
 
 const topo = require("world-atlas/land-50m.json");
 const ne = feature(topo, topo.objects.land);
@@ -153,7 +196,7 @@ geoPath(ident, ctx)(ne);
 const landPolys = encodePolys(rings.map((r) => [r]), 0.02, 3);
 
 mkdirSync("public/geo", { recursive: true });
-const out = { q: Q, box: BOX, landLevels: LAND_LEVELS, seaLevels: SEA_LEVELS, land: landPolys, heights: land, depths: sea };
+const out = { v: 3, q: Q, box: BOX, tiles: tiles.map((t) => t.b.map((x) => Math.round(x * Q))), landLevels: LAND_LEVELS, seaLevels: SEA_LEVELS, land: landPolys, heights: land, depths: sea };
 const json = JSON.stringify(out);
 writeFileSync("public/geo/terrain.json", json);
 console.log(`public/geo/terrain.json: ${(json.length / 1024).toFixed(0)} KB (${landPolys.length} land polygons)`);

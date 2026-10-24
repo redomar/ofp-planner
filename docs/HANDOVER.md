@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: v1.5.2 released 2026-10-10 (a flight in several favourites groups; shared journey legs kept and marked; 1.5.1: map route lines: great circle or rhumb line, Settings → Display; 1.5.0: one row per flight with per-weekday times, Brief/Finder/Board by day, logbook list redone: month table, punctuality switch, flight strips; 1.4.4: Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
+  status: unreleased work on branch feature/range-rings (off main, 2026-10-23: the Range page, "Unreleased" in the changelog; feature/more-airlines is a separate draft PR); v1.5.2 released 2026-10-10 (a flight in several favourites groups; shared journey legs kept and marked; 1.5.1: map route lines: great circle or rhumb line, Settings → Display; 1.5.0: one row per flight with per-weekday times, Brief/Finder/Board by day, logbook list redone: month table, punctuality switch, flight strips; 1.4.4: Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 
@@ -39,7 +39,7 @@ commands:
 
 ## 3. Architecture (file map)
 
-pages:        # all client components; one shared TopBar (Finder · Journeys · Board · Brief · Settings tabs), fixed-height StatusLine
+pages:        # all client components; one shared TopBar (Finder · Journeys · Board · Brief · Logbook · Range · Settings tabs; 561–1080 px only the current tab shows its name), fixed-height StatusLine
   /:          src/components/FinderApp.tsx  — filters, roll bar, Flights/Destinations tabs, floating flight panel
   /journeys:  src/components/JourneysApp.tsx — multi-leg planner (form in the URL, results list + sticky detail with map and legs)
   /board:     src/components/BoardApp.tsx — Airport board (board/FidsBoard.tsx) and Gate screen (board/GateScreen.tsx + controls);
@@ -57,6 +57,20 @@ pages:        # all client components; one shared TopBar (Finder · Journeys · 
               map's active one (draw-in + plane animation already in RouteMap CSS). JSON import/export (schema "ofp-planner/logbook" v1; parseLogFile cleans untrusted input).
               /logbook?f=<flight id>[&d=date] prefills the form (FlightCard "Log this flight" on the brief and in the Finder panel). The user's own file lives outside
               the repo in ../ofp-planner-logbook/ (it has their registrations).
+  /range:     src/components/RangeApp.tsx + RangeMap.tsx + lib/range.ts — range rings for the user's sim A320s (22 variants: Fenix A319/A320/A321
+              CFM/IAE × sharklets, A321 × 0–2 ACT; FlyByWire and iniBuilds A320neo). Weights are the developers' SimBrief airframes (public
+              www.simbrief.com/api/inputs.airframes.json, "Fenix Simulations (MSFS) - …" etc.); rangeOf() = Breguet with K tuned to ~10% of Airbus
+              brochure ranges, reserves 5%/200 NM altn/30 min, −5% −40 NM. MLW (the aircraft's, not runway): LW = ZFW + all reserves incl.
+              contingency, so maxFuel() = min(tanks, MTOW − ZFW + taxi, taxi + hold + altn + 21·(MLW − ZFW − hold − altn)); maxZfw() cuts the
+              Full preset where MLW would bind at max fuel (Fenix A321: 74.8 t not 75.6), Half = halfway to that. load 3 = custom {zfw, fob|null kg}:
+              rangeOf() returns {ok:false, why} when the figures break that aircraft's OEW/MZFW/tanks/MTOW/MLW (row greyed, no ring). State in
+              "ofp-planner:range" {origin, load, custom, relief, planes, mine[] with coords} (seeded LEPA LEMD LSGG ENBR TNCM, the user's picks).
+              REFERENCE = long-haul airports outside the snapshot. Section 2 "Weight and fuel" (BuildUp): bar OEW|payload|reserves|trip|taxi with
+              MZFW/MLW/MTOW marks, sums for ZFW, FOB, TOW, LW, and a per-load table.
+              RangeMap = the site's map (baseLayers/Ground/placeLetters/useZoom/ZoomButtons from RouteMap), centred on the origin, disc
+              RANGE_NM 6000 (grows only for rings past it; airports beyond the rim aren't drawn); Terrain toggle
+              (relief, default off = parchment/blue, no lettering; on = the same bands + contours as every map). Night uses its own darker
+              palette (.range-map overrides --m-*, from the first sketch). Figure height is CSS-only (.range-map) so nothing shifts while it loads.
   /settings:  src/components/SettingsApp.tsx — airframes, Display, favourites, recent, snapshot info, theme/storage
               backup: lib/backup.ts — every "ofp-planner:*" key (+ theme, minus wx cache) as raw strings, schema "ofp-planner/backup" v1,
               gzipped with CompressionStream; restore replaces those keys (rolls back on a quota error) and reloads.
@@ -69,12 +83,20 @@ components:
                    contours, parchment land + height bands/contours, 10°/5° grid, edge degrees (no shading behind),
                    sea/country/range lettering placed with collision boxes, routes (hover = looping draw-in), dots,
                    destination codes display.mapCodes "iata" | "icao" | "off" (old boolean migrated in readDisplay); route lines display.mapLines "great" (d3 great-circle arc) | "rhumb" (trackCoords samples 49 points along the constant-heading line; planeAt follows it). Drawn at the measured pixel width.
-                   useZoom: k 0.35–12 over the fitted view (⤢ = Default view, k 1), live SVG transform during gestures, redraw ~140 ms after;
-                   two-finger scroll/pinch zoom (scroll down at k=0.35 is left to the page), pointer pinch/drag, dblclick,
+                   Disc: projection.clipAngle(mapRadius(far)) = DISC_NM 5200 (Range: 6000) or the furthest route ×1.12 + 300 NM, up to
+                   179.9° (whole globe only when routes need it); .map-space (frame minus Sphere) outside the rim; lettering kept inside
+                   (onDisc for anchors, onDiscBox for label boxes).
+                   useZoom: k kMin–12 over the fitted view (kMin = the disc fits; below k 1 the view stays centred, no pan; ⤢ = k 1),
+                   live SVG transform during gestures, redraw ~140 ms after; plain scroll stops at k 1 then scrolls the page (unless already
+                   below 1), ctrl/pinch and − go on to kMin; pointer pinch/drag, dblclick,
                    +/−/⤢ buttons top-left (the floating flight panel covers the right).
-  terrain:         public/geo/terrain.json (committed, ~490 KB) from `pnpm map:terrain`; land bands 200/500/1000/1500/2000/3000/4000/5000 m (h0–h7), sea 200/1000/2000/4000 m (d0–d3)
-                   (scripts/build-terrain.mjs: AWS Terrain Tiles z5 → 0.1° grid → d3-contour bands; Natural Earth land),
-                   loaded by src/lib/terrain.ts; outlines-50m.json still built at predev (box w-75 e115 s-12 n86).
+  terrain:         public/geo/terrain.json v3 (committed, ~1.5 MB / 510 KB gzip, whole globe) from `pnpm map:terrain` (~3 min); land bands
+                   200/500/1000/1500/2000/3000/4000/5000 m (h0–h7), sea 200/1000/2000/4000 m (d0–d3) (scripts/build-terrain.mjs: AWS Terrain
+                   Tiles z5 → 0.1° grid, poles take the 85° row → d3-contour per 30° tile with 2-step overlap, rings wound for d3 (outer
+                   clockwise) so ocean bands > a hemisphere work; Natural Earth 50m land). src/lib/terrain.ts: each polygon a Piece with a
+                   bounding cap + lazy LOD copies (0/0.1/0.25/0.6°); visible() culls to the view and picks the level by px/degree; band = fill
+                   path + contour path (tile edges left out; tile edges along parallels densified so they don't bow). Contours hidden below
+                   3 px/°. outlines-50m.json (whole globe, built at predev) is culled/simplified the same way (linePieces).
   pickers.tsx:     PlacePicker (ARIA combobox, airports + countries "C:ES"), MultiPicker, DayPicker, LengthPicker, AfterPicker
   badges.tsx:      FlightIdent/AirlineTag (4 styles), TypeBadge (maker tooltip), MoreTypes (card pile), WeekStrip
   wx/:             RouteWeather + SVG graphics (Open-Meteo forecast, VATSIM METAR)

@@ -9,18 +9,31 @@
   --casing: #152238;
   --sea: #eef3f4;
   --land-line: #7d8698;
+  /* range rings, one hue per aircraft family (variants mix towards the ink) */
+  --rr-a319: #0f7a63;
+  --rr-a320: #1f5fc4;
+  --rr-a321: #b4530b;
+  --rr-a20n: #7b3db3;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --casing: #0a0f17;
     --sea: #0f1824;
     --land-line: #8995a8;
+    --rr-a319: #3cc7a8;
+    --rr-a320: #6ea6ff;
+    --rr-a321: #f2913a;
+    --rr-a20n: #e070cb;
   }
 }
 :root[data-theme="dark"] {
   --casing: #0a0f17;
   --sea: #0f1824;
   --land-line: #8995a8;
+  --rr-a319: #3cc7a8;
+  --rr-a320: #6ea6ff;
+  --rr-a321: #f2913a;
+  --rr-a20n: #e070cb;
 }
 
 /* ---------- top bar: page tabs ---------- */
@@ -40,6 +53,7 @@
   background: var(--field);
 }
 .pagenav-tab {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -69,12 +83,30 @@
   background: var(--ink);
   color: var(--sheet);
 }
+/* narrower: only the current page keeps its name on screen (the others keep it for screen readers) */
+@media (max-width: 1080px) {
+  .pagenav-tab:not([aria-current="page"]) span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+@media (max-width: 680px) {
+  .pagenav-tab span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
 @media (max-width: 560px) {
   .pagenav-tab {
     padding: 0 9px;
-  }
-  .pagenav-tab span {
-    display: none;
   }
   .brand span {
     font-size: 15px;
@@ -1360,6 +1392,21 @@ div.empty-note p {
 }
 .map-sea {
   fill: var(--m-sea);
+}
+/* past the rim of the globe (only when zoomed right out) */
+.map-space {
+  fill: var(--sheet);
+  fill-rule: evenodd;
+  stroke: var(--rule-strong);
+  stroke-width: 1;
+  pointer-events: none;
+}
+/* a band is a fill and its contour lines; the lines leave out the cuts at ±180° and the poles */
+.map-fill {
+  stroke: none;
+}
+.map-contour {
+  fill: none;
 }
 .map-depth,
 .map-land,
@@ -5094,4 +5141,563 @@ div.empty-note p {
   border-style: solid;
   border-color: var(--magenta);
   color: var(--magenta);
+}
+
+/* ---------- range rings (/range) ---------- */
+.range-page {
+  max-width: 1280px;
+}
+.range-wait {
+  min-height: calc(100dvh - 160px);
+}
+.range-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px 18px;
+  margin: 0 0 12px;
+}
+.range-origin {
+  flex: 1 1 280px;
+  max-width: 420px;
+  min-width: 0;
+}
+.range-seg .seg {
+  margin-left: 0;
+}
+.range-seg .seg-btn {
+  padding: 0 14px;
+}
+.range-load-tip {
+  margin: 0 0 12px;
+  max-width: 90ch;
+}
+/* your own ZFW + FOB */
+.range-custom {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px 10px;
+  margin: 0 0 12px;
+}
+.range-num {
+  display: block;
+}
+.range-unit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+.range-unit .ctl-input {
+  width: 9ch;
+}
+.range-unit .ctl-input[aria-invalid="true"] {
+  border-color: var(--red);
+}
+.range-op {
+  padding-bottom: 8px;
+  font-size: 18px;
+  color: var(--ink-2);
+}
+.range-custom-help {
+  flex: 1 1 320px;
+  margin: 0;
+  padding-bottom: 2px;
+  max-width: 75ch;
+}
+.range-bad {
+  color: var(--red);
+}
+.range-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .range-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+/* the size is set here, before the map loads, so nothing below it moves */
+.range-map {
+  height: clamp(380px, 88vw, 700px);
+}
+@media (min-width: 961px) {
+  .range-map {
+    height: 700px;
+  }
+}
+/* night: the darker, cooler chart of the first range-rings sketch */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .range-map {
+    --m-sea: #0b1a24;
+    --m-d0: #0a1720;
+    --m-d1: #09141c;
+    --m-d2: #071118;
+    --m-d3: #060e14;
+    --m-land: #1c262d;
+    --m-h0: #212b32;
+    --m-h1: #252f36;
+    --m-h2: #29333a;
+    --m-h3: #2e373e;
+    --m-h4: #333b42;
+    --m-h5: #383f45;
+    --m-h6: #3d4449;
+    --m-h7: #43494d;
+    --m-grat: rgba(227, 233, 237, 0.09);
+    --m-grat-minor: rgba(227, 233, 237, 0.04);
+    --m-sea-text: #7f98ab;
+    --m-cty-text: #8c9aa5;
+    --m-rng-text: #a39a86;
+    --land-line: #4a5a66;
+    background: var(--m-sea);
+  }
+}
+:root[data-theme="dark"] .range-map {
+  --m-sea: #0b1a24;
+  --m-d0: #0a1720;
+  --m-d1: #09141c;
+  --m-d2: #071118;
+  --m-d3: #060e14;
+  --m-land: #1c262d;
+  --m-h0: #212b32;
+  --m-h1: #252f36;
+  --m-h2: #29333a;
+  --m-h3: #2e373e;
+  --m-h4: #333b42;
+  --m-h5: #383f45;
+  --m-h6: #3d4449;
+  --m-h7: #43494d;
+  --m-grat: rgba(227, 233, 237, 0.09);
+  --m-grat-minor: rgba(227, 233, 237, 0.04);
+  --m-sea-text: #7f98ab;
+  --m-cty-text: #8c9aa5;
+  --m-rng-text: #a39a86;
+  --land-line: #4a5a66;
+  background: var(--m-sea);
+}
+.range-guides path {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 0.9;
+  stroke-dasharray: 2 4;
+  opacity: 0.7;
+}
+.range-guides text {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  fill: var(--ink-2);
+  paint-order: stroke;
+  stroke: var(--m-sea);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+.range-ring path {
+  fill: none;
+  stroke-linejoin: round;
+  pointer-events: none;
+  transition: opacity 0.15s, stroke-width 0.15s;
+}
+.range-casing {
+  stroke: var(--casing);
+  stroke-width: 4.2;
+  opacity: 0.5;
+}
+.range-line {
+  stroke-width: 2.2;
+}
+.range-ring.dim path {
+  opacity: 0.22;
+}
+.range-ring.hot .range-casing {
+  stroke-width: 6.5;
+  opacity: 0.9;
+}
+.range-ring.hot .range-line {
+  stroke-width: 3.6;
+}
+.range-pt.out .map-dot {
+  fill: var(--sheet);
+}
+.range-pt.in .map-dot {
+  fill: var(--ink);
+}
+.range-pt:not(.mine) text {
+  font-weight: 500;
+  font-size: 10.5px;
+  fill: var(--ink-2);
+}
+.range-pt.mine .map-dot {
+  stroke: var(--blue);
+  stroke-width: 2.2;
+}
+.range-pt.mine.in .map-dot {
+  fill: var(--blue);
+}
+.range-pt.mine text {
+  fill: var(--blue);
+}
+.range-pt:focus-visible .map-dot {
+  stroke: var(--focus);
+  stroke-width: 3;
+}
+.range-home .map-dot {
+  fill: var(--magenta);
+  stroke: var(--sheet);
+  stroke-width: 2;
+}
+.range-home text {
+  fill: var(--magenta);
+}
+.range-hint {
+  margin: 10px 0 0;
+  max-width: 80ch;
+}
+
+/* the aircraft list beside the map */
+.range-rack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.range-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.range-fam {
+  margin: 0;
+  padding: 6px 0 4px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--sheet);
+  min-width: 0;
+}
+.range-fam legend {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 0 6px;
+  margin-left: 6px;
+  font-family: var(--font-cond);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.range-fam legend .mono {
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 400;
+}
+.range-row {
+  display: grid;
+  grid-template-columns: auto 24px minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  align-items: center;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.range-row:hover {
+  background: var(--sunk);
+}
+.range-row.on {
+  color: var(--ink);
+}
+.range-row input {
+  margin: 0;
+  accent-color: var(--ink);
+}
+.range-sw line {
+  stroke: var(--c);
+  stroke-width: 3;
+  stroke-linecap: butt;
+}
+.range-row:not(.on) .range-sw {
+  opacity: 0.45;
+}
+.range-row.blocked {
+  cursor: not-allowed;
+  color: var(--ink-3);
+}
+.range-row.blocked .range-sw {
+  opacity: 0.3;
+}
+.range-why {
+  grid-column: 3 / -1;
+  color: var(--red);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+.range-key {
+  margin: 0;
+}
+.range-name {
+  min-width: 0;
+}
+.range-val {
+  text-align: right;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.range-val small {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+/* your airports */
+.range-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  align-items: end;
+}
+.range-add-pick {
+  flex: 1 1 260px;
+  max-width: 420px;
+  min-width: 0;
+}
+.range-add-own {
+  min-width: 0;
+}
+.range-add-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.range-add-fields .ctl-input {
+  width: 13ch;
+}
+.range-add-fields .ctl-input:first-child {
+  width: 7ch;
+  text-transform: uppercase;
+}
+.range-msg {
+  min-height: 1.5em;
+  margin: 8px 0;
+  color: var(--ink-2);
+}
+.range-tbl td {
+  vertical-align: middle;
+}
+.range-tbl tr.is-origin td {
+  background: var(--magenta-bg);
+}
+.range-reach {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.range-reach i {
+  width: 12px;
+  height: 4px;
+  border-radius: 1px;
+  background: var(--c);
+}
+.range-reach .mono {
+  margin-right: 4px;
+}
+.range-acts {
+  white-space: nowrap;
+  text-align: right;
+}
+.range-acts .chip + .chip {
+  margin-left: 4px;
+}
+.range-acts .chip[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+.range-weights .is-load,
+.range-loads tr.is-load td {
+  background: var(--sunk);
+}
+.range-cell b,
+.range-cell small {
+  display: block;
+  white-space: nowrap;
+}
+.range-cell small {
+  color: var(--ink-3);
+}
+.range-weights caption,
+.range-loads caption {
+  caption-side: top;
+  text-align: left;
+  padding: 0 0 6px;
+}
+.range-weights td small {
+  font-size: 11px;
+}
+.range-notes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px 24px;
+  margin: 14px 0 0;
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+.range-notes p {
+  margin: 0;
+  max-width: 70ch;
+}
+.range-notes b {
+  color: var(--ink);
+}
+/* weight and fuel: the stack, the sums, and the three payloads for one aircraft */
+.range-build {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.range-build-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px 18px;
+}
+.range-build-head p {
+  flex: 1 1 300px;
+  margin: 0;
+  padding-bottom: 8px;
+  max-width: 75ch;
+}
+.range-build-pick {
+  flex: 0 1 300px;
+  min-width: 0;
+}
+.range-bar {
+  position: relative;
+  height: 30px;
+  margin: 18px 0 16px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--sheet);
+}
+.range-bar .rb {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+.rb.oew {
+  background: var(--ink-3);
+}
+.rb.pay {
+  background: var(--ink);
+}
+.rb.trip {
+  background: var(--blue);
+}
+.rb.res {
+  background: color-mix(in srgb, var(--blue) 45%, var(--sheet));
+}
+.rb.taxi {
+  background: var(--amber);
+}
+.rb.fuel {
+  background: repeating-linear-gradient(135deg, var(--red) 0 4px, transparent 4px 8px);
+}
+.rb-mark {
+  position: absolute;
+  top: -18px;
+  bottom: -4px;
+  width: 0;
+  border-left: 2px solid var(--magenta);
+}
+.rb-mark i {
+  position: absolute;
+  top: 0;
+  left: 4px;
+  font-style: normal;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1;
+  color: var(--ink);
+  white-space: nowrap;
+}
+/* MLW sits close to the MZFW on some aircraft: its name goes under the bar */
+.rb-mark.low {
+  top: -4px;
+  bottom: -18px;
+}
+.rb-mark.low i {
+  top: auto;
+  bottom: 0;
+}
+.range-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--ink-2);
+}
+.range-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.range-legend .rb {
+  display: inline-block;
+  width: 14px;
+  height: 10px;
+  border-radius: 1px;
+}
+.range-sum {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  font-size: 13px;
+}
+.range-sum div {
+  display: grid;
+  grid-template-columns: 5ch minmax(0, 1fr);
+  gap: 10px;
+}
+.range-sum dt {
+  font-weight: 600;
+  color: var(--ink);
+}
+.range-sum dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin: 0;
+  color: var(--ink-2);
+}
+.range-sum b {
+  color: var(--ink);
+}
+.range-lim {
+  padding: 0 6px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.range-lim.range-bad {
+  border-color: var(--red);
+}
+.range-verdict {
+  margin: 0;
+  max-width: 90ch;
+}
+@media (prefers-reduced-motion: reduce) {
+  .range-ring path {
+    transition: none;
+  }
 }

@@ -1,4 +1,4 @@
-/** Map lettering: seas and oceans, countries, mountain ranges (anchor points in lon/lat). */
+/** Map lettering: seas and oceans, countries, mountain ranges across the globe (anchor points in lon/lat). */
 
 /** [name, lon, lat, font size px, letter-spacing em] */
 export const SEAS: [string, number, number, number, number][] = [
@@ -14,6 +14,17 @@ export const SEAS: [string, number, number, number, number][] = [
   ["Persian Gulf", 51.5, 26.8, 11, 0.16],
   ["Aegean Sea", 25, 38.6, 10, 0.14],
   ["Tyrrhenian Sea", 12, 39.8, 10, 0.14],
+  ["SOUTH ATLANTIC OCEAN", -15, -20, 14, 0.3],
+  ["INDIAN OCEAN", 75, -10, 14, 0.3],
+  ["PACIFIC OCEAN", -140, 25, 14, 0.3],
+  ["ARCTIC OCEAN", 0, 85, 13, 0.3],
+  ["Arabian Sea", 64, 15, 12, 0.18],
+  ["Bay of Bengal", 88, 14, 11, 0.16],
+  ["Caribbean Sea", -75, 15, 12, 0.18],
+  ["Gulf of Mexico", -90, 25, 11, 0.16],
+  ["Hudson Bay", -86, 59, 11, 0.16],
+  ["Labrador Sea", -55, 58.5, 11, 0.16],
+  ["Gulf of Guinea", 2, 1.5, 11, 0.16],
 ];
 
 /** [NAME, lon, lat] */
@@ -42,6 +53,16 @@ export const COUNTRIES: [string, number, number][] = [
   ["IRELAND", -8, 53.1],
   ["PORTUGAL", -8.1, 39.4],
   ["UNITED KINGDOM", -2.6, 54.4],
+  ["UNITED STATES", -99, 39],
+  ["CANADA", -100, 56],
+  ["GREENLAND", -41, 73],
+  ["BRAZIL", -52, -10],
+  ["INDIA", 79, 22],
+  ["CHINA", 102, 34],
+  ["KAZAKHSTAN", 67, 48],
+  ["SUDAN", 30, 15],
+  ["NIGERIA", 8, 9.5],
+  ["KENYA", 38, 0.5],
 ];
 
 /** [name, lon1, lat1, lon2, lat2]: set along the line between the two points. */
@@ -55,4 +76,13 @@ export const RANGES: [string, number, number, number, number][] = [
   ["Scandinavian Mountains", 11, 62, 17.5, 67.8],
   ["Taurus Mountains", 30.5, 37, 36.5, 37.7],
   ["Apennines", 11, 44.3, 15.6, 40.8],
+  ["Himalaya", 78, 33, 92, 27.8],
+  ["Hindu Kush", 67.5, 35, 73, 36.6],
+  ["Tian Shan", 74, 41.5, 84, 43],
+  ["Ural Mountains", 59, 52.5, 60.5, 61.5],
+  ["Ethiopian Highlands", 37, 13, 40, 7.5],
+  ["Rocky Mountains", -117, 52, -106, 38],
+  ["Appalachians", -84, 34.5, -76, 40.5],
+  ["Andes", -79, -2, -70, -20],
 ];
+

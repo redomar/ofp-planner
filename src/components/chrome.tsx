@@ -69,6 +69,13 @@ const ICONS = {
       <path d="M8.5 3.5v17M11.5 9.5l2.2 1.2 2.6-3.2M11.5 14.5h4.5" />
     </>
   ),
+  range: (
+    <>
+      <circle cx="12" cy="12" r="1.6" />
+      <circle cx="12" cy="12" r="5.5" strokeDasharray="2.2 1.6" />
+      <circle cx="12" cy="12" r="9.5" />
+    </>
+  ),
   settings: (
     <>
       <circle cx="12" cy="12" r="3" />
@@ -86,6 +93,7 @@ export function PageNav({ finderHref = "/" }: { finderHref?: string }) {
     ["board", "Board", "/board", "/board"],
     ["brief", "Brief", "/brief", "/brief"],
     ["logbook", "Logbook", "/logbook", "/logbook"],
+    ["range", "Range", "/range", "/range"],
     ["settings", "Settings", "/settings", "/settings"],
   ] as const;
   return (

@@ -739,7 +739,7 @@ async function run() {
   });
 
   /* ---------- every page × width × theme ---------- */
-  const pages = ["/?al=EZY&dep=EGKK", "/?al=EZY&dep=EGKK&view=places", "/?al=&view=places&cc=GB", "/?al=&dep=EGBB&arr=LOWI", "/?al=&dep=LEMD&arr=C:ES&view=map", "/brief", "/settings", "/journeys", "/journeys?from=EGBB&to=LOWI&legs=5", "/journeys?from=EGBB&via=EHAM&to=LEMD&t=1&sort=quickest", "/board", "/board?ap=EGKK&h=12"];
+  const pages = ["/?al=EZY&dep=EGKK", "/?al=EZY&dep=EGKK&view=places", "/?al=&view=places&cc=GB", "/?al=&dep=EGBB&arr=LOWI", "/?al=&dep=LEMD&arr=C:ES&view=map", "/brief", "/settings", "/journeys", "/journeys?from=EGBB&to=LOWI&legs=5", "/journeys?from=EGBB&via=EHAM&to=LEMD&t=1&sort=quickest", "/board", "/board?ap=EGKK&h=12", "/range"];
   for (const theme of ["light", "dark"])
     for (const width of [1280, 390])
       for (const path of pages) {
@@ -748,6 +748,7 @@ async function run() {
         if (path === "/brief") await page.waitForTimeout(300);
         if (path.startsWith("/journeys?")) await page.waitForSelector(".jr-detail .jr-leg", { timeout: 60000 });
         if (path.startsWith("/board?")) await page.waitForSelector(".fids-tbl tbody tr", { timeout: 30000 });
+        if (path === "/range") await page.waitForSelector(".range-ring", { timeout: 20000 });
         await checkPage(`${path} ${width}px ${theme}`, page, errors);
         await ctx.close();
       }
@@ -1216,6 +1217,106 @@ async function run() {
     await m.page.waitForSelector(".fl-shared");
     await checkPage("settings shared favourites 390 dark", m.page, m.errors);
     await m.ctx.close();
+  });
+
+  /* ---------- range rings: origin, payload, your airports ---------- */
+  await section("range", async () => {
+    const { ctx, page, errors } = await open("/range");
+    await page.waitForSelector(".range-ring", { timeout: 20000 });
+    const rings = await page.locator(".range-ring").count();
+    const mine = await page.locator("#range-mine .range-tbl tbody tr").count();
+    rings === 6 && mine === 5 ? pass("range: six base rings and the five seeded airports (LEPA LEMD LSGG ENBR TNCM)") : fail(`range: rings ${rings} airports ${mine}`);
+    // terrain is off by default (plain land and sea), and on draws bands across the whole globe
+    const bandsOff = await page.locator(".range-map .map-height, .range-map .map-depth").count();
+    await page.getByRole("radio", { name: "On", exact: true }).click();
+    await page.waitForFunction(() => document.querySelectorAll(".range-map .map-height").length >= 8, null, { timeout: 15000 }).catch(() => {});
+    const bandsOn = await page.locator(".range-map .map-height").count();
+    const contourOn = ((await page.locator(".range-map .map-height .map-contour").first().getAttribute("d")) ?? "").length;
+    bandsOff === 0 && bandsOn >= 8 && contourOn > 0
+      ? pass(`range: terrain off by default; on draws the site's bands with contour lines (${bandsOn} height layers)`)
+      : fail(`range: terrain off ${bandsOff} on ${bandsOn} contour ${contourOn}`);
+    // zoom out to the chart's disc (6,000 NM round the origin, not the whole globe): its rim comes into view, centred
+    const zout = page.locator(".range-map .map-zbtn[aria-label='Zoom out']");
+    for (let i = 0; i < 10 && !(await zout.isDisabled()); i++) await zout.click();
+    await page.waitForTimeout(400);
+    const rim = await page.evaluate(() => {
+      const fig = document.querySelector(".range-map").getBoundingClientRect();
+      const hub = document.querySelector(".range-home").getBoundingClientRect();
+      return { space: (document.querySelector(".range-map .map-space")?.getAttribute("d") ?? "").split("M").length, dx: hub.x + hub.width / 2 - (fig.x + fig.width / 2) };
+    });
+    (await zout.isDisabled()) && rim.space > 2 && Math.abs(rim.dx) < 40
+      ? pass(`range: zooms out to its 6,000 NM disc, the origin in the middle (${rim.dx.toFixed(0)} px off centre)`)
+      : fail(`range: globe zoom ${JSON.stringify(rim)}`);
+    await page.locator(".range-map .map-zreset").click();
+    await page.getByRole("radio", { name: "Off", exact: true }).click();
+    // the model: Fenix A320 CFM at full payload is MTOW-limited to 12.7 t and about 1,840 NM
+    await page.getByRole("radio", { name: "Full" }).click();
+    const a320 = (await page.locator(".range-fam", { hasText: "Fenix A320" }).locator(".range-row").first().innerText()).replace(/\s+/g, " ");
+    /1,840 NM/.test(a320) && /61\.0 \+ 12\.7 t/.test(a320) ? pass(`range: full payload limits the A320 by MTOW (${a320})`) : fail(`range: A320 full ${a320}`);
+    // your own ZFW + FOB: each aircraft checks them against its own limits
+    await page.getByRole("radio", { name: "Custom" }).click();
+    await page.locator("#range-zfw").fill("60");
+    await page.locator("#range-fob").fill("15");
+    const why319 = await page.locator(".range-fam", { hasText: "Fenix A319" }).locator(".range-row.blocked").count();
+    const why320 = await page.locator(".range-fam", { hasText: "Fenix A320" }).locator(".range-why").first().innerText();
+    const ok321 = (await page.locator(".range-fam", { hasText: "Fenix A321" }).locator(".range-row").first().innerText()).replace(/\s+/g, " ");
+    const customRings = await page.locator(".range-ring").count();
+    why319 === 4 && /MTOW/.test(why320) && /60\.0 \+ 15\.0 t/.test(ok321) && customRings === 4
+      ? pass(`range: custom 60 t + 15 t greys out the A319 (MZFW) and A320 (MTOW), flies the A321 (${ok321})`)
+      : fail(`range: custom 319 ${why319} / 320 ${why320} / 321 ${ok321} / rings ${customRings}`);
+    const build = (await page.locator(".range-loads").innerText()).replace(/\s+/g, " ");
+    /Full 58\.5 17\.2 75\.5 \d+\.\d The MTOW/.test(build) ? pass("range: the weight panel lists ZFW, FOB, TOW and LW for each payload") : fail(`range: build ${build.slice(0, 160)}`);
+    await page.locator(".range-build-pick select").selectOption("fnx-a321-cfm");
+    const a321 = (await page.locator(".range-loads").innerText()).replace(/\s+/g, " ");
+    /Full 74\.8 18\.6 93\.2 77\.8 Full tanks · payload cut for the MLW/.test(a321)
+      ? pass("range: the A321's full payload is cut to 74.8 t so it lands within its 77.8 t MLW")
+      : fail(`range: A321 MLW ${a321.slice(0, 200)}`);
+    await page.locator("#range-zfw").fill("75");
+    await page.locator("#range-fob").fill("18");
+    const mlwWhy = await page.locator(".range-fam", { hasText: "Fenix A321" }).locator(".range-row").first().innerText();
+    /MLW/.test(mlwWhy) ? pass("range: custom 75 t + 18 t greys out the A321: it would land over its MLW") : fail(`range: custom MLW ${mlwWhy.replace(/\s+/g, " ")}`);
+    await page.getByRole("radio", { name: "Full" }).click();
+    // origin from the picker
+    const origin = page.getByRole("combobox", { name: "Origin" });
+    await origin.click();
+    await origin.fill("LEMD");
+    await page.keyboard.press("Enter");
+    const meta = await page.locator("#range-map .sheet-meta").innerText();
+    const home = await page.locator(".range-home text").textContent();
+    /LEMD/.test(meta) && home === "LEMD" ? pass("range: the origin picker re-centres the map") : fail(`range: origin ${meta} / ${home}`);
+    // an airport by position, then hover it for which aircraft reach it
+    await page.locator("#range-own-icao").fill("ZZZZ");
+    await page.locator("#range-own-lat").fill("28.0");
+    await page.locator("#range-own-lon").fill("-15.4");
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    const added = await page.locator("#range-mine .range-tbl tbody tr", { hasText: "ZZZZ" }).innerText();
+    /NM/.test(added) && /6\/6/.test(added) ? pass(`range: an airport added by position is measured and in reach (${added.replace(/\s+/g, " ").slice(0, 40)})`) : fail(`range: added ${added}`);
+    await page.locator(".range-map").scrollIntoViewIfNeeded();
+    await page.waitForTimeout(400);
+    await page.locator('.range-pt[aria-label^="ZZZZ"] .map-hit').hover();
+    await page.waitForTimeout(250);
+    const tip = await page.locator("#ofp-tip").innerText();
+    /from LEMD/.test(tip) && (tip.match(/\bIN\b/g) ?? []).length === 6 ? pass("range: a dot's tooltip lists each aircraft shown as in reach") : fail(`range: tip ${tip.replace(/\s+/g, " ")}`);
+    // nothing in the tooltip runs out of its box (long names like "A321 IAE · sharklets · 2 ACT" wrap)
+    await page.locator(".range-quick button", { hasText: "All" }).click();
+    await page.locator('.range-pt[aria-label^="ZZZZ"] .map-hit').hover();
+    await page.waitForTimeout(250);
+    const spill = await page.evaluate(() => {
+      const tip = document.getElementById("ofp-tip").getBoundingClientRect();
+      return [...document.querySelectorAll("#ofp-tip .tip-row > span")].filter((el) => el.getBoundingClientRect().right > tip.right + 0.5 || el.scrollWidth > el.clientWidth + 1).length;
+    });
+    const rowsAll = await page.locator("#ofp-tip .tip-row").count();
+    spill === 0 && rowsAll === 22 ? pass(`range: all ${rowsAll} tooltip rows fit inside the tooltip`) : fail(`range: ${spill} of ${rowsAll} tooltip rows spill out`);
+    await page.locator(".range-quick button", { hasText: "Base models" }).click();
+    // clicking a dot makes it the origin; everything survives a reload
+    await page.locator('.range-pt[aria-label^="ZZZZ"] .map-hit').click();
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForSelector(".range-ring");
+    const after = await page.locator("#range-map .sheet-meta").innerText();
+    /ZZZZ · full payload/.test(after) ? pass("range: clicking a dot makes it the origin, kept with the payload after a reload") : fail(`range: after reload ${after}`);
+    await shot(page, "range");
+    errors.length ? fail(`range: console errors ${JSON.stringify(errors.slice(0, 2))}`) : pass("range: 0 console errors");
+    await ctx.close();
   });
 
   /* ---------- night screenshots ---------- */
