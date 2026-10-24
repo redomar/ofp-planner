@@ -692,8 +692,19 @@ function DataInfo({ manifest, error }: { manifest: Manifest | null; error: strin
                   Natural Earth
                 </a>
               </td>
-              <td>Map elevation (height and depth contours) and land, coastlines and borders, built into the site</td>
+              <td>Map elevation (height and depth contours) and land, coastlines and borders for the whole globe, built into the site</td>
               <td className="hide-s">Open data (SRTM, GMTED2010, ETOPO1…) · public domain</td>
+              <td className="mono hide-xs">build</td>
+            </tr>
+            <tr>
+              <td>
+                <a href="https://www.simbrief.com/" target="_blank" rel="noopener noreferrer">
+                  SimBrief
+                </a>{" "}
+                airframes
+              </td>
+              <td>Aircraft weights on the Range page (OEW, MZFW, MTOW, MLW, tanks): Fenix, FlyByWire and iniBuilds&apos; own airframes, built into the site</td>
+              <td className="hide-s">© Navigraph and the developers</td>
               <td className="mono hide-xs">build</td>
             </tr>
           </tbody>

@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 interface TipRow {
   chip: { label: string; color: string; ink: string };
   text: string;
+  /** Characters to indent the text's wrapped lines by (a hanging indent under a leading column). */
+  hang?: number;
 }
 
 const parseRows = (v: string | null): TipRow[] => {
@@ -132,7 +134,7 @@ export function TooltipLayer() {
           <span className="tip-chip" style={{ background: r.chip.color, color: r.chip.ink }}>
             {r.chip.label}
           </span>
-          <span>{r.text}</span>
+          <span style={r.hang ? { paddingLeft: `${r.hang}ch`, textIndent: `-${r.hang}ch` } : undefined}>{r.text}</span>
         </span>
       ))}
       {!!tip?.chips.length && (

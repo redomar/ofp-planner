@@ -692,9 +692,12 @@ main {
   text-align: center;
 }
 #ofp-tip .tip-row > span:last-child {
+  min-width: 0;
   font-family: var(--font-mono);
   font-size: 12px;
-  white-space: pre;
+  /* keeps the spacing rows align with, but wraps inside the box instead of running out of it */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 #ofp-tip .tip-note {
   display: block;
