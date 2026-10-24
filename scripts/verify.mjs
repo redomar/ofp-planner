@@ -548,8 +548,12 @@ async function run() {
     const at = await page.locator(".jr-tim-tbl tbody tr").count();
     const dates = await page.locator(".jr-tim-date").allTextContents();
     const out1 = await page.locator(".jr-times").first().textContent();
-    await page.locator(".jr-tim-tbl tbody tr").nth(5).click();
-    const out2 = await page.locator(".jr-times").first().textContent();
+    // pick the first date whose times differ (some weekdays fly the same times, so a fixed row depends on today)
+    let out2 = out1;
+    for (let i = 1; i < at && out2 === out1; i++) {
+      await page.locator(".jr-tim-tbl tbody tr").nth(i).click();
+      out2 = await page.locator(".jr-times").first().textContent();
+    }
     const href = await page.locator(".jr-leg-acts a", { hasText: "Brief" }).first().getAttribute("href");
     at >= 8 && /today|tomorrow/.test(dates[0]) && out1 !== out2 && /&d=\d{4}-\d{2}-\d{2}/.test(href) ? pass(`journeys: timings table, soonest first (${dates[0]}); a picked date sets the legs and the brief date`) : fail(`journeys: timings ${at} ${dates[0]} ${out1}/${out2} ${href}`);
     await page.locator(".jr-tim-tbl thead button", { hasText: "Duty" }).click();
