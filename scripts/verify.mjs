@@ -895,8 +895,11 @@ async function run() {
     wedAfter === 1 && monAfter === 0 && eitherAfter === 1
       ? pass("per-day: After 08:20Z uses the chosen day's times (Wed 08:30 in, Mon 07:35 out, Mon+Wed in)")
       : fail(`per-day: after by day wed ${wedAfter} mon ${monAfter} either ${eitherAfter}`);
-    // the brief: Monday 12 Oct shows Monday's times and highlights Monday in the week table
-    await page.goto(`${base}/brief?f=${FR}&d=2026-10-12`, { waitUntil: "networkidle" });
+    // the brief: the next Monday shows Monday's times and highlights Monday in the week table
+    // (a date in the past is ignored by design, so this can't be a fixed date)
+    const monday = new Date();
+    monday.setUTCDate(monday.getUTCDate() + ((8 - monday.getUTCDay()) % 7 || 7));
+    await page.goto(`${base}/brief?f=${FR}&d=${monday.toISOString().slice(0, 10)}`, { waitUntil: "networkidle" });
     await page.waitForSelector(".week-tbl tr.cur");
     const cur = (await page.locator(".week-tbl tr.cur th").textContent())?.trim();
     const oooiOut = (await page.locator(".oooi").first().locator("tbody tr").first().locator("td").first().textContent())?.trim();

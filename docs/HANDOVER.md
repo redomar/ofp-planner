@@ -97,6 +97,15 @@ components:
                    bounding cap + lazy LOD copies (0/0.1/0.25/0.6°); visible() culls to the view and picks the level by px/degree; band = fill
                    path + contour path (tile edges left out; tile edges along parallels densified so they don't bow). Contours hidden below
                    3 px/°. outlines-50m.json (whole globe, built at predev) is culled/simplified the same way (linePieces).
+  AircraftProfile.tsx (NOT USED YET, prepared for a release): A320-family side view in any paint. Shapes in src/lib/profile.ts
+                   (pure, no React: drawAircraft() → parts in metres, aircraftSvg() string for scripts); nose, tail cone, fin,
+                   tailplane, doors, exits and engine positions measured from "Airbus A32X family v1.0" (Wikimedia Commons,
+                   CC BY-SA 3.0); airframe = {type A319|A320|A321, engine CFM|IAE|LEAP, sharklets} (ACT doesn't change the outline).
+                   Paint slots (SLOTS, 11): body, belly, cheatline, nose, tail, tailAccent, tailStripes, tailHoist, tailMark
+                   (cross|disc|bar), engines, wingtips; only body + tail required. layout: bellySplit, cheatlineY/Height;
+                   fixed: metal, metalDark, glass, lip, line. Clip ids via useId (two on a page must not share them).
+                   src/lib/liveries.ts: LIVERIES by ICAO airline (EZY, WZZ, SWR, UAE so far), preliminary, colours only.
+                   Previews: ../ofp-planner-previews/aircraft (node --experimental-strip-types liveries.mts renders from src).
   pickers.tsx:     PlacePicker (ARIA combobox, airports + countries "C:ES"), MultiPicker, DayPicker, LengthPicker, AfterPicker
   badges.tsx:      FlightIdent/AirlineTag (4 styles), TypeBadge (maker tooltip), MoreTypes (card pile), WeekStrip
   wx/:             RouteWeather + SVG graphics (Open-Meteo forecast, VATSIM METAR)
