@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.1 — 2026-10-29
+
+- **Security: Next.js 16.3.6 → 16.4.3.** 16.0 to 16.4.0 have two critical advisories ([GHSA-2464-fhr4-w9xw](https://github.com/advisories/GHSA-2464-fhr4-w9xw), [GHSA-673q-mjm6-r5xr](https://github.com/advisories/GHSA-673q-mjm6-r5xr)) and a high one. The planner is a static export and uses neither the image optimiser nor `use cache`, so it wasn't exposed, but the build no longer stops on the warning. No change to how the planner works.
+
 ## 1.6.0 — 2026-10-24
 
 - **Range** page (new tab): how far each sim A320 can go from an airport, as a ring per aircraft on the chart. Every Fenix A319, A320 and A321 variant (CFM or IAE, with or without sharklets, the A321 with 0, 1 or 2 extra centre tanks) and the FlyByWire and iniBuilds A320neo.
