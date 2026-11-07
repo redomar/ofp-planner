@@ -15,6 +15,7 @@ import { useJourneySearch } from "@/lib/journey/useSearch";
 import type { JourneyData } from "@/lib/journey/worker";
 import { countryName, placeOptions } from "@/lib/places";
 import { saveJourney, type SavedJourney } from "@/lib/saved";
+import { hiddenAirlines, listedAirline, useDisplay } from "@/lib/display";
 import { defaultChoice, flightDispatch, simbriefUrl, typeChoices, useAirframes } from "@/lib/simbrief";
 import { AirlineTag, FlightIdent, TypeBadge } from "./badges";
 import { StatusLine, TopBar } from "./chrome";
@@ -52,7 +53,8 @@ export function JourneysApp() {
   }, []);
 
   const timed = plan.timing === "timed";
-  const data = useDataset(ready && timed ? (plan.al.length ? plan.al : "all") : []);
+  const airlineSet = useDisplay().airlines;
+  const data = useDataset(ready && timed ? (plan.al.length ? plan.al : "all") : [], { extra: airlineSet === "extra" });
   const { manifest, airports, airlines } = data;
   const [routes, setRoutes] = useState<Awaited<ReturnType<typeof loadRoutes>> | null>(null);
   useEffect(() => {
@@ -94,27 +96,31 @@ export function JourneysApp() {
   const placeOpts = useMemo(() => {
     if (!routes || !airports) return [];
     const counts = new Map<string, number>();
+    const hidden = hiddenAirlines(manifest, airlineSet, plan.al);
     for (const [o, ds] of Object.entries(routes))
       for (const [d, byAl] of Object.entries(ds)) {
-        const n = Object.values(byAl).reduce((s, x) => s + x, 0);
+        const n = Object.entries(byAl).reduce((s, [al, x]) => (hidden.has(al) ? s : s + x), 0);
+        if (!n) continue;
         counts.set(o, (counts.get(o) ?? 0) + n);
         counts.set(d, (counts.get(d) ?? 0) + n);
       }
     return placeOptions(counts, airports);
-  }, [routes, airports]);
+  }, [routes, airports, manifest, airlineSet, plan.al]);
 
   const airlineOpts = useMemo<MultiOption[]>(
     () =>
       (manifest?.airlines ?? [])
+        .filter((a) => listedAirline(a, airlineSet, plan.al))
         .map((a) => ({
           value: a.icao,
           label: a.name,
           detail: [a.iata, a.icao].filter(Boolean).join(" / "),
           swatch: routeColor(a),
+          tag: a.extra ? "Extra+" : undefined,
           count: a.flights,
         }))
         .sort((a, b) => a.label.localeCompare(b.label)),
-    [manifest],
+    [manifest, airlineSet, plan.al],
   );
 
   const typeOpts = useMemo<MultiOption[]>(() => {
@@ -139,17 +145,18 @@ export function JourneysApp() {
   const net = useMemo(() => {
     if (timed || !routes || !manifest) return null;
     const keep = plan.al.length ? new Set(plan.al) : null;
+    const hidden = hiddenAirlines(manifest, airlineSet, plan.al);
     const edges: RouteEdge[] = [];
     for (const [o, ds] of Object.entries(routes))
       for (const [d, byAl] of Object.entries(ds)) {
-        const als = keep ? Object.fromEntries(Object.entries(byAl).filter(([al]) => keep.has(al))) : byAl;
+        const als = Object.fromEntries(Object.entries(byAl).filter(([al]) => (keep ? keep.has(al) : !hidden.has(al))));
         if (Object.keys(als).length) edges.push({ o, d, als });
       }
     return {
-      key: `net|${plan.al.join(",")}|${edges.length}|${manifest.generatedAt}`,
+      key: `net|${plan.al.join(",")}|${airlineSet}|${edges.length}|${manifest.generatedAt}`,
       edges,
     };
-  }, [timed, routes, manifest, plan.al]);
+  }, [timed, routes, manifest, plan.al, airlineSet]);
 
   const timedSet = useMemo(() => {
     if (!timed || !manifest || !airports || data.loading.length || data.progress < 1 || !data.flights.length) return null;

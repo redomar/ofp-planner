@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cityName, dur, isoDay, onDay } from "@/lib/data/flight";
-import { findFlight, loadRoutes, useDataset, type FlightRow } from "@/lib/data/load";
+import { findFlight, loadRoutes, useDataset, useManifest, type FlightRow } from "@/lib/data/load";
+import { hiddenAirlines, useDisplay } from "@/lib/display";
 import { routeColor } from "@/lib/colors";
 import { applyFn, useFnOverrides } from "@/lib/fnoverride";
 import { placeOptions } from "@/lib/places";
@@ -117,13 +118,17 @@ export function BoardApp() {
       live = false;
     };
   }, [ready, tab, ap, routes]);
+  // Extra+ airlines only when Settings → Display lists them
+  const airlineSet = useDisplay().airlines;
+  const man = useManifest();
   const brands = useMemo(() => {
-    if (!ap || !routes || tab !== "airport") return [];
+    if (!ap || !routes || !man || tab !== "airport") return [];
+    const hidden = hiddenAirlines(man, airlineSet);
     const s = new Set<string>();
     if (side === "dep") for (const byAl of Object.values(routes[ap] ?? {})) for (const al of Object.keys(byAl)) s.add(al);
     else for (const dests of Object.values(routes)) for (const al of Object.keys(dests[ap] ?? {})) s.add(al);
-    return [...s].sort();
-  }, [ap, routes, side, tab]);
+    return [...s].filter((al) => !hidden.has(al)).sort();
+  }, [ap, routes, man, airlineSet, side, tab]);
   const data = useDataset(ready ? brands : []);
   const { airports, airlines, manifest } = data;
   const fnOv = useFnOverrides();
@@ -133,14 +138,16 @@ export function BoardApp() {
   const placeOpts = useMemo(() => {
     if (!airports || !routes) return [];
     const counts = new Map<string, number>();
+    const hidden = hiddenAirlines(man, airlineSet);
     for (const [o, dests] of Object.entries(routes))
       for (const [d, byAl] of Object.entries(dests)) {
-        const n = Object.values(byAl).reduce((a, b) => a + b, 0);
+        const n = Object.entries(byAl).reduce((a, [al, b]) => (hidden.has(al) ? a : a + b), 0);
+        if (!n) continue;
         counts.set(o, (counts.get(o) ?? 0) + n);
         counts.set(d, (counts.get(d) ?? 0) + n);
       }
     return placeOptions(counts, airports).filter((o) => !o.country);
-  }, [airports, routes]);
+  }, [airports, routes, man, airlineSet]);
   // airport options need routes.json even before an airport is chosen
   useEffect(() => {
     if (!ready || tab !== "airport" || routes) return;

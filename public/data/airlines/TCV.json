@@ -1,0 +1,1 @@
+{"schema":1,"airline":"TCV","flights":[{"op":"TCV","fn":"606","cs":"TCV606","o":"GVNP","d":"LPPT","types":["A320","B38M"],"days":[2,3,4],"std":null,"sta":null,"out":null,"off":null,"on":813,"in":null,"seen":[0,1,1,1,0,0,0],"samples":3}]}

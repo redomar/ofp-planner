@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **More airlines.** Regional airlines that fly under brands already in the planner are now counted: **Air Nostrum** (Iberia Regional), **BA Shuttle** (British Airways UK domestic), **Emerald Airlines** (Aer Lingus Regional) and **Binter Canarias** (the Canary inter-island hops). Iberia 474 → 732 flights, British Airways 920 → 1,071, Aer Lingus 250 → 340, Binter 125 → 242.
+- **20 new airlines (Extra+):** Sky Express, Aeroitalia, Edelweiss, Discover Airlines, Air Corsica, TAROM, Eastern Airways, Kuwait Airways, Aurigny, Freebird Airlines, Arkia, Marabu, Nouvelair, Azores Airlines, Atlantic Airways, Enter Air, Canaryfly, Air Greenland, Neos and Cabo Verde Airlines. They come from 5–8 October only (Mon–Thu), so they show those weekdays, and flights seen once (weekly charters and island routes) aren't in yet. A later full download fills them in.
+- **Greenland** is part of the region now (Air Greenland Copenhagen ↔ Nuuk, Icelandair to Greenland).
+- Snapshot: 43,088 flights (was 41,593), 77 airlines.
+- Settings → Display → **Airlines: which to list**: **Common** (default, the airlines the planner has always had) or **Common + Extra+**, which adds the smaller leisure, regional and island airlines added in this release, tagged **Extra+** in the pickers. The Finder and Journeys airline pickers, "all airlines" searches, the Board and the route counts follow it; a link, favourite or logbook flight that names an Extra+ airline still opens it.
+
 ## 1.6.1 — 2026-10-29
 
 - **Security: Next.js 16.3.6 → 16.4.3.** 16.0 to 16.4.0 have two critical advisories ([GHSA-2464-fhr4-w9xw](https://github.com/advisories/GHSA-2464-fhr4-w9xw), [GHSA-673q-mjm6-r5xr](https://github.com/advisories/GHSA-673q-mjm6-r5xr)) and a high one. The planner is a static export and uses neither the image optimiser nor `use cache`, so it wasn't exposed, but the build no longer stops on the warning. No change to how the planner works.

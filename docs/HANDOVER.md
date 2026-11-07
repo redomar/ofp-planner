@@ -184,7 +184,9 @@ field_derivations: docs/data-pipeline.md ("How each field is derived") — don't
 
 where: scripts/snapshot/ (index.mjs CLI; airlines.mjs brands/colours/region; sources/*; legs.mjs; build.mjs; route-index.mjs)
 caches: data/raw (88 MB downloads) + data/cache (493 MB; tracks/<date>.ndjson.gz per day) — gitignored, keep them.
-cached_days_now: 2026-09-20 … 2026-10-08 (data/cache ≈ 530 MB)
+cached_days_now: 2026-09-20 … 2026-10-08 (data/cache ≈ 750 MB). 10-05…10-08 hold EVERY airline-style callsign
+  (marked by tracks/<date>.all, since 1.6.0); older days hold only the airlines listed when fetched. Re-fetch those
+  with --stage fetch --refresh --days N --end D to give the Extra+ brands full weeks (≈ 4.5 min/day, GitHub-capped ~4 MB/s).
 timing: fetch ≈ 4 min/day at concurrency 3 (download-bound); first Ryanair pass 15–20 min (cached 10 days); build ≈ 20 s.
 recipes:
   add_a_15th_day: |
@@ -197,7 +199,7 @@ recipes:
   without_ryanair: pnpm data:snapshot --no-ryanair
   force_redownload: add --refresh
   only_route_index: node scripts/snapshot/route-index.mjs [outDir]
-  add_an_airline: add a brand to AIRLINES in scripts/snapshot/airlines.mjs (icao, iata, name, callsign word,
+  add_an_airline: (days marked .all need no re-download: just --stage build) add a brand to AIRLINES in scripts/snapshot/airlines.mjs (icao, iata, name, callsign word,
     operators[], colors[primary, secondary]), then --stage build. Region filter = REGION in the same file.
   after_any_run: pnpm build && pnpm verify, check counts in Settings → Schedule snapshot, commit public/data.
 dokploy: project "OFP Planner" (PC5mxBiH9LB-oYVT1hoUv) · app "web" oAmzXw0iAtwtFQM__Jx1M (appName ofp-planner-web-sjnvl5) ·
@@ -228,6 +230,10 @@ server_latch_container_alternative: |
     (taxi-out 12 min, taxi-in 6 min); same day only (no wrap past midnight); flights with no usable time excluded.
   - Display settings (Settings → Display): airline tag solid (default) / tinted / split / edge; flight first
     (default) or airline first; aircraft badges by maker (default) or airline, fully coloured (default) or edge.
+    Airlines (1.6.0): display.airlines "common" (default) | "extra". Brands with extra: true in airlines.mjs (→ manifest
+    AirlineInfo.extra) are left out of pickers, useDataset("all", { extra }), Board brands and route counts unless set
+    to "extra" or named explicitly (URL ?al=, favourites, logbook, brief). Helpers: listedAirline / hiddenAirlines in
+    src/lib/display.ts; useManifest() in load.ts. Picker options take tag: "Extra+".
   - Flights table: Freq column (2× / Daily) then a 7-letter week strip; flight number and airline tag widths come
     from the whole filtered result (mono ch for numbers, canvas-measured text for names), so columns line up.
   - Weather is fetched only on the Brief (never on the Finder), cached (forecast 60 min, METAR 10 min).
