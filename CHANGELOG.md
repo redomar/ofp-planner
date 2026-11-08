@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.6.3 — 2026-11-08
 
 - **Click a line on a map to find its flights.** Every map with several routes now takes a click on a route line, not just on its airport:
   - **Finder → Destinations** and **Map** tabs: a line opens that destination's or route's flights, as picking its row does.
