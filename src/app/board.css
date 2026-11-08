@@ -157,8 +157,13 @@
   background: var(--fx-row);
 }
 .fids-tbl tbody tr:hover,
-.fids-tbl tbody tr.is-hover {
+.fids-tbl tbody tr.is-hover,
+.fids-tbl tbody tr.is-mark {
   background: #1d2a3b;
+}
+/* flights picked from the map (a route line or airport clicked): an amber edge */
+.fids-tbl tbody tr.is-mark > td:first-child {
+  box-shadow: inset 4px 0 0 var(--fx-amber);
 }
 .fids-time {
   color: var(--fx-amber);

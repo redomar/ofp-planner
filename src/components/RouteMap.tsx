@@ -53,6 +53,7 @@ export function RouteMap({
   routes,
   height = 300,
   onPick,
+  onRoute,
   label,
   className,
 }: {
@@ -61,6 +62,8 @@ export function RouteMap({
   height?: number;
   /** Clicking an airport dot (other than the shared end) calls this with its ICAO. */
   onPick?: (icao: string) => void;
+  /** Clicking a route line calls this with its key (the page focuses the flights it stands for). */
+  onRoute?: (key: string) => void;
   label: string;
   className?: string;
 }) {
@@ -153,6 +156,7 @@ export function RouteMap({
           hover={hover}
           setHover={setHover}
           onPick={onPick}
+          onRoute={onRoute}
           label={label}
           codes={display.mapCodes}
           lines={display.mapLines}
@@ -379,6 +383,7 @@ function Drawn({
   hover,
   setHover,
   onPick,
+  onRoute,
   label,
   codes,
   lines,
@@ -392,6 +397,7 @@ function Drawn({
   hover: string | null;
   setHover: (k: string | null) => void;
   onPick?: (icao: string) => void;
+  onRoute?: (key: string) => void;
   label: string;
   codes: MapCodes;
   lines: MapLines;
@@ -452,9 +458,11 @@ function Drawn({
         return (
           <g
             key={r.key}
-            className={`map-route${strong ? " on" : ""}${r.key === hover ? " hover" : ""}`}
+            data-route={r.key}
+            className={`map-route${strong ? " on" : ""}${r.key === hover ? " hover" : ""}${onRoute ? " pick" : ""}`}
             onMouseEnter={() => setHover(r.key)}
             onMouseLeave={() => setHover(null)}
+            onClick={onRoute ? () => onRoute(r.key) : undefined}
           >
             <path className="map-casing" d={d} />
             <path className="map-line" d={d} style={{ stroke: r.color }} pathLength={1} />

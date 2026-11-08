@@ -1226,6 +1226,204 @@ async function run() {
     await m.ctx.close();
   });
 
+  /* ---------- clicking a route line focuses its flights in the list beside the map ---------- */
+  await section("map line clicks", async () => {
+    // points along a line to try, middle first (5% steps)
+    const SPOTS = Array.from({ length: 19 }, (_, i) => 0.5 + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.05);
+    // click a visible point of a route line (the topmost element there must be that line)
+    const clickLine = async (page, sel) => {
+      const pt = await page.evaluate(([sel, SPOTS]) => {
+        const g = document.querySelector(sel);
+        if (!g) return null;
+        g.closest(".map").scrollIntoView({ block: "center" });
+        const hit = g.querySelector(".map-route-hit");
+        const L = hit.getTotalLength();
+        const m = hit.getScreenCTM();
+        for (const t of SPOTS) {
+          const p = hit.getPointAtLength(L * t);
+          const x = m.a * p.x + m.c * p.y + m.e;
+          const y = m.b * p.x + m.d * p.y + m.f;
+          if (document.elementFromPoint(x, y)?.closest(".map-route") === g) return { x, y };
+        }
+        return null;
+      }, [sel, SPOTS]);
+      if (!pt) return false;
+      await page.mouse.move(pt.x, pt.y);
+      await page.waitForTimeout(120);
+      await page.mouse.click(pt.x, pt.y);
+      await page.waitForTimeout(250);
+      return true;
+    };
+    // the first of these route keys with a stretch of line not covered by another (fan maps overlap near the hub)
+    const freeLine = (page, scope, keys) =>
+      page.evaluate(
+        ([scope, keys, SPOTS]) =>
+          keys.find((k) => {
+            const g = document.querySelector(`${scope} .map-route[data-route="${k}"]`);
+            if (!g) return false;
+            const hit = g.querySelector(".map-route-hit");
+            if (!hit.getAttribute("d")) return false; // out of view
+            const L = hit.getTotalLength();
+            const m = hit.getScreenCTM();
+            return SPOTS.some((t) => {
+              const p = hit.getPointAtLength(L * t);
+              return document.elementFromPoint(m.a * p.x + m.c * p.y + m.e, m.b * p.x + m.d * p.y + m.f)?.closest(".map-route") === g;
+            });
+          }) ?? null,
+        [scope, keys, SPOTS],
+      );
+    const inView = (page, sel) =>
+      page.evaluate((sel) => {
+        const el = document.querySelector(sel);
+        if (!el) return false;
+        const r = el.getBoundingClientRect();
+        let box = el.parentElement;
+        while (box && getComputedStyle(box).overflowY === "visible") box = box.parentElement;
+        const b = box && box !== document.body && box !== document.documentElement ? box.getBoundingClientRect() : { top: 0, bottom: innerHeight };
+        return r.top >= Math.max(0, b.top) - 1 && r.bottom <= Math.min(innerHeight, b.bottom) + 1;
+      }, sel);
+
+    // logbook: two flights on one route (all marked, then each in turn, then all again), one on another (open, then let go)
+    const { ctx, page, errors } = await open("/logbook");
+    await page.evaluate(() => {
+      const many = Array.from({ length: 14 }, (_, i) => ({ id: `f${i}`, date: `2026-09-${String(10 + i).padStart(2, "0")}`, from: "EGKK", to: "LFPG", callsign: `EZY${i}` }));
+      localStorage.setItem(
+        "ofp-planner:logbook",
+        JSON.stringify([
+          { id: "a", date: "2026-10-03", from: "EGBB", to: "LEMD", callsign: "EZY22N" },
+          { id: "b", date: "2026-10-05", from: "LOWI", to: "EGBB", callsign: "EZY34MH" },
+          ...many,
+          { id: "c", date: "2026-09-01", from: "EGBB", to: "LEMD", callsign: "EZY23N" },
+        ]),
+      );
+    });
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForSelector('.log-map .map-route[data-route="EGBB-LEMD"]', { timeout: 20000 });
+    const LINE = '.log-map .map-route[data-route="EGBB-LEMD"]';
+    const state = () =>
+      page.evaluate(() => ({
+        mark: [...document.querySelectorAll(".log-tbl tbody tr.mark")].map((r) => r.dataset.log).join(),
+        sel: [...document.querySelectorAll(".log-tbl tbody tr.sel")].map((r) => r.dataset.log).join(),
+        on: document.querySelector('.log-map .map-route[data-route="EGBB-LEMD"]')?.classList.contains("on"),
+      }));
+    const steps = [];
+    let lowVisible = false;
+    for (let i = 0; i < 4; i++) {
+      (await clickLine(page, LINE)) || steps.push("missed");
+      steps.push(await state());
+      // the third click opens the older flight, below the fold of the list's box: it scrolls into view
+      if (i === 2) for (let w = 0; w < 15 && !lowVisible; w++) (lowVisible = await inView(page, '.log-tbl tbody tr[data-log="c"]')) || (await page.waitForTimeout(100));
+    }
+    const want = [
+      { mark: "a,c", sel: "", on: true },
+      { mark: "", sel: "a", on: true },
+      { mark: "", sel: "c", on: true },
+      { mark: "a,c", sel: "", on: true },
+    ];
+    JSON.stringify(steps) === JSON.stringify(want)
+      ? pass("map lines: logbook route with 2 flights marks both, then opens each in turn, then marks both again; its line stays lit")
+      : fail(`map lines: logbook steps ${JSON.stringify(steps)}`);
+    lowVisible ? pass("map lines: the logbook list scrolls to the flight found (the oldest, below the fold of its box)") : fail("map lines: logbook row c not scrolled into view");
+    await clickLine(page, '.log-map .map-route[data-route="LOWI-EGBB"]');
+    const one = await state();
+    await clickLine(page, '.log-map .map-route[data-route="LOWI-EGBB"]');
+    const none = await state();
+    one.sel === "b" && one.mark === "" && none.sel === "" && none.mark === ""
+      ? pass("map lines: a route with one logbook flight opens it, and a second click lets go")
+      : fail(`map lines: one-flight route ${JSON.stringify([one, none])}`);
+    await checkPage("logbook map line 1280 light", page, errors);
+
+    // favourites: a group's map marks the flights on the clicked route
+    await page.goto(`${base}/settings`, { waitUntil: "networkidle" });
+    await page.evaluate(() => {
+      const f = (id, o, d) => ({ id, al: "EZY", op: "EZY", fn: null, cs: id, o, d, std: null, at: 0, group: "Trip" });
+      localStorage.setItem("ofp-planner:favourites", JSON.stringify([f("EZY1", "EGBB", "EHAM"), f("EZY2", "EHAM", "LEMD"), f("EZY3", "EGBB", "EHAM")]));
+      localStorage.setItem("ofp-planner:fav-groups", JSON.stringify(["Trip"]));
+    });
+    await page.reload({ waitUntil: "networkidle" });
+    const G = '[data-fav-group="Trip"]';
+    await page.locator(`${G} .grp-head`).getByRole("button", { name: "Map" }).click();
+    await page.waitForSelector(`${G} .map-route[data-route="EGBB-EHAM"]`, { timeout: 20000 });
+    const favMarks = () => page.$$eval(`${G} .fl-row.is-mark`, (rs) => rs.map((r) => r.dataset.fav).join());
+    await clickLine(page, `${G} .map-route[data-route="EGBB-EHAM"]`);
+    const f1 = await favMarks();
+    await clickLine(page, `${G} .map-route[data-route="EGBB-EHAM"]`);
+    const f2 = await favMarks();
+    await clickLine(page, `${G} .map-route[data-route="EHAM-LEMD"]`);
+    const f3 = await favMarks();
+    f1 === "EZY1,EZY3" && f2 === "EZY1" && f3 === "EZY2"
+      ? pass("map lines: a favourites group's map marks both flights on a route, then the first, then another route's")
+      : fail(`map lines: favourites ${JSON.stringify([f1, f2, f3])}`);
+    await checkPage("favourites map line 1280 light", page, errors);
+    await ctx.close();
+
+    // board: an airport with several flights: all of them, then the first. A fan of lines covers itself near the
+    // hub (the line on top is the one hovered and clicked), so look for a line with room to click: a quieter airport
+    // first, zoomed in if need be.
+    const b = await open("/board");
+    let other = null;
+    for (const ap of ["LPMA", "EGKK"]) {
+      await b.page.goto(`${base}/board?ap=${ap}&h=24`, { waitUntil: "networkidle" });
+      await b.page.waitForSelector(".bd-map .map-route", { timeout: 30000 });
+      await b.page.locator(".bd-map").scrollIntoViewIfNeeded();
+      const counts = await b.page.evaluate(() => {
+        const n = new Map();
+        for (const r of document.querySelectorAll(".fids-tbl tbody tr[data-other]")) n.set(r.dataset.other, (n.get(r.dataset.other) ?? 0) + 1);
+        return [...n].filter(([, c]) => c >= 2).sort((x, y) => y[1] - x[1]);
+      });
+      for (let zoom = 0; zoom < 3 && !other; zoom++) {
+        if (zoom) {
+          await b.page.locator(".bd-map .map-zbtn[aria-label='Zoom in']").click();
+          await b.page.waitForTimeout(400);
+        }
+        const free = await freeLine(b.page, ".bd-map", counts.map(([k]) => k));
+        other = counts.find(([k]) => k === free) ?? null;
+      }
+      if (other) break;
+    }
+    if (!other) fail("map lines: no board line with two or more flights has room to click (LPMA, EGKK)");
+    else {
+      const [k, n] = other;
+      await clickLine(b.page, `.bd-map .map-route[data-route="${k}"]`);
+      const all = await b.page.locator(`.fids-tbl tbody tr.is-mark[data-other="${k}"]`).count();
+      const lit = await b.page.locator(`.bd-map .map-route[data-route="${k}"].on`).count();
+      await clickLine(b.page, `.bd-map .map-route[data-route="${k}"]`);
+      const first = await b.page.$$eval(".fids-tbl tbody tr.is-mark", (rs) => rs.map((r) => r.dataset.mv));
+      const firstOf = await b.page.$eval(`.fids-tbl tbody tr[data-other="${k}"]`, (r) => r.dataset.mv);
+      all === Math.min(n, 40) && lit === 1 && first.length === 1 && first[0] === firstOf
+        ? pass(`map lines: board marks all ${all} flights to ${k}, then the first of them`)
+        : fail(`map lines: board ${k} all ${all}/${n} lit ${lit} then ${first}`);
+      await checkPage("board map line 1280 light", b.page, b.errors);
+    }
+    await b.ctx.close();
+
+    // journeys: a leg's line marks that leg
+    const j = await open("/journeys?from=EGBB&via=EHAM&to=LEMD&t=1&sort=quickest");
+    await j.page.waitForFunction(() => document.querySelector(".jr-detail .map-route[data-route='1']") && !document.querySelector(".jr-split.is-stale"), null, { timeout: 60000 });
+    await clickLine(j.page, ".jr-detail .map-route[data-route='1']");
+    const leg = await j.page.$$eval(".jr-legs-list > li.is-mark", (ls) => ls.map((l) => l.dataset.leg).join());
+    await clickLine(j.page, ".jr-detail .map-route[data-route='1']");
+    const legOff = await j.page.locator(".jr-legs-list > li.is-mark").count();
+    leg === "1" && legOff === 0 ? pass("map lines: a journey leg's line marks that leg, and a second click lets go") : fail(`map lines: journeys leg ${leg} then ${legOff}`);
+    await j.ctx.close();
+
+    // finder: a destination's line opens its flights, a route's line narrows to that route
+    const fd = await open("/?al=&dep=EGKK&view=places");
+    await fd.page.waitForSelector(".places .map-route", { timeout: 30000 });
+    await fd.page.locator(".places .map").scrollIntoViewIfNeeded();
+    const dest = await freeLine(fd.page, ".places", await fd.page.$$eval(".places .map-route", (gs) => gs.map((g) => g.dataset.route)));
+    await clickLine(fd.page, `.places .map-route[data-route="${dest}"]`);
+    const du = new URL(fd.page.url()).searchParams;
+    du.get("arr") === dest && !du.get("view") ? pass(`map lines: a destination's line opens its flights (EGKK → ${dest})`) : fail(`map lines: destination click gave ${du}`);
+    await fd.page.goto(`${base}/?al=&dep=LEMD&arr=C:ES&view=map`, { waitUntil: "networkidle" });
+    await fd.page.waitForSelector(".routes-view .map-route", { timeout: 30000 });
+    const rk = await fd.page.$eval(".routes-view .map-route", (g) => g.dataset.route);
+    await clickLine(fd.page, `.routes-view .map-route[data-route="${rk}"]`);
+    const ru = new URL(fd.page.url()).searchParams;
+    `${ru.get("dep")}-${ru.get("arr")}` === rk && !ru.get("view") ? pass(`map lines: a route's line on the Map tab opens its flights (${rk})`) : fail(`map lines: route click ${rk} gave ${ru}`);
+    await fd.ctx.close();
+  });
+
   /* ---------- range rings: origin, payload, your airports ---------- */
   await section("range", async () => {
     const { ctx, page, errors } = await open("/range");

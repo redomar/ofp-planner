@@ -24,6 +24,7 @@ export function FidsBoard({
   fmt,
   clock,
   hover,
+  marked,
   onHover,
   onPick,
 }: {
@@ -37,6 +38,8 @@ export function FidsBoard({
   fmt: (ms: number) => string;
   clock: string;
   hover: string | null;
+  /** Movements picked from the map (route line clicks). */
+  marked: Set<string> | null;
   onHover: (other: string | null) => void;
   onPick: (m: Movement) => void;
 }) {
@@ -72,7 +75,9 @@ export function FidsBoard({
               return (
                 <tr
                   key={m.key}
-                  className={hover === m.other ? "is-hover" : undefined}
+                  className={[hover === m.other && "is-hover", marked?.has(m.key) && "is-mark"].filter(Boolean).join(" ") || undefined}
+                  data-mv={m.key}
+                  data-other={m.other}
                   onMouseEnter={() => onHover(m.other)}
                   onMouseLeave={() => onHover(null)}
                   onClick={() => onPick(m)}

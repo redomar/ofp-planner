@@ -32,6 +32,7 @@ import { useStorageVersion } from "@/lib/storage";
 import { useDisplay, writeDisplay } from "@/lib/display";
 import { useFontsReady, widestLabel } from "@/lib/measure";
 import { routeColor } from "@/lib/colors";
+import { nextFocus, reveal, type LineFocus } from "@/lib/lineFocus";
 import { FlightIdent, TypeBadge } from "./badges";
 import { StatusLine, TopBar } from "./chrome";
 import { CollapseProvider } from "./collapse";
@@ -53,6 +54,8 @@ export function LogbookApp() {
   const [ref, setRef] = useState<Ref | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [hover, setHover] = useState<string | null>(null);
+  // a route line clicked on the map: its flights marked, or one of them open
+  const [line, setLine] = useState<LineFocus>(null);
   const [editing, setEditing] = useState<LogFlight | null>(null);
   const [formKey, setFormKey] = useState(0);
 
@@ -106,6 +109,19 @@ export function LogbookApp() {
   }, []);
 
   const flights = log ?? [];
+  const routeOf = (id: string | null) => {
+    const f = id ? flights.find((x) => x.id === id) : null;
+    return f ? routeKey(f) : null;
+  };
+  // hovering a flight shows its route; otherwise the clicked line, otherwise the open flight's
+  const activeRoute = (hover && routeOf(hover)) || line?.key || routeOf(sel);
+  const onRoute = (key: string) => {
+    const ids = flights.filter((f) => routeKey(f) === key).map((f) => f.id);
+    const next = nextFocus(line, key, ids.length);
+    setLine(next);
+    setSel(next && next.at >= 0 ? ids[next.at] : null);
+    if (next) reveal(`[data-log="${CSS.escape(ids[Math.max(0, next.at)])}"]`);
+  };
   return (
     <CollapseProvider>
       <TopBar />
@@ -119,12 +135,16 @@ export function LogbookApp() {
               {flights.length ? (
                 <>
                   <Totals flights={flights} ref_={ref} />
-                  <LogMap flights={flights} ref_={ref} sel={hover ?? sel} />
+                  <LogMap flights={flights} ref_={ref} active={activeRoute} onRoute={onRoute} />
                   <LogList
                     flights={flights}
                     ref_={ref}
                     sel={sel}
-                    onSel={(id) => setSel((s) => (s === id ? null : id))}
+                    marked={line && line.at === -1 ? line.key : null}
+                    onSel={(id) => {
+                      setLine(null);
+                      setSel((s) => (s === id ? null : id));
+                    }}
                     onHover={setHover}
                     onEdit={(f) => {
                       setEditing(f);
@@ -215,28 +235,38 @@ function Totals({ flights, ref_ }: { flights: LogFlight[]; ref_: Ref | null }) {
 
 /* ---------- map ---------- */
 
-function LogMap({ flights, ref_, sel }: { flights: LogFlight[]; ref_: Ref | null; sel: string | null }) {
+/** One map line per route flown, in either direction separately. */
+const routeKey = (f: LogFlight) => `${f.from}-${f.to}`;
+
+function LogMap({ flights, ref_, active, onRoute }: { flights: LogFlight[]; ref_: Ref | null; active: string | null; onRoute: (key: string) => void }) {
   const routes = useMemo<MapRoute[]>(() => {
     if (!ref_) return [];
     const by = new Map<string, MapRoute & { n: number }>();
-    const selF = flights.find((f) => f.id === sel);
     for (const f of flights) {
-      const key = `${f.from}-${f.to}`;
+      const key = routeKey(f);
       const from = ref_.airports.get(f.from);
       const to = ref_.airports.get(f.to);
       if (!from || !to) continue;
       const r = by.get(key) ?? { key, from, to, color: routeColor(ref_.brands.get(f.airline ?? "")), n: 0 };
       r.n++;
       r.label = `${r.n} ${r.n === 1 ? "flight" : "flights"}`;
-      r.active = selF ? selF.from === f.from && selF.to === f.to : false;
+      r.active = key === active;
       by.set(key, r);
     }
     return [...by.values()];
-  }, [flights, ref_, sel]);
+  }, [flights, ref_, active]);
   // keep the map's room while the airports load, so the table doesn't jump
   if (!ref_) return <div className="log-map log-map-wait" style={{ height: 420 }} aria-hidden="true" />;
   if (!routes.length) return null;
-  return <RouteMap routes={routes} height={420} label={`Map of the ${routes.length} routes you've flown.`} className="log-map" />;
+  return (
+    <RouteMap
+      routes={routes}
+      height={420}
+      label={`Map of the ${routes.length} routes you've flown. Select a route to find its flights in the list.`}
+      className="log-map"
+      onRoute={onRoute}
+    />
+  );
 }
 
 /* ---------- list: table (by month, or punctuality bars) or flight strips ---------- */
@@ -245,6 +275,8 @@ type ListProps = {
   flights: LogFlight[];
   ref_: Ref | null;
   sel: string | null;
+  /** A route clicked on the map ("LEPA-EGKK"): its flights are marked. */
+  marked: string | null;
   onSel: (id: string) => void;
   onHover: (id: string | null) => void;
   onEdit: (f: LogFlight) => void;
@@ -462,7 +494,7 @@ function LogList(props: ListProps) {
   return (
     <>
       <div className="log-bar-head">
-        <span className="small muted">Hover a flight to see it on the map, and its status for the times. Select it for everything logged.</span>
+        <span className="small muted">Hover a flight to see it on the map, and its status for the times. Select it for everything logged. Click a route on the map to find its flights here.</span>
         {!strips && (
           <span className="log-view" role="group" aria-label="The table shows">
             <button type="button" className={cx("chip", !d.logBars && "on")} aria-pressed={!d.logBars} onClick={() => writeDisplay({ logBars: false })}>
@@ -479,7 +511,7 @@ function LogList(props: ListProps) {
   );
 }
 
-function LogTable({ flights, ref_, sel, onSel, onHover, onEdit, bars }: ListProps & { bars: boolean }) {
+function LogTable({ flights, ref_, sel, marked, onSel, onHover, onEdit, bars }: ListProps & { bars: boolean }) {
   const widths = useIdentWidths(flights, ref_);
   const scale = useBarScale(flights);
   const visits = useMemo(() => {
@@ -540,7 +572,7 @@ function LogTable({ flights, ref_, sel, onSel, onHover, onEdit, bars }: ListProp
             return (
               <Fragment key={f.id}>
                 {!bars && firsts.has(f.id) && <MonthRow ym={f.date.slice(0, 7)} flights={flights} cols={cols} />}
-                <tr className={cx(open && "sel")} onClick={() => onSel(f.id)} onMouseEnter={() => onHover(f.id)}>
+                <tr className={cx(open && "sel", marked === routeKey(f) && "mark")} data-log={f.id} onClick={() => onSel(f.id)} onMouseEnter={() => onHover(f.id)}>
                   <td className="mono">
                     <button type="button" className="log-date" aria-expanded={open} title={f.date} onClick={(e) => (e.stopPropagation(), onSel(f.id))} onFocus={() => onHover(f.id)}>
                       {bars ? (
@@ -620,7 +652,7 @@ function MonthRow({ ym, flights, cols }: { ym: string; flights: LogFlight[]; col
 }
 
 /** W5: ATC flight progress strips, one per flight, in a rack. */
-function LogStrips({ flights, ref_, sel, onSel, onHover, onEdit }: ListProps) {
+function LogStrips({ flights, ref_, sel, marked, onSel, onHover, onEdit }: ListProps) {
   const widths = useIdentWidths(flights, ref_);
   const city = (icao: string) => {
     const a = ref_?.airports.get(icao);
@@ -633,7 +665,7 @@ function LogStrips({ flights, ref_, sel, onSel, onHover, onEdit }: ListProps) {
           const brand = ref_?.brands.get(f.airline ?? "");
           const open = sel === f.id;
           return (
-            <li key={f.id} className={cx("strip", open && "sel")} style={{ ["--c" as string]: routeColor(brand) }} onMouseEnter={() => onHover(f.id)}>
+            <li key={f.id} className={cx("strip", open && "sel", marked === routeKey(f) && "mark")} data-log={f.id} style={{ ["--c" as string]: routeColor(brand) }} onMouseEnter={() => onHover(f.id)}>
               <div className="strip-row" onClick={() => onSel(f.id)}>
                 <span className="strip-cs">
                   <button type="button" className="log-date" aria-expanded={open} onClick={(e) => (e.stopPropagation(), onSel(f.id))} onFocus={() => onHover(f.id)}>
