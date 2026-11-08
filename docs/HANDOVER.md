@@ -19,7 +19,19 @@ project:
   - Final screenshots go to ../ofp-planner-previews/release/ (`pnpm verify -- --shots`), never inside the repo.
   - WCAG AA contrast is a hard requirement (an A is acceptable only in rare cases). Check it numerically.
   - Commit locally after each confirmed step: signed (global gpg config), NO AI co-author trailer,
-    no push until asked. Keep CHANGELOG.md "1.0.0 — unreleased" up to date.
+    no push until asked. Keep CHANGELOG.md "## Unreleased" up to date on the branch.
+  - WORKFLOW (user's rules, restated 2026-11-08; same as ../ofp-reader-handover.md §16_release):
+      1. Every feature or fix gets its own local branch (feature/<name>) cut from main, so no work is lost.
+      2. Commit locally on it as it's built and verified.
+      3. When the user agrees it's done: push the branch and open a PR (draft if it's parked).
+      4. Release: release/<x.y.z> → PR → merge commit into main (not rebase, keeps signatures) → signed tag →
+         GitHub release from the CHANGELOG. Pushing main deploys the live site.
+    Only main is live and only main is what another PC sees by default: a branch or draft PR is NOT shown anywhere
+    until merged. Tell the user plainly what is merged/live vs on a branch vs only on this PC.
+  - SEMVER: major never, unless the user says so. Minor = new functionality that didn't exist before, OR a
+    fundamental change that isn't backwards compatible for saved data (e.g. a new shape for what the browser stores).
+    Patch = fixes, small changes, UI moves and tweaks.
+  - Branches in flight are listed in §10 (Open items) with their state (local only / pushed / PR / merged).
   - Reply briefly: what changed, what was verified (numbers), what's left; name any removal.
   - Their own SimBrief airframe is personal: never commit it. It lives in the untracked .env.local as
     NEXT_PUBLIC_DEFAULT_AIRFRAMES (JSON array) and seeds the local build only; the published build ships none.
@@ -299,6 +311,12 @@ server_latch_container_alternative: |
 
 ## 10. Open items / ideas
 
+  - BRANCHES IN FLIGHT (keep current):
+    · feature/more-airlines: pushed, draft PR #7, rebased on 1.6.1 (2026-11-07). Extra+ airlines, regional operators,
+      Greenland, guessed airports. Not merged, so not live. Waits for winter data (~21 days from 2026-10-25) and season
+      handling, then rebuild public/data on the merged code, release as a minor, data:push.
+    · feature/map-line-click: committed locally (548c0d2), not pushed, no PR yet. Click a route line → its flights.
+      New functionality → minor.
   - After 1.5.0 (per-day times): Journeys UI could show each leg's weekday times in the timings table; 116 numbered callsigns
     on other airlines still have two rows (seen twice on one date = two flights). Data releases need pnpm data:push too
     (the server's live data overlay shadows the data baked into the image).
