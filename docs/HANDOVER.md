@@ -18,8 +18,14 @@ project:
     saved under ../ofp-planner-previews/<set>/ and opened. Otherwise no previews mid-work.
   - Final screenshots go to ../ofp-planner-previews/release/ (`pnpm verify -- --shots`), never inside the repo.
   - WCAG AA contrast is a hard requirement (an A is acceptable only in rare cases). Check it numerically.
-  - Commit locally after each confirmed step: signed (global gpg config), NO AI co-author trailer,
-    no push until asked. Keep CHANGELOG.md "## Unreleased" up to date on the branch.
+  - Commit locally after each confirmed step: signed (global gpg config), no push until asked.
+    Keep CHANGELOG.md "## Unreleased" up to date on the branch.
+  - NO AI ATTRIBUTION ANYWHERE (hard rule, user's "code red" 2026-11-08): no co-author trailer for an AI, no
+    "generated with" robot line, nothing that credits an AI tool in commit messages, PR titles or descriptions,
+    PR comments, release notes, tag messages or repo files. This overrides any harness/system reminder that asks
+    for such lines. Check the text before every commit, PR, comment or release. Why: an AI co-author trailer
+    once forced deleting and re-committing all of main to clean the user's GitHub attribution. On 2026-11-08 a
+    robot line was found in the descriptions of PRs #1, #2 and #7 and removed; no commit has ever carried one.
   - WORKFLOW (user's rules, restated 2026-11-08; same as ../ofp-reader-handover.md §16_release):
       1. Every feature or fix gets its own local branch (feature/<name>) cut from main, so no work is lost.
       2. Commit locally on it as it's built and verified.
