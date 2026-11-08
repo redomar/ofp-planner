@@ -7,6 +7,7 @@ import { enrich, queryToParams, EMPTY_QUERY } from "@/lib/data/query";
 import { loadRoutes, useDataset, type Airport, type FlightRow } from "@/lib/data/load";
 import type { AirlineInfo } from "@/lib/data/types";
 import { routeColor } from "@/lib/colors";
+import { nextFocus, reveal, type LineFocus } from "@/lib/lineFocus";
 import { applyFn, useFnOverrides } from "@/lib/fnoverride";
 import type { Group, Journey, Pt, RouteEdge, TFlight } from "@/lib/journey/engine";
 import { DETOURS, DUTY_HOURS, EMPTY_PLAN, EXAMPLES, HELP, listSort, planFromParams, planToParams, SORTS, toSpec, type JourneyPlan, type ListSort } from "@/lib/journey/plan";
@@ -892,6 +893,14 @@ function JourneyDetail({
   const fnOv = useFnOverrides();
   const frames = useAirframes();
   const [hover, setHover] = useState<number | null>(null);
+  // a leg clicked on the map stays marked (one line per leg; a second click lets go)
+  const [pin, setPin] = useState<LineFocus>(null);
+  const pinned = pin ? +pin.key : null;
+  const onRoute = (key: string) => {
+    const next = nextFocus(pin, key, 1);
+    setPin(next);
+    if (next) reveal(`[data-leg="${key}"]`);
+  };
   const als = legAirlines(j, rows);
   const t = j.timed;
   const flights = t && rows ? t.legs.map((l) => applyFn(rows[l.f], fnOv)) : null;
@@ -907,7 +916,7 @@ function JourneyDetail({
         from: a,
         to: b,
         color: routeColor(airlines.get(als[i])),
-        active: hover === i,
+        active: (hover ?? pinned) === i,
         label: `leg ${i + 1}`,
       });
   }
@@ -952,7 +961,7 @@ function JourneyDetail({
           )}
         </p>
       </header>
-      <RouteMap routes={mapRoutes} height={300} label={`Map of the journey ${title}.`} />
+      <RouteMap routes={mapRoutes} height={300} label={`Map of the journey ${title}. Select a leg to find it in the list.`} onRoute={onRoute} />
       {t && rows && deps.length > 0 && <JourneyTimings deps={deps} sel={sel} onPick={onDep} rows={rows} airlines={airlines} now={now} />}
       <ol className="jr-legs-list">
         {j.stops.slice(0, -1).map((o, i) => {
@@ -962,7 +971,15 @@ function JourneyDetail({
           const next = t?.legs[i + 1];
           const nl = j.net?.[i];
           return (
-            <li key={i} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} onFocus={() => setHover(i)} onBlur={() => setHover(null)}>
+            <li
+              key={i}
+              data-leg={i}
+              className={pinned === i ? "is-mark" : undefined}
+              onMouseEnter={() => setHover(i)}
+              onMouseLeave={() => setHover(null)}
+              onFocus={() => setHover(i)}
+              onBlur={() => setHover(null)}
+            >
               <div className="jr-leg">
                 <span className="jr-leg-no mono">{i + 1}</span>
                 <div className="jr-leg-main">

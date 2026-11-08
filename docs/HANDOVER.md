@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: unreleased work on branch feature/more-airlines, draft PR #7, rebased on 1.6.1 on 2026-11-07 (77 airlines: 20 Extra+ brands, regional operators, Greenland; Extra+ toggle; guessed airports). It carries no version: number it at release, and rebuild public/data after merging rather than merging data files; never data:push from the branch; v1.6.1 released 2026-10-29 (Next.js 16.4.3 security update; stay on ≥ 16.4.1); v1.6.0 released 2026-10-24 (Range page: range rings per sim A320 with payload, custom ZFW/FOB, MLW; maps cover the globe as a disc round their content; aircraft side profiles + liveries prepared, not used yet); 1.5.2: (a flight in several favourites groups; shared journey legs kept and marked; 1.5.1: map route lines: great circle or rhumb line, Settings → Display; 1.5.0: one row per flight with per-weekday times, Brief/Finder/Board by day, logbook list redone: month table, punctuality switch, flight strips; 1.4.4: Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
+  status: unreleased work on branch feature/more-airlines, draft PR #7, to be released as 1.7.0, main 1.6.3 merged in on 2026-11-08 (77 airlines: 20 Extra+ brands, regional operators, Greenland; Extra+ toggle; guessed airports). It carries no version: number it at release, and rebuild public/data after merging rather than merging data files; never data:push from the branch; v1.6.3 released 2026-11-08 (click a route line on a map to focus its flights: Finder, Logbook, Favourites, Board, Journeys; there is no 1.6.2, the user's pick so 1.7.0 = more airlines); v1.6.1 released 2026-10-29 (Next.js 16.4.3 security update; stay on ≥ 16.4.1); v1.6.0 released 2026-10-24 (Range page: range rings per sim A320 with payload, custom ZFW/FOB, MLW; maps cover the globe as a disc round their content; aircraft side profiles + liveries prepared, not used yet; feature/more-airlines is a separate draft PR, needs a rebase on 1.6.0); 1.5.2: (a flight in several favourites groups; shared journey legs kept and marked; 1.5.1: map route lines: great circle or rhumb line, Settings → Display; 1.5.0: one row per flight with per-weekday times, Brief/Finder/Board by day, logbook list redone: month table, punctuality switch, flight strips; 1.4.4: Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 
@@ -19,7 +19,22 @@ project:
   - Final screenshots go to ../ofp-planner-previews/release/ (`pnpm verify -- --shots`), never inside the repo.
   - WCAG AA contrast is a hard requirement (an A is acceptable only in rare cases). Check it numerically.
   - Commit locally after each confirmed step: signed (global gpg config), NO AI co-author trailer,
-    no push until asked. Keep CHANGELOG.md "1.0.0 — unreleased" up to date.
+    no push until asked. Keep CHANGELOG.md "## Unreleased" up to date on the branch.
+  - WORKFLOW (user's rules, restated 2026-11-08; same as ../ofp-reader-handover.md §16_release):
+      1. Every feature or fix gets its own local branch (feature/<name>) cut from main, so no work is lost.
+      2. Commit locally on it as it's built and verified.
+      3. When the user agrees it's done: push the branch and open a PR (draft if it's parked).
+      4. Release: release/<x.y.z> → PR → merge the PR ON GITHUB (`gh pr merge <n> --merge`; GitHub signs the merge
+         commit) → `git pull` main → signed tag `git tag -s vX.Y.Z` → push the tag → GitHub release from the CHANGELOG →
+         poll the live footer for the version → smoke-test live. The merge to main deploys the live site.
+         main is protected (ruleset "Protect main", since 2026-11-08, no bypass): no direct pushes or force pushes,
+         PR required (0 approvals), merge commits only, signed commits only. So never `git push origin main`.
+    Only main is live and only main is what another PC sees by default: a branch or draft PR is NOT shown anywhere
+    until merged. Tell the user plainly what is merged/live vs on a branch vs only on this PC.
+  - SEMVER: major never, unless the user says so. Minor = new functionality that didn't exist before, OR a
+    fundamental change that isn't backwards compatible for saved data (e.g. a new shape for what the browser stores).
+    Patch = fixes, small changes, UI moves and tweaks.
+  - Branches in flight are listed in §10 (Open items) with their state (local only / pushed / PR / merged).
   - Reply briefly: what changed, what was verified (numbers), what's left; name any removal.
   - Their own SimBrief airframe is personal: never commit it. It lives in the untracked .env.local as
     NEXT_PUBLIC_DEFAULT_AIRFRAMES (JSON array) and seeds the local build only; the published build ships none.
@@ -90,6 +105,12 @@ components:
                    live SVG transform during gestures, redraw ~140 ms after; plain scroll stops at k 1 then scrolls the page (unless already
                    below 1), ctrl/pinch and − go on to kMin; pointer pinch/drag, dblclick,
                    +/−/⤢ buttons top-left (the floating flight panel covers the right).
+                   Route lines are clickable when a page passes onRoute(key) (each <g.map-route> carries data-route=key, .pick = pointer).
+                   lib/lineFocus.ts: nextFocus() = first click on a line focuses every flight on it, each further click the next one,
+                   then all again (one flight: focus, then let go); reveal() scrolls the found row into view. Per page: Finder
+                   Destinations/Map tab → same as picking the row; Logbook → rows .mark, then each opens (sel); Favourites group map →
+                   .fl-row.is-mark via MarkedCtx; Board → .is-mark rows (amber edge; line or dot click), "Show more" grows to reach the row;
+                   Journeys → leg li.is-mark. Fan maps cover themselves near the hub: the topmost (hovered) line is the one clicked.
   terrain:         public/geo/terrain.json v3 (committed, ~1.5 MB / 510 KB gzip, whole globe) from `pnpm map:terrain` (~3 min); land bands
                    200/500/1000/1500/2000/3000/4000/5000 m (h0–h7), sea 200/1000/2000/4000 m (d0–d3) (scripts/build-terrain.mjs: AWS Terrain
                    Tiles z5 → 0.1° grid, poles take the 85° row → d3-contour per 30° tile with 2-step overlap, rings wound for d3 (outer
@@ -304,6 +325,13 @@ server_latch_container_alternative: |
 
 ## 10. Open items / ideas
 
+  - BRANCHES IN FLIGHT (keep current):
+    · feature/more-airlines → 1.7.0: pushed, draft PR #7; main (1.6.3) merged in 2026-11-08 (merge, not rebase:
+      the branch is published). Extra+ airlines, regional operators, Greenland, guessed airports; season handling next.
+      Not merged, so not live. Waits for winter data (~21 days from 2026-10-25), then rebuild public/data on this
+      code, release, data:push.
+    · feature/map-line-click: released as 1.6.3 on 2026-11-08 (the user asked for a patch number here so that
+      more airlines can be 1.7.0).
   - After 1.5.0 (per-day times): Journeys UI could show each leg's weekday times in the timings table; 116 numbered callsigns
     on other airlines still have two rows (seen twice on one date = two flights). Data releases need pnpm data:push too
     (the server's live data overlay shadows the data baked into the image).

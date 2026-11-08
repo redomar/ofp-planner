@@ -280,6 +280,7 @@ export function PlacesView({
           routes={routes}
           height={440}
           onPick={onPick}
+          onRoute={onPick}
           label={`Map of ${places.length} ${what} ${side === "d" ? "from" : "to"} ${airportLabel(hubAirport)}. Select an airport to see its flights.`}
         />
       )}

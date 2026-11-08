@@ -1524,6 +1524,10 @@ div.empty-note p {
   stroke-width: 12;
   pointer-events: stroke;
 }
+/* a line that focuses its flights in the list when clicked */
+.map-route.pick .map-route-hit {
+  cursor: pointer;
+}
 .map-route.on .map-casing {
   stroke-width: 6;
   opacity: 0.9;
@@ -4221,6 +4225,11 @@ div.empty-note p {
 .jr-legs-list > li {
   border-bottom: 1px solid var(--rule);
 }
+/* the leg clicked on the map */
+.jr-legs-list > li.is-mark {
+  background: var(--magenta-bg);
+  box-shadow: inset 3px 0 0 var(--magenta);
+}
 .jr-leg {
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr) auto;
@@ -4448,8 +4457,17 @@ div.empty-note p {
 .log-tbl tbody tr:not(.log-detail):not(.log-month):hover > td {
   background: var(--magenta-bg);
 }
-.log-tbl tbody tr.sel > td {
+.log-tbl tbody tr.sel > td,
+.log-tbl tbody tr.mark > td {
   background: var(--magenta-bg);
+}
+/* rows found from the map: a magenta edge, and clear of the sticky header when scrolled to */
+.log-tbl tbody tr.mark > td:first-child {
+  box-shadow: inset 3px 0 0 var(--magenta);
+}
+.log-tbl tbody tr,
+.strip {
+  scroll-margin-top: 44px;
 }
 .log-tbl th.num + th,
 .log-tbl td.num + td {
@@ -4645,7 +4663,8 @@ div.empty-note p {
     box-shadow 0.15s;
 }
 .strip:hover,
-.strip.sel {
+.strip.sel,
+.strip.mark {
   transform: translateX(6px);
   box-shadow: -3px 2px 0 rgb(0 0 0 / 0.12);
 }
@@ -4744,7 +4763,8 @@ div.empty-note p {
 @media (prefers-reduced-motion: reduce) {
   .strip,
   .strip:hover,
-  .strip.sel {
+  .strip.sel,
+  .strip.mark {
     transition: none;
     transform: none;
   }
@@ -5114,6 +5134,11 @@ div.empty-note p {
 }
 .fl-row.is-twin {
   background: color-mix(in srgb, var(--amber) 16%, var(--sheet));
+}
+/* flights found from the group's map (a route line clicked) */
+.fl-row.is-mark {
+  background: var(--magenta-bg);
+  box-shadow: inset 3px 0 0 var(--magenta);
 }
 .fl-ident {
   display: flex;
