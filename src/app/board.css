@@ -55,6 +55,10 @@
   gap: 18px;
   align-items: start;
 }
+/* the snapshot's timetable is from another season than today: across both columns, above the board */
+.bd-split > .season-note {
+  grid-column: 1 / -1;
+}
 .bd-map {
   position: sticky;
   top: 12px;
@@ -78,6 +82,10 @@
   .bd-map {
     position: relative;
     order: -1;
+  }
+  /* the season note stays first, above the map that moves up on narrow screens */
+  .bd-split > .season-note {
+    order: -2;
   }
 }
 

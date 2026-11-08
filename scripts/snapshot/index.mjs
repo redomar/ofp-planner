@@ -4,12 +4,14 @@
 //   pnpm data:snapshot                      fetch the last 14 days + build public/data/
 //   pnpm data:snapshot --stage fetch        only download/process ADS-B days (cached)
 //   pnpm data:snapshot --stage build        only rebuild from what's cached
+//   pnpm data:snapshot --stage plan --days 21   dry run: print the season and the days a run would use
 //   pnpm data:snapshot --airline EZY        rebuild one airline, keep the others' files
 //   pnpm data:snapshot --days 7 --end 2026-10-03 --no-ryanair --refresh
 //   pnpm data:snapshot --out /srv/data --cache /srv/cache   (or SNAPSHOT_OUT / SNAPSHOT_CACHE)
 //
 // See docs/data-pipeline.md.
 import { parseArgs } from "node:util";
+import { seasonOf } from "./season.mjs";
 
 const { values: args } = parseArgs({
   options: {
@@ -27,7 +29,7 @@ const { values: args } = parseArgs({
 });
 
 if (args.help) {
-  console.log(`Usage: pnpm data:snapshot [--stage fetch|build|all] [--airline ICAO] [--days N] [--end YYYY-MM-DD]
+  console.log(`Usage: pnpm data:snapshot [--stage fetch|build|all|plan] [--airline ICAO] [--days N] [--end YYYY-MM-DD]
        [--concurrency N] [--no-ryanair] [--refresh] [--out DIR] [--cache DIR]`);
   process.exit(0);
 }
@@ -51,11 +53,20 @@ if (onlyBrand && !AIRLINES.some((a) => a.icao === onlyBrand)) {
 // last complete UTC day by default (adsb.lol uploads a day's archive the next morning)
 const end = args.end ?? new Date(Date.now() - 86400_000).toISOString().slice(0, 10);
 const nDays = Math.max(1, +args.days);
+// One IATA season only: the window stops at the season change before --end (a flight that keeps its
+// local time moves by an hour in UTC there, and the timetable changes), so earlier days are left out.
+const season = seasonOf(end);
 const dates = [];
-for (let i = nDays - 1; i >= 0; i--) dates.push(new Date(Date.parse(`${end}T00:00:00Z`) - i * 86400_000).toISOString().slice(0, 10));
+for (let i = nDays - 1; i >= 0; i--) {
+  const d = new Date(Date.parse(`${end}T00:00:00Z`) - i * 86400_000).toISOString().slice(0, 10);
+  if (d >= season.from) dates.push(d);
+}
+if (dates.length < nDays)
+  log(`snapshot: ${season.name} schedule began ${season.from}; the ${nDays - dates.length} day(s) before it are left out (${dates.length} used)`);
 
-log(`snapshot: stage=${args.stage} days=${dates[0]}..${dates[dates.length - 1]} out=${OUT} cache=${RAW}`);
+log(`snapshot: stage=${args.stage} season=${season.code} days=${dates[0]}..${dates[dates.length - 1]} out=${OUT} cache=${RAW}`);
 const t0 = Date.now();
+if (args.stage === "plan") process.exit(0);
 
 if (args.stage === "fetch" || args.stage === "all") {
   let k = 0;

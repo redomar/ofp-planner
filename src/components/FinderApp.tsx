@@ -22,6 +22,7 @@ import {
 import { familyOf } from "@/lib/data/flight";
 import { DEFAULT_PREFS, readPrefs, writePrefs } from "@/lib/saved";
 import { applyFn, readFnOverrides, useFnOverrides } from "@/lib/fnoverride";
+import { snapshotSeason } from "@/lib/season";
 import { routeColor } from "@/lib/colors";
 import { hiddenAirlines, listedAirline, useDisplay } from "@/lib/display";
 import { StatusLine, TopBar } from "./chrome";
@@ -276,7 +277,12 @@ export function FinderApp() {
     <span>
       <b>{alNames}</b> · {rows.length.toLocaleString("en-GB")} flights · snapshot{" "}
       <time dateTime={manifest.generatedAt}>{new Date(manifest.generatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</time>
-      {manifest.coverage && <span className="muted hide-xs"> (schedules {manifest.coverage.from} → {manifest.coverage.to})</span>}
+      {manifest.coverage && (
+        <span className="muted hide-xs">
+          {" "}
+          ({snapshotSeason(manifest)?.name} timetable, seen {manifest.coverage.from} → {manifest.coverage.to})
+        </span>
+      )}
     </span>
   );
 

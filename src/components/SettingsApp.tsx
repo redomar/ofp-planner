@@ -6,6 +6,7 @@ import { enrich } from "@/lib/data/query";
 import { RouteHead } from "./RouteHead";
 import type { Manifest } from "@/lib/data/types";
 import { routeColor } from "@/lib/colors";
+import { snapshotSeason } from "@/lib/season";
 import { DEFAULT_AIRFRAMES, readAirframes, useAirframes, writeAirframes, type Airframe } from "@/lib/simbrief";
 import { applyTheme, clearAll, readTheme, storageBytes, useStorageVersion, type ThemePref } from "@/lib/storage";
 import { describeBackup, downloadBackup, readBackup, restoreBackup, type Backup } from "@/lib/backup";
@@ -685,6 +686,7 @@ function DataInfo({ manifest, error }: { manifest: Manifest | null; error: strin
   if (error) return <p className="note-red">Couldn’t read the snapshot manifest: {error}</p>;
   if (!manifest) return <div className="sk-block" aria-hidden="true" />;
   const c = manifest.counts;
+  const season = snapshotSeason(manifest);
   return (
     <div className="datainfo">
       <dl className="facts">
@@ -695,6 +697,18 @@ function DataInfo({ manifest, error }: { manifest: Manifest | null; error: strin
         <div>
           <dt>Schedules cover</dt>
           <dd className="mono">{manifest.coverage ? `${manifest.coverage.from} → ${manifest.coverage.to}` : "—"}</dd>
+        </div>
+        <div>
+          <dt>Season</dt>
+          <dd className="season-dd">
+            {season ? (
+              <>
+                {season.name} <span className="muted mono">{`${season.from} → ${season.to}`}</span>
+              </>
+            ) : (
+              "—"
+            )}
+          </dd>
         </div>
         <div>
           <dt>Flights</dt>

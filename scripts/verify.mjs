@@ -1424,6 +1424,71 @@ async function run() {
     await fd.ctx.close();
   });
 
+  /* ---------- seasons: one IATA season per snapshot; notes when a date is in another ---------- */
+  await section("seasons", async () => {
+    const { seasonOf } = await import("./snapshot/season.mjs");
+    const table = [
+      ["2026-03-28", "W25", "2025-10-26", "2026-03-28"],
+      ["2026-03-29", "S26", "2026-03-29", "2026-10-24"],
+      ["2026-10-24", "S26", "2026-03-29", "2026-10-24"],
+      ["2026-10-25", "W26", "2026-10-25", "2027-03-27"],
+      ["2027-03-28", "S27", "2027-03-28", "2027-10-30"],
+    ];
+    const bad = table.filter(([d, c, f, t]) => {
+      const s = seasonOf(d);
+      return s.code !== c || s.from !== f || s.to !== t;
+    });
+    !bad.length ? pass("seasons: summer from the last Sunday of March, winter from the last Sunday of October (5 boundary dates)") : fail(`seasons: ${JSON.stringify(bad)}`);
+    // the pipeline's dry run: a window ending in winter starts at the season change
+    const { execFileSync } = await import("node:child_process");
+    const plan = (end) => execFileSync(process.execPath, ["scripts/snapshot/index.mjs", "--stage", "plan", "--days", "21", "--end", end], { encoding: "utf8" });
+    const w = plan("2026-11-07");
+    const su = plan("2026-10-13");
+    /season=W26 days=2026-10-25\.\.2026-11-07/.test(w) && /7 day\(s\) before it are left out/.test(w) && /season=S26 days=2026-09-23\.\.2026-10-13/.test(su)
+      ? pass("seasons: a snapshot window stops at the season change (21 days asked to 7 Nov → 25 Oct – 7 Nov)")
+      : fail(`seasons: plan ${w} | ${su}`);
+
+    const { ctx, page, errors } = await open("/settings");
+    const cov = await page.evaluate(async () => (await fetch("/data/manifest.json").then((r) => r.json())).coverage);
+    const snap = seasonOf(cov.to);
+    await page.waitForSelector(".season-dd");
+    const shown = (await page.locator(".season-dd").innerText()).replace(/\s+/g, " ");
+    shown.startsWith(snap.name) && shown.includes(`${snap.from} → ${snap.to}`)
+      ? pass(`seasons: Settings names the snapshot's season (${shown}), the same as the pipeline's rule`)
+      : fail(`seasons: Settings shows "${shown}", expected ${snap.name}`);
+    // the brief: a note only when the date flown is in another season than the snapshot's
+    await page.goto(`${base}/?al=EZY&dep=EGKK`, { waitUntil: "networkidle" });
+    await page.waitForSelector("table.flights tbody tr");
+    await page.locator("table.flights tbody tr").first().click();
+    await page.getByRole("link", { name: /Open brief/ }).click();
+    await page.waitForURL(/\/brief/);
+    const fid = new URL(page.url()).searchParams.get("f");
+    const day = (n) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
+    const got = [];
+    for (const d of [day(1), day(183)]) {
+      await page.goto(`${base}/brief?f=${encodeURIComponent(fid)}&d=${d}`, { waitUntil: "networkidle" });
+      await page.waitForSelector(".fcard");
+      await page.waitForTimeout(300);
+      const note = await page.locator(".season-note").getAttribute("data-season").catch(() => null);
+      const want = seasonOf(d).code !== snap.code ? seasonOf(d).code : null;
+      got.push([d, note, want]);
+    }
+    got.every(([, note, want]) => note === want)
+      ? pass(`seasons: the brief notes a date in another season than ${snap.code} (${got.map(([d, n]) => `${d}: ${n ?? "no note"}`).join(", ")})`)
+      : fail(`seasons: brief notes ${JSON.stringify(got)}`);
+    await checkPage("brief season note 1280 light", page, errors);
+    await ctx.close();
+    // the board: a note when today is in another season than the snapshot's
+    const b = await open("/board?ap=EGKK&h=12", { width: 390, height: 844, theme: "dark" });
+    await b.page.waitForSelector(".fids-tbl tbody tr", { timeout: 30000 });
+    const today = new Date().toISOString().slice(0, 10);
+    const bn = await b.page.locator(".bd-split > .season-note").count();
+    const bwant = seasonOf(today).code !== snap.code ? 1 : 0;
+    bn === bwant ? pass(`seasons: the board ${bwant ? "notes" : "has no note"}: today is ${seasonOf(today).code}, the snapshot ${snap.code}`) : fail(`seasons: board note ${bn}, expected ${bwant}`);
+    await checkPage("board season note 390 dark", b.page, b.errors);
+    await b.ctx.close();
+  });
+
   /* ---------- range rings: origin, payload, your airports ---------- */
   await section("range", async () => {
     const { ctx, page, errors } = await open("/range");

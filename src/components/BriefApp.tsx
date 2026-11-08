@@ -15,10 +15,12 @@ import { applyFn, useFnOverrides } from "@/lib/fnoverride";
 import { SavedFlights } from "./SavedFlights";
 import { CollapseProvider } from "./collapse";
 import { FlightCard } from "./FlightCard";
+import { SeasonNote } from "./SeasonNote";
 import { Section, V } from "./ui";
 import { RouteWeather, type WxPoint } from "./wx/RouteWeather";
 import { localTime } from "@/lib/wx/format";
 
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
 /**
@@ -282,6 +284,7 @@ export function BriefApp() {
                     </div>
                   </div>
                 </div>
+                {date && <SeasonNote date={date} lead={`${+date.slice(8, 10)} ${MONTHS[+date.slice(5, 7) - 1]} ${date.slice(0, 4)}`} manifest={manifest} />}
                 {!operates && date && (
                   <p className="note-amber">
                     {flightNo(f, airline?.iata ?? null)} doesn’t operate on {DAY_NAMES[isoDay(new Date(`${date}T00:00:00Z`)) - 1]}s in the snapshot.{" "}
