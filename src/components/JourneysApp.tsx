@@ -8,6 +8,7 @@ import { loadRoutes, useDataset, type Airport, type FlightRow } from "@/lib/data
 import type { AirlineInfo } from "@/lib/data/types";
 import { routeColor } from "@/lib/colors";
 import { nextFocus, reveal, type LineFocus } from "@/lib/lineFocus";
+import { snapshotSeason } from "@/lib/season";
 import { applyFn, useFnOverrides } from "@/lib/fnoverride";
 import type { Group, Journey, Pt, RouteEdge, TFlight } from "@/lib/journey/engine";
 import { DETOURS, DUTY_HOURS, EMPTY_PLAN, EXAMPLES, HELP, listSort, planFromParams, planToParams, SORTS, toSpec, type JourneyPlan, type ListSort } from "@/lib/journey/plan";
@@ -222,7 +223,7 @@ export function JourneysApp() {
     ) : timed && timedSet ? (
       <span>
         <b>Timed connections</b> · {n0(timedSet.flights.length)} flights with times
-        <span className="muted hide-xs"> · weekly pattern from the snapshot {manifest.coverage ? `${manifest.coverage.from} → ${manifest.coverage.to}` : ""}</span>
+        <span className="muted hide-xs"> · weekly pattern from the snapshot {manifest.coverage ? `${manifest.coverage.from} → ${manifest.coverage.to} (${snapshotSeason(manifest)?.name})` : ""}</span>
       </span>
     ) : (
       <span>

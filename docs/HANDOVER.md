@@ -117,6 +117,11 @@ components:
                    Destinations/Map tab → same as picking the row; Logbook → rows .mark, then each opens (sel); Favourites group map →
                    .fl-row.is-mark via MarkedCtx; Board → .is-mark rows (amber edge; line or dot click), "Show more" grows to reach the row;
                    Journeys → leg li.is-mark. Fan maps cover themselves near the hub: the topmost (hovered) line is the one clicked.
+  season.ts:       IATA season of a date (summer from the last Sunday of March, winter from the last Sunday of October);
+                   snapshotSeason(manifest) = season of coverage.to (the pipeline keeps a snapshot inside one season, so no
+                   manifest field). Same rule in scripts/snapshot/season.mjs: keep both alike (verify checks they agree).
+                   SeasonNote.tsx: amber note on the Brief (date flown) and Board (today, above the map on narrow screens) when
+                   that date is in another season. Finder/Journeys status lines and Settings → Schedule snapshot name the season.
   terrain:         public/geo/terrain.json v3 (committed, ~1.5 MB / 510 KB gzip, whole globe) from `pnpm map:terrain` (~3 min); land bands
                    200/500/1000/1500/2000/3000/4000/5000 m (h0–h7), sea 200/1000/2000/4000 m (d0–d3) (scripts/build-terrain.mjs: AWS Terrain
                    Tiles z5 → 0.1° grid, poles take the 85° row → d3-contour per 30° tile with 2-step overlap, rings wound for d3 (outer
@@ -221,6 +226,9 @@ recipes:
     # fetches only 2026-10-04 (others are cached), rebuilds everything; coverage becomes 09-20 → 10-04.
     # Window length is just --days; --end defaults to yesterday UTC (adsb.lol publishes the next morning).
   roll_the_window_forward: pnpm data:snapshot            # last 14 days ending yesterday; old cached days are kept but unused
+  one_season_only: |
+    The window stops at the season change before --end (see docs/data-pipeline.md). Check first with a dry run:
+    pnpm data:snapshot --stage plan --days 21     # prints season=W26 days=2026-10-25..<end>, and how many days were left out
   rebuild_only: pnpm data:snapshot --stage build --days 14 --end 2026-10-03   # seconds, no network except reference refresh
   one_airline: pnpm data:snapshot --stage build --airline EZY                 # keeps other airline files as they are
   without_ryanair: pnpm data:snapshot --no-ryanair
@@ -332,10 +340,12 @@ server_latch_container_alternative: |
 ## 10. Open items / ideas
 
   - BRANCHES IN FLIGHT (keep current):
-    · feature/more-airlines → 1.7.0: pushed, draft PR #7; main (1.6.3) merged in 2026-11-08 (merge, not rebase:
-      the branch is published). Extra+ airlines, regional operators, Greenland, guessed airports; season handling next.
-      Not merged, so not live. Waits for winter data (~21 days from 2026-10-25), then rebuild public/data on this
-      code, release, data:push.
+    · feature/more-airlines → 1.7.0 (PR #7): Extra+ airlines, regional operators, Greenland, guessed airports, with its
+      own snapshot (20 Sep → 13 Oct 2026, 77 airlines); no new data. Released from release/1.7.0.
+    · feature/winter-season (draft PR stacked on #7, base feature/more-airlines; switch its base to main once 1.7.0 is
+      merged): timetable seasons (one IATA season per snapshot, notes on Brief and Board) + the winter 2026/27
+      snapshot, built once ~21 winter days exist (`pnpm data:snapshot --stage plan --days 21` → 25 Oct → 14 Nov),
+      refreshed again late December (ski routes). Version decided at release.
     · feature/map-line-click: released as 1.6.3 on 2026-11-08 (the user asked for a patch number here so that
       more airlines can be 1.7.0).
   - After 1.5.0 (per-day times): Journeys UI could show each leg's weekday times in the timings table; 116 numbered callsigns
@@ -343,7 +353,9 @@ server_latch_container_alternative: |
     (the server's live data overlay shadows the data baked into the image).
   - Ryanair timetable: kept on (user decision 2026-10-05). Next releases: feature branches → release/x.y.z → PR → merge
     commit → signed tag → GitHub release; pushing main auto-deploys (Dokploy).
-  - Refresh the snapshot after 25 Oct 2026 (winter schedule) and periodically after; consider a longer window
-    (--days 21–28) to catch weekly flights.
+  - Winter 2026/27 snapshot (for 1.7.0): wait until ~21 winter days exist (25 Oct → ~14 Nov), then
+    `pnpm data:snapshot --days 21` on feature/more-airlines. Refresh again late December for routes that start
+    mid-December (ski), and after each season change. Undecided (user): per-flight first/last seen dates and a
+    Ryanair look-ahead for routes that start later in the season.
   - Possible: user-typed flight number override for fn-null flights; more airlines in airlines.mjs;
     favourites/next-leg "rotation" planning; a printout like OFP Reader's MCDU sheet.

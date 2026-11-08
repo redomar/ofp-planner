@@ -127,8 +127,13 @@ the following morning (UTC), so the default end date is yesterday.
   available times.
 - **Coverage**: ADS-B receivers are dense in western/central Europe, thinner over North Africa,
   the Middle East and the sea. Flights there are under-represented or missing one end.
-- **Window**: a 14-day observation window. Weekly flights can be seen once and dropped (the
-  two-sightings rule filters diversions and positioning flights). Seasonal schedules change at
-  the end of March and October; refresh after those dates.
+- **Window**: a 14-day observation window by default (`--days`). Weekly flights can be seen once and
+  dropped (the two-sightings rule filters diversions and positioning flights).
+- **One season per snapshot**: IATA seasons change on the last Sunday of March (summer) and of October
+  (winter). The timetable changes then, and a flight that keeps its local time moves by an hour in UTC,
+  so the window never crosses a change: days before the season of `--end` are left out
+  (`scripts/snapshot/season.mjs`). `--stage plan` prints the season and the days a run would use.
+  The app names the season from the coverage (`src/lib/season.ts`, the same rule) and notes a date
+  in another season on the Brief and the Board. Refresh after each change.
 - **Brand colours** are taken from each airline's livery/brand and are approximate.
 - Codeshares and wet-leases appear under the operating callsign's brand.

@@ -29,6 +29,7 @@ import {
 } from "@/lib/board/gate";
 import { StatusLine, TopBar } from "./chrome";
 import { PlacePicker } from "./pickers";
+import { SeasonNote } from "./SeasonNote";
 import { RouteMap, type MapRoute } from "./RouteMap";
 import { FidsBoard } from "./board/FidsBoard";
 import { GateScreen, localClock, screenNow, type GateWx } from "./board/GateScreen";
@@ -434,6 +435,7 @@ export function BoardApp() {
                   </div>
                 ) : (
                   <div className="bd-split">
+                    <SeasonNote date={new Date(now).toISOString().slice(0, 10)} lead="Today" manifest={manifest} many />
                     <div className="bd-list">
                       <FidsBoard
                         rows={rows.slice(0, shown)}
