@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: unreleased work on branch feature/more-airlines, draft PR #7, to be released as 1.7.0, main 1.6.3 merged in on 2026-11-08 (77 airlines: 20 Extra+ brands, regional operators, Greenland; Extra+ toggle; guessed airports). It carries no version: number it at release, and rebuild public/data after merging rather than merging data files; never data:push from the branch; v1.6.3 released 2026-11-08 (click a route line on a map to focus its flights: Finder, Logbook, Favourites, Board, Journeys; there is no 1.6.2, the user's pick so 1.7.0 = more airlines); v1.6.1 released 2026-10-29 (Next.js 16.4.3 security update; stay on ≥ 16.4.1); v1.6.0 released 2026-10-24 (Range page: range rings per sim A320 with payload, custom ZFW/FOB, MLW; maps cover the globe as a disc round their content; aircraft side profiles + liveries prepared, not used yet; feature/more-airlines is a separate draft PR, needs a rebase on 1.6.0); 1.5.2: (a flight in several favourites groups; shared journey legs kept and marked; 1.5.1: map route lines: great circle or rhumb line, Settings → Display; 1.5.0: one row per flight with per-weekday times, Brief/Finder/Board by day, logbook list redone: month table, punctuality switch, flight strips; 1.4.4: Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
+  status: v1.7.0 released 2026-11-08 (more airlines: 77 airlines incl. 20 Extra+ behind a Settings toggle, regional operators under their brands, Greenland, guessed airports behind a Settings toggle; snapshot 20 Sep → 13 Oct, no new data; data:push done at release); v1.6.3 released 2026-11-08 (click a route line on a map to focus its flights: Finder, Logbook, Favourites, Board, Journeys; there is no 1.6.2, the user's pick so 1.7.0 = more airlines); v1.6.1 released 2026-10-29 (Next.js 16.4.3 security update; stay on ≥ 16.4.1); v1.6.0 released 2026-10-24 (Range page: range rings per sim A320 with payload, custom ZFW/FOB, MLW; maps cover the globe as a disc round their content; aircraft side profiles + liveries prepared, not used yet; feature/more-airlines is a separate draft PR, needs a rebase on 1.6.0); 1.5.2: (a flight in several favourites groups; shared journey legs kept and marked; 1.5.1: map route lines: great circle or rhumb line, Settings → Display; 1.5.0: one row per flight with per-weekday times, Brief/Finder/Board by day, logbook list redone: month table, punctuality switch, flight strips; 1.4.4: Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 
@@ -180,7 +180,7 @@ ids_and_urls:
 
 ## 4. Data: what exists and why
 
-snapshot_now: 77 airlines (20 Extra+) · 45,332 flights (157 with a guessed airport) · 16,468 routes · 607 airports · window 2026-09-20 → 2026-10-13 (24 days); main still has 57 airlines · 41,593 flights to 10-08
+snapshot_now: 77 airlines (20 Extra+) · 45,332 flights (157 with a guessed airport) · 16,468 routes · 607 airports · window 2026-09-20 → 2026-10-13 (24 days)
 size: public/data ≈ 11 MB raw, ≈ 1.2 MB gzipped (biggest RYR.json 3.6 MB / 423 KB gz); routes.json 315 KB / 62 KB gz
 loading: manifest revalidated each visit; other files fetched with ?v=<generatedAt> (cache-friendly);
   airline files load only for selected airlines; routes.json only once an airport is chosen.
@@ -332,10 +332,10 @@ server_latch_container_alternative: |
 ## 10. Open items / ideas
 
   - BRANCHES IN FLIGHT (keep current):
-    · feature/more-airlines → 1.7.0: pushed, draft PR #7; main (1.6.3) merged in 2026-11-08 (merge, not rebase:
-      the branch is published). Extra+ airlines, regional operators, Greenland, guessed airports; season handling next.
-      Not merged, so not live. Waits for winter data (~21 days from 2026-10-25), then rebuild public/data on this
-      code, release, data:push.
+    · feature/more-airlines: released as 1.7.0 on 2026-11-08 (PR #7 via release/1.7.0), with its own snapshot
+      (20 Sep → 13 Oct 2026, 77 airlines); no new data.
+    · feature/winter-season: draft PR #11, stacked on #7 (base feature/more-airlines; switch the base to main now that
+      1.7.0 is merged). Timetable seasons + the winter 2026/27 snapshot, built once ~21 winter days exist (~15 Nov).
     · feature/map-line-click: released as 1.6.3 on 2026-11-08 (the user asked for a patch number here so that
       more airlines can be 1.7.0).
   - After 1.5.0 (per-day times): Journeys UI could show each leg's weekday times in the timings table; 116 numbered callsigns

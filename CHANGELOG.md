@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.7.0 — 2026-11-08
 
 - **More airlines.** Regional airlines that fly under brands already in the planner are now counted: **Air Nostrum** (Iberia Regional), **BA Shuttle** (British Airways UK domestic), **Emerald Airlines** (Aer Lingus Regional) and **Binter Canarias** (the Canary inter-island hops). Iberia 474 → 732 flights, British Airways 920 → 1,071, Aer Lingus 250 → 340, Binter 125 → 242.
 - **20 new airlines (Extra+):** Sky Express, Aeroitalia, Edelweiss, Discover Airlines, Air Corsica, TAROM, Eastern Airways, Kuwait Airways, Aurigny, Freebird Airlines, Arkia, Marabu, Nouvelair, Azores Airlines, Atlantic Airways, Enter Air, Canaryfly, Air Greenland, Neos and Cabo Verde Airlines. They come from 5–13 October (every weekday at least once), so a flight seen only once in those nine days (some weekly charters and island routes) isn't in yet; a full download of the earlier days fills those in.
