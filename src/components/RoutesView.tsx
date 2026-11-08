@@ -99,7 +99,15 @@ export function RoutesView({
   return (
     <div className="routes-view">
       {mapRoutes.length > 0 && (
-        <RouteMap routes={mapRoutes} height={480} label={`Map of ${mapRoutes.length} routes matching the filters.`} />
+        <RouteMap
+          routes={mapRoutes}
+          height={480}
+          label={`Map of ${mapRoutes.length} routes matching the filters. Select a route to see its flights.`}
+          onRoute={(key) => {
+            const r = routes.find((x) => x.key === key);
+            if (r) onPick(r.o, r.d);
+          }}
+        />
       )}
       <p className="muted routes-note">
         {routes.length.toLocaleString("en-GB")} {routes.length === 1 ? "route" : "routes"}

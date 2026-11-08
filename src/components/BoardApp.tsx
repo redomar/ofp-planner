@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { cityName, dur, isoDay, onDay } from "@/lib/data/flight";
 import { findFlight, loadRoutes, useDataset, type FlightRow } from "@/lib/data/load";
 import { routeColor } from "@/lib/colors";
+import { nextFocus, reveal, type LineFocus } from "@/lib/lineFocus";
 import { applyFn, useFnOverrides } from "@/lib/fnoverride";
 import { placeOptions } from "@/lib/places";
 import { useAirframes } from "@/lib/simbrief";
@@ -165,6 +166,24 @@ export function BoardApp() {
   }, [ap, loadingBoard, data.flights, fnOv, airports, side, minute, hours]);
   const [shown, setShown] = useState(ROWS);
   const [hover, setHover] = useState<string | null>(null);
+  // a route line (or its airport) clicked on the map: that airport's flights marked, or one of them
+  const [line, setLine] = useState<LineFocus>(null);
+  const marked = useMemo(() => {
+    if (!line) return null;
+    const list = rows.filter((m) => m.other === line.key);
+    return new Set((line.at === -1 ? list : list.slice(line.at, line.at + 1)).map((m) => m.key));
+  }, [line, rows]);
+  const onRoute = (key: string) => {
+    const list = rows.filter((m) => m.other === key);
+    const next = nextFocus(line, key, list.length);
+    setLine(next);
+    if (!next) return;
+    const target = list[Math.max(0, next.at)];
+    // the flight may be further down than the rows shown so far
+    const at = rows.indexOf(target);
+    if (at >= shown) setShown(Math.ceil((at + 1) / ROWS) * ROWS);
+    reveal(`[data-mv="${CSS.escape(target.key)}"]`);
+  };
   const fmt = (ms: number) => (utc || !airport?.tz ? `${new Date(ms).toISOString().slice(11, 16)}${utc ? "" : "Z"}` : localClock(ms, airport.tz));
 
   const mapRoutes = useMemo<MapRoute[]>(() => {
@@ -179,12 +198,12 @@ export function BoardApp() {
         from: side === "dep" ? airport : other,
         to: side === "dep" ? other : airport,
         color: routeColor(airlines.get(m.f.al)),
-        active: hover === m.other,
+        active: (hover ?? line?.key) === m.other,
         label: cityName(other) ?? other.name,
       });
     }
     return [...seen.values()];
-  }, [rows, airport, airports, airlines, side, hover]);
+  }, [rows, airport, airports, airlines, side, hover, line]);
 
   /* ---------- gate tab: the flight ---------- */
 
@@ -419,6 +438,7 @@ export function BoardApp() {
                         fmt={fmt}
                         clock={fmt(now)}
                         hover={hover}
+                        marked={marked}
                         onHover={setHover}
                         onPick={(m) => {
                           setGate({ ...EMPTY_GATE, f: m.f.id, d: isoDate(m.depMs) });
@@ -440,12 +460,13 @@ export function BoardApp() {
                             routes={mapRoutes}
                             height={460}
                             label={`Map of ${mapRoutes.length} ${side === "dep" ? "destinations from" : "origins into"} ${airport.name} in the next ${hours} hours.`}
-                            onPick={(icao) => setHover((h) => (h === icao ? null : icao))}
+                            onPick={onRoute}
+                            onRoute={onRoute}
                           />
                         </div>
                       )}
                       <p className="muted small">
-                        Hover a flight to see its route. {mapRoutes.length} airports in the next {hours} h.
+                        Hover a flight to see its route; click a route for its flights. {mapRoutes.length} airports in the next {hours} h.
                       </p>
                     </div>
                   </div>

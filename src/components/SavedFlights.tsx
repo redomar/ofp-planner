@@ -2,7 +2,7 @@
 
 import { Flag } from "./Flag";
 import Link from "next/link";
-import { useEffect, useMemo, useState, type PointerEvent as ReactPointerEvent, type SyntheticEvent } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type PointerEvent as ReactPointerEvent, type SyntheticEvent } from "react";
 import { airportLabel, cityName, hhmm } from "@/lib/data/flight";
 import { loadAirports, loadManifest, type Airport } from "@/lib/data/load";
 import type { AirlineInfo } from "@/lib/data/types";
@@ -22,6 +22,7 @@ import {
   type SavedFlight,
 } from "@/lib/saved";
 import { routeColor } from "@/lib/colors";
+import { nextFocus, reveal, type LineFocus } from "@/lib/lineFocus";
 import { overrideFor, useFnOverrides } from "@/lib/fnoverride";
 import { FlightIdent, TypeBadge, WeekStrip } from "./badges";
 import { RouteMap, type MapRoute } from "./RouteMap";
@@ -274,6 +275,10 @@ function NewGroup() {
   );
 }
 
+/** The flights of a group marked from its map (a route line clicked), by id. */
+const MarkedCtx = createContext<Set<string> | null>(null);
+const routeOf = (f: SavedFlight) => `${f.o}-${f.d}`;
+
 function Group({
   name,
   flights,
@@ -297,19 +302,32 @@ function Group({
   children: React.ReactNode;
 }) {
   const [map, setMap] = useState(false);
+  // a route line clicked on the map: its flights marked, then one at a time
+  const [line, setLine] = useState<LineFocus>(null);
   // one line per route, in the colour of its first flight's airline
   const routes = useMemo<MapRoute[]>(() => {
     if (!map || !ref_) return [];
     const seen = new Map<string, MapRoute>();
     for (const f of flights) {
-      const key = `${f.o}-${f.d}`;
+      const key = routeOf(f);
       const from = ref_.airports.get(f.o);
       const to = ref_.airports.get(f.d);
       if (!from || !to || seen.has(key)) continue;
-      seen.set(key, { key, from, to, color: routeColor(ref_.airlines.get(f.al)) });
+      seen.set(key, { key, from, to, color: routeColor(ref_.airlines.get(f.al)), active: key === line?.key });
     }
     return [...seen.values()];
-  }, [map, ref_, flights]);
+  }, [map, ref_, flights, line]);
+  const marked = useMemo(() => {
+    if (!map || !line) return null;
+    const ids = flights.filter((f) => routeOf(f) === line.key).map((f) => f.id);
+    return new Set(line.at === -1 ? ids : ids.slice(line.at, line.at + 1));
+  }, [map, line, flights]);
+  const onRoute = (key: string) => {
+    const ids = flights.filter((f) => routeOf(f) === key).map((f) => f.id);
+    const next = nextFocus(line, key, ids.length);
+    setLine(next);
+    if (next) reveal(`[data-group="${CSS.escape(name ?? "")}"][data-fav="${CSS.escape(ids[Math.max(0, next.at)])}"]`);
+  };
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(name ?? "");
   const [confirm, setConfirm] = useState(false);
@@ -401,12 +419,14 @@ function Group({
       </div>
       {open && map && routes.length > 0 && (
         <div className="grp-map">
-          <RouteMap routes={routes} height={320} label={`Map of the ${routes.length} routes in ${title}.`} />
+          <RouteMap routes={routes} height={320} label={`Map of the ${routes.length} routes in ${title}. Select a route to find its flights in the list.`} onRoute={onRoute} />
         </div>
       )}
       {open &&
         (flights.length ? (
-          <ul className="fl-list">{children}</ul>
+          <MarkedCtx.Provider value={marked}>
+            <ul className="fl-list">{children}</ul>
+          </MarkedCtx.Provider>
         ) : (
           <p className="lib-empty small">Empty. Drag a flight here by its handle, pick this group in its menu, or star one while this group is marked “new stars”.</p>
         ))}
@@ -449,6 +469,7 @@ function Row({
   onNudge: (f: SavedFlight, label: string, by: -1 | 1) => void;
 }) {
   const fnOv = useFnOverrides();
+  const marked = useContext(MarkedCtx)?.has(f.id) ?? false;
   const al = ref_?.airlines.get(f.al);
   const o = ref_?.airports.get(f.o);
   const d = ref_?.airports.get(f.d);
@@ -459,7 +480,7 @@ function Row({
   const place = (a: Airport | undefined, icao: string) => (a ? (cityName(a) ?? airportLabel(a)) : icao);
   return (
     <li
-      className={`fl-row${dragging ? " is-dragging" : ""}${drop ? ` drop-${drop}` : ""}${others.length ? " is-shared" : ""}${twin ? " is-twin" : ""}`}
+      className={`fl-row${dragging ? " is-dragging" : ""}${drop ? ` drop-${drop}` : ""}${others.length ? " is-shared" : ""}${twin ? " is-twin" : ""}${marked ? " is-mark" : ""}`}
       data-fav={kind === "fav" ? f.id : undefined}
       data-group={groupKey}
       onMouseEnter={others.length ? () => onTwin(f.id) : undefined}

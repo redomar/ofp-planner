@@ -90,6 +90,12 @@ components:
                    live SVG transform during gestures, redraw ~140 ms after; plain scroll stops at k 1 then scrolls the page (unless already
                    below 1), ctrl/pinch and − go on to kMin; pointer pinch/drag, dblclick,
                    +/−/⤢ buttons top-left (the floating flight panel covers the right).
+                   Route lines are clickable when a page passes onRoute(key) (each <g.map-route> carries data-route=key, .pick = pointer).
+                   lib/lineFocus.ts: nextFocus() = first click on a line focuses every flight on it, each further click the next one,
+                   then all again (one flight: focus, then let go); reveal() scrolls the found row into view. Per page: Finder
+                   Destinations/Map tab → same as picking the row; Logbook → rows .mark, then each opens (sel); Favourites group map →
+                   .fl-row.is-mark via MarkedCtx; Board → .is-mark rows (amber edge; line or dot click), "Show more" grows to reach the row;
+                   Journeys → leg li.is-mark. Fan maps cover themselves near the hub: the topmost (hovered) line is the one clicked.
   terrain:         public/geo/terrain.json v3 (committed, ~1.5 MB / 510 KB gzip, whole globe) from `pnpm map:terrain` (~3 min); land bands
                    200/500/1000/1500/2000/3000/4000/5000 m (h0–h7), sea 200/1000/2000/4000 m (d0–d3) (scripts/build-terrain.mjs: AWS Terrain
                    Tiles z5 → 0.1° grid, poles take the 85° row → d3-contour per 30° tile with 2-step overlap, rings wound for d3 (outer

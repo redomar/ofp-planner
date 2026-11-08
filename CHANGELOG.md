@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **Click a line on a map to find its flights.** Every map with several routes now takes a click on a route line, not just on its airport:
+  - **Finder → Destinations** and **Map** tabs: a line opens that destination's or route's flights, as picking its row does.
+  - **Logbook**: a line marks every flight you've flown on that route and scrolls the list to them; click it again to open each flight in turn, then all of them again. A route flown once opens that flight, and a second click closes it.
+  - **Favourites** (a group's map): the same for the flights in that group.
+  - **Board**: a line (or its airport) marks that airport's flights on the board, then each one in turn. If one is further down, more rows are shown to reach it.
+  - **Journeys**: a leg's line marks that leg in the list; click again to let go.
+  - The line stays lit while its flights are marked. Lines that lie on top of each other near a busy airport give the click to the one on top, which is the one that lights up when you hover.
+
 ## 1.6.1 — 2026-10-29
 
 - **Security: Next.js 16.3.6 → 16.4.3.** 16.0 to 16.4.0 have two critical advisories ([GHSA-2464-fhr4-w9xw](https://github.com/advisories/GHSA-2464-fhr4-w9xw), [GHSA-673q-mjm6-r5xr](https://github.com/advisories/GHSA-673q-mjm6-r5xr)) and a high one. The planner is a static export and uses neither the image optimiser nor `use cache`, so it wasn't exposed, but the build no longer stops on the warning. No change to how the planner works.
