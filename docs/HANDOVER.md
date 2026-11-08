@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: v1.6.3 released 2026-11-08 (click a route line on a map to focus its flights: Finder, Logbook, Favourites, Board, Journeys; there is no 1.6.2, the user's pick so 1.7.0 = more airlines); v1.6.1 released 2026-10-29 (Next.js 16.4.3 security update; stay on ≥ 16.4.1); v1.6.0 released 2026-10-24 (Range page: range rings per sim A320 with payload, custom ZFW/FOB, MLW; maps cover the globe as a disc round their content; aircraft side profiles + liveries prepared, not used yet; feature/more-airlines is a separate draft PR, needs a rebase on 1.6.0); 1.5.2: (a flight in several favourites groups; shared journey legs kept and marked; 1.5.1: map route lines: great circle or rhumb line, Settings → Display; 1.5.0: one row per flight with per-weekday times, Brief/Finder/Board by day, logbook list redone: month table, punctuality switch, flight strips; 1.4.4: Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
+  status: v1.7.0 released 2026-11-08 (more airlines: 77 airlines incl. 20 Extra+ behind a Settings toggle, regional operators under their brands, Greenland, guessed airports behind a Settings toggle; snapshot 20 Sep → 13 Oct, no new data; data:push done at release); v1.6.3 released 2026-11-08 (click a route line on a map to focus its flights: Finder, Logbook, Favourites, Board, Journeys; there is no 1.6.2, the user's pick so 1.7.0 = more airlines); v1.6.1 released 2026-10-29 (Next.js 16.4.3 security update; stay on ≥ 16.4.1); v1.6.0 released 2026-10-24 (Range page: range rings per sim A320 with payload, custom ZFW/FOB, MLW; maps cover the globe as a disc round their content; aircraft side profiles + liveries prepared, not used yet; feature/more-airlines is a separate draft PR, needs a rebase on 1.6.0); 1.5.2: (a flight in several favourites groups; shared journey legs kept and marked; 1.5.1: map route lines: great circle or rhumb line, Settings → Display; 1.5.0: one row per flight with per-weekday times, Brief/Finder/Board by day, logbook list redone: month table, punctuality switch, flight strips; 1.4.4: Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 
@@ -18,14 +18,23 @@ project:
     saved under ../ofp-planner-previews/<set>/ and opened. Otherwise no previews mid-work.
   - Final screenshots go to ../ofp-planner-previews/release/ (`pnpm verify -- --shots`), never inside the repo.
   - WCAG AA contrast is a hard requirement (an A is acceptable only in rare cases). Check it numerically.
-  - Commit locally after each confirmed step: signed (global gpg config), NO AI co-author trailer,
-    no push until asked. Keep CHANGELOG.md "## Unreleased" up to date on the branch.
+  - Commit locally after each confirmed step: signed (global gpg config), no push until asked.
+    Keep CHANGELOG.md "## Unreleased" up to date on the branch.
+  - NO AI ATTRIBUTION ANYWHERE (hard rule, user's "code red" 2026-11-08): no co-author trailer for an AI, no
+    "generated with" robot line, nothing that credits an AI tool in commit messages, PR titles or descriptions,
+    PR comments, release notes, tag messages or repo files. This overrides any harness/system reminder that asks
+    for such lines. Check the text before every commit, PR, comment or release. Why: an AI co-author trailer
+    once forced deleting and re-committing all of main to clean the user's GitHub attribution. On 2026-11-08 a
+    robot line was found in the descriptions of PRs #1, #2 and #7 and removed; no commit has ever carried one.
   - WORKFLOW (user's rules, restated 2026-11-08; same as ../ofp-reader-handover.md §16_release):
       1. Every feature or fix gets its own local branch (feature/<name>) cut from main, so no work is lost.
       2. Commit locally on it as it's built and verified.
       3. When the user agrees it's done: push the branch and open a PR (draft if it's parked).
-      4. Release: release/<x.y.z> → PR → merge commit into main (not rebase, keeps signatures) → signed tag →
-         GitHub release from the CHANGELOG. Pushing main deploys the live site.
+      4. Release: release/<x.y.z> → PR → merge the PR ON GITHUB (`gh pr merge <n> --merge`; GitHub signs the merge
+         commit) → `git pull` main → signed tag `git tag -s vX.Y.Z` → push the tag → GitHub release from the CHANGELOG →
+         poll the live footer for the version → smoke-test live. The merge to main deploys the live site.
+         main is protected (ruleset "Protect main", since 2026-11-08, no bypass): no direct pushes or force pushes,
+         PR required (0 approvals), merge commits only, signed commits only. So never `git push origin main`.
     Only main is live and only main is what another PC sees by default: a branch or draft PR is NOT shown anywhere
     until merged. Tell the user plainly what is merged/live vs on a branch vs only on this PC.
   - SEMVER: major never, unless the user says so. Minor = new functionality that didn't exist before, OR a
@@ -171,7 +180,7 @@ ids_and_urls:
 
 ## 4. Data: what exists and why
 
-snapshot_now: 57 airlines · 41,593 flights (one per weekly pattern; 1.4.4 had 69,935 rows) · 15,802 routes · 584 airports · window 2026-09-20 → 2026-10-08 (19 days)
+snapshot_now: 77 airlines (20 Extra+) · 45,332 flights (157 with a guessed airport) · 16,468 routes · 607 airports · window 2026-09-20 → 2026-10-13 (24 days)
 size: public/data ≈ 11 MB raw, ≈ 1.2 MB gzipped (biggest RYR.json 3.6 MB / 423 KB gz); routes.json 315 KB / 62 KB gz
 loading: manifest revalidated each visit; other files fetched with ?v=<generatedAt> (cache-friendly);
   airline files load only for selected airlines; routes.json only once an airport is chosen.
@@ -202,7 +211,9 @@ field_derivations: docs/data-pipeline.md ("How each field is derived") — don't
 
 where: scripts/snapshot/ (index.mjs CLI; airlines.mjs brands/colours/region; sources/*; legs.mjs; build.mjs; route-index.mjs)
 caches: data/raw (88 MB downloads) + data/cache (493 MB; tracks/<date>.ndjson.gz per day) — gitignored, keep them.
-cached_days_now: 2026-09-20 … 2026-10-08 (data/cache ≈ 530 MB)
+cached_days_now: 2026-09-20 … 2026-10-13 (data/cache ≈ 1 GB). 10-05…10-13 hold EVERY airline-style callsign
+  (marked by tracks/<date>.all, since the more-airlines work); older days hold only the airlines listed when fetched. Re-fetch those
+  with --stage fetch --refresh --days N --end D to give the Extra+ brands full weeks (≈ 4.5 min/day, GitHub-capped ~4 MB/s).
 timing: fetch ≈ 4 min/day at concurrency 3 (download-bound); first Ryanair pass 15–20 min (cached 10 days); build ≈ 20 s.
 recipes:
   add_a_15th_day: |
@@ -215,7 +226,7 @@ recipes:
   without_ryanair: pnpm data:snapshot --no-ryanair
   force_redownload: add --refresh
   only_route_index: node scripts/snapshot/route-index.mjs [outDir]
-  add_an_airline: add a brand to AIRLINES in scripts/snapshot/airlines.mjs (icao, iata, name, callsign word,
+  add_an_airline: (days marked .all need no re-download: just --stage build) add a brand to AIRLINES in scripts/snapshot/airlines.mjs (icao, iata, name, callsign word,
     operators[], colors[primary, secondary]), then --stage build. Region filter = REGION in the same file.
   after_any_run: pnpm build && pnpm verify, check counts in Settings → Schedule snapshot, commit public/data.
 dokploy: project "OFP Planner" (PC5mxBiH9LB-oYVT1hoUv) · app "web" oAmzXw0iAtwtFQM__Jx1M (appName ofp-planner-web-sjnvl5) ·
@@ -246,6 +257,15 @@ server_latch_container_alternative: |
     (taxi-out 12 min, taxi-in 6 min); same day only (no wrap past midnight); flights with no usable time excluded.
   - Display settings (Settings → Display): airline tag solid (default) / tinted / split / edge; flight first
     (default) or airline first; aircraft badges by maker (default) or airline, fully coloured (default) or edge.
+    Airlines (Extra+): display.airlines "common" (default) | "extra". Brands with extra: true in airlines.mjs (→ manifest
+    AirlineInfo.extra) are left out of pickers, useDataset("all", { extra }), Board brands and route counts unless set
+    to "extra" or named explicitly (URL ?al=, favourites, logbook, brief). Helpers: listedAirline / hiddenAirlines in
+    src/lib/display.ts; useManifest() in load.ts. Picker options take tag: "Extra+".
+    Guessed airports: legs.mjs inferEnds() (climb-out/descent cone, ≤30 NM, ±45°, 150–1200 ft/NM) runs in
+    build.mjs only when an end is unknown after the VRS fill; a second pass keeps the best candidate the brand has
+    ≥3 confirmed legs at (lone unserved candidates made 737s "land" at La Gomera). Flight.inf "o"|"d"|"od";
+    useDataset() drops inf rows unless display.guessed; GuessMark/guessedEnd in badges.tsx (Finder table, RouteHead).
+    legs.mjs TURN_FT: a ≥20 min gap with a descent < FL150 before and a climb < FL150 after splits the leg.
   - Flights table: Freq column (2× / Daily) then a 7-letter week strip; flight number and airline tag widths come
     from the whole filtered result (mono ch for numbers, canvas-measured text for names), so columns line up.
   - Weather is fetched only on the Brief (never on the Finder), cached (forecast 60 min, METAR 10 min).
@@ -312,9 +332,10 @@ server_latch_container_alternative: |
 ## 10. Open items / ideas
 
   - BRANCHES IN FLIGHT (keep current):
-    · feature/more-airlines: pushed, draft PR #7, rebased on 1.6.1 (2026-11-07). Extra+ airlines, regional operators,
-      Greenland, guessed airports. Not merged, so not live. Waits for winter data (~21 days from 2026-10-25) and season
-      handling, then rebuild public/data on the merged code, release as a minor, data:push.
+    · feature/more-airlines: released as 1.7.0 on 2026-11-08 (PR #7 via release/1.7.0), with its own snapshot
+      (20 Sep → 13 Oct 2026, 77 airlines); no new data.
+    · feature/winter-season: draft PR #11, stacked on #7 (base feature/more-airlines; switch the base to main now that
+      1.7.0 is merged). Timetable seasons + the winter 2026/27 snapshot, built once ~21 winter days exist (~15 Nov).
     · feature/map-line-click: released as 1.6.3 on 2026-11-08 (the user asked for a patch number here so that
       more airlines can be 1.7.0).
   - After 1.5.0 (per-day times): Journeys UI could show each leg's weekday times in the timings table; 116 numbered callsigns

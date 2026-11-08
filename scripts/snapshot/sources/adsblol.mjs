@@ -11,17 +11,20 @@
 //                 alt == -123 means "on the ground"
 // Positions arrive roughly every 20 s per airborne aircraft (ground: less often).
 //
-// Output: data/cache/tracks/<date>.ndjson.gz — one line per aircraft (hex) flying a callsign
-// of a configured airline: {h, c: [[t, callsign]…], p: [t, lat, lon, alt, gs, …]}
+// Output: data/cache/tracks/<date>.ndjson.gz — one line per aircraft (hex) flying an airline-style
+// callsign (three letters and a digit), listed in airlines.mjs or not, so adding an airline later is
+// a rebuild rather than a new download: {h, c: [[t, callsign]…], p: [t, lat, lon, alt, gs, …]}.
+// Days fetched before 2026-10-11 hold only the airlines listed then; <date>.all marks the ones
+// that hold every airline.
 //   t   seconds since 00:00 UTC of <date>
 //   lat/lon  × 1e4 (≈11 m)
 //   alt feet, -1 on the ground
 //   gs  knots
 // Cruise points are thinned to one per 5 min; everything below 12 000 ft is kept.
-import { createWriteStream, existsSync, renameSync } from "node:fs";
+import { createWriteStream, existsSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createGzip, gunzipSync } from "node:zlib";
-import { BBOX, brandForOperator } from "../airlines.mjs";
+import { BBOX } from "../airlines.mjs";
 import { CACHE, UA, ensureDir, log } from "../util.mjs";
 
 const MAGIC = 0x0e7f7c9d;
@@ -32,6 +35,8 @@ const CRUISE_EVERY_S = 300;
 
 export const tracksDir = () => ensureDir(join(CACHE, "tracks"));
 export const tracksPath = (date) => join(tracksDir(), `${date}.ndjson.gz`);
+/** Marker file: the day's tracks hold every airline callsign, not only the airlines listed when it was fetched. */
+export const allAirlinesPath = (date) => join(tracksDir(), `${date}.all`);
 
 /** The day's release as a list of parts ({url, size}) forming one tar when concatenated. */
 async function releaseParts(date) {
@@ -138,7 +143,8 @@ async function locateHeatmaps(parts) {
   return Math.max(0, hits[0] - STEP);
 }
 
-const targetCallsign = (cs) => /^[A-Z]{3}[0-9]/.test(cs) && brandForOperator(cs.slice(0, 3)) !== undefined;
+// every airline-style callsign; the build keeps the airlines listed in airlines.mjs
+const targetCallsign = (cs) => /^[A-Z]{3}[0-9]/.test(cs);
 
 /** Per-day state across the 48 slices. */
 class DayState {
@@ -152,7 +158,7 @@ class DayState {
 
   slice(buf) {
     const p = new Int32Array(buf.buffer, buf.byteOffset, buf.length >> 2);
-    // pass 1: which aircraft fly a configured airline's callsign in this slice
+    // pass 1: which aircraft fly an airline callsign in this slice
     for (let i = 0; i < p.length; i += 4) {
       if (p[i] === MAGIC) continue;
       if (p[i + 1] > CS_FLAG) {
@@ -310,6 +316,7 @@ export async function fetchDay(date, { force = false } = {}) {
   gz.end();
   await new Promise((r, j) => ws.on("finish", r).on("error", j));
   renameSync(tmp, out);
+  writeFileSync(allAirlinesPath(date), "");
   log(`adsb.lol ${date}: ${slices} slices, ${(rr.bytes / 1e6).toFixed(0)} MB read from ${(start / 1e6).toFixed(0)} MB, ${n} aircraft`);
   return out;
 }

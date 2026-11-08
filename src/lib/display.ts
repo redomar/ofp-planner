@@ -28,7 +28,12 @@ export interface Display {
   logbook: LogbookStyle;
   /** Logbook table: a punctuality bar per flight (scheduled vs flown) instead of the airports. */
   logBars: boolean;
+  /** Which airlines pickers and "all airlines" list: the common ones, or those plus the Extra+ brands. */
+  airlines: AirlineSet;
+  /** List flights with an airport guessed from the climb-out or descent (Flight.inf). */
+  guessed: boolean;
 }
+export type AirlineSet = "common" | "extra";
 export type WeekStyle = "table" | "grouped" | "tabs" | "timeline";
 export type VariesMark = "tag" | "word" | "tilde";
 export type MapCodes = "iata" | "icao" | "off";
@@ -36,7 +41,7 @@ export type MapLines = "great" | "rhumb";
 export type LogbookStyle = "table" | "strips";
 export type RouteHeadStyle = "timeline" | "pass" | "board";
 
-export const DEFAULT_DISPLAY: Display = { airlineTag: "solid", flightFirst: true, typeColour: "maker", typeTheme: "full", mapCodes: "iata", mapLines: "great", routeHead: "timeline", week: "table", variesMark: "tag", logbook: "table", logBars: false };
+export const DEFAULT_DISPLAY: Display = { airlineTag: "solid", flightFirst: true, typeColour: "maker", typeTheme: "full", mapCodes: "iata", mapLines: "great", routeHead: "timeline", week: "table", variesMark: "tag", logbook: "table", logBars: false, airlines: "common", guessed: false };
 
 export const readDisplay = (): Display => {
   const d = { ...DEFAULT_DISPLAY, ...readJSON<Partial<Display> & { mapCodes?: MapCodes | boolean }>(KEYS.display, {}) };
@@ -52,3 +57,12 @@ export function useDisplay(): Display {
   const v = useStorageVersion();
   return useMemo(() => (v < 0 ? DEFAULT_DISPLAY : readDisplay()), [v]);
 }
+
+/**
+ * Is this airline listed under the current setting? Extra+ brands are hidden unless the setting
+ * says "extra", or the airline was named explicitly (a URL, a favourite, a picked filter).
+ */
+export const listedAirline = (a: { icao: string; extra?: boolean }, set: AirlineSet, named: readonly string[] = []) => !a.extra || set === "extra" || named.includes(a.icao);
+/** ICAO codes of the airlines `listedAirline` leaves out, for filtering route counts. */
+export const hiddenAirlines = (m: { airlines: { icao: string; extra?: boolean }[] } | null | undefined, set: AirlineSet, named: readonly string[] = []) =>
+  new Set((m?.airlines ?? []).filter((a) => !listedAirline(a, set, named)).map((a) => a.icao));

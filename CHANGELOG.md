@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.7.0 — 2026-11-08
+
+- **More airlines.** Regional airlines that fly under brands already in the planner are now counted: **Air Nostrum** (Iberia Regional), **BA Shuttle** (British Airways UK domestic), **Emerald Airlines** (Aer Lingus Regional) and **Binter Canarias** (the Canary inter-island hops). Iberia 474 → 732 flights, British Airways 920 → 1,071, Aer Lingus 250 → 340, Binter 125 → 242.
+- **20 new airlines (Extra+):** Sky Express, Aeroitalia, Edelweiss, Discover Airlines, Air Corsica, TAROM, Eastern Airways, Kuwait Airways, Aurigny, Freebird Airlines, Arkia, Marabu, Nouvelair, Azores Airlines, Atlantic Airways, Enter Air, Canaryfly, Air Greenland, Neos and Cabo Verde Airlines. They come from 5–13 October (every weekday at least once), so a flight seen only once in those nine days (some weekly charters and island routes) isn't in yet; a full download of the earlier days fills those in.
+- **Greenland** is part of the region now (Air Greenland Copenhagen ↔ Nuuk, Icelandair to Greenland).
+- **Guessed airports** (Settings → Display, off by default). Some airports have no ADS-B coverage near the ground (Pristina, Skiathos, Zakynthos, Florence, Pisa, Belgrade, Tivat…), so their flights were only ever seen once airborne and were left out. EW6612 Pristina → Frankfurt (callsign EWG18UG) was one. Now the airport is guessed from the climb-out or descent: a scheduled airport within 30 NM behind the climb (ahead of the descent), in line with the track, at a plausible gradient, and one the airline is seen flying to on other flights. With the setting on, these 157 flights are listed with a dashed ring next to the guessed airport (Finder table and the flight card's route header); hover it for how it was guessed.
+- Turnarounds at such airports are now split into two flights: an aircraft last seen descending below FL150 and back climbing below FL150 20+ minutes later had landed in between (before, the flight in and the flight out were merged into one).
+- Snapshot: 45,332 flights (was 41,593), 77 airlines, 20 September – 13 October (was to 8 October).
+- Settings → Display → **Airlines: which to list**: **Common** (default, the airlines the planner has always had) or **Common + Extra+**, which adds the smaller leisure, regional and island airlines added in this release, tagged **Extra+** in the pickers. The Finder and Journeys airline pickers, "all airlines" searches, the Board and the route counts follow it; a link, favourite or logbook flight that names an Extra+ airline still opens it.
+
 ## 1.6.3 — 2026-11-08
 
 - **Click a line on a map to find its flights.** Every map with several routes now takes a click on a route line, not just on its airport:

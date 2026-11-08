@@ -180,6 +180,8 @@ export interface MultiOption {
   count?: number;
   /** Listed after a dashed divider (e.g. airlines not flying the chosen airport). */
   dim?: boolean;
+  /** Small tag after the label ("Extra+" for the airlines Settings → Display can hide). */
+  tag?: string;
 }
 
 export function MultiPicker({
@@ -273,6 +275,7 @@ export function MultiPicker({
                   {o.swatch && <span className="swatch" style={{ background: o.swatch }} aria-hidden="true" />}
                   <span className="multi-label">
                     {o.label}
+                    {o.tag && <span className="multi-tag">{o.tag}</span>}
                     {o.detail && <small>{o.detail}</small>}
                   </span>
                   {o.count != null && <span className="multi-count">{o.count.toLocaleString("en-GB")}</span>}

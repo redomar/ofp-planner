@@ -65,7 +65,7 @@ Clock times are minutes after 00:00 UTC.
   mirrored for the destination. If only one end was seen, the VRS route for the same callsign
   supplies the other end, but only when it agrees with the end that was seen. Legs where both
   ends are unknown are dropped. Both ends must be in the region (`REGION` in `airlines.mjs`:
-  Europe, Turkey, Caucasus, Middle East, North Africa, Cape Verde).
+  Europe, Greenland, Turkey, Caucasus, Middle East, North Africa, Cape Verde).
 - **cs** — the callsign broadcast during the leg (ADS-B).
 - **op** — the callsign's 3-letter prefix (EZY / EJU / EZS under easyJet). Use it as SimBrief's `airline`.
 - **fn** — Ryanair: matched from the timetable (observed departures voted onto scheduled
