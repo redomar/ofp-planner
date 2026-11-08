@@ -192,6 +192,9 @@ sources_used:
   OurAirports (public domain): airports, coords, elevation, IATA. mwgg/Airports (MIT): IANA time zones.
   Ryanair public timetable (services-api.ryanair.com/timtbl): RYR flight numbers + STD/STA. Light, cached,
     non-commercial; site terms discourage scraping → `--no-ryanair`. OPEN DECISION: user hasn't said keep/drop.
+    Past days exist only in the saved files (data/raw/ryanair/<month>/): never delete them. The build matches
+    the window's last 14 days, same season only (before 1.7.1 it used today+14, which gave a summer
+    snapshot built in November winter times: FR658 Fri 17:40Z vs flown 08:20Z).
 sources_rejected:
   FlightRadar24, FlightAware: terms forbid scraping. iflyschedules.com: competitor's database, not copied.
   easyJet / Wizz sites: bot protection (403). OpenSky: historical flights need an account now.

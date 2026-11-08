@@ -9,6 +9,7 @@ import { AIRLINES, REGION, brandForOperator } from "./airlines.mjs";
 import { inferEnds, resolveLeg, segment, unpack } from "./legs.mjs";
 import { tracksDir } from "./sources/adsblol.mjs";
 import { fetchRyanair } from "./sources/ryanair.mjs";
+import { seasonOf } from "./season.mjs";
 import { OUT, circularMedian, ensureDir, log, mode } from "./util.mjs";
 
 const DAY = 86400;
@@ -331,10 +332,19 @@ export async function build({ dates, airports, sdRoutes, sdAirlines, types, ryan
       const d = airports.byIcao.get(ob.d);
       if (o?.iata && d?.iata) pairs.set(`${o.iata}-${d.iata}`, [o.iata, d.iata]);
     }
-    // the timetable only serves today onwards: take the next 14 days, matched by weekday
-    const today = new Date();
-    const from = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
-    const months = [...new Set([0, 13].map((n) => new Date(from + n * DAY * 1000).toISOString().slice(0, 7)))];
+    // matched by weekday against the timetable days around the window: its last 14 days (saved
+    // when they were still ahead) up to 14 days from today, but only days in the window's own
+    // season, so summer flights never get winter times or the other way round
+    const ms = (iso) => Date.parse(`${iso}T00:00:00Z`);
+    const last = [...dates].sort().at(-1);
+    const season = seasonOf(last);
+    const now = new Date();
+    const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const lo = Math.max(ms(season.from), ms(last) - 13 * DAY * 1000);
+    const hi = Math.min(ms(season.to), Math.max(ms(last), today + 13 * DAY * 1000));
+    const months = [];
+    for (let t = lo; t <= hi; t += DAY * 1000) months.includes(new Date(t).toISOString().slice(0, 7)) || months.push(new Date(t).toISOString().slice(0, 7));
+    log(`ryanair: timetable days ${new Date(lo).toISOString().slice(0, 10)} → ${new Date(hi).toISOString().slice(0, 10)} (${season.name})`);
     const raw = await fetchRyanair([...pairs.values()], months, { refresh });
     for (const [key, list] of raw) {
       const [oi, di] = key.split("-");
@@ -344,7 +354,7 @@ export async function build({ dates, airports, sdRoutes, sdAirlines, types, ryan
       const rows = [];
       for (const f of list) {
         const t = Date.parse(`${f.date}T00:00:00Z`);
-        if (t < from || t >= from + 14 * DAY * 1000) continue;
+        if (t < lo || t > hi) continue;
         const depMs = localToUtcMs(f.date, f.dep, o.tz);
         let arrMs = localToUtcMs(f.date, f.arr, d.tz);
         if (arrMs < depMs) arrMs += DAY * 1000;

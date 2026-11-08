@@ -101,7 +101,12 @@ of a ~3.6 GB archive, found by ~90 small range probes). The first full run here 
 for 14 days at `--concurrency 3` (~3 MB/s per stream); a monthly rerun with a kept cache
 only downloads the new days.
 Ryanair: ~5 000 route-month requests at ~2–5 req/s ≈ 15–20 min the first time, cached for
-10 days. The build stage itself takes ~20 s. Disk: ~35 MB per cached day + ~80 MB reference data.
+10 days. The timetable only serves today onwards, so the saved files in `data/raw/ryanair/` are
+the only record of past days: a past month is read from the cache and never fetched again, and a
+fresh fetch of this month keeps the days before today. The build matches against the window's
+last 14 days up to 14 days from today, only days in the window's own IATA season (a summer
+snapshot built in November still gets summer times). Keep `data/raw/ryanair/` with the track
+cache; without it a past window has no Ryanair STD/STA. The build stage itself takes ~20 s. Disk: ~35 MB per cached day + ~80 MB reference data.
 Output: ~11 MB of JSON (≈ 1.2 MB gzipped; nginx gzips it).
 
 ### Locally
