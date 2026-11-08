@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.7.1 — 2026-11-08
+
+- **Schedule snapshot to 24 October**, the last day of the summer 2026 season: 20 September – 24 October (was to 13 October), 47,111 flights (was 45,332), 77 airlines, 615 airports. 14–24 October hold every airline, so the Extra+ airlines have more of their flights (Enter Air 44 → 141, Freebird 76 → 135, Atlantic Airways 49 → 94).
+- **Ryanair scheduled times fixed.** Ryanair's STD/STA came from its timetable for the two weeks after the snapshot was built. A build that reached past 25 October picked up winter flights: about 500 Ryanair flights on Sundays, Mondays and Tuesdays that only fly in the winter timetable, with winter times. They're gone now, and STD/STA come from the summer timetable of the snapshot's own last two weeks (Ryanair 8,313 flights; 0.7% with a scheduled time more than an hour from the time flown, was 1.8%).
+
 ## 1.7.0 — 2026-11-08
 
 - **More airlines.** Regional airlines that fly under brands already in the planner are now counted: **Air Nostrum** (Iberia Regional), **BA Shuttle** (British Airways UK domestic), **Emerald Airlines** (Aer Lingus Regional) and **Binter Canarias** (the Canary inter-island hops). Iberia 474 → 732 flights, British Airways 920 → 1,071, Aer Lingus 250 → 340, Binter 125 → 242.
