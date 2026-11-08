@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: v1.7.0 released 2026-11-08 (more airlines: 77 airlines incl. 20 Extra+ behind a Settings toggle, regional operators under their brands, Greenland, guessed airports behind a Settings toggle; snapshot 20 Sep → 13 Oct, no new data; data:push done at release); v1.6.3 released 2026-11-08 (click a route line on a map to focus its flights: Finder, Logbook, Favourites, Board, Journeys; there is no 1.6.2, the user's pick so 1.7.0 = more airlines); v1.6.1 released 2026-10-29 (Next.js 16.4.3 security update; stay on ≥ 16.4.1); v1.6.0 released 2026-10-24 (Range page: range rings per sim A320 with payload, custom ZFW/FOB, MLW; maps cover the globe as a disc round their content; aircraft side profiles + liveries prepared, not used yet; feature/more-airlines is a separate draft PR, needs a rebase on 1.6.0); 1.5.2: (a flight in several favourites groups; shared journey legs kept and marked; 1.5.1: map route lines: great circle or rhumb line, Settings → Display; 1.5.0: one row per flight with per-weekday times, Brief/Finder/Board by day, logbook list redone: month table, punctuality switch, flight strips; 1.4.4: Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
+  status: v1.7.1 released 2026-11-08 (snapshot 20 Sep → 24 Oct, the end of summer 2026: 47,111 flights; Ryanair STD/STA from the window's own timetable days and season, which drops ~500 winter-only Ryanair flights 1.7.0 had); v1.7.0 released 2026-11-08 (more airlines: 77 airlines incl. 20 Extra+ behind a Settings toggle, regional operators under their brands, Greenland, guessed airports behind a Settings toggle; snapshot 20 Sep → 13 Oct, no new data; data:push done at release); v1.6.3 released 2026-11-08 (click a route line on a map to focus its flights: Finder, Logbook, Favourites, Board, Journeys; there is no 1.6.2, the user's pick so 1.7.0 = more airlines); v1.6.1 released 2026-10-29 (Next.js 16.4.3 security update; stay on ≥ 16.4.1); v1.6.0 released 2026-10-24 (Range page: range rings per sim A320 with payload, custom ZFW/FOB, MLW; maps cover the globe as a disc round their content; aircraft side profiles + liveries prepared, not used yet; feature/more-airlines is a separate draft PR, needs a rebase on 1.6.0); 1.5.2: (a flight in several favourites groups; shared journey legs kept and marked; 1.5.1: map route lines: great circle or rhumb line, Settings → Display; 1.5.0: one row per flight with per-weekday times, Brief/Finder/Board by day, logbook list redone: month table, punctuality switch, flight strips; 1.4.4: Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 
@@ -192,6 +192,9 @@ sources_used:
   OurAirports (public domain): airports, coords, elevation, IATA. mwgg/Airports (MIT): IANA time zones.
   Ryanair public timetable (services-api.ryanair.com/timtbl): RYR flight numbers + STD/STA. Light, cached,
     non-commercial; site terms discourage scraping → `--no-ryanair`. OPEN DECISION: user hasn't said keep/drop.
+    Past days exist only in the saved files (data/raw/ryanair/<month>/): never delete them. The build matches
+    the window's last 14 days, same season only (before 1.7.1 it used today+14, which gave a summer
+    snapshot built in November winter times: FR658 Fri 17:40Z vs flown 08:20Z).
 sources_rejected:
   FlightRadar24, FlightAware: terms forbid scraping. iflyschedules.com: competitor's database, not copied.
   easyJet / Wizz sites: bot protection (403). OpenSky: historical flights need an account now.
@@ -334,8 +337,10 @@ server_latch_container_alternative: |
   - BRANCHES IN FLIGHT (keep current):
     · feature/more-airlines: released as 1.7.0 on 2026-11-08 (PR #7 via release/1.7.0), with its own snapshot
       (20 Sep → 13 Oct 2026, 77 airlines); no new data.
-    · feature/winter-season: draft PR #11, stacked on #7 (base feature/more-airlines; switch the base to main now that
-      1.7.0 is merged). Timetable seasons + the winter 2026/27 snapshot, built once ~21 winter days exist (~15 Nov).
+    · feature/data-summer-end: released as 1.7.1 on 2026-11-08 (snapshot to 24 Oct + the Ryanair timetable-window fix;
+      adds scripts/snapshot/season.mjs, identical to #11's, so merging main into #11 is clean there).
+    · feature/winter-season: draft PR #11 (base main). Timetable seasons + the winter 2026/27 snapshot, built once
+      ~21 winter days exist (~15 Nov). Merge main in first (gets the Ryanair fix; resolve build.mjs if it conflicts).
     · feature/map-line-click: released as 1.6.3 on 2026-11-08 (the user asked for a patch number here so that
       more airlines can be 1.7.0).
   - After 1.5.0 (per-day times): Journeys UI could show each leg's weekday times in the timings table; 116 numbered callsigns
