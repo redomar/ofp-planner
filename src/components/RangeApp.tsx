@@ -28,7 +28,7 @@ import { StatusLine, TopBar } from "./chrome";
 import { CollapseProvider } from "./collapse";
 import { PlacePicker, type PlaceOption } from "./pickers";
 import { RangeMap, type RangePoint, type Ring } from "./RangeMap";
-import { Section, cx } from "./ui";
+import { ScrollBox, Section, cx, radioKeys, roving } from "./ui";
 
 const nmFmt = (n: number) => `${n.toLocaleString("en-GB")} NM`;
 const tonnes = (kg: number) => (kg / 1000).toFixed(1);
@@ -104,9 +104,15 @@ function Shell({ children }: { children: ReactNode }) {
     <CollapseProvider>
       <TopBar />
       <StatusLine>
-        <span className="muted">Still-air range with reserves, from each developer&apos;s SimBrief weights. An approximate comparison, not a flight plan.</span>
+        <span className="muted">
+          <span className="hide-xs">Still-air range with reserves, from each developer&apos;s SimBrief weights. An approximate comparison, not a flight plan.</span>
+          <span className="only-xs">Still-air estimate, not a flight plan</span>
+        </span>
       </StatusLine>
-      <main className="settings range-page">{children}</main>
+      <main className="settings range-page">
+        <h1 className="sr-only">Range</h1>
+        {children}
+      </main>
     </CollapseProvider>
   );
 }
@@ -234,9 +240,18 @@ function Seg({ id, label, value, options, onChange }: { id: string; label: strin
       <span className="ctl-label" id={id}>
         {label}
       </span>
-      <div className="seg" role="radiogroup" aria-labelledby={id}>
-        {options.map((o) => (
-          <button key={o.v} type="button" role="radio" aria-checked={value === o.v} className="seg-btn" title={o.tip} onClick={() => onChange(o.v)}>
+      <div className="seg" role="radiogroup" aria-labelledby={id} onKeyDown={radioKeys}>
+        {options.map((o, i) => (
+          <button
+            key={o.v}
+            type="button"
+            role="radio"
+            aria-checked={value === o.v}
+            tabIndex={roving(value === o.v, i, options.some((x) => x.v === value))}
+            className="seg-btn"
+            title={o.tip}
+            onClick={() => onChange(o.v)}
+          >
             {o.label}
           </button>
         ))}
@@ -566,7 +581,7 @@ function BuildUp({ state, shown }: { state: RangeState; shown: Plane[] }) {
         )}
       </p>
 
-      <div className="tbl-wrap">
+      <ScrollBox className="tbl-wrap" label="Range and weights for each payload">
         <table className="tbl range-tbl range-loads">
           <caption className="small muted">{planeName(p)}: tonnes for each payload, and the range they give.</caption>
           <thead>
@@ -597,7 +612,7 @@ function BuildUp({ state, shown }: { state: RangeState; shown: Plane[] }) {
             })}
           </tbody>
         </table>
-      </div>
+      </ScrollBox>
     </div>
   );
 }
@@ -686,7 +701,7 @@ function Mine({
         {msg}
       </p>
       {state.mine.length ? (
-        <div className="tbl-wrap">
+        <ScrollBox className="tbl-wrap" label="Your airports">
           <table className="tbl range-tbl">
             <thead>
               <tr>
@@ -744,7 +759,7 @@ function Mine({
               })}
             </tbody>
           </table>
-        </div>
+        </ScrollBox>
       ) : (
         <p className="lib-empty">No airports yet. Add one above to see how far it is and which aircraft reach it.</p>
       )}
@@ -758,7 +773,7 @@ function Weights({ state }: { state: RangeState }) {
   const loads = LOADS.filter((l) => l.v !== 3 || state.load === 3);
   return (
     <div className="range-how">
-      <div className="tbl-wrap">
+      <ScrollBox className="tbl-wrap" label="Range and weights of every aircraft">
         <table className="tbl range-tbl range-weights">
           <caption className="small muted">
             Tonnes. OEW, MZFW, MTOW, MLW and tank capacity from each developer&apos;s SimBrief airframe. Each payload shows the range, then ZFW + FOB.
@@ -815,7 +830,7 @@ function Weights({ state }: { state: RangeState }) {
             ))}
           </tbody>
         </table>
-      </div>
+      </ScrollBox>
       <div className="range-notes">
         <p>
           <b>Fuel.</b> 200 kg taxi, 5% contingency, a 200 NM alternate and 30 minutes final reserve. The rest is trip fuel. Unless you set it, the FOB is

@@ -448,10 +448,13 @@ function Drawn({
   const letters = placeLetters(base, boxes);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={label}>
+    // an image, unless its airports are buttons: then a group of them (the chart itself is hidden from screen readers)
+    <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role={onPick ? "group" : "img"} aria-label={label}>
       <rect className="map-sea" x="0" y="0" width={W} height={H} />
       <g transform={transform}>
-      <Ground base={base} letters={letters} />
+      <g aria-hidden="true">
+        <Ground base={base} letters={letters} />
+      </g>
       {ordered.map((r) => {
         const d = path({ type: "LineString", coordinates: trackCoords(r, lines) }) ?? "";
         const strong = r.active || r.key === hover || routes.length === 1;
@@ -508,7 +511,9 @@ function Drawn({
           </g>
         );
       })}
-      <EdgeDegrees base={base} />
+      <g aria-hidden="true">
+        <EdgeDegrees base={base} />
+      </g>
       </g>
     </svg>
   );

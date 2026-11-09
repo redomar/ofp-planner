@@ -32,7 +32,7 @@ import { PlacePicker } from "./pickers";
 import { RouteMap, type MapRoute } from "./RouteMap";
 import { FidsBoard } from "./board/FidsBoard";
 import { GateScreen, localClock, screenNow, zoneLabel, type GateWx } from "./board/GateScreen";
-import { cx } from "./ui";
+import { cx, radioKeys, roving } from "./ui";
 
 type Tab = "airport" | "gate";
 const HOURS = [3, 6, 12];
@@ -389,6 +389,7 @@ export function BoardApp() {
       <TopBar />
       <StatusLine progress={ready && ap && tab === "airport" && !loadErr ? data.progress : null}>{status}</StatusLine>
       <main className="board">
+        <h1 className="sr-only">Board</h1>
         <section className="panel board-panel" aria-label="Board">
           <div className="tabs-bar">
             <div className="tabs" role="tablist" aria-label="Show">
@@ -571,9 +572,9 @@ function Seg<T extends string>({ label, value, options, onChange }: { label: str
   return (
     <div className="jr-ctl">
       <span className="ctl-label">{label}</span>
-      <div className="seg jr-seg" role="radiogroup" aria-label={label}>
-        {options.map(([v, l]) => (
-          <button key={v} type="button" role="radio" aria-checked={value === v} className="seg-btn" onClick={() => onChange(v)}>
+      <div className="seg jr-seg" role="radiogroup" aria-label={label} onKeyDown={radioKeys}>
+        {options.map(([v, l], i) => (
+          <button key={v} type="button" role="radio" aria-checked={value === v} tabIndex={roving(value === v, i)} className="seg-btn" onClick={() => onChange(v)}>
             {l}
           </button>
         ))}
@@ -727,14 +728,15 @@ function GateControls({
         <>
           <fieldset className="gt-group">
             <legend>Clock</legend>
-            <div className="seg jr-seg" role="radiogroup" aria-label="Clock">
-              <button type="button" role="radio" aria-checked={gate.stdAt == null} className="seg-btn" onClick={() => onPatch({ stdAt: null })}>
+            <div className="seg jr-seg" role="radiogroup" aria-label="Clock" onKeyDown={radioKeys}>
+              <button type="button" role="radio" aria-checked={gate.stdAt == null} tabIndex={roving(gate.stdAt == null, 0)} className="seg-btn" onClick={() => onPatch({ stdAt: null })}>
                 Real time
               </button>
               <button
                 type="button"
                 role="radio"
                 aria-checked={gate.stdAt != null}
+                tabIndex={roving(gate.stdAt != null, 1)}
                 className="seg-btn"
                 onClick={() => onPatch({ stdAt: Math.floor(Date.now() / MIN) * MIN + vin * MIN })}
               >

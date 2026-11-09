@@ -54,6 +54,24 @@ async function pipe(data: BlobPart, stream: CompressionStream | DecompressionStr
   return new Response(new Blob([data]).stream().pipeThrough(stream)).blob();
 }
 
+/** Unzips at most `max` bytes, reading as it goes; null past that (a small file can unzip to gigabytes). */
+async function gunzipCapped(data: BlobPart, max: number): Promise<string | null> {
+  const reader = new Blob([data]).stream().pipeThrough(new DecompressionStream("gzip")).getReader();
+  const parts: Uint8Array[] = [];
+  let n = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    n += value.byteLength;
+    if (n > max) {
+      await reader.cancel();
+      return null;
+    }
+    parts.push(value);
+  }
+  return new TextDecoder().decode(await new Blob(parts as BlobPart[]).arrayBuffer());
+}
+
 /** The backup as a .json.gz download. */
 export async function downloadBackup(b: Backup = collectBackup()) {
   const gz = await pipe(JSON.stringify(b), new CompressionStream("gzip"));
@@ -68,12 +86,13 @@ export async function downloadBackup(b: Backup = collectBackup()) {
 export async function readBackup(file: File): Promise<Backup | { error: string }> {
   if (file.size > MAX_BYTES) return { error: "That file is too big to be a backup." };
   const buf = new Uint8Array(await file.arrayBuffer());
-  let text: string;
+  let text: string | null;
   try {
-    text = buf[0] === 0x1f && buf[1] === 0x8b ? await (await pipe(buf, new DecompressionStream("gzip"))).text() : new TextDecoder().decode(buf);
+    text = buf[0] === 0x1f && buf[1] === 0x8b ? await gunzipCapped(buf, MAX_BYTES) : new TextDecoder().decode(buf);
   } catch {
     return { error: "Couldn't unpack that file (not a gzip backup?)." };
   }
+  if (text == null) return { error: "That file unpacks to more than 20 MB, far more than a browser keeps: it isn't a planner backup. Nothing was restored." };
   let v: unknown;
   try {
     v = JSON.parse(text);

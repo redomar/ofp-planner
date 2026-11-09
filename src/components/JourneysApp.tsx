@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { airportLabel, dayGroups, dur, familyOf, flightNo, hhmm, plannedOut } from "@/lib/data/flight";
+import { airportLabel, dayGroups, dur, familyOf, flightNo, hhmm, plannedOut, shortDate } from "@/lib/data/flight";
 import { enrich, queryToParams, EMPTY_QUERY } from "@/lib/data/query";
 import { loadRoutes, useDataset, type Airport, type FlightRow } from "@/lib/data/load";
 import type { AirlineInfo } from "@/lib/data/types";
@@ -22,7 +22,7 @@ import { AirlineTag, FlightIdent, TypeBadge } from "./badges";
 import { StatusLine, TopBar } from "./chrome";
 import { MultiPicker, PlacePicker, type MultiOption } from "./pickers";
 import { RouteMap, type MapRoute } from "./RouteMap";
-import { cx, Tip } from "./ui";
+import { cx, radioKeys, roving, Tip } from "./ui";
 import { JourneyTimings } from "./JourneyTimings";
 
 const PAGE = 30;
@@ -230,8 +230,19 @@ export function JourneysApp() {
       <span className="muted">Loading every airline’s timetable for timed connections…</span>
     ) : timed && timedSet ? (
       <span>
-        <b>Timed connections</b> · {n0(timedSet.flights.length)} flights with times
-        <span className="muted hide-xs"> · weekly pattern from the snapshot {manifest.coverage ? `${manifest.coverage.from} → ${manifest.coverage.to}` : ""}</span>
+        <b>
+          Timed<span className="hide-xs"> connections</span>
+        </b>{" "}
+        · {n0(timedSet.flights.length)} flights<span className="hide-xs"> with times</span>
+        {manifest.coverage && (
+          // the weeks the timetable was seen in, on phones too (it isn't this week's timetable)
+          <span className="muted">
+            {" "}
+            · <span className="hide-xs">weekly pattern seen </span>
+            <time dateTime={manifest.coverage.from}>{shortDate(manifest.coverage.from)}</time> – <time dateTime={manifest.coverage.to}>{shortDate(manifest.coverage.to)}</time>
+            <span className="hide-xs"> {manifest.coverage.to.slice(0, 4)}</span>
+          </span>
+        )}
       </span>
     ) : (
       <span>
@@ -240,6 +251,14 @@ export function JourneysApp() {
       </span>
     );
 
+  // the search keeps the best 240 for its ranking; a reversed list is those 240 the other way round, not the worst overall
+  const REVERSED: Partial<Record<ListSort, string>> = {
+    distance: "the 240 shortest found, longest first",
+    quickest: "the 240 quickest found, longest duty first",
+    waiting: "the 240 with the least waiting found, most waiting first",
+    next: "the 240 quickest found, latest first",
+  };
+  const capNote = result && result.groups.length >= 240 && plan.desc ? (REVERSED[active] ?? null) : null;
   const summary = !canSearch
     ? ""
     : search.busy && !result
@@ -255,6 +274,7 @@ export function JourneysApp() {
       <TopBar />
       <StatusLine progress={timed && ready && !loadErr ? data.progress : null}>{status}</StatusLine>
       <main className="journeys">
+        <h1 className="sr-only">Journeys</h1>
         {/* the form waits for the URL (read after hydration), so a shared timed link doesn't grow under the reader */}
         {ready && (
           <>
@@ -291,14 +311,23 @@ export function JourneysApp() {
                       Times
                     </Tip>
                   </span>
-                  <div className="seg jr-seg" role="radiogroup" aria-labelledby="jr-timing">
+                  <div className="seg jr-seg" role="radiogroup" aria-labelledby="jr-timing" onKeyDown={radioKeys}>
                     {(
                       [
                         ["network", "Any day", "Airport to airport on the route network, whatever the day or time"],
                         ["timed", "Timed connections", "Real flights that connect: turnaround window, day and duty limit"],
                       ] as const
-                    ).map(([v, label, tip]) => (
-                      <button key={v} type="button" role="radio" aria-checked={plan.timing === v} className="seg-btn" title={tip} onClick={() => update({ timing: v })}>
+                    ).map(([v, label, tip], i) => (
+                      <button
+                        key={v}
+                        type="button"
+                        role="radio"
+                        aria-checked={plan.timing === v}
+                        tabIndex={roving(plan.timing === v, i)}
+                        className="seg-btn"
+                        title={tip}
+                        onClick={() => update({ timing: v })}
+                      >
                         {label}
                       </button>
                     ))}
@@ -493,7 +522,7 @@ export function JourneysApp() {
                     Each card is one way through the airports, with every airline that flies each leg. The headings above the list sort it; click one again to reverse.
                   </li>
                   <li>
-                    <b>Duty</b> runs from report to the last IN; <b>Ground</b> is the time between legs. With timed connections, the soonest date from today is on each card.
+                    <b>Duty</b> runs from report to the last IN; <b>Ground</b> is the time between legs. With timed connections, each card shows its best timing for the sort (the soonest when sorted by date) and its next date; picking the card opens that timing.
                   </li>
                   <li>
                     Pick a card to see it on the map, every timing that works, and each leg with buttons to brief it, open SimBrief, or save the journey as a group in Saved.
@@ -508,6 +537,7 @@ export function JourneysApp() {
                 <div className="jr-bar">
                   <span className="jr-count" aria-live="polite">
                     {summary}
+                    {capNote && <span className="muted"> · {capNote}</span>}
                     {search.busy && result ? <span className="muted"> · updating…</span> : null}
                   </span>
                   {result && search.ms != null && (
@@ -550,6 +580,7 @@ export function JourneysApp() {
                         group={current}
                         dep={dep}
                         onDep={(d) => setDep({ vi: d.vi, day: d.day })}
+                        byDate={active === "next"}
                         now={now}
                         rows={rowsOf}
                         airports={airports!}
@@ -730,15 +761,23 @@ function LegsPicker({ legs, onChange }: { legs: JourneyPlan["legs"]; onChange: (
         </Tip>
       </span>
       <div className="jr-legs">
-        <div className="seg jr-seg" role="radiogroup" aria-labelledby="jr-legs">
+        <div className="seg jr-seg" role="radiogroup" aria-labelledby="jr-legs" onKeyDown={radioKeys}>
           {(
             [
               ["fewest", "Fewest"],
               ["exact", "Exactly"],
               ["upto", "Up to"],
             ] as const
-          ).map(([k, label]) => (
-            <button key={k} type="button" role="radio" aria-checked={legs.kind === k} className="seg-btn" onClick={() => onChange(k === "fewest" ? { kind: k } : { kind: k, n })}>
+          ).map(([k, label], i) => (
+            <button
+              key={k}
+              type="button"
+              role="radio"
+              aria-checked={legs.kind === k}
+              tabIndex={roving(legs.kind === k, i)}
+              className="seg-btn"
+              onClick={() => onChange(k === "fewest" ? { kind: k } : { kind: k, n })}
+            >
               {label}
             </button>
           ))}
@@ -764,18 +803,28 @@ function LegsPicker({ legs, onChange }: { legs: JourneyPlan["legs"]; onChange: (
 function DayOne({ day, onChange }: { day: number | null; onChange: (d: number | null) => void }) {
   const full = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
   return (
-    <div className="days" role="radiogroup" aria-label="Day of the first departure (UTC)">
+    <div className="days" role="radiogroup" aria-label="Day of the first departure (UTC)" onKeyDown={radioKeys}>
       <span className="ctl-label">
         <Tip tip={HELP.day} title="Day">
           Day (UTC)
         </Tip>
       </span>
       <div className="days-row">
-        <button type="button" className="day day-any" role="radio" aria-checked={day == null} onClick={() => onChange(null)}>
+        <button type="button" className="day day-any" role="radio" aria-checked={day == null} tabIndex={roving(day == null, 0)} onClick={() => onChange(null)}>
           Any
         </button>
         {["M", "T", "W", "T", "F", "S", "S"].map((l, i) => (
-          <button key={i} type="button" className="day" role="radio" aria-checked={day === i + 1} aria-label={full[i]} title={full[i]} onClick={() => onChange(i + 1)}>
+          <button
+            key={i}
+            type="button"
+            className="day"
+            role="radio"
+            aria-checked={day === i + 1}
+            tabIndex={roving(day === i + 1, i + 1)}
+            aria-label={full[i]}
+            title={full[i]}
+            onClick={() => onChange(i + 1)}
+          >
             {l}
           </button>
         ))}
@@ -875,6 +924,7 @@ function JourneyDetail({
   group,
   dep,
   onDep,
+  byDate,
   now,
   rows,
   airports,
@@ -887,6 +937,8 @@ function JourneyDetail({
   group: Group;
   dep: { vi: number; day: number } | null;
   onDep: (d: Departure) => void;
+  /** Sorted by date: the card shows the soonest timing (else the best one); the detail opens on the same. */
+  byDate: boolean;
   now: number;
   rows: FlightRow[] | null;
   airports: Map<string, Airport>;
@@ -897,7 +949,8 @@ function JourneyDetail({
   onTime: () => void;
 }) {
   const deps = useMemo(() => departures(group, now), [group, now]);
-  const sel = deps.find((d) => d.vi === dep?.vi && d.day === dep?.day) ?? deps[0] ?? null;
+  // until a timing is picked: the one the card shows, so the card and the detail tell the same story
+  const sel = deps.find((d) => d.vi === dep?.vi && d.day === dep?.day) ?? (byDate ? deps[0] : deps.find((d) => d.vi === 0)) ?? deps[0] ?? null;
   const j = sel?.v ?? group.best;
   const fnOv = useFnOverrides();
   const frames = useAirframes();

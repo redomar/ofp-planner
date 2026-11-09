@@ -10,6 +10,26 @@ Fixes from a review of the live site.
   - **Board:** when the route index doesn't download, the status line says so with **Retry**, and the board says it doesn't know how many flights there are, instead of "0 flights" next to "Loading…". While a board loads it says "loading…", not "0 flights". On phones the status line keeps "simulated" (from the weekly timetable) once a board is showing.
   - **Brief:** a schedule that didn't download says "Couldn't load the flight" with **Retry**, which loads it in place. Before, it said the flight wasn't in the snapshot, which only a successful lookup can tell.
   - **Weather:** with no forecast for one or both ends, the summary says the weather there is unknown. It used to say "No significant weather at either end" with both forecasts missing. "fetching…" changes to "unavailable" once the services have failed.
+- **Logbook: cancelled flights aren't counted as flown.** They stay in the list, marked Cancelled, but add nothing to flights, block, distance, airports or types, nor a line on the map; the totals and month headings show them apart ("12 + 1 cancelled").
+- **Forms point at what's missing.** The logbook form puts the cursor in the first field to fix and marks it, with one error message instead of the hint repeated in red. Settings → Airframes does the same, and an id that can't be one (a stray %, spaces) is an inline error instead of a silent failure.
+- **An airport you typed but didn't pick is named under the field** when you leave it ("“zzqx” matches no airport or country: nothing selected"), instead of the text vanishing as if it had been applied.
+- **Keyboard and screen readers:**
+  - Opening a flight in the Finder puts the focus in its panel; closing it (× or Escape) puts it back on the row or button that opened it. On a phone, where the panel covers the list, the list behind it can't be tabbed into while it's open.
+  - Radio-style button rows (Departures / Arrivals, Fewest / Exactly / Up to, Any day / Timed connections, OUT · OFF · ON · IN, the gate screen's clock, Range payloads) are one tab stop each and take the arrow keys, like ordinary radio buttons.
+  - Tables that scroll sideways on a phone (Range weights and airports, Settings airframes, sources and airlines, the logbook file example) can take the focus, so the arrow keys reach their hidden columns.
+  - Maps with clickable airports are announced as a group of buttons rather than one picture; the chart behind them is skipped. The previews in Settings → Display are skipped too, instead of adding 13 tab stops a screen reader was told to ignore.
+  - Every page has a heading naming it and one main region (the Finder had neither).
+- **Phones:**
+  - The top bar names the page you're on next to the brand, with the page icons spread across a second row. At 320 px it's two rows instead of three (the theme button had a row to itself).
+  - A flight opened in the Finder starts under the top bar; its first lines (the flight number) used to be hidden behind the bar's second row.
+  - Settings fits a 320 px screen (the logbook and times-by-day previews ran 39 px past the edge).
+  - Status lines say the short thing in full instead of being cut off: "Stored in this browser only" (Settings), "Still-air estimate, not a flight plan" (Range), "Your flights, in this browser only" (Logbook); the long forms stay on wider screens.
+  - Timed Journeys names the weeks its timetable was seen in ("20 Sept – 24 Oct"), as the Finder does since 1.7.2.
+  - The Board's Departures / Arrivals and 3 h / 6 h / 12 h buttons keep their words whole (Departures ran under Arrivals and "12 h" broke over two lines).
+- **Journeys: the card and the journey it opens show the same timing.** Sorted by duty, a card showed its best timing (Sat 14 Nov, duty 4h 46m) and the detail opened on the soonest one (Mon 9 Nov, 5h 47m). The detail now opens on the card's timing; the others are still in its timings table.
+- **Journeys: a reversed list says what it is** when there are more than 240 journeys: the search keeps the best 240 for the sort, so Distance reversed is "the 240 shortest found, longest first", not the longest of all.
+- **Backup restore** stops reading a file once it unpacks past 20 MB (a small gzip can unpack to gigabytes and freeze the tab), and says why; nothing is replaced.
+
 ## 1.7.2 — 2026-11-09
 
 Fixes from an outside review of the planner.

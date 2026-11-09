@@ -33,6 +33,14 @@
 .bd-form > div:first-child {
   width: min(380px, 100%);
 }
+/* the button rows keep their words whole ("Departures", "12 h") and wrap to the next line instead of squeezing */
+.bd-form > .jr-ctl {
+  flex: none;
+}
+.bd-form .seg-btn {
+  flex: 1 0 auto;
+  white-space: nowrap;
+}
 .bd-intro,
 .bd-loading {
   padding: 4px 2px;

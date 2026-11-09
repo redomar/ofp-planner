@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState, type CSSProperties, type ReactNode, type SyntheticEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type SyntheticEvent } from "react";
 import { airportLabel, cityName, dur, gcNm, hhmm, isoDay, onDay } from "@/lib/data/flight";
 import { findFlight, loadAirports, loadManifest, type Airport } from "@/lib/data/load";
 import type { AirlineInfo } from "@/lib/data/types";
@@ -39,7 +39,7 @@ import { CollapseProvider } from "./collapse";
 import { Flag } from "./Flag";
 import { PlacePicker, type PlaceOption } from "./pickers";
 import { RouteMap, type MapRoute } from "./RouteMap";
-import { Section, cx } from "./ui";
+import { ScrollBox, Section, cx } from "./ui";
 import { countryName } from "@/lib/places";
 
 type Ref = { airports: Map<string, Airport>; brands: Map<string, AirlineInfo> };
@@ -109,6 +109,7 @@ export function LogbookApp() {
   }, []);
 
   const flights = log ?? [];
+  const flown = flownOnly(flights);
   const routeOf = (id: string | null) => {
     const f = id ? flights.find((x) => x.id === id) : null;
     return f ? routeKey(f) : null;
@@ -116,7 +117,8 @@ export function LogbookApp() {
   // hovering a flight shows its route; otherwise the clicked line, otherwise the open flight's
   const activeRoute = (hover && routeOf(hover)) || line?.key || routeOf(sel);
   const onRoute = (key: string) => {
-    const ids = flights.filter((f) => routeKey(f) === key).map((f) => f.id);
+    // the map draws flown routes: its lines find the flown flights on them
+    const ids = flown.filter((f) => routeKey(f) === key).map((f) => f.id);
     const next = nextFocus(line, key, ids.length);
     setLine(next);
     setSel(next && next.at >= 0 ? ids[next.at] : null);
@@ -126,16 +128,30 @@ export function LogbookApp() {
     <CollapseProvider>
       <TopBar />
       <StatusLine>
-        <span className="muted">Your flights, stored in this browser only. Import or export them as JSON.</span>
+        <span className="muted">
+          <span className="hide-xs">Your flights, stored in this browser only. Import or export them as JSON.</span>
+          <span className="only-xs">Your flights, in this browser only</span>
+        </span>
       </StatusLine>
       <main className="settings logbook">
+        <h1 className="sr-only">Logbook</h1>
         {log && (
           <>
-            <Section id="log" no={1} title="Flights flown" meta={<span className="mono">{flights.length}</span>}>
+            <Section
+              id="log"
+              no={1}
+              title="Flights flown"
+              meta={
+                <span className="mono">
+                  {flown.length}
+                  {flights.length > flown.length ? ` + ${flights.length - flown.length} cancelled` : ""}
+                </span>
+              }
+            >
               {flights.length ? (
                 <>
                   <Totals flights={flights} ref_={ref} />
-                  <LogMap flights={flights} ref_={ref} active={activeRoute} onRoute={onRoute} />
+                  <LogMap flights={flown} ref_={ref} active={activeRoute} onRoute={onRoute} />
                   <LogList
                     flights={flights}
                     ref_={ref}
@@ -183,7 +199,12 @@ export function LogbookApp() {
 
 /* ---------- totals ---------- */
 
-function Totals({ flights, ref_ }: { flights: LogFlight[]; ref_: Ref | null }) {
+/** Logged flights that were flown: a cancelled one stays in the list but adds no flying, distance or airports. */
+const flownOnly = (flights: LogFlight[]) => flights.filter((f) => statusOf(f) !== "cancelled");
+
+function Totals({ flights: all, ref_ }: { flights: LogFlight[]; ref_: Ref | null }) {
+  const flights = flownOnly(all);
+  const cancelled = all.length - flights.length;
   let block = 0;
   let air = 0;
   let nm = 0;
@@ -211,7 +232,13 @@ function Totals({ flights, ref_ }: { flights: LogFlight[]; ref_: Ref | null }) {
   const avg = fpm.length ? Math.round(fpm.reduce((x, y) => x + y, 0) / fpm.length) : null;
   const softest = fpm.length ? Math.max(...fpm) : null;
   const items: [string, ReactNode][] = [
-    ["Flights", flights.length],
+    [
+      "Flights",
+      <>
+        {flights.length}
+        {cancelled ? <small className="muted"> + {cancelled} cancelled</small> : null}
+      </>,
+    ],
     ["Block", block ? dur(block) : "—"],
     ["Airborne", air ? dur(air) : "—"],
     ["Distance", ref_ ? `${Math.round(nm).toLocaleString("en-GB")} NM` : "…"],
@@ -635,7 +662,9 @@ function LogTable({ flights, ref_, sel, marked, onSel, onHover, onEdit, bars }: 
 }
 
 function MonthRow({ ym, flights, cols }: { ym: string; flights: LogFlight[]; cols: number }) {
-  const inM = flights.filter((f) => f.date.startsWith(ym));
+  const all = flights.filter((f) => f.date.startsWith(ym));
+  const inM = flownOnly(all);
+  const cancelled = all.length - inM.length;
   const block = inM.reduce((a, f) => a + (blockOf(f) ?? 0), 0);
   const routes = new Set(inM.map((f) => `${f.from}-${f.to}`)).size;
   return (
@@ -645,6 +674,7 @@ function MonthRow({ ym, flights, cols }: { ym: string; flights: LogFlight[]; col
         <span className="mono">
           {inM.length} {inM.length === 1 ? "flight" : "flights"}
           {block ? ` · ${dur(block)} block` : ""} · {routes} {routes === 1 ? "route" : "routes"}
+          {cancelled ? ` · ${cancelled} cancelled` : ""}
         </span>
       </th>
     </tr>
@@ -766,10 +796,13 @@ function LogForm({ start, ref_, onDone }: { start: LogFlight | null; ref_: Ref |
   const n = (k: string) => (d[k].trim() && Number.isFinite(+d[k]) ? +d[k] : null);
   const s = (k: string) => d[k].trim() || null;
 
-  const build = (): LogFlight | string => {
-    if (!from || !to) return "Choose where the flight left from and where it landed.";
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date)) return "Choose the date.";
-    for (const [k, label] of [...TIME_FIELDS, ["started", "Listed time"] as const]) if (d[k].trim() && !clockOf(d[k])) return `${label} must be a time like 14:05.`;
+  // what's missing or wrong, and the field it's about (focused and marked on submit)
+  type Miss = { miss: string; field: string };
+  const build = (): LogFlight | Miss => {
+    if (!from) return { miss: "Choose the airport the flight left from.", field: "from" };
+    if (!to) return { miss: "Choose the airport it landed at.", field: "to" };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date)) return { miss: "Choose the date.", field: "date" };
+    for (const [k, label] of [...TIME_FIELDS, ["started", "Listed time"] as const]) if (d[k].trim() && !clockOf(d[k])) return { miss: `${label} must be a time like 14:05.`, field: k };
     const callsign = s("callsign")?.toUpperCase().replace(/\s+/g, "") ?? null;
     const f: LogFlight = {
       id: start?.id ?? "",
@@ -804,31 +837,41 @@ function LogForm({ start, ref_, onDone }: { start: LogFlight | null; ref_: Ref |
     return f;
   };
   const preview = build();
+  const missing = "miss" in preview ? preview : null;
+  // after a submit that was refused, the hint becomes the error (and follows the fixes); before, it's a quiet preview
+  const [tried, setTried] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
   const submit = (e: SyntheticEvent<HTMLFormElement, SubmitEvent>) => {
     e.preventDefault();
     const f = build();
-    if (typeof f === "string") return setErr(f);
+    if ("miss" in f) {
+      setTried(true);
+      setErr(null);
+      formRef.current?.querySelector<HTMLInputElement>(`[name="${f.field}"]`)?.focus();
+      return;
+    }
     if (!saveFlight(f, start?.id)) return setErr("The browser refused to save it (storage full or blocked). Nothing was saved; the form still holds what you typed.");
     setErr(null);
     onDone(f.id);
   };
+  const bad = (k: string) => (tried && missing?.field === k ? { "aria-invalid": true as const, "aria-describedby": "log-form-err" } : {});
   const text = (k: string, label: string, extra: { placeholder?: string; inputMode?: "numeric" | "decimal" | "text"; className?: string; maxLength?: number } = {}) => (
     <label className={cx("ctl", extra.className)}>
       <span className="ctl-label">{label}</span>
-      <input className="ctl-input" value={d[k]} onChange={set(k)} placeholder={extra.placeholder} inputMode={extra.inputMode} maxLength={extra.maxLength} />
+      <input className="ctl-input" name={k} value={d[k]} onChange={set(k)} placeholder={extra.placeholder} inputMode={extra.inputMode} maxLength={extra.maxLength} />
     </label>
   );
   return (
-    <form id="log-form" className="log-form" onSubmit={submit} noValidate>
+    <form id="log-form" className="log-form" onSubmit={submit} noValidate ref={formRef}>
       <fieldset>
         <legend>Flight</legend>
         <div className="log-grid">
           <label className="ctl">
             <span className="ctl-label">Date (UTC)</span>
-            <input className="ctl-input" type="date" value={d.date} onChange={set("date")} required />
+            <input className="ctl-input" type="date" name="date" value={d.date} onChange={set("date")} required {...bad("date")} />
           </label>
-          <PlacePicker label="From" value={from} options={opts} onChange={setFrom} anyLabel="Departure airport" />
-          <PlacePicker label="To" value={to} options={opts} onChange={setTo} anyLabel="Arrival airport" />
+          <PlacePicker label="From" name="from" value={from} options={opts} onChange={setFrom} anyLabel="Departure airport" invalid={!!bad("from")["aria-invalid"]} describedBy="log-form-err" />
+          <PlacePicker label="To" name="to" value={to} options={opts} onChange={setTo} anyLabel="Arrival airport" invalid={!!bad("to")["aria-invalid"]} describedBy="log-form-err" />
           {text("callsign", "Callsign", { placeholder: "EZY42", maxLength: 10 })}
           {text("flight", "Flight number", { placeholder: "U21042", maxLength: 10 })}
           {text("type", "Aircraft type", { placeholder: "A20N", maxLength: 4 })}
@@ -844,12 +887,14 @@ function LogForm({ start, ref_, onDone }: { start: LogFlight | null; ref_: Ref |
               <span className="ctl-label">{label}</span>
               <input
                 className="ctl-input mono"
+                name={k}
                 value={d[k]}
                 onChange={set(k)}
                 placeholder="--:--"
                 inputMode="numeric"
                 maxLength={5}
                 aria-invalid={d[k].trim() && !clockOf(d[k]) ? true : undefined}
+                aria-describedby={tried && missing?.field === k ? "log-form-err" : undefined}
               />
             </label>
           ))}
@@ -859,6 +904,7 @@ function LogForm({ start, ref_, onDone }: { start: LogFlight | null; ref_: Ref |
             <span className="ctl-label">Listed time (your tracker&apos;s, any zone)</span>
             <input
               className="ctl-input mono"
+              name="started"
               value={d.started}
               onChange={set("started")}
               placeholder="--:--"
@@ -895,8 +941,8 @@ function LogForm({ start, ref_, onDone }: { start: LogFlight | null; ref_: Ref |
         </div>
       </fieldset>
       <p className="log-preview small" aria-live="polite">
-        {typeof preview === "string" ? (
-          <span className="muted">{preview}</span>
+        {"miss" in preview ? (
+          !tried && <span className="muted">{preview.miss}</span>
         ) : (
           <>
             Block <b className="mono">{dur(blockOf(preview)) ?? "—"}</b> · airborne <b className="mono">{dur(airOf(preview)) ?? "—"}</b> · status{" "}
@@ -910,9 +956,9 @@ function LogForm({ start, ref_, onDone }: { start: LogFlight | null; ref_: Ref |
           </>
         )}
       </p>
-      {err && (
-        <p className="form-err" role="alert">
-          {err}
+      {(err || (tried && missing)) && (
+        <p className="form-err" role="alert" id="log-form-err">
+          {err ?? missing?.miss}
         </p>
       )}
       <div className="log-acts">
@@ -990,7 +1036,7 @@ function ImportExport({ flights }: { flights: LogFlight[] }) {
           (YYYY-MM-DD, UTC), <code>from</code> and <code>to</code> (ICAO); everything else is optional. Times are <code>HH:MM</code> UTC; a later time that is
           earlier on the clock crossed midnight. Importing a flight with an <code>id</code> already in the logbook replaces it.
         </p>
-        <pre className="log-example mono">{`{
+        <ScrollBox as="pre" className="log-example mono" label="Example logbook file">{`{
   "id": "2026-10-03-EZY22N-EGBB-LEMD",
   "date": "2026-10-03",
   "from": "EGBB", "to": "LEMD",
@@ -1003,7 +1049,7 @@ function ImportExport({ flights }: { flights: LogFlight[] }) {
   "status": null,
   "cruiseFl": 360, "fuelKg": 4300, "pax": 171,
   "source": "manual", "notes": ""
-}`}</pre>
+}`}</ScrollBox>
         <p className="small">
           <code>status</code> is <code>early</code>, <code>on-time</code>, <code>late</code>, <code>delayed</code> or <code>cancelled</code>; leave it out to work it out from
           STD/STA against OUT/IN (more than 15 min either way). <code>blockMin</code> / <code>airMin</code> are for when OUT/IN or OFF/ON aren&apos;t known.

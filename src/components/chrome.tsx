@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { applyTheme, readTheme } from "@/lib/storage";
 
 export function Brand() {
@@ -84,18 +84,21 @@ const ICONS = {
   ),
 };
 
+const PAGES = [
+  ["finder", "Finder", "/"],
+  ["journeys", "Journeys", "/journeys"],
+  ["board", "Board", "/board"],
+  ["brief", "Brief", "/brief"],
+  ["logbook", "Logbook", "/logbook"],
+  ["range", "Range", "/range"],
+  ["settings", "Settings", "/settings"],
+] as const;
+const usePath = () => (usePathname() ?? "/").replace(/\/$/, "") || "/";
+
 /** The pages as tabs in the top bar; the current one is marked. */
 export function PageNav({ finderHref = "/" }: { finderHref?: string }) {
-  const path = (usePathname() ?? "/").replace(/\/$/, "") || "/";
-  const tabs = [
-    ["finder", "Finder", finderHref, "/"],
-    ["journeys", "Journeys", "/journeys", "/journeys"],
-    ["board", "Board", "/board", "/board"],
-    ["brief", "Brief", "/brief", "/brief"],
-    ["logbook", "Logbook", "/logbook", "/logbook"],
-    ["range", "Range", "/range", "/range"],
-    ["settings", "Settings", "/settings", "/settings"],
-  ] as const;
+  const path = usePath();
+  const tabs = PAGES.map(([k, label, at]) => [k, label, k === "finder" ? finderHref : at, at] as const);
   return (
     <nav className="pagenav" aria-label="Pages">
       {tabs.map(([k, label, href, at]) => (
@@ -111,10 +114,29 @@ export function PageNav({ finderHref = "/" }: { finderHref?: string }) {
 }
 
 export function TopBar({ children, finderHref }: { children?: ReactNode; finderHref?: string }) {
+  const path = usePath();
+  const page = PAGES.find(([, , at]) => at === path)?.[1] ?? null;
+  // its height (one row on wide screens, two on phones) as --topbar-h, for what opens under it (the flight panel)
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const set = () => document.documentElement.style.setProperty("--topbar-h", `${Math.round(el.getBoundingClientRect().height)}px`);
+    set();
+    const ro = new ResizeObserver(set);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   return (
-    <header className="topbar">
+    <header className="topbar" ref={ref}>
       <div className="topbar-inner">
         <Brand />
+        {/* phones: the tabs are icons only, so the current page is named next to the brand */}
+        {page && (
+          <span className="topbar-page" aria-hidden="true">
+            {page}
+          </span>
+        )}
         <PageNav finderHref={finderHref} />
         <div className="topbar-end">
           {children}

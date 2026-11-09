@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState, type ReactNode, type SyntheticEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode, type SyntheticEvent } from "react";
 import { loadAirline, loadAirports, loadManifest, type Airport, type FlightRow } from "@/lib/data/load";
 import { enrich } from "@/lib/data/query";
 import { RouteHead } from "./RouteHead";
@@ -16,13 +16,22 @@ import { FlightIdent, GuessMark, TypeBadge } from "./badges";
 import { StatusLine, TopBar } from "./chrome";
 import { SavedFlights } from "./SavedFlights";
 import { CollapseProvider } from "./collapse";
-import { Badge, Section } from "./ui";
+import { Badge, ScrollBox, Section } from "./ui";
 
-/** Pulls the airframe id out of a pasted SimBrief "Plan" link, or takes the id as typed. */
-export function parseAirframeId(v: string): string {
+/**
+ * Pulls the airframe id out of a pasted SimBrief "Plan" link, or takes the id as typed. Null when there's
+ * none, or it isn't one (a broken %-escape, spaces or other characters SimBrief ids don't have).
+ */
+export function parseAirframeId(v: string): string | null {
   const t = v.trim();
   const m = t.match(/[?&]type=([^&#\s]+)/);
-  return decodeURIComponent(m ? m[1] : t);
+  let id: string;
+  try {
+    id = decodeURIComponent(m ? m[1] : t);
+  } catch {
+    return null;
+  }
+  return /^[A-Za-z0-9_-]{1,64}$/.test(id) ? id : null;
 }
 
 export function SettingsApp() {
@@ -37,9 +46,13 @@ export function SettingsApp() {
     <CollapseProvider>
       <TopBar />
       <StatusLine>
-        <span className="muted">Everything here is stored in this browser only. Nothing is sent anywhere.</span>
+        <span className="muted">
+          <span className="hide-xs">Everything here is stored in this browser only. Nothing is sent anywhere.</span>
+          <span className="only-xs">Stored in this browser only</span>
+        </span>
       </StatusLine>
       <main className="settings">
+        <h1 className="sr-only">Settings</h1>
         {v >= 0 && (
           <>
         <Section id="airframes" no={1} title="Airframes" meta={<span>Used for SimBrief links</span>}>
@@ -67,24 +80,40 @@ export function SettingsApp() {
 function Airframes() {
   const prefs = useAirframes();
   const [form, setForm] = useState({ name: "", icao: "", sb: "", note: "" });
-  const [err, setErr] = useState<string | null>(null);
+  // the message and the field it's about (focused and marked)
+  const [err, setErr] = useState<{ text: string; field: "name" | "icao" | "sb" | null } | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   if (!prefs) return <div className="sk-block" aria-hidden="true" />;
 
-  const save = (p: typeof prefs) => writeAirframes(p);
+  const refused = "The browser refused to save it (storage full or blocked); nothing was changed.";
+  const save = (p: typeof prefs) => {
+    if (!writeAirframes(p)) setErr({ text: refused, field: null });
+  };
   const add = (e: SyntheticEvent<HTMLFormElement, SubmitEvent>) => {
     e.preventDefault();
     const sbType = parseAirframeId(form.sb);
     const icao = form.icao.trim().toUpperCase();
-    if (!form.name.trim() || !/^[A-Z0-9]{2,4}$/.test(icao) || !sbType) {
-      setErr("Give it a name, a 2–4 character ICAO type (A20N) and the SimBrief airframe id or Plan link.");
+    const bad: { text: string; field: "name" | "icao" | "sb" } | null = !form.name.trim()
+      ? { text: "Give it a name (G-ABCD).", field: "name" }
+      : !/^[A-Z0-9]{2,4}$/.test(icao)
+        ? { text: "The ICAO type is 2–4 letters and digits (A20N).", field: "icao" }
+        : !form.sb.trim()
+          ? { text: "Paste the SimBrief airframe id or its Plan link.", field: "sb" }
+          : !sbType
+            ? { text: "That isn’t a SimBrief airframe id: paste the Plan link from SimBrief → Airframes, or the id in it (like 123456_1700000000000).", field: "sb" }
+            : null;
+    if (bad) {
+      setErr(bad);
+      formRef.current?.querySelector<HTMLInputElement>(`[name="${bad.field}"]`)?.focus();
       return;
     }
-    const a: Airframe = { id: `af-${Date.now().toString(36)}`, name: form.name.trim(), icao, sbType, note: form.note.trim() || null };
+    const a: Airframe = { id: `af-${Date.now().toString(36)}`, name: form.name.trim(), icao, sbType: sbType!, note: form.note.trim() || null };
     const cur = readAirframes();
-    save({ list: [...cur.list, a], preferred: cur.preferred ?? a.id });
+    if (!writeAirframes({ list: [...cur.list, a], preferred: cur.preferred ?? a.id })) return setErr({ text: refused, field: null });
     setForm({ name: "", icao: "", sb: "", note: "" });
     setErr(null);
   };
+  const invalid = (k: "name" | "icao" | "sb") => (err?.field === k ? { "aria-invalid": true, "aria-describedby": "af-err" } : {});
 
   return (
     <div className="airframes">
@@ -92,7 +121,7 @@ function Airframes() {
         A saved airframe replaces the scheduled type in the SimBrief link, so SimBrief loads your registration, engines and weights. The{" "}
         <b>preferred</b> one is picked automatically when a flight’s type is in the same family (an A20N stands in for any A320-family flight).
       </p>
-      <div className="tbl-wrap">
+      <ScrollBox className="tbl-wrap" label="Saved airframes">
       <table className="tbl">
         <thead>
           <tr>
@@ -152,23 +181,33 @@ function Airframes() {
           </tr>
         </tbody>
       </table>
-      </div>
-      <form className="af-form" onSubmit={add}>
+      </ScrollBox>
+      <form className="af-form" onSubmit={add} ref={formRef} noValidate>
         <label>
           <span className="ctl-label">Name</span>
-          <input className="ctl-input" value={form.name} placeholder="G-ABCD" onChange={(e) => setForm({ ...form, name: e.target.value })} />
+          <input className="ctl-input" name="name" value={form.name} placeholder="G-ABCD" onChange={(e) => setForm({ ...form, name: e.target.value })} {...invalid("name")} />
         </label>
         <label>
           <span className="ctl-label">ICAO type</span>
-          <input className="ctl-input mono" value={form.icao} placeholder="A20N" maxLength={4} onChange={(e) => setForm({ ...form, icao: e.target.value.toUpperCase() })} />
+          <input
+            className="ctl-input mono"
+            name="icao"
+            value={form.icao}
+            placeholder="A20N"
+            maxLength={4}
+            onChange={(e) => setForm({ ...form, icao: e.target.value.toUpperCase() })}
+            {...invalid("icao")}
+          />
         </label>
         <label className="wide">
           <span className="ctl-label">SimBrief airframe id or Plan link</span>
           <input
             className="ctl-input mono"
+            name="sb"
             value={form.sb}
             placeholder="123456_1700000000000"
             onChange={(e) => setForm({ ...form, sb: e.target.value })}
+            {...invalid("sb")}
           />
         </label>
         <label className="wide">
@@ -179,8 +218,8 @@ function Airframes() {
           Add airframe
         </button>
         {err && (
-          <p className="form-err" role="alert">
-            {err}
+          <p className="form-err" role="alert" id="af-err">
+            {err.text}
           </p>
         )}
       </form>
@@ -417,7 +456,7 @@ function DisplayPrefs({ manifest }: { manifest: Manifest | null }) {
           ).map(([v, label, note]) => (
             <Opt key={v} name="routeHead" checked={d.routeHead === v} onChange={() => writeDisplay({ routeHead: v })} title={label} isDefault={v === "timeline"} note={note}>
               {sample ? (
-                <span className="rh-sample" aria-hidden="true">
+                <span className="rh-sample" aria-hidden="true" inert>
                   <RouteHead style={v} f={sample.f} from={sample.from} to={sample.to} blockMin={sample.block} nm={sample.nm} />
                 </span>
               ) : (
@@ -466,7 +505,7 @@ function DisplayPrefs({ manifest }: { manifest: Manifest | null }) {
             ] as const
           ).map(([v, label, note]) => (
             <Opt key={v} name="variesMark" checked={d.variesMark === v} onChange={() => writeDisplay({ variesMark: v })} title={label} isDefault={v === "tag"} note={note}>
-              <span className="var-sample mono" aria-hidden="true">
+              <span className="var-sample mono" aria-hidden="true" inert>
                 <VariesSample mark={v} f={varying} />
               </span>
             </Opt>
@@ -506,7 +545,7 @@ function AirlineSetSample({ set, manifest }: { set: AirlineSet; manifest: Manife
   const shown = set === "extra" ? extra : common;
   const top = [...shown].sort((a, b) => b.flights - a.flights).slice(0, 4);
   return (
-    <span className="al-set" aria-hidden="true">
+    <span className="al-set" aria-hidden="true" inert>
       <span className="al-set-n mono">
         {set === "extra" ? `${common.length} + ${extra.length} Extra+` : `${common.length} airlines`}
       </span>
@@ -532,7 +571,7 @@ function LogbookSample({ style }: { style: "table" | "strips" }) {
   ] as const;
   if (style === "strips")
     return (
-      <span className="log-sample log-strips" aria-hidden="true">
+      <span className="log-sample log-strips" aria-hidden="true" inert>
         {rows.map(([day, o, dst, , , blk, tone, st, c]) => (
           <span key={day} className="strip log-sample-strip" style={{ ["--c" as string]: c }}>
             <b className="mono">{o}</b>
@@ -545,7 +584,7 @@ function LogbookSample({ style }: { style: "table" | "strips" }) {
       </span>
     );
   return (
-    <span className="log-sample log-sample-tbl" aria-hidden="true">
+    <span className="log-sample log-sample-tbl" aria-hidden="true" inert>
       <span className="log-sample-month">October 2026</span>
       {rows.map(([day, o, dst, a, b, blk, tone, st]) => (
         <span key={day} className="log-sample-row">
@@ -712,7 +751,7 @@ function DataInfo({ manifest, error }: { manifest: Manifest | null; error: strin
         can change; check the airline before relying on one.
       </p>
       <h3 className="sub">Sources</h3>
-      <div className="tbl-wrap">
+      <ScrollBox className="tbl-wrap" label="Sources">
         <table className="tbl">
           <thead>
             <tr>
@@ -780,9 +819,9 @@ function DataInfo({ manifest, error }: { manifest: Manifest | null; error: strin
             </tr>
           </tbody>
         </table>
-      </div>
+      </ScrollBox>
       <h3 className="sub">Airlines</h3>
-      <div className="tbl-wrap">
+      <ScrollBox className="tbl-wrap" label="Airlines">
         <table className="tbl">
           <thead>
             <tr>
@@ -814,7 +853,7 @@ function DataInfo({ manifest, error }: { manifest: Manifest | null; error: strin
               ))}
           </tbody>
         </table>
-      </div>
+      </ScrollBox>
     </div>
   );
 }

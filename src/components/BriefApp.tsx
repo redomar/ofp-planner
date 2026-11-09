@@ -174,6 +174,7 @@ export function BriefApp() {
       <TopBar finderHref={f ? `/?al=${f.al}&dep=${f.o}&arr=${f.d}&f=${encodeURIComponent(f.id)}` : "/"} />
       <StatusLine progress={state.done ? null : 0.4}>{status}</StatusLine>
       <main className="brief">
+        <h1 className="sr-only">Brief</h1>
         {state.done && !f && (
           <div className="brief-start">
             <div className="panel brief-intro">
