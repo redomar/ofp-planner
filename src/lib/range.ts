@@ -9,7 +9,7 @@
  * The distance comes from the Breguet range equation, R = K · ln(W_takeoff / W_landing), with K
  * (true airspeed × L/D ÷ fuel burn, in NM) set so the model lands within about 10% of Airbus's
  * published ranges. It keeps 200 kg taxi, 5% contingency, a 200 NM alternate and 30 min final
- * reserve, then takes 5% and 40 NM off for the climb, descent and routing. Treat the result as ±5%.
+ * reserve, then takes 5% and 40 NM off for the climb, descent and routing. Tuned to Airbus brochure ranges, not measured in the sims: an approximate comparison.
  */
 import { readJSON, writeJSON, KEYS } from "./storage";
 

@@ -36,6 +36,10 @@ import Link from "next/link";
 
 type View = "flights" | "places" | "map";
 
+/** "20 Sept" or, with the year, "24 Oct 2026" (UTC, so the day never shifts). */
+const day = (iso: string, year = false) =>
+  new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(year ? { year: "numeric" } : {}), timeZone: "UTC" });
+
 export function FinderApp() {
   const [ready, setReady] = useState(false);
   const [q, setQ] = useState<Query>({ ...EMPTY_QUERY, al: DEFAULT_PREFS.airlines });
@@ -274,9 +278,22 @@ export function FinderApp() {
     <span className="muted">Loading schedule snapshot…</span>
   ) : (
     <span>
-      <b>{alNames}</b> · {rows.length.toLocaleString("en-GB")} flights · snapshot{" "}
-      <time dateTime={manifest.generatedAt}>{new Date(manifest.generatedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</time>
-      {manifest.coverage && <span className="muted hide-xs"> (schedules {manifest.coverage.from} → {manifest.coverage.to})</span>}
+      <b>{alNames}</b> · {rows.length.toLocaleString("en-GB")} flights ·{" "}
+      {manifest.coverage ? (
+        // the days the schedules were seen on (on phones too); the build date is secondary
+        <span className="st-cover">
+          <span className="hide-xs">schedules </span>
+          <time dateTime={manifest.coverage.from}>{day(manifest.coverage.from)}</time> – <time dateTime={manifest.coverage.to}>{day(manifest.coverage.to, true)}</time>
+          <span className="muted hide-xs">
+            {" "}
+            · snapshot built <time dateTime={manifest.generatedAt}>{day(manifest.generatedAt.slice(0, 10), true)}</time>
+          </span>
+        </span>
+      ) : (
+        <>
+          snapshot <time dateTime={manifest.generatedAt}>{day(manifest.generatedAt.slice(0, 10), true)}</time>
+        </>
+      )}
     </span>
   );
 

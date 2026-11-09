@@ -177,7 +177,9 @@ async function run() {
     await page.screenshot({ path: join(SHOT_DIR, `${String(shotNo).padStart(2, "0")}-${name}.png`), fullPage: false });
   };
 
+  // VERIFY_ONLY=name runs just the sections whose name contains it (while working on one)
   const section = async (name, fn) => {
+    if (process.env.VERIFY_ONLY && !name.includes(process.env.VERIFY_ONLY)) return;
     try {
       await fn();
     } catch (e) {
@@ -1593,6 +1595,95 @@ async function run() {
     await page.waitForSelector(".guess-sample");
     await checkPage("settings guessed airports 1280 light", page, errors);
     await ctx.close();
+  });
+
+  /* ---------- 1.7.2: saving that fails, malformed stored data, load errors, coverage on phones ---------- */
+  await section("review fixes", async () => {
+    const flight = (o) => ({ date: "2026-10-03", from: "EGBB", to: "LEMD", callsign: "EZY22N", ...o });
+    const logFile = (flights) => ({ name: "log.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify({ schema: "ofp-planner/logbook", version: 1, flights })) });
+    // storage refused: an import says so and nothing pretends to be saved
+    const { ctx, page, errors } = await open("/logbook");
+    await page.waitForSelector(".log-form");
+    await page.evaluate(() => {
+      const real = Storage.prototype.setItem;
+      window.__realSet = real;
+      Storage.prototype.setItem = function (k, v) {
+        if (String(k).startsWith("ofp-planner:logbook")) throw new DOMException("full", "QuotaExceededError");
+        return real.call(this, k, v);
+      };
+    });
+    await page.locator(".log-io input[type=file]").setInputFiles(logFile([flight({})]));
+    const refused = await page.locator(".log-io [role=status]").innerText();
+    const stored = await page.evaluate(() => localStorage.getItem("ofp-planner:logbook"));
+    /Couldn’t import/.test(refused) && /Nothing was imported/.test(refused) && stored == null
+      ? pass("review: a logbook import the browser refuses to store says so (nothing saved, keep the file)")
+      : fail(`review: refused import "${refused}" stored ${stored}`);
+    await page.evaluate(() => (Storage.prototype.setItem = window.__realSet));
+    // impossible dates and out-of-range numbers are skipped with a reason
+    await page.locator(".log-io input[type=file]").setInputFiles(logFile([flight({}), flight({ date: "2026-99-99", callsign: "EZY1" }), flight({ blockMin: -50, callsign: "EZY2" }), flight({ pax: -7, callsign: "EZY3" })]));
+    const strict = await page.locator(".log-io [role=status]").innerText();
+    /1 new/.test(strict) && /Skipped 3/.test(strict) && /real YYYY-MM-DD/.test(strict) && /blockMin must be 0–1440/.test(strict)
+      ? pass("review: import skips an impossible date and negative block time / pax, naming why")
+      : fail(`review: strict import "${strict}"`);
+    // malformed stored values: a list that isn't a list reads as empty, bad entries are dropped, the page still works
+    await page.evaluate(() => localStorage.setItem("ofp-planner:logbook", "{}"));
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForSelector(".log-form");
+    await page.evaluate(() => localStorage.setItem("ofp-planner:logbook", JSON.stringify([{ id: "a" }, 7, { id: "b", date: "2026-10-04", from: "EGBB", to: "LOWI" }])));
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForSelector(".log-tbl tbody tr");
+    const kept = await page.locator(".log-tbl tbody tr:not(.log-detail):not(.log-month)").count();
+    kept === 1 && !errors.length ? pass("review: a malformed stored logbook doesn't break the page (bad entries dropped, 1 kept)") : fail(`review: malformed logbook rows ${kept} errors ${JSON.stringify(errors)}`);
+    await checkPage("logbook after malformed data 1280 light", page, errors);
+    // a backup with values the app can't read is refused before anything is replaced
+    await page.goto(`${base}/settings`, { waitUntil: "networkidle" });
+    const before = await page.evaluate(() => localStorage.getItem("ofp-planner:logbook"));
+    for (const [k, v, why] of [
+      ["ofp-planner:logbook", "{}", /logbook should be a list/],
+      ["ofp-planner:airframes", "null", /airframes is empty/],
+      ["ofp-planner:favourites", JSON.stringify([{ id: "x" }]), /favourites has a malformed entry \(#1\)/],
+    ]) {
+      const bad = { schema: "ofp-planner/backup", version: 1, createdAt: "2026-11-09T00:00:00Z", entries: { [k]: v } };
+      await page.locator(".backup input[type=file]").setInputFiles({ name: "bad.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(bad)) });
+      // the same element shows each refusal in turn: wait for this one's text
+      await page.locator(".backup .form-err", { hasText: why }).waitFor({ timeout: 5000 }).catch(() => undefined);
+      const t = await page.locator(".backup .form-err").innerText();
+      const after = await page.evaluate(() => localStorage.getItem("ofp-planner:logbook"));
+      why.test(t) && /Nothing was restored/.test(t) && after === before ? pass(`review: backup with a bad ${k.slice(12)} is refused, nothing replaced`) : fail(`review: bad backup ${k} "${t}"`);
+    }
+    await ctx.close();
+    // Journeys: each failed file shows an error with Retry, and Retry recovers with the form kept
+    for (const [label, url, rx] of [
+      ["manifest", "/journeys?from=EGBB&to=LOWI", /\/data\/manifest\.json/],
+      ["route index", "/journeys?from=EGBB&to=LOWI", /\/data\/routes\.json/],
+      ["airline file", "/journeys?from=EGBB&to=LOWI&t=1", /\/data\/airlines\/EZY\.json/],
+    ]) {
+      const j = await open("/settings");
+      await j.page.route(rx, (r) => r.fulfill({ status: 503, body: "down" }));
+      await j.page.goto(base + url, { waitUntil: "networkidle" });
+      const err = j.page.getByText(/Couldn’t load the schedule snapshot/);
+      await err.waitFor({ timeout: 15000 }).catch(() => undefined);
+      const shown = await err.isVisible();
+      await j.page.unroute(rx);
+      await j.page.getByRole("button", { name: "Retry" }).click().catch(() => undefined);
+      await j.page.waitForLoadState("networkidle");
+      await j.page.getByText(/Route network|Timed connections/).first().waitFor({ timeout: 30000 }).catch(() => undefined);
+      const back = await j.page.getByText(/Route network|Timed connections/).first().isVisible().catch(() => false);
+      const kept = new URL(j.page.url()).searchParams.get("from") === "EGBB";
+      shown && back && kept ? pass(`review: Journeys shows a failed ${label} with Retry, and recovers with the plan kept`) : fail(`review: Journeys ${label} error ${shown} recovered ${back} kept ${kept}`);
+      await j.ctx.close();
+    }
+    // the Finder names the days the schedules cover, on a phone too
+    const man = JSON.parse(readFileSync(join(OUT, "data", "manifest.json"), "utf8"));
+    const ph = await open("/?al=EZY", { width: 390, height: 844 });
+    await ph.page.waitForSelector(".st-cover");
+    const cover = (await ph.page.locator(".st-cover").innerText()).replace(/\s+/g, " ");
+    const times = await ph.page.locator(".st-cover > time").evaluateAll((t) => t.map((x) => x.getAttribute("dateTime")));
+    times[0] === man.coverage.from && times[1] === man.coverage.to && (await ph.page.locator(".st-cover > time").first().isVisible()) && !/built/.test(cover)
+      ? pass(`review: phone Finder shows the schedule coverage, not the build date ("${cover.trim()}")`)
+      : fail(`review: phone coverage "${cover}" ${times}`);
+    await checkPage("finder coverage 390 light", ph.page, ph.errors);
+    await ph.ctx.close();
   });
 
   /* ---------- night screenshots ---------- */

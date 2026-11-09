@@ -104,7 +104,7 @@ function Shell({ children }: { children: ReactNode }) {
     <CollapseProvider>
       <TopBar />
       <StatusLine>
-        <span className="muted">Still-air range with reserves, from each developer&apos;s SimBrief weights. Estimates, good to about ±5%.</span>
+        <span className="muted">Still-air range with reserves, from each developer&apos;s SimBrief weights. An approximate comparison, not a flight plan.</span>
       </StatusLine>
       <main className="settings range-page">{children}</main>
     </CollapseProvider>

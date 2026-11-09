@@ -54,7 +54,8 @@ note: Next 16 differs from training data; read node_modules/next/dist/docs befor
 commands:
   dev: pnpm dev                      # :3000; predev copies flags + builds public/geo outlines
   checks: pnpm typecheck && pnpm lint && pnpm build
-  verify: pnpm verify [-- --shots]   # browser e2e against out/ (see §8); SHOT_DIR=… to redirect screenshots
+  verify: pnpm verify [-- --shots]   # browser e2e against out/ (see §8); SHOT_DIR=… to redirect screenshots;
+          VERIFY_ONLY="<section name part>" runs only matching sections while working on one (the full run before committing)
   data: pnpm data:snapshot [--help]  # schedule snapshot pipeline (see §5)
   serve_out: python3 -m http.server -d out 8765   # quick static check (nginx handles .html in prod)
 
@@ -169,6 +170,9 @@ lib:
                    and uses SERVES (icao → city served) where OurAirports names a suburb; add to it when a board shows a suburb
   simbrief.ts:     airframes (localStorage) + dispatch URL builder
   saved.ts / display.ts / storage.ts: favourites, history, ready flight, prefs, display choices; all localStorage "ofp-planner:*"
+                   storage.ts SHAPES: each key's shape. readJSON drops list entries that don't fit (else the default);
+                   misfit() refuses a backup before restoring. A new stored key → add its shape there.
+                   writeJSON / writeLog / saveFlight return false when the browser refused (quota/blocked): say so in the UI.
   aircraft-data.json + aircraft.ts: ICAO type → maker/model, maker → tone
   colors.ts:       routeColor, textOn (black/white on a brand colour, always ≥ 4.58:1)
   measure.ts:      canvas text measurement (airline tag widths), useFontsReady

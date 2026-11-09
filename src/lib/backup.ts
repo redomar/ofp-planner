@@ -3,7 +3,7 @@
  * strings in one gzipped JSON file, and a restore that puts them back exactly. The weather
  * cache is left out (stale within the hour). Restoring replaces what's stored here.
  */
-import { KEYS } from "./storage";
+import { KEYS, misfit } from "./storage";
 import { WX_PREFIX } from "./wx/cache";
 import { THEME_KEY } from "./keys";
 
@@ -85,6 +85,11 @@ export async function readBackup(file: File): Promise<Backup | { error: string }
   const entries: Record<string, string> = {};
   for (const [k, val] of Object.entries(r.entries)) if (kept(k) && typeof val === "string") entries[k] = val;
   if (!Object.keys(entries).length) return { error: "That backup is empty." };
+  // every value must be one the app can read, or nothing here is replaced
+  for (const [k, val] of Object.entries(entries)) {
+    const why = misfit(k, val);
+    if (why) return { error: `That backup's ${k.replace(NS, "")} ${why}. Nothing was restored.` };
+  }
   return { schema: BACKUP_SCHEMA, version: 1, createdAt: typeof r.createdAt === "string" ? r.createdAt : "", entries };
 }
 
