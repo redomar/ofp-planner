@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.7.3 — 2026-11-09
 
-Fixes from a review of the live site.
+Fixes from a review of the live site, and phone pages reordered so the action comes before the detail.
 
 - **Gate screen: the step line runs unbroken** from Gate open to Take-off. The done part used to stop halfway to the next step and leave a gap before the rest of the line; now one line runs under every step, and the done part follows the clock to the point between the current step and the next (boarding at 05:05 of 05:02–05:17 is a fifth of the way to Final call).
 - **Gate screen and Board: times say their zone.** The clock, Scheduled, New time and Arrives each name it (UTC+1, UTC+2…), as does the Board's clock; the Board's header also gives the airport's IATA and ICAO codes.
