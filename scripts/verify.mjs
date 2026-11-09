@@ -1686,6 +1686,70 @@ async function run() {
     await ph.ctx.close();
   });
 
+  /* ---------- 1.7.3: findings from the review of the live site ---------- */
+  await section("live review", async () => {
+    // gate screen: one step line from the first marker to the last, the done part over it up to the clock
+    const b = await open("/board?ap=EGKK");
+    await b.page.locator(".fids-tbl tbody tr").first().waitFor({ timeout: 30000 });
+    const head = (await b.page.locator(".fids-head").innerText()).replace(/\s+/g, " ");
+    /LGW · EGKK/.test(head) && /\d\d:\d\d ?UTC(\+\d+)?/.test(head) ? pass(`live: the board names the airport's codes and its clock's zone ("${head}")`) : fail(`live: board header "${head}"`);
+    await b.page.locator(".fids-tbl tbody tr").first().click();
+    await b.page.waitForURL(/tab=gate/);
+    const gu = new URL(b.page.url());
+    await b.ctx.close();
+    const gateQ = `f=${encodeURIComponent(gu.searchParams.get("f"))}&d=${gu.searchParams.get("d")}`;
+    const LINE = () => {
+      const ol = document.querySelector(".gs-steps");
+      const r = ol.getBoundingClientRect();
+      const px = (pseudo) => {
+        const cs = getComputedStyle(ol, pseudo);
+        return { l: r.left + parseFloat(cs.left), w: parseFloat(cs.width), y: r.top + parseFloat(cs.top) + parseFloat(cs.height) / 2 };
+      };
+      const marks = [...ol.querySelectorAll("i")].map((i) => {
+        const m = i.getBoundingClientRect();
+        return { x: m.left + m.width / 2, y: m.top + m.height / 2, z: Number(getComputedStyle(i).zIndex) };
+      });
+      return { track: px("::before"), done: px("::after"), marks, now: [...ol.children].findIndex((li) => li.classList.contains("is-now")), lastDone: [...ol.children].findLastIndex((li) => li.classList.contains("is-done")) };
+    };
+    for (const [w, h, extra] of [
+      [1920, 1080, "&screen=1"],
+      [390, 844, ""],
+    ]) {
+      const g = await open(`/board?tab=gate&${gateQ}&in=90${extra}`, { width: w, height: h });
+      const bad = [];
+      for (const [name, q] of [
+        ["before the gate opens", "in=90"],
+        ["boarding", "in=35"],
+        ["between boarding and final call", "in=31"],
+        ["final call", "in=20"],
+        ["ready", "in=4"],
+        ["pushback", "in=0"],
+        ["pinned boarding", "in=90&pin=boarding"],
+        ["cancelled", "in=30&cx=1"],
+      ]) {
+        await g.page.goto(`${base}/board?tab=gate&${gateQ}&${q}${extra}`, { waitUntil: "networkidle" });
+        await g.page.locator(".gs-steps").waitFor();
+        await g.page.waitForTimeout(1200); // the done part eases over 1 s
+        const l = await g.page.evaluate(LINE);
+        const first = l.marks[0].x;
+        const end = l.marks.at(-1).x;
+        const doneEnd = l.done.l + l.done.w;
+        const ok =
+          Math.abs(l.track.l - first) < 1 &&
+          Math.abs(l.track.l + l.track.w - end) < 1 &&
+          l.marks.every((m) => Math.abs(m.y - l.track.y) < 1 && m.z > 0) &&
+          Math.abs(l.done.l - l.track.l) < 0.5 &&
+          (l.now >= 0 ? doneEnd >= l.marks[l.now].x - 0.5 && doneEnd <= l.marks[l.now + 1]?.x + 0.5 : l.lastDone < 0 ? l.done.w < 0.5 : Math.abs(doneEnd - end) < 1);
+        if (!ok) bad.push(`${name}: ${JSON.stringify({ track: l.track, done: l.done, first, end, now: l.now })}`);
+      }
+      !bad.length ? pass(`live: gate screen ${w}px, one step line from gate open to take-off, the done part ends between the right markers (8 states)`) : fail(`live: gate line ${w}px ${bad.join(" | ")}`);
+      // every time on the screen says its zone
+      const zones = (await g.page.locator(".gs-times small, .gs-clock small").allInnerTexts()).join(" | ");
+      (zones.match(/UTC/g) ?? []).length >= 2 ? pass(`live: gate screen ${w}px labels its times' zones ("${zones.replace(/\s+/g, " ")}")`) : fail(`live: gate zones "${zones}"`);
+      await g.ctx.close();
+    }
+  });
+
   /* ---------- night screenshots ---------- */
   if (SHOTS) {
     const { ctx, page } = await open("/?al=EZY&dep=EGKK", { theme: "dark" });

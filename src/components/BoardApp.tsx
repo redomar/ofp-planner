@@ -31,7 +31,7 @@ import { StatusLine, TopBar } from "./chrome";
 import { PlacePicker } from "./pickers";
 import { RouteMap, type MapRoute } from "./RouteMap";
 import { FidsBoard } from "./board/FidsBoard";
-import { GateScreen, localClock, screenNow, type GateWx } from "./board/GateScreen";
+import { GateScreen, localClock, screenNow, zoneLabel, type GateWx } from "./board/GateScreen";
 import { cx } from "./ui";
 
 type Tab = "airport" | "gate";
@@ -192,6 +192,8 @@ export function BoardApp() {
     reveal(`[data-mv="${CSS.escape(target.key)}"]`);
   };
   const fmt = (ms: number) => (utc || !airport?.tz ? `${new Date(ms).toISOString().slice(11, 16)}${utc ? "" : "Z"}` : localClock(ms, airport.tz));
+  // the zone of the board's times, next to its clock
+  const zone = utc || !airport?.tz ? "UTC" : zoneLabel(now, airport.tz);
 
   const mapRoutes = useMemo<MapRoute[]>(() => {
     if (!airport || !airports) return [];
@@ -444,6 +446,7 @@ export function BoardApp() {
                         now={now}
                         fmt={fmt}
                         clock={fmt(now)}
+                        zone={zone}
                         hover={hover}
                         marked={marked}
                         onHover={setHover}

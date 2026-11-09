@@ -29,6 +29,17 @@ export function localClock(ms: number, tz: string | null): string {
   }
   return `${new Date(ms).toISOString().slice(11, 16)}Z`;
 }
+/** The zone localClock() shows at that moment: "UTC+1", "UTC+5:30", or "UTC" (also when the zone is unknown). */
+export function zoneLabel(ms: number, tz: string | null): string {
+  if (!tz) return "UTC";
+  try {
+    const name = new Intl.DateTimeFormat("en-GB", { timeZone: tz, timeZoneName: "shortOffset" }).formatToParts(ms).find((p) => p.type === "timeZoneName")?.value;
+    if (name && /^GMT([+-]\d{1,2}(:\d\d)?)?$/.test(name)) return name.replace("GMT", "UTC");
+  } catch {
+    /* fall through */
+  }
+  return "UTC";
+}
 function localDate(ms: number, tz: string | null): string {
   try {
     return new Intl.DateTimeFormat("en-GB", { timeZone: tz ?? "UTC", weekday: "short", day: "numeric", month: "short" }).format(ms);
@@ -64,6 +75,9 @@ export function GateScreen({ flight: f, state: g, now, wx }: { flight: GateFligh
   const delayed = g.delay >= 5;
   const fromTz = f.from.tz;
   const toTz = f.to.tz;
+  // every time on the screen is local at its airport; say which zone that is
+  const fromZone = zoneLabel(t, fromTz);
+  const toZone = zoneLabel(eta ?? t, toTz);
 
   // the headline status and what comes next
   let status = phase.label;
@@ -93,7 +107,7 @@ export function GateScreen({ flight: f, state: g, now, wx }: { flight: GateFligh
     next = `Pushback in ${inMin(etd)} min`;
   } else if (phase.key === "departed") {
     tone = "done";
-    next = eta ? `Arriving ${localClock(eta, toTz)} local time` : null;
+    next = eta ? `Arriving ${localClock(eta, toTz)} local time (${toZone})` : null;
   } else {
     tone = "done";
     next = phase.key === "takeoff" ? `Climbing out${f.runway ? ` from runway ${f.runway}` : ""}` : `Off-block ${localClock(etd, fromTz)}${f.runway ? ` · runway ${f.runway}` : ""}`;
@@ -113,6 +127,17 @@ export function GateScreen({ flight: f, state: g, now, wx }: { flight: GateFligh
     wx && (wx.temp != null || wx.text) ? `${dest} at arrival: ${[wx.temp != null ? `${Math.round(wx.temp)}°C` : null, wx.text?.toLowerCase()].filter(Boolean).join(", ")}` : null;
   const items = [wxText, facts.length ? facts.join(" · ") : null, g.msg || null].filter((x): x is string => !!x);
   const item = items.length ? items[g.rotate ? Math.floor(now / 8000) % items.length : 0] : null;
+
+  // how far along the step line: steps done, plus the part of the way to the next one the clock has gone
+  // (a pinned step sits on its marker; nothing is done before the gate opens or on a cancelled flight)
+  const last = STEPS.length - 1;
+  let frac = 0;
+  if (!g.pin && step >= 0 && step < last) {
+    const a = at(STEPS[step]);
+    const b = at(STEPS[step + 1]);
+    frac = b > a ? Math.min(1, Math.max(0, (t - a) / (b - a))) : 0;
+  }
+  const progress = g.cancelled ? 0 : phase.key === "departed" ? 1 : step < 0 ? 0 : Math.min(1, (step + frac) / last);
 
   return (
     <div className="gs" style={{ "--gs-bg": bg, "--gs-ink": ink, "--gs-accent": accent } as CSSProperties} role="region" aria-label={`Gate screen: ${f.flightNo} to ${dest}`}>
@@ -134,7 +159,9 @@ export function GateScreen({ flight: f, state: g, now, wx }: { flight: GateFligh
         )}
         <span className="gs-clock">
           <b className="mono">{localClock(t, fromTz)}</b>
-          <small>{localDate(t, fromTz)}</small>
+          <small>
+            {localDate(t, fromTz)} · {fromZone}
+          </small>
         </span>
       </header>
 
@@ -153,18 +180,18 @@ export function GateScreen({ flight: f, state: g, now, wx }: { flight: GateFligh
 
       <div className="gs-times">
         <div className={delayed && !g.cancelled ? "is-struck" : undefined}>
-          <small>Scheduled</small>
+          <small>Scheduled · {zoneLabel(f.stdMs, fromTz)}</small>
           <b className="mono">{localClock(f.stdMs, fromTz)}</b>
         </div>
         {delayed && !g.cancelled && (
           <div className="gs-new">
-            <small>New time</small>
+            <small>New time · {zoneLabel(etd, fromTz)}</small>
             <b className="mono">{localClock(etd, fromTz)}</b>
           </div>
         )}
         {eta != null && !g.cancelled && (
           <div>
-            <small>Arrives (local)</small>
+            <small>Arrives · {toZone}</small>
             <b className="mono">{localClock(eta, toTz)}</b>
           </div>
         )}
@@ -174,7 +201,7 @@ export function GateScreen({ flight: f, state: g, now, wx }: { flight: GateFligh
         </div>
       </div>
 
-      <ol className="gs-steps" aria-label="Boarding steps">
+      <ol className="gs-steps" aria-label={`Boarding steps, local time ${fromZone}`} style={{ "--gs-n": STEPS.length, "--gs-p": progress } as CSSProperties}>
         {STEPS.map((k, i) => {
           const p = ps.find((x) => x.key === k)!;
           const state = g.cancelled ? "todo" : phase.key === "departed" || i < step ? "done" : i === step ? "now" : "todo";
