@@ -156,10 +156,13 @@ export function RangeMap({
   return (
     <figure ref={ref} className={`map range-map${relief ? " relief" : ""}${zoom.live.k !== 1 ? " zoomed" : ""}`}>
       {view && base && drawn && (
-        <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="img" aria-label={label}>
+        // a group, not an image: its airport dots are buttons (the chart itself is hidden from screen readers)
+        <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} role="group" aria-label={label}>
           <rect className="map-sea" x="0" y="0" width={W} height={H} />
           <g transform={zoom.transform}>
-            <Ground base={base} letters={drawn.letters} relief={relief} />
+            <g aria-hidden="true">
+              <Ground base={base} letters={drawn.letters} relief={relief} />
+            </g>
             <g className="range-guides" aria-hidden="true">
               {drawn.guides.map((g) => (
                 <path key={g.nm} d={g.d} />
@@ -176,7 +179,7 @@ export function RangeMap({
             {order.map((r) => {
               const d = drawn.ring(r.nm);
               return (
-                <g key={r.id} className={`range-ring${r.id === hot ? " hot" : ""}${hot && r.id !== hot ? " dim" : ""}`} data-ring={r.id}>
+                <g key={r.id} className={`range-ring${r.id === hot ? " hot" : ""}${hot && r.id !== hot ? " dim" : ""}`} data-ring={r.id} aria-hidden="true">
                   <path className="range-casing" d={d} />
                   <path className="range-line" d={d} style={{ stroke: r.color, strokeDasharray: r.dash }} />
                 </g>
@@ -204,7 +207,7 @@ export function RangeMap({
               </g>
             ))}
             {drawn.home && (
-              <g className="map-port hub range-home" transform={`translate(${drawn.home[0].toFixed(1)} ${drawn.home[1].toFixed(1)})`}>
+              <g className="map-port hub range-home" aria-label={`Origin ${origin.icao}`} role="img" transform={`translate(${drawn.home[0].toFixed(1)} ${drawn.home[1].toFixed(1)})`}>
                 <circle className="map-dot" r="5" />
                 <text x="0" y="-11" textAnchor="middle">
                   {origin.icao}

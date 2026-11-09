@@ -33,6 +33,14 @@
 .bd-form > div:first-child {
   width: min(380px, 100%);
 }
+/* the button rows keep their words whole ("Departures", "12 h") and wrap to the next line instead of squeezing */
+.bd-form > .jr-ctl {
+  flex: none;
+}
+.bd-form .seg-btn {
+  flex: 1 0 auto;
+  white-space: nowrap;
+}
 .bd-intro,
 .bd-loading {
   padding: 4px 2px;
@@ -121,13 +129,26 @@
   color: var(--fx-amber);
 }
 .fids-ap {
+  min-width: 0;
   font-size: 16px;
   color: var(--fx-ink);
+}
+.fids-ap small {
+  margin-left: 8px;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--fx-mute);
 }
 .fids-clock {
   margin-left: auto;
   font-size: 24px;
   color: var(--fx-amber);
+  white-space: nowrap;
+}
+.fids-clock small {
+  margin-left: 6px;
+  font-size: 13px;
+  font-weight: 500;
 }
 .fids-tbl {
   width: 100%;
@@ -562,26 +583,34 @@
   padding-top: calc(var(--u) * 1.8);
   font-size: calc(var(--u) * 1.3);
 }
-/* the line through the steps */
-.gs-steps li::before {
+/* the line through the steps: one track from the first marker's centre to the last one's (equal columns,
+   each marker at its column's left edge), and the done part over it, --gs-p of the way (0–1) */
+.gs-steps::before,
+.gs-steps::after {
   content: "";
   position: absolute;
+  z-index: 0;
   top: calc(var(--u) * 0.55);
-  left: 0;
-  right: 0;
+  left: calc(var(--u) * 0.7);
+  width: calc(100% - 100% / var(--gs-n, 8));
   height: calc(var(--u) * 0.3);
   background: currentColor;
+}
+.gs-steps::before {
   opacity: 0.3;
 }
-.gs-steps li.is-done::before,
-.gs-steps li.is-now::before {
-  opacity: 1;
+.gs-steps::after {
+  width: calc((100% - 100% / var(--gs-n, 8)) * var(--gs-p, 0));
+  transition: width 1s linear;
 }
-.gs-steps li.is-now::before {
-  right: 50%;
+@media (prefers-reduced-motion: reduce) {
+  .gs-steps::after {
+    transition: none;
+  }
 }
 .gs-steps i {
   position: absolute;
+  z-index: 1;
   top: 0;
   left: 0;
   width: calc(var(--u) * 1.4);

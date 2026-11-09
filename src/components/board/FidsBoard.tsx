@@ -23,6 +23,7 @@ export function FidsBoard({
   now,
   fmt,
   clock,
+  zone,
   hover,
   marked,
   onHover,
@@ -37,6 +38,8 @@ export function FidsBoard({
   /** Clock time for the board (local or UTC). */
   fmt: (ms: number) => string;
   clock: string;
+  /** The zone the times are in ("UTC+1", "UTC"). */
+  zone: string;
   hover: string | null;
   /** Movements picked from the map (route line clicks). */
   marked: Set<string> | null;
@@ -51,8 +54,13 @@ export function FidsBoard({
           <path d={PLANE} />
         </svg>
         <h2>{side === "dep" ? "Departures" : "Arrivals"}</h2>
-        <span className="fids-ap">{cityName(airport) ?? airport.name}</span>
-        <b className="fids-clock mono">{clock}</b>
+        <span className="fids-ap">
+          {cityName(airport) ?? airport.name}{" "}
+          <small className="mono">{[airport.iata, airport.icao].filter(Boolean).join(" · ")}</small>
+        </span>
+        <b className="fids-clock mono">
+          {clock} <small>{zone}</small>
+        </b>
       </header>
       {rows.length ? (
         <table className="fids-tbl">

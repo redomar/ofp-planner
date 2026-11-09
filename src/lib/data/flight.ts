@@ -257,3 +257,7 @@ export function fourTimes(f: FlightRow, blockMin: number | null): FourTimes {
   const on = m(f.on, "obs") ?? (inn ? m(inn.t - TAXI_IN, "est") : null);
   return { out, off, on, in: inn };
 }
+
+/** "20 Sept" or, with the year, "24 Oct 2026", for an ISO date (UTC, so the day never shifts). */
+export const shortDate = (iso: string, year = false) =>
+  new Date(`${iso.slice(0, 10)}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(year ? { year: "numeric" } : {}), timeZone: "UTC" });

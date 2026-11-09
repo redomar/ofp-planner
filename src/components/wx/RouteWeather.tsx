@@ -109,6 +109,7 @@ export function RouteWeather({
     .filter((l): l is { state: "ok"; data: never; at: number } => l.state === "ok")
     .map((l) => l.at);
   const oldest = fetched.length ? Math.min(...fetched) : null;
+  const pending = !Object.keys(wx).length || Object.values(wx).some((a) => a.fc.state === "loading" || a.metar.state === "loading");
 
   const [now] = useState(() => Date.now());
   const ends = [
@@ -130,7 +131,7 @@ export function RouteWeather({
           <a href="https://metar.vatsim.net/" rel="noopener noreferrer" target="_blank">
             VATSIM
           </a>
-          <span className="wx-age">{oldest != null ? ` · fetched ${relative(oldest)}` : " · fetching…"}</span>
+          <span className="wx-age">{oldest != null ? ` · fetched ${relative(oldest)}` : pending ? " · fetching…" : " · unavailable"}</span>
         </p>
         <button type="button" className="btn wx-refresh" onClick={refresh} title="Uses the cache while it's fresh; click twice to force a new fetch">
           Refresh

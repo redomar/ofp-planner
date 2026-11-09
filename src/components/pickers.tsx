@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
-import { cx } from "./ui";
+import { cx, radioKeys, roving } from "./ui";
 
 /* ---------- airport / country combobox ---------- */
 
@@ -43,17 +43,27 @@ export function PlacePicker({
   options,
   onChange,
   anyLabel = "Anywhere",
+  name,
+  invalid,
+  describedBy,
 }: {
   label: string;
   value: string | null;
   options: PlaceOption[];
   onChange: (v: string | null) => void;
   anyLabel?: string;
+  /** The input's name (a form finds the field by it, to focus it). */
+  name?: string;
+  /** A form error is about this field. */
+  invalid?: boolean;
+  describedBy?: string;
 }) {
   const id = useId();
   const [text, setText] = useState("");
   const [open, setOpen] = useState(false);
   const [hi, setHi] = useState(0);
+  // text typed and left without picking: said under the field, so it isn't mistaken for a filter (until the value changes)
+  const [left, setLeft] = useState<{ text: string; value: string | null; none: boolean } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const current = options.find((o) => o.value === value) ?? null;
@@ -76,6 +86,7 @@ export function PlacePicker({
     onChange(o?.value ?? null);
     setText("");
     setOpen(false);
+    setLeft(null);
   };
 
   const shown = open
@@ -93,6 +104,9 @@ export function PlacePicker({
         <input
           ref={inputRef}
           id={id}
+          name={name}
+          aria-invalid={invalid || undefined}
+          aria-describedby={invalid ? describedBy : undefined}
           className="ctl-input"
           role="combobox"
           aria-expanded={open}
@@ -106,9 +120,17 @@ export function PlacePicker({
           onFocus={(e) => {
             setOpen(true);
             setHi(0);
+            setLeft(null);
             e.currentTarget.select();
           }}
-          onBlur={() => setTimeout(() => setOpen(false), 120)}
+          onBlur={() => {
+            const t = text.trim();
+            const none = matches.length === 0;
+            setTimeout(() => {
+              setOpen(false);
+              if (t && document.activeElement !== inputRef.current) setLeft({ text: t, value, none });
+            }, 120);
+          }}
           onChange={(e) => {
             setText(e.target.value);
             setOpen(true);
@@ -139,6 +161,11 @@ export function PlacePicker({
           </button>
         )}
       </div>
+      {left && !open && left.value === value && (
+        <p className="combo-note small" role="status">
+          “{left.text}” {left.none ? "matches no airport or country" : "wasn’t picked from the list"}: {current ? `${label} is still ${current.code}` : "nothing selected"}.
+        </p>
+      )}
       {open && (
         <ul className="combo-list" id={`${id}-list`} role="listbox" aria-label={label} ref={listRef}>
           {matches.length === 0 && <li className="combo-none">No airport or country matches “{text}”</li>}
@@ -440,11 +467,12 @@ export function AfterPicker({
         >
           Now
         </button>
-        <div className="seg" role="radiogroup" aria-label="Compare with">
-          {OOOI_OPTS.map(([v, label, tip]) => (
+        <div className="seg" role="radiogroup" aria-label="Compare with" onKeyDown={radioKeys}>
+          {OOOI_OPTS.map(([v, label, tip], i) => (
             <button
               key={v}
               type="button"
+              tabIndex={roving(oooi === v, i, oooi != null)}
               role="radio"
               aria-checked={oooi === v}
               className="seg-btn"

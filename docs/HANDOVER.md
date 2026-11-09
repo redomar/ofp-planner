@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: v1.7.2 released 2026-11-09 (fixes from an outside review: refused saves reported, stored-data shapes checked on read and on backup restore, stricter logbook import, Journeys load errors with Retry, sticky dataset errors, schedule coverage on phones, no ±5% Range claim; no data change); v1.7.1 released 2026-11-08 (snapshot 20 Sep → 24 Oct, the end of summer 2026: 47,111 flights; Ryanair STD/STA from the window's own timetable days and season, which drops ~500 winter-only Ryanair flights 1.7.0 had); v1.7.0 released 2026-11-08 (more airlines: 77 airlines incl. 20 Extra+ behind a Settings toggle, regional operators under their brands, Greenland, guessed airports behind a Settings toggle; snapshot 20 Sep → 13 Oct, no new data; data:push done at release); v1.6.3 released 2026-11-08 (click a route line on a map to focus its flights: Finder, Logbook, Favourites, Board, Journeys; there is no 1.6.2, the user's pick so 1.7.0 = more airlines); v1.6.1 released 2026-10-29 (Next.js 16.4.3 security update; stay on ≥ 16.4.1); v1.6.0 released 2026-10-24 (Range page: range rings per sim A320 with payload, custom ZFW/FOB, MLW; maps cover the globe as a disc round their content; aircraft side profiles + liveries prepared, not used yet; feature/more-airlines is a separate draft PR, needs a rebase on 1.6.0); 1.5.2: (a flight in several favourites groups; shared journey legs kept and marked; 1.5.1: map route lines: great circle or rhumb line, Settings → Display; 1.5.0: one row per flight with per-weekday times, Brief/Finder/Board by day, logbook list redone: month table, punctuality switch, flight strips; 1.4.4: Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
+  status: v1.7.3 released 2026-11-09 (a second outside review of the live site: gate screen step line + time zones, failures shown as failures, cancelled flights out of flown totals, form focus, keyboard/screen-reader structure, phone header and status lines, journey card = detail timing; phones reordered: More filters, SimBrief first in the flight panel, Journeys list first, Brief next leg last, folded logbook form, Settings index; no data change); v1.7.2 released 2026-11-09 (fixes from an outside review: refused saves reported, stored-data shapes checked on read and on backup restore, stricter logbook import, Journeys load errors with Retry, sticky dataset errors, schedule coverage on phones, no ±5% Range claim; no data change); v1.7.1 released 2026-11-08 (snapshot 20 Sep → 24 Oct, the end of summer 2026: 47,111 flights; Ryanair STD/STA from the window's own timetable days and season, which drops ~500 winter-only Ryanair flights 1.7.0 had); v1.7.0 released 2026-11-08 (more airlines: 77 airlines incl. 20 Extra+ behind a Settings toggle, regional operators under their brands, Greenland, guessed airports behind a Settings toggle; snapshot 20 Sep → 13 Oct, no new data; data:push done at release); v1.6.3 released 2026-11-08 (click a route line on a map to focus its flights: Finder, Logbook, Favourites, Board, Journeys; there is no 1.6.2, the user's pick so 1.7.0 = more airlines); v1.6.1 released 2026-10-29 (Next.js 16.4.3 security update; stay on ≥ 16.4.1); v1.6.0 released 2026-10-24 (Range page: range rings per sim A320 with payload, custom ZFW/FOB, MLW; maps cover the globe as a disc round their content; aircraft side profiles + liveries prepared, not used yet; feature/more-airlines is a separate draft PR, needs a rebase on 1.6.0); 1.5.2: (a flight in several favourites groups; shared journey legs kept and marked; 1.5.1: map route lines: great circle or rhumb line, Settings → Display; 1.5.0: one row per flight with per-weekday times, Brief/Finder/Board by day, logbook list redone: month table, punctuality switch, flight strips; 1.4.4: Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 
@@ -61,7 +61,9 @@ commands:
 
 ## 3. Architecture (file map)
 
-pages:        # all client components; one shared TopBar (Finder · Journeys · Board · Brief · Logbook · Range · Settings tabs; 561–1080 px only the current tab shows its name), fixed-height StatusLine
+pages:        # all client components; one shared TopBar (Finder · Journeys · Board · Brief · Logbook · Range · Settings tabs; 681–1080 px only the current tab shows its name;
+              # ≤680 px two rows: brand + .topbar-page (current page name) + theme, then the icons spread across; TopBar writes its height to --topbar-h), fixed-height StatusLine
+              # (phones: .only-xs short text where .hide-xs drops the long one); each page: one <main> with an sr-only <h1>
   /:          src/components/FinderApp.tsx  — filters, roll bar, Flights/Destinations tabs, floating flight panel
   /journeys:  src/components/JourneysApp.tsx — multi-leg planner (form in the URL, results list + sticky detail with map and legs)
   /board:     src/components/BoardApp.tsx — Airport board (board/FidsBoard.tsx) and Gate screen (board/GateScreen.tsx + controls);
@@ -134,7 +136,13 @@ components:
                    fixed: metal, metalDark, glass, lip, line. Clip ids via useId (two on a page must not share them).
                    src/lib/liveries.ts: LIVERIES by ICAO airline (EZY, WZZ, SWR, UAE so far), preliminary, colours only.
                    Previews: ../ofp-planner-previews/aircraft (node --experimental-strip-types liveries.mts renders from src).
-  pickers.tsx:     PlacePicker (ARIA combobox, airports + countries "C:ES"), MultiPicker, DayPicker, LengthPicker, AfterPicker
+  pickers.tsx:     PlacePicker (ARIA combobox, airports + countries "C:ES"; name/invalid props for form errors; text left without picking → .combo-note), MultiPicker, DayPicker, LengthPicker, AfterPicker
+  ui.tsx (a11y):   ScrollBox (focusable + named region only while its content overflows; re-checks on <details> toggle), radioKeys + roving() for every
+                   role="radiogroup" of buttons (arrows/Home/End select, one tab stop). lib/media.ts useMedia(query).
+  Finder panel:    opening moves focus into the .drawer (tabIndex -1), closing returns it to the opener; ≤640 px the <main> behind it is inert.
+                   Phone drawer top = var(--topbar-h).
+  gate screen:     one .gs-steps::before track (first marker centre → last) + ::after done part, width = --gs-p of it: (step + the clock's
+                   fraction to the next step) / 7; pinned = on the marker. zoneLabel(ms, tz) → "UTC+1" next to every time (GateScreen, Board clock).
   badges.tsx:      FlightIdent/AirlineTag (4 styles), TypeBadge (maker tooltip), MoreTypes (card pile), WeekStrip
   wx/:             RouteWeather + SVG graphics (Open-Meteo forecast, VATSIM METAR)
   copied from OFP Reader: ui.tsx (Field/V/Tip/Badge/Section), collapse, replay, FlapCode, TooltipLayer, SiteFooter
@@ -290,7 +298,11 @@ server_latch_container_alternative: |
     writes a new uniquely named group with the legs in order (legs in other groups stay there too). The form renders only after the URL is read (no CLS on shared links).
     Detour cap (1.2.1): total ≤ max(f × shortest path through the stops, + 250 nm), f = 2 by default; off for round trips and open ends.
     Brief accepts ?d=YYYY-MM-DD (Journeys passes each leg's date).
-  - Clear filters resets everything including the airline (→ all airlines).
+  - Clear filters resets everything including the airline (→ all airlines). Kept after the 2026-11-09 UI review (UI32): deliberate.
+  - Logbook: a cancelled flight stays in the list but counts nowhere as flown (flights, block, distance, airports, types, map, month
+    headings); shown as "N + M cancelled" (flownOnly() in LogbookApp).
+  - Failures are never shown as answers (2026-11-09 review): Board/Brief/Journeys show the failed file with Retry; weather with no
+    forecast for an end says that end is unknown (advice() in lib/wx/brief.ts treats h == null as unknown).
   - The flights table is unsorted by default (data order: the pipeline writes flights by origin, destination,
     then time; airlines in manifest order). Sorting shows Reset sort, which returns to that order (sort = null).
 
@@ -339,6 +351,18 @@ server_latch_container_alternative: |
 ## 10. Open items / ideas
 
   - BRANCHES IN FLIGHT (keep current):
+    · feature/phone-order: released in 1.7.3 on 2026-11-09 (PR via release/1.7.3, with feature/live-review-fixes). The phone redesign from the UI review,
+      done on the user's "do as much as you can, decide yourself" (2026-11-09): Finder More filters (CSS-folded ≤640 px, .less;
+      count of advanced filters set; a link with one opens them), swap beside From/To ≤480; FlightCard dispatch first in the Finder
+      on phones (actionsFirst, .dispatch.is-first); Journeys ≤1000 px list then detail (pick scrolls + focuses .jr-detail, Back to the
+      list); Brief Next leg = section 4; logbook form Times / Landing and more folded while empty (details.log-opt); Settings index
+      (.set-index) + −/+ on every Section header (BoxToggleIcon). verify section "phone order".
+    · feature/live-review-fixes: released in 1.7.3 on 2026-11-09. Fixes from the second outside review (live site, 22 findings L01–L22 +
+      32 UI notes UI01–UI32). The review files moved out of the repo to ../ofp-planner-reviews/adversarial-2026-11-09/ (LIVE-FINDINGS.md,
+      ui-design/UI-USABILITY-REVIEW.md, SCREEN-PLAN.md; its scripts target the live site and can be rerun after deploy).
+      Phone redesign items done on feature/phone-order: UI05, UI06, UI13, UI15, UI18, UI24, UI29/L16. Not done: UI12 city names in phone
+      rows, UI14 action styles, UI20 phone timings rows, UI22 Saved flights naming, UI26 logbook list before totals. Skipped as polish/opinion: UI01, UI06–10,
+      UI16, UI17, UI23, UI27/28, UI30/31; the first report's #9 (data swap race on the server).
     · feature/more-airlines: released as 1.7.0 on 2026-11-08 (PR #7 via release/1.7.0), with its own snapshot
       (20 Sep → 13 Oct 2026, 77 airlines); no new data.
     · feature/data-summer-end: released as 1.7.1 on 2026-11-08 (snapshot to 24 Oct + the Ryanair timetable-window fix;

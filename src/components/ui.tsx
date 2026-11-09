@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
-import { useCollapse } from "./collapse";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { BoxToggleIcon, useCollapse } from "./collapse";
 import { Replay } from "./replay";
 const isBlank = (v: string) => v.trim() === "";
 
@@ -140,6 +140,10 @@ export function Section({
             {title}
           </span>
           {meta && <span className="sheet-meta">{meta}</span>}
+          {/* open or closed, at a glance: the drafting-box − / + */}
+          <span className="sheet-toggle">
+            <BoxToggleIcon open={!collapsed} />
+          </span>
         </button>
       </h2>
       <div className="sheet-body" id={`${id}-body`} ref={bodyRef}>
@@ -238,3 +242,54 @@ export function Act({
     />
   );
 }
+
+/**
+ * A box that scrolls when its content is wider (or taller) than it. While it does, it takes the keyboard focus
+ * (arrow keys scroll it) and is named, so its hidden columns can be reached without a pointer; when everything
+ * fits it's a plain box and adds no tab stop.
+ */
+export function ScrollBox({ label, className, as = "div", children }: { label: string; className?: string; as?: "div" | "pre"; children: ReactNode }) {
+  const ref = useRef<HTMLElement>(null);
+  const [over, setOver] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setOver(el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1);
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    for (const c of el.children) ro.observe(c);
+    // a closed <details> doesn't resize what's in it when it opens: check again then
+    const details = el.closest("details");
+    details?.addEventListener("toggle", check);
+    return () => {
+      ro.disconnect();
+      details?.removeEventListener("toggle", check);
+    };
+  }, []);
+  const Tag = as;
+  return (
+    <Tag ref={ref as never} className={className} {...(over ? { tabIndex: 0, role: "region", "aria-label": label } : {})}>
+      {children}
+    </Tag>
+  );
+}
+
+/**
+ * Keyboard for a role="radiogroup" of buttons, as native radios behave: the arrow keys (and Home / End) move to
+ * the next radio and select it. Pair with roving() so the group is one tab stop.
+ */
+export function radioKeys(e: KeyboardEvent<HTMLElement>) {
+  const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+  if (!step && e.key !== "Home" && e.key !== "End") return;
+  const radios = [...e.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]:not([disabled])')];
+  const i = radios.indexOf(document.activeElement as HTMLElement);
+  if (i < 0) return;
+  e.preventDefault();
+  const n = radios.length;
+  const j = e.key === "Home" ? 0 : e.key === "End" ? n - 1 : (i + step + n) % n;
+  radios[j].focus();
+  if (radios[j].getAttribute("aria-checked") !== "true") radios[j].click();
+}
+
+/** The tab stop of a radio in such a group: the checked one, or the first when none is. */
+export const roving = (checked: boolean, index: number, anyChecked = true) => (checked || (!anyChecked && index === 0) ? 0 : -1);

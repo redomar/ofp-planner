@@ -50,8 +50,9 @@ export interface AirframePrefs {
 export function readAirframes(): AirframePrefs {
   return readJSON<AirframePrefs>(KEYS.airframes, { list: DEFAULT_AIRFRAMES, preferred: DEFAULT_AIRFRAMES[0]?.id ?? null });
 }
-export function writeAirframes(p: AirframePrefs) {
-  writeJSON(KEYS.airframes, p);
+/** False when the browser refused to store them (quota or blocked storage). */
+export function writeAirframes(p: AirframePrefs): boolean {
+  return writeJSON(KEYS.airframes, p);
 }
 export function useAirframes(): AirframePrefs | null {
   const v = useStorageVersion();

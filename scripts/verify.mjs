@@ -10,7 +10,7 @@ import { createServer } from "node:http";
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { homedir } from "node:os";
-import { gunzipSync } from "node:zlib";
+import { gunzipSync, gzipSync } from "node:zlib";
 import { chromium } from "playwright";
 
 const OUT = resolve("out");
@@ -1094,6 +1094,10 @@ async function run() {
     await f.getByRole("combobox", { name: "To" }).fill("LFPG");
     await page.keyboard.press("Enter");
     await f.getByLabel("Callsign").fill("EZY8011");
+    // the optional groups are folded on an empty form; open one to fill it
+    const folded = await f.locator("details.log-opt:not([open])").count();
+    folded === 2 ? pass("logbook: an empty form folds Times and Landing and more (date, route, save)") : fail(`logbook: ${folded} groups folded`);
+    await f.locator("summary", { hasText: "Landing and more" }).click();
     await f.getByLabel("Landing rate (fpm)").fill("-95");
     await f.getByRole("button", { name: "Add to logbook" }).click();
     await page.waitForTimeout(300);
@@ -1684,6 +1688,388 @@ async function run() {
       : fail(`review: phone coverage "${cover}" ${times}`);
     await checkPage("finder coverage 390 light", ph.page, ph.errors);
     await ph.ctx.close();
+  });
+
+  /* ---------- 1.7.3: findings from the review of the live site ---------- */
+  await section("live review", async () => {
+    // gate screen: one step line from the first marker to the last, the done part over it up to the clock
+    const b = await open("/board?ap=EGKK");
+    await b.page.locator(".fids-tbl tbody tr").first().waitFor({ timeout: 30000 });
+    const head = (await b.page.locator(".fids-head").innerText()).replace(/\s+/g, " ");
+    /LGW · EGKK/.test(head) && /\d\d:\d\d ?UTC(\+\d+)?/.test(head) ? pass(`live: the board names the airport's codes and its clock's zone ("${head}")`) : fail(`live: board header "${head}"`);
+    await b.page.locator(".fids-tbl tbody tr").first().click();
+    await b.page.waitForURL(/tab=gate/);
+    const gu = new URL(b.page.url());
+    await b.ctx.close();
+    const gateQ = `f=${encodeURIComponent(gu.searchParams.get("f"))}&d=${gu.searchParams.get("d")}`;
+    const LINE = () => {
+      const ol = document.querySelector(".gs-steps");
+      const r = ol.getBoundingClientRect();
+      const px = (pseudo) => {
+        const cs = getComputedStyle(ol, pseudo);
+        return { l: r.left + parseFloat(cs.left), w: parseFloat(cs.width), y: r.top + parseFloat(cs.top) + parseFloat(cs.height) / 2 };
+      };
+      const marks = [...ol.querySelectorAll("i")].map((i) => {
+        const m = i.getBoundingClientRect();
+        return { x: m.left + m.width / 2, y: m.top + m.height / 2, z: Number(getComputedStyle(i).zIndex) };
+      });
+      return { track: px("::before"), done: px("::after"), marks, now: [...ol.children].findIndex((li) => li.classList.contains("is-now")), lastDone: [...ol.children].findLastIndex((li) => li.classList.contains("is-done")) };
+    };
+    for (const [w, h, extra] of [
+      [1920, 1080, "&screen=1"],
+      [390, 844, ""],
+    ]) {
+      const g = await open(`/board?tab=gate&${gateQ}&in=90${extra}`, { width: w, height: h });
+      const bad = [];
+      for (const [name, q] of [
+        ["before the gate opens", "in=90"],
+        ["boarding", "in=35"],
+        ["between boarding and final call", "in=31"],
+        ["final call", "in=20"],
+        ["ready", "in=4"],
+        ["pushback", "in=0"],
+        ["pinned boarding", "in=90&pin=boarding"],
+        ["cancelled", "in=30&cx=1"],
+      ]) {
+        await g.page.goto(`${base}/board?tab=gate&${gateQ}&${q}${extra}`, { waitUntil: "networkidle" });
+        await g.page.locator(".gs-steps").waitFor();
+        await g.page.waitForTimeout(1200); // the done part eases over 1 s
+        const l = await g.page.evaluate(LINE);
+        const first = l.marks[0].x;
+        const end = l.marks.at(-1).x;
+        const doneEnd = l.done.l + l.done.w;
+        const ok =
+          Math.abs(l.track.l - first) < 1 &&
+          Math.abs(l.track.l + l.track.w - end) < 1 &&
+          l.marks.every((m) => Math.abs(m.y - l.track.y) < 1 && m.z > 0) &&
+          Math.abs(l.done.l - l.track.l) < 0.5 &&
+          (l.now >= 0 ? doneEnd >= l.marks[l.now].x - 0.5 && doneEnd <= l.marks[l.now + 1]?.x + 0.5 : l.lastDone < 0 ? l.done.w < 0.5 : Math.abs(doneEnd - end) < 1);
+        if (!ok) bad.push(`${name}: ${JSON.stringify({ track: l.track, done: l.done, first, end, now: l.now })}`);
+      }
+      !bad.length ? pass(`live: gate screen ${w}px, one step line from gate open to take-off, the done part ends between the right markers (8 states)`) : fail(`live: gate line ${w}px ${bad.join(" | ")}`);
+      // every time on the screen says its zone
+      const zones = (await g.page.locator(".gs-times small, .gs-clock small").allInnerTexts()).join(" | ");
+      (zones.match(/UTC/g) ?? []).length >= 2 ? pass(`live: gate screen ${w}px labels its times' zones ("${zones.replace(/\s+/g, " ")}")`) : fail(`live: gate zones "${zones}"`);
+      await g.ctx.close();
+    }
+
+    // failures say they're failures: Board, Brief, weather
+    const fid = gu.searchParams.get("f");
+    const down = (r) => r.fulfill({ status: 503, body: "down" });
+    {
+      const o = await open("/settings");
+      const rx = /\/data\/routes\.json/;
+      await o.page.route(rx, down);
+      await o.page.goto(`${base}/board?ap=EGKK`, { waitUntil: "networkidle" });
+      await o.page.getByText(/Couldn’t load the schedule snapshot/).waitFor({ timeout: 15000 }).catch(() => undefined);
+      const st = await o.page.locator(".statusline").innerText();
+      const panel = await o.page.locator(".board-body").innerText();
+      await o.page.unroute(rx);
+      await o.page.getByRole("button", { name: "Retry" }).first().click();
+      await o.page.waitForLoadState("networkidle");
+      await o.page.locator(".fids-tbl tbody tr").first().waitFor({ timeout: 30000 }).catch(() => undefined);
+      const rows = await o.page.locator(".fids-tbl tbody tr").count();
+      /Couldn’t load/.test(st) && !/\b0 flights/.test(st) && /isn’t empty/.test(panel) && rows > 0
+        ? pass(`live: Board with a failed route index says so with Retry (no "0 flights"), Retry brings ${rows} rows`)
+        : fail(`live: Board routes failure "${st}" | "${panel.slice(0, 160)}" rows ${rows}`);
+      await o.ctx.close();
+    }
+    {
+      const o = await open("/settings");
+      const rx = /\/data\/manifest\.json/;
+      await o.page.route(rx, down);
+      await o.page.goto(`${base}/brief?f=${encodeURIComponent(fid)}`, { waitUntil: "networkidle" });
+      await o.page.locator(".brief-kicker").waitFor({ timeout: 15000 });
+      const kicker = await o.page.locator(".brief-kicker").innerText();
+      const st = await o.page.locator(".statusline").innerText();
+      await o.page.unroute(rx);
+      await o.page.getByRole("button", { name: "Retry" }).first().click();
+      await o.page.locator(".fcard").first().waitFor({ timeout: 20000 }).catch(() => undefined);
+      const back = await o.page.locator(".fcard").count();
+      await o.page.goto(`${base}/brief?f=EZY:EZYNOPE1:EGKK-LEMD:1`, { waitUntil: "networkidle" });
+      await o.page.locator(".brief-kicker").waitFor({ timeout: 15000 });
+      const miss = await o.page.locator(".brief-kicker").innerText();
+      /couldn’t load the flight/i.test(kicker) && !/isn’t in the current snapshot/i.test(kicker) && /Couldn’t load/.test(st) && back > 0 && /isn’t in the current snapshot/i.test(miss)
+        ? pass("live: Brief tells a failed download (Retry, in place) from a flight that isn't in the snapshot")
+        : fail(`live: Brief failure kicker "${kicker}" status "${st}" back ${back} miss "${miss}"`);
+      await o.ctx.close();
+    }
+    {
+      const o = await open("/settings");
+      await o.page.route(/open-meteo\.com|vatsim\.net/, down);
+      await o.page.goto(`${base}/brief?f=${encodeURIComponent(fid)}`, { waitUntil: "networkidle" });
+      await o.page.locator(".wx-err-inline").nth(1).waitFor({ timeout: 20000 }).catch(() => undefined);
+      await o.page.waitForFunction(() => !/fetching/.test(document.querySelector(".wx-age")?.textContent ?? "fetching"), null, { timeout: 15000 }).catch(() => undefined);
+      const adv = await o.page.locator(".wb-advice").innerText();
+      const age = await o.page.locator(".wx-age").innerText();
+      !/No significant weather/.test(adv) && /unknown/.test(adv) && /unavailable/.test(age)
+        ? pass(`live: weather that didn't load is unknown, not "no significant weather" ("${adv}", "${age.trim()}")`)
+        : fail(`live: weather failure advice "${adv}" age "${age}"`);
+      await o.ctx.close();
+    }
+
+    // forms: a broken %-escape in the airframe id is an inline error on that field, not an exception
+    {
+      const o = await open("/settings");
+      await o.page.getByLabel("Name", { exact: true }).fill("REVIEW");
+      await o.page.getByLabel("ICAO type").fill("A320");
+      await o.page.getByLabel("SimBrief airframe id or Plan link").fill("%");
+      await o.page.getByRole("button", { name: "Add airframe" }).click();
+      await o.page.waitForTimeout(200);
+      const msg = await o.page.locator(".af-form .form-err").innerText().catch(() => "");
+      const focus = await o.page.evaluate(() => [document.activeElement?.getAttribute("name"), document.activeElement?.getAttribute("aria-invalid")]);
+      await o.page.getByLabel("SimBrief airframe id or Plan link").fill("https://dispatch.simbrief.com/options/custom?type=654321_1700000000001");
+      await o.page.getByRole("button", { name: "Add airframe" }).click();
+      const saved = await o.page.evaluate(() => localStorage.getItem("ofp-planner:airframes") ?? "");
+      /isn’t a SimBrief airframe id/.test(msg) && focus[0] === "sb" && focus[1] === "true" && saved.includes("654321_1700000000001") && !o.errors.length
+        ? pass("live: an airframe id with a broken %-escape is an inline error on that field (focused); a good one then saves")
+        : fail(`live: airframe % "${msg}" focus ${focus} saved ${saved.includes("654321")} errors ${JSON.stringify(o.errors)}`);
+      await o.ctx.close();
+    }
+    // logbook: a cancelled flight stays in the list but adds no flying, distance or airports
+    {
+      const o = await open("/logbook");
+      await o.page.waitForSelector(".log-form");
+      // an empty submit points at the first missing field, once
+      await o.page.getByRole("button", { name: "Add to logbook" }).click();
+      await o.page.waitForTimeout(150);
+      const focus = await o.page.evaluate(() => [document.activeElement?.getAttribute("name"), document.activeElement?.getAttribute("aria-invalid")]);
+      const errs = await o.page.locator(".log-form .form-err").allInnerTexts();
+      const hint = await o.page.locator(".log-preview").innerText();
+      focus[0] === "from" && focus[1] === "true" && errs.length === 1 && /left from/.test(errs[0]) && !/left from/.test(hint)
+        ? pass(`live: an empty logbook form focuses and marks From, with one error ("${errs[0]}")`)
+        : fail(`live: logbook submit focus ${focus} errors ${JSON.stringify(errs)} hint "${hint}"`);
+      const file = { schema: "ofp-planner/logbook", version: 1, flights: [{ date: "2026-10-03", from: "EGKK", to: "LEMD", callsign: "EZY8001", status: "cancelled" }] };
+      await o.page.locator(".log-io input[type=file]").setInputFiles({ name: "log.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
+      await o.page.waitForSelector(".log-totals");
+      const tot = Object.fromEntries(await o.page.locator(".log-totals > div").evaluateAll((ds) => ds.map((d) => [d.querySelector("dt").textContent, d.querySelector("dd").textContent])));
+      const rows = await o.page.locator(".log-tbl tbody tr:not(.log-detail):not(.log-month)").count();
+      tot.Flights === "0 + 1 cancelled" && tot.Distance === "0 NM" && tot.Airports === "0" && rows === 1
+        ? pass(`live: a cancelled-only logbook flew nothing (${tot.Flights}, ${tot.Distance}, ${tot.Airports} airports) and keeps its row`)
+        : fail(`live: cancelled totals ${JSON.stringify(tot)} rows ${rows}`);
+      await o.ctx.close();
+    }
+    // picker: text left without picking says so under the field
+    {
+      const o = await open("/?al=EZY");
+      await o.page.getByLabel("From", { exact: true }).fill("zzqx");
+      await o.page.keyboard.press("Tab");
+      await o.page.waitForTimeout(400);
+      const note = await o.page.locator(".combo-note").first().innerText().catch(() => "");
+      const dep = new URL(o.page.url()).searchParams.get("dep");
+      /“zzqx” matches no airport or country: nothing selected/.test(note) && !dep
+        ? pass(`live: an unmatched airport left by Tab is named under the field ("${note}")`)
+        : fail(`live: picker note "${note}" dep ${dep}`);
+      await o.ctx.close();
+    }
+
+    // keyboard: the flight panel takes the focus when it opens and gives it back; on a phone the list behind it is out of reach
+    for (const [w, h] of [
+      [1280, 900],
+      [390, 844],
+    ]) {
+      const o = await open("/?al=EZY&dep=EGKK", { width: w, height: h });
+      const row = o.page.locator("table.flights tbody .row-btn").first();
+      await row.waitFor({ timeout: 20000 });
+      await row.focus();
+      await o.page.keyboard.press("Enter");
+      await o.page.waitForSelector(".drawer");
+      await o.page.waitForTimeout(150);
+      const inPanel = await o.page.evaluate(() => !!document.querySelector(".drawer")?.contains(document.activeElement));
+      const tabs = [];
+      for (let i = 0; i < 12; i++) {
+        await o.page.keyboard.press("Tab");
+        tabs.push(await o.page.evaluate(() => (document.querySelector(".drawer")?.contains(document.activeElement) ? "panel" : document.activeElement?.closest(".topbar") ? "topbar" : document.activeElement?.closest(".finder") ? "list" : "other")));
+      }
+      const geo = await o.page.evaluate(() => ({ top: document.querySelector(".drawer").getBoundingClientRect().top, bar: document.querySelector(".topbar").getBoundingClientRect().bottom }));
+      await o.page.keyboard.press("Escape");
+      await o.page.waitForTimeout(150);
+      const back = await o.page.evaluate(() => document.activeElement?.classList.contains("row-btn"));
+      const listReached = tabs.includes("list");
+      inPanel && back && (w > 640 || !listReached) && geo.top >= geo.bar - 0.5
+        ? pass(`live: ${w}px flight panel takes the focus on Enter and gives it back on Escape${w <= 640 ? ", the list behind it is out of reach" : ""}, its top under the top bar (${Math.round(geo.top)} ≥ ${Math.round(geo.bar)})`)
+        : fail(`live: ${w}px panel focus in ${inPanel} back ${back} tabs ${tabs.join(",")} top ${JSON.stringify(geo)}`);
+      await o.ctx.close();
+    }
+    // Journeys: the card and the detail it opens show the same timing (sorted by duty, and by date)
+    for (const sort of ["quickest", "next"]) {
+      const o = await open(`/journeys?from=EGBB&via=EHAM&to=LEMD&t=1&sort=${sort}`);
+      await o.page.locator(".jr-card").first().waitFor({ timeout: 60000 });
+      await o.page.locator(".jr-detail").waitFor({ timeout: 30000 });
+      const card = await o.page.locator('.jr-card[aria-pressed="true"]').innerText();
+      const detail = await o.page.locator(".jr-detail").innerText();
+      const dc = card.match(/duty (\d+h \d+m)/)?.[1];
+      const dd = detail.match(/duty (\d+h \d+m)/)?.[1];
+      const day = card.match(/next (\w{3} \d+ \w{3})/)?.[1];
+      dc && dc === dd && day && detail.includes(day)
+        ? pass(`live: Journeys sorted by ${sort === "next" ? "date" : "duty"}: the card and its detail show the same timing (${day}, duty ${dc})`)
+        : fail(`live: Journeys ${sort} card duty ${dc} day ${day} vs detail duty ${dd}`);
+      await o.ctx.close();
+    }
+    // phones: the Board's button rows keep their words whole; status lines say the short thing in full
+    {
+      const o = await open("/board?ap=EGKK", { width: 390, height: 844 });
+      await o.page.locator(".bd-form .seg-btn").first().waitFor();
+      const clipped = await o.page.locator(".bd-form .seg-btn").evaluateAll((bs) => bs.filter((b) => b.scrollWidth > b.clientWidth + 1 || b.getClientRects().length > 1 || b.offsetHeight > 40).map((b) => b.textContent));
+      const cut = [];
+      for (const path of ["/board?ap=EGKK", "/settings", "/range", "/logbook", "/journeys?from=EGBB&to=LOWI&t=1"]) {
+        await o.page.goto(base + path, { waitUntil: "networkidle" });
+        await o.page.waitForTimeout(path.includes("t=1") ? 4000 : 800);
+        const c = await o.page.evaluate(() => {
+          const s = document.querySelector(".statusline-inner > *");
+          return s && s.scrollWidth > s.clientWidth + 1 ? s.textContent : null;
+        });
+        if (c) cut.push(`${path}: ${c}`);
+      }
+      const jr = await o.page.locator(".statusline").innerText();
+      !clipped.length && !cut.length && /\d+ \w+ – \d+ \w+/.test(jr)
+        ? pass(`live: 390px Board buttons whole; Board, Settings, Range, Logbook and timed Journeys status lines fit (Journeys: "${jr.trim()}")`)
+        : fail(`live: 390px clipped ${JSON.stringify(clipped)} cut ${JSON.stringify(cut)} journeys "${jr}"`);
+      await o.ctx.close();
+    }
+    // a reversed list cut at 240 says it's the 240 kept, the other way round
+    {
+      const o = await open("/journeys?from=EGKK&legs=u3&sort=distance&dir=desc");
+      await o.page.locator(".jr-card").first().waitFor({ timeout: 60000 });
+      const count = await o.page.locator(".jr-count").innerText();
+      /240\+ journeys/.test(count) && /the 240 shortest found, longest first/.test(count)
+        ? pass(`live: a reversed Journeys list cut at 240 says what it is ("${count.trim()}")`)
+        : fail(`live: reversed capped list "${count}"`);
+      await o.ctx.close();
+    }
+    // a small file that unzips past 20 MB is refused while it's read, before anything is replaced
+    {
+      const o = await open("/settings");
+      const before = await o.page.evaluate(() => localStorage.getItem("ofp-planner:airframes"));
+      const bomb = gzipSync(Buffer.from(`{"schema":"ofp-planner/backup","version":1,"entries":{"x":"${" ".repeat(25 * 1024 * 1024)}"}}`));
+      await o.page.locator(".backup input[type=file]").setInputFiles({ name: "big.json.gz", mimeType: "application/gzip", buffer: bomb });
+      await o.page.locator(".backup .form-err").waitFor({ timeout: 15000 }).catch(() => undefined);
+      const t = await o.page.locator(".backup .form-err").innerText().catch(() => "");
+      const after = await o.page.evaluate(() => localStorage.getItem("ofp-planner:airframes"));
+      /more than 20 MB/.test(t) && after === before
+        ? pass(`live: a ${Math.round(bomb.length / 1024)} KB backup that unzips past 20 MB is refused while reading, nothing replaced`)
+        : fail(`live: zip bomb "${t}"`);
+      await o.ctx.close();
+    }
+    // radio groups: one tab stop each, the arrow keys move the choice (Board, Journeys)
+    {
+      const o = await open("/board?ap=EGKK");
+      const dep = o.page.getByRole("radio", { name: "Departures", exact: true });
+      await dep.focus();
+      await o.page.keyboard.press("ArrowRight");
+      await o.page.waitForTimeout(150);
+      const board = await o.page.evaluate(() => [document.activeElement?.textContent, new URL(location.href).searchParams.get("side")]);
+      await o.page.goto(`${base}/journeys?from=EGBB&to=LOWI`, { waitUntil: "networkidle" });
+      const fewest = o.page.getByRole("radio", { name: "Fewest", exact: true });
+      await fewest.focus();
+      await o.page.keyboard.press("ArrowRight");
+      await o.page.waitForTimeout(150);
+      const jr = await o.page.evaluate(() => [document.activeElement?.textContent, document.activeElement?.getAttribute("aria-checked")]);
+      const stops = await o.page.locator('[role="radiogroup"]').evaluateAll((gs) => gs.map((g) => g.querySelectorAll('[role="radio"]:not([tabindex="-1"])').length));
+      board[0] === "Arrivals" && board[1] === "arr" && jr[0] === "Exactly" && jr[1] === "true" && stops.every((n) => n === 1)
+        ? pass(`live: radio groups take the arrow keys (Board Departures → Arrivals, Journeys Fewest → Exactly), one tab stop each (${stops.length} groups)`)
+        : fail(`live: radio keys board ${board} journeys ${jr} stops ${stops}`);
+      await o.ctx.close();
+    }
+    // structure on every page: one h1 and one main, nothing focusable under aria-hidden, no image with buttons in it,
+    // and a box that scrolls can take the focus; and at 320 px nothing runs off the page
+    const A11Y = () => {
+      const FOC = "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1']), summary";
+      const live = (e) => !e.closest("[inert]") && e.getClientRects().length > 0 && !e.closest("details:not([open]) > :not(summary)");
+      const hidden = [...document.querySelectorAll("[aria-hidden='true']")].flatMap((h) => [...h.querySelectorAll(FOC)].filter(live).map((e) => e.tagName));
+      const img = [...document.querySelectorAll("[role='img']")].filter((i) => [...i.querySelectorAll(FOC)].some(live)).length;
+      const scroll = [...document.querySelectorAll("body *")].filter((e) => {
+        const cs = getComputedStyle(e);
+        if (!/(auto|scroll)/.test(cs.overflowX + cs.overflowY) || !live(e)) return false;
+        if (e.scrollWidth <= e.clientWidth + 1 && e.scrollHeight <= e.clientHeight + 1) return false;
+        return !(e.matches(FOC) || e.querySelector(FOC));
+      }).map((e) => String(e.className).slice(0, 30));
+      return { h1: document.querySelectorAll("h1").length, main: document.querySelectorAll("main").length, hidden, img, scroll };
+    };
+    const PAGES = ["/", "/?al=EZY&dep=EGKK&view=places", "/journeys?from=EGBB&to=LOWI", "/board?ap=EGKK", "/brief", "/logbook", "/range", "/settings"];
+    for (const [w, theme] of [
+      [1280, "light"],
+      [390, "light"],
+      [320, "dark"],
+    ]) {
+      const o = await open("/settings", { width: w, height: 844, theme });
+      const bad = [];
+      for (const path of PAGES) {
+        await o.page.goto(base + path, { waitUntil: "networkidle" });
+        await o.page.waitForTimeout(500);
+        const r = await o.page.evaluate(A11Y);
+        const sw = await o.page.evaluate(() => document.documentElement.scrollWidth);
+        if (r.h1 !== 1 || r.main !== 1 || r.hidden.length || r.img || r.scroll.length || sw > w) bad.push(`${path} ${JSON.stringify({ ...r, sw })}`);
+      }
+      !bad.length
+        ? pass(`live: ${w}px ${theme}, ${PAGES.length} pages: one h1 and main each, no focusable under aria-hidden or in an image, scroll boxes reachable, no sideways scroll`)
+        : fail(`live: structure ${w}px ${bad.join(" | ")}`);
+      await o.ctx.close();
+    }
+  });
+
+  /* ---------- phones: the action before the detail (UI review) ---------- */
+  await section("phone order", async () => {
+    const o = await open("/?al=EZY&dep=EGKK", { width: 390, height: 844 });
+    await o.page.locator("table.flights tbody tr").first().waitFor({ timeout: 20000 });
+    const f = await o.page.evaluate(() => ({
+      roll: document.querySelector(".btn-roll").getBoundingClientRect().bottom,
+      row: document.querySelector("table.flights tbody tr").getBoundingClientRect().top,
+      typeShown: !!document.querySelector(".filters-grid > .multi:nth-child(5)")?.getClientRects().length,
+    }));
+    await o.page.getByRole("button", { name: /More filters/ }).click();
+    const opened = await o.page.locator(".filters-grid > .multi:nth-child(5)").isVisible();
+    f.roll < 844 && f.row < 844 && !f.typeShown && opened
+      ? pass(`phone: Finder folds the advanced filters, Random and the first result on the first screen (${Math.round(f.roll)}, ${Math.round(f.row)} px); More filters opens them`)
+      : fail(`phone: Finder first screen ${JSON.stringify(f)} opened ${opened}`);
+    await o.page.goto(`${base}/?al=EZY&dep=EGKK&type=A320`, { waitUntil: "networkidle" });
+    await o.page.locator("table.flights tbody tr").first().waitFor({ timeout: 20000 }).catch(() => undefined);
+    const linked = await o.page.locator(".filters-grid > .multi:nth-child(5)").isVisible();
+    const badge = await o.page.locator(".more-filters").innerText();
+    linked && /1 on/i.test(badge) ? pass(`phone: a link with an advanced filter shows it, counted ("${badge.replace(/\s+/g, " ")}")`) : fail(`phone: linked filter visible ${linked} "${badge}"`);
+    // the flight panel: SimBrief right after the route, on the first screen
+    await o.page.goto(`${base}/?al=EZY&dep=EGKK`, { waitUntil: "networkidle" });
+    await o.page.locator("table.flights tbody .row-btn").first().click();
+    await o.page.waitForSelector(".drawer .dispatch.is-first");
+    const sb = await o.page.evaluate(() => {
+      const a = document.querySelector(".drawer a.btn-primary").getBoundingClientRect().bottom;
+      const map = document.querySelector(".drawer .map")?.getBoundingClientRect().top ?? Infinity;
+      return { a, map };
+    });
+    const fid = new URL(o.page.url()).searchParams.get("f");
+    sb.a < 844 && sb.a < sb.map ? pass(`phone: the flight panel has Open in SimBrief on its first screen, above the map (${Math.round(sb.a)} px)`) : fail(`phone: panel dispatch ${JSON.stringify(sb)}`);
+    await o.ctx.close();
+    // Journeys stacked: the choices first, a pick scrolls to the journey, and there's a way back
+    const j = await open("/journeys?from=EGBB&to=LOWI", { width: 390, height: 844 });
+    await j.page.locator(".jr-card").nth(1).waitFor({ timeout: 60000 });
+    const order = await j.page.evaluate(() => document.querySelector(".jr-list").getBoundingClientRect().top < document.querySelector(".jr-detail").getBoundingClientRect().top);
+    await j.page.locator(".jr-card").nth(1).click();
+    await j.page.waitForTimeout(900);
+    const at = await j.page.evaluate(() => ({ top: document.querySelector(".jr-detail").getBoundingClientRect().top, focus: document.activeElement?.classList.contains("jr-detail") }));
+    await j.page.getByRole("button", { name: /Back to the list/ }).click();
+    await j.page.waitForTimeout(300);
+    const back = await j.page.evaluate(() => document.activeElement?.getAttribute("aria-pressed") === "true");
+    order && at.top < 300 && at.focus && back
+      ? pass("phone: Journeys lists the choices before the picked journey; a pick scrolls to it, Back to the list returns to the card")
+      : fail(`phone: Journeys order ${order} pick ${JSON.stringify(at)} back ${back}`);
+    await j.ctx.close();
+    // Brief: the flight, its date, the weather, then onward legs
+    const b = await open(`/brief?f=${encodeURIComponent(fid)}`, { width: 390, height: 844 });
+    await b.page.locator("#flight").waitFor({ timeout: 20000 });
+    const ids = await b.page.locator("main > section.sheet").evaluateAll((ss) => ss.map((x) => x.id));
+    const inCard = await b.page.locator("#flight .nextleg").count();
+    ids.join(",") === "flight,when,weather,next" && !inCard ? pass(`phone: Brief reads flight, date, weather, then next leg (${ids.join(" → ")})`) : fail(`phone: Brief order ${ids} next leg in card ${inCard}`);
+    await b.ctx.close();
+    // Settings: an index straight to each section (Theme & backup opens and shows it)
+    const st = await open("/settings", { width: 390, height: 844 });
+    await st.page.locator("#device .sheet-head").click(); // fold it first
+    await st.page.goto(`${base}/settings`, { waitUntil: "networkidle" });
+    await st.page.getByRole("link", { name: "Theme & backup" }).click();
+    await st.page.waitForTimeout(500);
+    const dev = await st.page.evaluate(() => ({ top: document.querySelector("#device").getBoundingClientRect().top, open: !document.querySelector("#device-body").hidden, toggles: document.querySelectorAll(".sheet-toggle").length }));
+    dev.top < 400 && dev.open && dev.toggles >= 5 ? pass(`phone: Settings index jumps to Theme & backup and opens it (${Math.round(dev.top)} px); every section shows −/+`) : fail(`phone: settings index ${JSON.stringify(dev)}`);
+    await checkPage("settings index 390 light", st.page, st.errors);
+    await st.ctx.close();
   });
 
   /* ---------- night screenshots ---------- */

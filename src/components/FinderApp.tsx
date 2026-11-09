@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { airportLabel, isoDay, onDay } from "@/lib/data/flight";
+import { airportLabel, isoDay, onDay, shortDate } from "@/lib/data/flight";
 import { findFlight, loadRoutes, useDataset, type FlightRow } from "@/lib/data/load";
 import {
   EMPTY_QUERY,
@@ -24,6 +24,7 @@ import { DEFAULT_PREFS, readPrefs, writePrefs } from "@/lib/saved";
 import { applyFn, readFnOverrides, useFnOverrides } from "@/lib/fnoverride";
 import { routeColor } from "@/lib/colors";
 import { hiddenAirlines, listedAirline, useDisplay } from "@/lib/display";
+import { useMedia } from "@/lib/media";
 import { StatusLine, TopBar } from "./chrome";
 import { FlightCard } from "./FlightCard";
 import { AfterPicker, DayPicker, LengthPicker, MultiPicker, PlacePicker, type MultiOption, type PlaceOption } from "./pickers";
@@ -36,9 +37,7 @@ import Link from "next/link";
 
 type View = "flights" | "places" | "map";
 
-/** "20 Sept" or, with the year, "24 Oct 2026" (UTC, so the day never shifts). */
-const day = (iso: string, year = false) =>
-  new Date(`${iso}T12:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", ...(year ? { year: "numeric" } : {}), timeZone: "UTC" });
+const day = shortDate;
 
 export function FinderApp() {
   const [ready, setReady] = useState(false);
@@ -206,11 +205,36 @@ export function FinderApp() {
     update({ al });
     writePrefs({ airlines: al });
   };
-  // The flight opens in a floating panel; it scrolls back to its top for each new flight.
-  const select = useCallback((r: Row | null) => {
-    setSelId(r?.f.id ?? null);
-    if (r) requestAnimationFrame(() => detailRef.current?.scrollTo({ top: 0 }));
-  }, []);
+  // The flight opens in a floating panel; it scrolls back to its top for each new flight. Opening it moves the
+  // keyboard focus into it (it's what changed); closing it puts the focus back where it was (the row, Random…).
+  const returnTo = useRef<HTMLElement | null>(null);
+  const select = useCallback(
+    (r: Row | null) => {
+      const opening = !!r && !selId;
+      const closing = !r && !!selId;
+      if (opening) {
+        const a = document.activeElement;
+        returnTo.current = a instanceof HTMLElement && a !== document.body ? a : null;
+      }
+      setSelId(r?.f.id ?? null);
+      requestAnimationFrame(() => {
+        if (r) detailRef.current?.scrollTo({ top: 0 });
+        if (opening) detailRef.current?.focus({ preventScroll: true });
+        if (closing) {
+          const back = returnTo.current;
+          returnTo.current = null;
+          if (back?.isConnected) back.focus({ preventScroll: true });
+        }
+      });
+    },
+    [selId],
+  );
+  // on a phone the panel covers the list: what's behind it is out of reach until it closes
+  const narrow = useMedia("(max-width: 640px)");
+  // the advanced filters in use (for "More filters · 2 on"); folded on a phone unless one is set or they're opened
+  const advancedOn = [q.types.length > 0, q.minLen != null || q.maxLen != null, q.days.length > 0, q.after != null, q.text.trim() !== ""].filter(Boolean).length;
+  const [moreOpen, setMoreOpen] = useState<boolean | null>(null);
+  const moreShown = moreOpen ?? advancedOn > 0;
 
   // Escape closes the flight card (unless typing in a field or a picker is open).
   useEffect(() => {
@@ -304,9 +328,10 @@ export function FinderApp() {
     <>
       <TopBar finderHref="/" />
       <StatusLine progress={ready && !data.error ? data.progress : null}>{status}</StatusLine>
-      <div className="finder">
+      <main className="finder" inert={!!selected && narrow}>
+        <h1 className="sr-only">Finder</h1>
         <section className="panel filters" aria-label="Filters">
-          <div className="filters-grid">
+          <div className={cx("filters-grid", !moreShown && "less")}>
             <MultiPicker
               label="Airline"
               values={q.al}
@@ -346,6 +371,12 @@ export function FinderApp() {
               />
             </label>
           </div>
+          {/* phones (CSS, so it's folded from the first paint): aircraft, block time, days, time and flight number fold away;
+              what's set is counted, and a link with any opens them */}
+          <button type="button" className="linkish more-filters" aria-expanded={moreShown} onClick={() => setMoreOpen(!moreShown)}>
+            {moreShown ? "Fewer filters" : "More filters"}
+            {advancedOn > 0 && <span className="badge b-mag">{advancedOn} on</span>}
+          </button>
           <div className="rollbar">
             <button type="button" className="btn btn-roll" onClick={doRoll} disabled={!filtered.length}>
               <Dice />
@@ -444,9 +475,9 @@ export function FinderApp() {
             )}
           </div>
         </section>
-      </div>
+      </main>
       {selected && (
-        <aside className="drawer" aria-label={`Selected flight ${selected.f.cs ?? selected.f.fn ?? ""}`} ref={detailRef}>
+        <aside className="drawer" aria-label={`Selected flight ${selected.f.cs ?? selected.f.fn ?? ""}`} ref={detailRef} tabIndex={-1}>
           <FlightCard
             key={selected.f.id}
             row={selected}

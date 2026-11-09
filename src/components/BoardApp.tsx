@@ -31,8 +31,8 @@ import { StatusLine, TopBar } from "./chrome";
 import { PlacePicker } from "./pickers";
 import { RouteMap, type MapRoute } from "./RouteMap";
 import { FidsBoard } from "./board/FidsBoard";
-import { GateScreen, localClock, screenNow, type GateWx } from "./board/GateScreen";
-import { cx } from "./ui";
+import { GateScreen, localClock, screenNow, zoneLabel, type GateWx } from "./board/GateScreen";
+import { cx, radioKeys, roving } from "./ui";
 
 type Tab = "airport" | "gate";
 const HOURS = [3, 6, 12];
@@ -108,12 +108,14 @@ export function BoardApp() {
   /* ---------- data: only the airlines that serve the airport, or the gate flight's ---------- */
 
   const [routes, setRoutes] = useState<Awaited<ReturnType<typeof loadRoutes>> | null>(null);
+  const [routesErr, setRoutesErr] = useState<string | null>(null);
+  const routesFailed = (e: unknown) => setRoutesErr(e instanceof Error ? e.message : String(e));
   useEffect(() => {
     if (!ready || tab !== "airport" || !ap || routes) return;
     let live = true;
     loadRoutes().then(
       (r) => live && setRoutes(r),
-      () => undefined,
+      (e: unknown) => live && routesFailed(e),
     );
     return () => {
       live = false;
@@ -155,7 +157,7 @@ export function BoardApp() {
     let live = true;
     loadRoutes().then(
       (r) => live && setRoutes(r),
-      () => undefined,
+      (e: unknown) => live && routesFailed(e),
     );
     return () => {
       live = false;
@@ -164,6 +166,8 @@ export function BoardApp() {
 
   const airport = useMemo(() => (ap ? (airports?.get(ap) ?? null) : null), [ap, airports]);
   const loadingBoard = !!ap && (!routes || data.loading.length > 0 || !airports);
+  // a file that didn't download: say so (a failed route index isn't an empty board); the board lives in the URL, so Retry reloads
+  const loadErr = tab === "airport" ? (routesErr ?? data.error) : null;
   // minute resolution, so the list is rebuilt once a minute, not every second
   const minute = Math.floor(now / MIN) * MIN;
   const rows = useMemo<Movement[]>(() => {
@@ -192,6 +196,8 @@ export function BoardApp() {
     reveal(`[data-mv="${CSS.escape(target.key)}"]`);
   };
   const fmt = (ms: number) => (utc || !airport?.tz ? `${new Date(ms).toISOString().slice(11, 16)}${utc ? "" : "Z"}` : localClock(ms, airport.tz));
+  // the zone of the board's times, next to its clock
+  const zone = utc || !airport?.tz ? "UTC" : zoneLabel(now, airport.tz);
 
   const mapRoutes = useMemo<MapRoute[]>(() => {
     if (!airport || !airports) return [];
@@ -348,14 +354,22 @@ export function BoardApp() {
 
   /* ---------- page ---------- */
 
-  const status =
-    !ready || !manifest ? (
+  const retry = (
+    <button type="button" className="linkish" onClick={() => window.location.reload()}>
+      Retry
+    </button>
+  );
+  const status = loadErr ? (
+    <span className="st-err">Couldn’t load the schedule snapshot ({loadErr}). {retry}</span>
+  ) : !ready || !manifest ? (
       <span className="muted">Loading schedule snapshot…</span>
     ) : tab === "airport" ? (
       ap && airport ? (
         <span>
-          <b>{airport.name}</b> · {side === "dep" ? "departures" : "arrivals"} in the next {hours} h · {rows.length} flights
-          <span className="muted hide-xs"> · from the weekly timetable; remarks follow the clock</span>
+          <b className="hide-xs">{airport.name}</b>
+          <b className="only-xs">{airport.iata ?? airport.icao}</b> · {side === "dep" ? "departures" : "arrivals"}
+          <span className="hide-xs"> in the next {hours} h</span> · {loadingBoard ? "loading…" : `${rows.length} flights`}
+          <span className="muted"> · simulated<span className="hide-xs"> from the weekly timetable; remarks follow the clock</span></span>
         </span>
       ) : (
         <span className="muted">Pick an airport to see its board</span>
@@ -373,8 +387,9 @@ export function BoardApp() {
   return (
     <>
       <TopBar />
-      <StatusLine progress={ready && ap && tab === "airport" && !data.error ? data.progress : null}>{status}</StatusLine>
+      <StatusLine progress={ready && ap && tab === "airport" && !loadErr ? data.progress : null}>{status}</StatusLine>
       <main className="board">
+        <h1 className="sr-only">Board</h1>
         <section className="panel board-panel" aria-label="Board">
           <div className="tabs-bar">
             <div className="tabs" role="tablist" aria-label="Show">
@@ -428,6 +443,12 @@ export function BoardApp() {
                       ))}
                     </p>
                   </div>
+                ) : loadErr ? (
+                  <div className="bd-loading">
+                    <p className="form-err">
+                      Couldn’t load the flights for this airport: {loadErr}. The board doesn’t know how many flights there are; it isn’t empty. {retry}
+                    </p>
+                  </div>
                 ) : loadingBoard || !airport ? (
                   <div className="bd-loading" aria-busy="true">
                     <p className="muted">Loading the airlines that fly here…</p>
@@ -444,6 +465,7 @@ export function BoardApp() {
                         now={now}
                         fmt={fmt}
                         clock={fmt(now)}
+                        zone={zone}
                         hover={hover}
                         marked={marked}
                         onHover={setHover}
@@ -550,9 +572,9 @@ function Seg<T extends string>({ label, value, options, onChange }: { label: str
   return (
     <div className="jr-ctl">
       <span className="ctl-label">{label}</span>
-      <div className="seg jr-seg" role="radiogroup" aria-label={label}>
-        {options.map(([v, l]) => (
-          <button key={v} type="button" role="radio" aria-checked={value === v} className="seg-btn" onClick={() => onChange(v)}>
+      <div className="seg jr-seg" role="radiogroup" aria-label={label} onKeyDown={radioKeys}>
+        {options.map(([v, l], i) => (
+          <button key={v} type="button" role="radio" aria-checked={value === v} tabIndex={roving(value === v, i)} className="seg-btn" onClick={() => onChange(v)}>
             {l}
           </button>
         ))}
@@ -706,14 +728,15 @@ function GateControls({
         <>
           <fieldset className="gt-group">
             <legend>Clock</legend>
-            <div className="seg jr-seg" role="radiogroup" aria-label="Clock">
-              <button type="button" role="radio" aria-checked={gate.stdAt == null} className="seg-btn" onClick={() => onPatch({ stdAt: null })}>
+            <div className="seg jr-seg" role="radiogroup" aria-label="Clock" onKeyDown={radioKeys}>
+              <button type="button" role="radio" aria-checked={gate.stdAt == null} tabIndex={roving(gate.stdAt == null, 0)} className="seg-btn" onClick={() => onPatch({ stdAt: null })}>
                 Real time
               </button>
               <button
                 type="button"
                 role="radio"
                 aria-checked={gate.stdAt != null}
+                tabIndex={roving(gate.stdAt != null, 1)}
                 className="seg-btn"
                 onClick={() => onPatch({ stdAt: Math.floor(Date.now() / MIN) * MIN + vin * MIN })}
               >
