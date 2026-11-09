@@ -343,7 +343,10 @@ export async function build({ dates, airports, sdRoutes, sdAirlines, types, ryan
     const lo = Math.max(ms(season.from), ms(last) - 13 * DAY * 1000);
     const hi = Math.min(ms(season.to), Math.max(ms(last), today + 13 * DAY * 1000));
     const months = [];
-    for (let t = lo; t <= hi; t += DAY * 1000) months.includes(new Date(t).toISOString().slice(0, 7)) || months.push(new Date(t).toISOString().slice(0, 7));
+    for (let t = lo; t <= hi; t += DAY * 1000) {
+      const m = new Date(t).toISOString().slice(0, 7);
+      if (!months.includes(m)) months.push(m);
+    }
     log(`ryanair: timetable days ${new Date(lo).toISOString().slice(0, 10)} → ${new Date(hi).toISOString().slice(0, 10)} (${season.name})`);
     const raw = await fetchRyanair([...pairs.values()], months, { refresh });
     for (const [key, list] of raw) {

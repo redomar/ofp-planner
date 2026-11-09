@@ -58,12 +58,13 @@ export function JourneysApp() {
   const data = useDataset(ready && timed ? (plan.al.length ? plan.al : "all") : [], { extra: airlineSet === "extra" });
   const { manifest, airports, airlines } = data;
   const [routes, setRoutes] = useState<Awaited<ReturnType<typeof loadRoutes>> | null>(null);
+  const [routesErr, setRoutesErr] = useState<string | null>(null);
   useEffect(() => {
     if (!ready || routes) return;
     let live = true;
     loadRoutes().then(
       (r) => live && setRoutes(r),
-      () => undefined,
+      (e: unknown) => live && setRoutesErr(e instanceof Error ? e.message : String(e)),
     );
     return () => {
       live = false;
@@ -214,8 +215,16 @@ export function JourneysApp() {
   /* ---------- status ---------- */
 
   const loadingTimed = timed && ready && !timedSet;
-  const status =
-    !ready || !manifest || !airports ? (
+  const loadErr = data.error ?? routesErr;
+  const status = loadErr ? (
+    // the plan lives in the address, so a reload keeps the form
+    <span className="st-err">
+      Couldn’t load the schedule snapshot ({loadErr}).{" "}
+      <button type="button" className="linkish" onClick={() => window.location.reload()}>
+        Retry
+      </button>
+    </span>
+  ) : !ready || !manifest || !airports ? (
       <span className="muted">Loading schedule snapshot…</span>
     ) : loadingTimed ? (
       <span className="muted">Loading every airline’s timetable for timed connections…</span>
@@ -244,7 +253,7 @@ export function JourneysApp() {
   return (
     <>
       <TopBar />
-      <StatusLine progress={timed && ready && !data.error ? data.progress : null}>{status}</StatusLine>
+      <StatusLine progress={timed && ready && !loadErr ? data.progress : null}>{status}</StatusLine>
       <main className="journeys">
         {/* the form waits for the URL (read after hydration), so a shared timed link doesn't grow under the reader */}
         {ready && (

@@ -172,7 +172,12 @@ export function useDataset(want: string[] | "all", { extra = false }: { extra?: 
     const all = key === "*" || key === "**";
     const withExtra = key === "**";
     const list: string[] | "all" = all ? "all" : key ? key.split(",") : [];
-    const update = (err: string | null = null) => live && setState(snapshot(list, err, withExtra));
+    // an error sticks: airlines that arrive after a failed one mustn't clear it
+    let err: string | null = null;
+    const update = (e: string | null = null) => {
+      err ??= e;
+      if (live) setState(snapshot(list, err, withExtra));
+    };
     update();
     loadManifest()
       .then((m) => {

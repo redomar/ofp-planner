@@ -808,8 +808,7 @@ function LogForm({ start, ref_, onDone }: { start: LogFlight | null; ref_: Ref |
     e.preventDefault();
     const f = build();
     if (typeof f === "string") return setErr(f);
-    if (start?.id && start.id !== f.id) deleteFlight(start.id);
-    saveFlight(f);
+    if (!saveFlight(f, start?.id)) return setErr("The browser refused to save it (storage full or blocked). Nothing was saved; the form still holds what you typed.");
     setErr(null);
     onDone(f.id);
   };
@@ -939,7 +938,8 @@ function ImportExport({ flights }: { flights: LogFlight[] }) {
     if (!file) return;
     const r = parseLogFile(await file.text());
     if ("error" in r) return setMsg({ ok: false, text: r.error });
-    const { added, updated } = mergeFlights(r.flights);
+    const { added, updated, saved } = mergeFlights(r.flights);
+    if (!saved) return setMsg({ ok: false, text: `Couldn’t import ${file.name}: the browser refused to store it (storage full or blocked). Nothing was imported; keep the file.` });
     const skipped = r.skipped.length ? ` Skipped ${r.skipped.length}: ${r.skipped.slice(0, 3).map((s) => `#${s.index + 1} ${s.why}`).join("; ")}${r.skipped.length > 3 ? "…" : ""}.` : "";
     setMsg({ ok: !r.skipped.length, text: `Imported ${file.name}: ${added} new, ${updated} updated.${skipped}` });
   };

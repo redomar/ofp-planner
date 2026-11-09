@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.7.2 — 2026-11-09
+
+Fixes from an outside review of the planner.
+
+- **A save the browser refuses now says so.** With storage full or blocked, a logbook import used to report "1 new" while nothing was kept, and the add/edit form closed as if saved. The import now says nothing was imported (keep the file), and the form stays open with what you typed. Changing a flight's id in the form is one save now, so a refused save can't lose the old entry.
+- **Backups are checked before they replace anything.** A backup whose logbook, favourites, airframes or other saved values aren't in the shape the planner reads is refused with what's wrong ("logbook should be a list"), and nothing is changed. Values already stored are checked as they're read: a list drops entries it can't use, anything else falls back to its default, so the page keeps working.
+- **Logbook import is stricter:** the date must be a real day (no 2026-99-99), and block/air time, pax, fuel, cruise level and landing G must be in a sensible range (no negative block time reducing your hours). Rows that fail are skipped with the reason.
+- **Journeys shows load failures with Retry.** If the schedule, route index or an airline's timetable fails to download, the status line says so with a Retry button (the plan is kept), instead of "Loading…" forever. Also fixed for every page: when one airline's timetable failed, the airlines that arrived after it cleared the error.
+- **The Finder shows the days the schedules cover**, on phones too (20 Sept – 24 Oct 2026), with the snapshot's build date after it on wider screens. Phones used to show only the build date, which read like the schedule's date.
+- **Range** no longer claims "good to about ±5%": the model is tuned to Airbus brochure ranges, not measured in the sims, so it now says it's an approximate comparison.
+
 ## 1.7.1 — 2026-11-08
 
 - **Schedule snapshot to 24 October**, the last day of the summer 2026 season: 20 September – 24 October (was to 13 October), 47,111 flights (was 45,332), 77 airlines, 615 airports. 14–24 October hold every airline, so the Extra+ airlines have more of their flights (Enter Air 44 → 141, Freebird 76 → 135, Atlantic Airways 49 → 94).

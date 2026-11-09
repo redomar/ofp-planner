@@ -5,6 +5,7 @@
  */
 import { useSyncExternalStore } from "react";
 import { THEME_KEY } from "./keys";
+import { COLLAPSE_KEY } from "./collapse-boot";
 
 const NS = "ofp-planner:";
 const CHANGE = "ofp-planner:change";
@@ -29,11 +30,13 @@ function get(key: string): string | null {
     return null;
   }
 }
-function set(key: string, value: string) {
+/** False when the browser refused (storage full or blocked): the app still works, it just forgets. */
+function set(key: string, value: string): boolean {
   try {
     window.localStorage.setItem(key, value);
+    return true;
   } catch {
-    /* storage full or blocked: the app still works, it just forgets */
+    return false;
   }
 }
 function del(key: string) {
@@ -76,18 +79,73 @@ export function useStorageVersion() {
   return useSyncExternalStore(subscribe, getVersion, getServerVersion);
 }
 
+/*
+ * What each stored value must look like. Values come back from a backup or another tab as
+ * plain JSON, so a reader checks them before use: a list drops the entries that don't fit,
+ * anything else of the wrong kind reads as the default.
+ */
+const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
+const isStr = (v: unknown): v is string => typeof v === "string";
+type Shape = { list: (v: unknown) => boolean } | { obj: (v: Record<string, unknown>) => boolean; nullable?: boolean };
+const anyObj = { obj: () => true };
+const saved = (v: unknown) => isObj(v) && isStr(v.id) && isStr(v.o) && isStr(v.d);
+const SHAPES: Record<string, Shape> = {
+  [KEYS.logbook]: { list: (v) => isObj(v) && isStr(v.id) && isStr(v.date) && isStr(v.from) && isStr(v.to) },
+  [KEYS.favourites]: { list: saved },
+  [KEYS.history]: { list: saved },
+  [KEYS.favGroups]: { list: isStr },
+  [KEYS.airframes]: { obj: (v) => Array.isArray(v.list) && v.list.every((a) => isObj(a) && isStr(a.id) && isStr(a.name) && isStr(a.icao) && isStr(a.sbType)) },
+  [KEYS.fnOverrides]: anyObj,
+  [KEYS.prefs]: anyObj,
+  [KEYS.display]: anyObj,
+  [KEYS.ready]: { ...anyObj, nullable: true },
+  [KEYS.range]: { ...anyObj, nullable: true },
+  [COLLAPSE_KEY]: { list: isStr },
+};
+
+/** The value made to fit its key's shape, or undefined when it can't be used at all. */
+function fit(key: string, v: unknown): unknown {
+  const s = SHAPES[key];
+  if (!s) return v;
+  if ("list" in s) return Array.isArray(v) ? v.filter(s.list) : undefined;
+  if (v === null) return s.nullable ? null : undefined;
+  return isObj(v) && s.obj(v) ? v : undefined;
+}
+
+/** Why a raw stored value doesn't fit its key (for checking a backup before it replaces anything), or null when it does. */
+export function misfit(key: string, raw: string): string | null {
+  const s = SHAPES[key];
+  if (!s) return null;
+  let v: unknown;
+  try {
+    v = JSON.parse(raw);
+  } catch {
+    return "isn't valid JSON";
+  }
+  if ("list" in s) {
+    if (!Array.isArray(v)) return "should be a list";
+    const bad = v.findIndex((x) => !s.list(x));
+    return bad < 0 ? null : `has a malformed entry (#${bad + 1})`;
+  }
+  if (v === null) return s.nullable ? null : "is empty";
+  return isObj(v) && s.obj(v) ? null : "has the wrong shape";
+}
+
 export function readJSON<T>(key: string, fallback: T): T {
   const raw = get(key);
   if (raw == null) return fallback;
   try {
-    return JSON.parse(raw) as T;
+    const v = fit(key, JSON.parse(raw));
+    return v === undefined ? fallback : (v as T);
   } catch {
     return fallback;
   }
 }
-export function writeJSON(key: string, value: unknown) {
-  set(key, JSON.stringify(value));
+/** False when the browser refused to store it (full or blocked); nothing was saved then. */
+export function writeJSON(key: string, value: unknown): boolean {
+  const ok = set(key, JSON.stringify(value));
   changed();
+  return ok;
 }
 export function removeKey(key: string) {
   del(key);

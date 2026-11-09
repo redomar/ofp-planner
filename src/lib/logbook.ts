@@ -71,18 +71,20 @@ export interface LogFile {
 
 export const readLog = () => readJSON<LogFlight[]>(KEYS.logbook, []);
 const byDate = (a: LogFlight, b: LogFlight) => b.date.localeCompare(a.date) || (b.out ?? b.started ?? "").localeCompare(a.out ?? a.started ?? "");
-export function writeLog(l: LogFlight[]) {
-  writeJSON(KEYS.logbook, [...l].sort(byDate));
+/** False when the browser refused to store it (full or blocked): nothing was saved. */
+export function writeLog(l: LogFlight[]): boolean {
+  return writeJSON(KEYS.logbook, [...l].sort(byDate));
 }
-export function saveFlight(f: LogFlight) {
-  writeLog([f, ...readLog().filter((x) => x.id !== f.id)]);
+/** Saves a flight; `replaces` is the id it had before an edit changed it (one write, so a refused save loses nothing). */
+export function saveFlight(f: LogFlight, replaces?: string | null): boolean {
+  return writeLog([f, ...readLog().filter((x) => x.id !== f.id && x.id !== replaces)]);
 }
-export function deleteFlight(id: string) {
-  writeLog(readLog().filter((x) => x.id !== id));
+export function deleteFlight(id: string): boolean {
+  return writeLog(readLog().filter((x) => x.id !== id));
 }
 
-/** Adds imported flights; the same id replaces. Returns how many were new and how many replaced. */
-export function mergeFlights(incoming: LogFlight[]): { added: number; updated: number } {
+/** Adds imported flights; the same id replaces. Returns how many were new and how many replaced, and whether the browser stored them. */
+export function mergeFlights(incoming: LogFlight[]): { added: number; updated: number; saved: boolean } {
   const cur = new Map(readLog().map((f) => [f.id, f]));
   let added = 0;
   let updated = 0;
@@ -91,8 +93,8 @@ export function mergeFlights(incoming: LogFlight[]): { added: number; updated: n
     else added++;
     cur.set(f.id, f);
   }
-  writeLog([...cur.values()]);
-  return { added, updated };
+  const saved = writeLog([...cur.values()]);
+  return { added, updated, saved };
 }
 
 export function exportFile(flights: LogFlight[]): LogFile {
@@ -104,6 +106,19 @@ export function exportFile(flights: LogFlight[]): LogFile {
 const ICAO = /^[A-Z0-9]{4}$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const STATUSES = Object.keys(STATUS_LABEL) as LogStatus[];
+const realDate = (d: string) => {
+  const t = Date.parse(`${d}T00:00:00Z`);
+  return Number.isFinite(t) && new Date(t).toISOString().slice(0, 10) === d;
+};
+/** Allowed ranges of the numbers in an imported flight (landingFpm is a rate either way, so any sign). */
+const RANGES: Record<string, [number, number]> = {
+  blockMin: [0, 1440],
+  airMin: [0, 1440],
+  landingG: [0, 10],
+  cruiseFl: [0, 600],
+  fuelKg: [0, 400000],
+  pax: [0, 1000],
+};
 
 /** "HH:MM", "H:MM", "HHMM" or an ISO time ("2026-10-07T15:10:00Z") → "HH:MM"; else null. */
 export function clockOf(v: unknown): string | null {
@@ -134,7 +149,11 @@ export function cleanFlight(raw: unknown): LogFlight | string {
   const to = upper(r.to, 4);
   const date = typeof r.date === "string" ? r.date.slice(0, 10) : null;
   if (!from || !ICAO.test(from) || !to || !ICAO.test(to)) return "from / to must be ICAO codes";
-  if (!date || !DATE.test(date)) return "date must be YYYY-MM-DD";
+  if (!date || !DATE.test(date) || !realDate(date)) return "date must be a real YYYY-MM-DD date";
+  for (const [k, [lo, hi]] of Object.entries(RANGES)) {
+    const v = num(r[k]);
+    if (v != null && (v < lo || v > hi)) return `${k} must be ${lo}–${hi}`;
+  }
   const callsign = upper(r.callsign, 10);
   const status = typeof r.status === "string" ? (r.status.toLowerCase().replace(/[\s_]+/g, "-") as LogStatus) : null;
   const fpm = num(r.landingFpm);
