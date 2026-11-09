@@ -242,17 +242,6 @@ export function BriefApp() {
                 key={row.f.id}
                 context="brief"
                 placeHref={(icao) => `/?al=&dep=${icao}`}
-                extra={
-                  <NextLeg
-                    from={f.d}
-                    fromName={to ? airportLabel(to) : f.d}
-                    sample={sampleRow}
-                    airlines={manifest}
-                    airports={airports}
-                    onTake={takeSample}
-                    onAnother={() => setSampleRound((n) => n + 1)}
-                  />
-                }
                 closeLabel="Clear the brief"
                 onClose={() => {
                   removeKey(KEYS.ready);
@@ -329,6 +318,19 @@ export function BriefApp() {
               ) : (
                 <p className="muted">Airport positions are missing from the snapshot, so there’s no forecast for this flight.</p>
               )}
+            </Section>
+
+            {/* after this flight: onward legs come last, once the date and weather of this one are settled */}
+            <Section id="next" no={4} title="Next leg" meta={<span>From {to?.iata ?? f.d}</span>}>
+              <NextLeg
+                from={f.d}
+                fromName={to ? airportLabel(to) : f.d}
+                sample={sampleRow}
+                airlines={manifest}
+                airports={airports}
+                onTake={takeSample}
+                onAnother={() => setSampleRound((n) => n + 1)}
+              />
             </Section>
           </>
         )}

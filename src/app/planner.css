@@ -401,13 +401,13 @@ select.ctl-input {
   }
 }
 @media (max-width: 480px) {
+  /* From and To with the swap beside them (it had a row to itself) */
   .filters-grid {
     grid-template-columns: minmax(0, 1fr) 36px;
     grid-template-areas:
       "al al"
-      "dep dep"
-      "swap swap"
-      "arr arr"
+      "dep swap"
+      "arr swap"
       "type type"
       "len len"
       "days days"
@@ -415,10 +415,46 @@ select.ctl-input {
       "search search";
   }
   .swap {
+    align-self: center;
     justify-self: center;
     transform: rotate(90deg);
-    height: 30px;
   }
+}
+/* phones: the advanced filters fold behind "More filters" (wider screens show them all, without the button) */
+.more-filters {
+  display: none !important;
+}
+@media (max-width: 640px) {
+  .more-filters {
+    display: inline-flex !important;
+  }
+  .filters-grid.less > .multi:nth-child(5),
+  .filters-grid.less > .len,
+  .filters-grid.less > .days,
+  .filters-grid.less > .after,
+  .filters-grid.less > .search {
+    display: none;
+  }
+  /* …and their rows go too (an empty grid row still takes its gap) */
+  .filters-grid.less {
+    grid-template-areas:
+      "al al al"
+      "dep swap arr";
+  }
+}
+@media (max-width: 480px) {
+  .filters-grid.less {
+    grid-template-areas:
+      "al al"
+      "dep swap"
+      "arr swap";
+  }
+}
+.more-filters {
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 14px;
 }
 
 /* combobox */
@@ -1933,6 +1969,11 @@ div.empty-note p {
   padding-top: 12px;
   border-top: 1px dashed var(--rule);
 }
+/* first on a phone (right after the route): a rule under it too, before the map */
+.dispatch.is-first {
+  padding-bottom: 12px;
+  border-bottom: 1px dashed var(--rule);
+}
 .dispatch-actions {
   display: flex;
   flex-direction: column;
@@ -2283,8 +2324,7 @@ div.empty-note p {
 
 /* brief: next leg */
 .nextleg {
-  border-top: 1px dashed var(--rule);
-  padding-top: 12px;
+  padding-top: 2px;
 }
 .nextleg-row {
   display: flex;
@@ -3834,6 +3874,28 @@ div.empty-note p {
 .jr-examples .ctl-label {
   margin: 0 4px 0 0;
 }
+/* Settings: the section index at the top */
+.set-index {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.set-index a {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 15px;
+  background: var(--sheet);
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.set-index a:hover {
+  border-color: var(--blue);
+}
 .jr-example {
   height: 30px;
   padding: 0 11px;
@@ -4160,6 +4222,17 @@ div.empty-note p {
   position: sticky;
   top: 70px;
 }
+.jr-detail:focus {
+  outline: none;
+}
+.jr-detail:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.jr-back {
+  align-self: flex-start;
+  font-size: 13px;
+}
 .jr-title {
   margin: 0;
   font-size: 20px;
@@ -4379,12 +4452,17 @@ div.empty-note p {
     grid-area: swap;
   }
   /* one column: the sort bar sits above the journey, the list below it */
+  /* stacked: sort, the choices, then the picked journey (picking scrolls to it; it has a way back up) */
   .jr-split {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       "sorts"
-      "detail"
-      "list";
+      "list"
+      "detail";
+  }
+  .jr-detail {
+    scroll-margin-top: calc(var(--topbar-h, 57px) + 8px);
+    border-top: 1px solid var(--rule);
   }
   .jr-listcol {
     display: contents;
@@ -4872,6 +4950,46 @@ div.empty-note p {
   margin: 0 0 14px;
   padding: 0;
   border: 0;
+}
+/* optional groups, folded while empty */
+.log-opt {
+  margin: 0 0 14px;
+}
+.log-opt > summary {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  width: max-content;
+  max-width: 100%;
+  padding: 4px 0;
+  cursor: pointer;
+  font-family: var(--font-cond);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+  list-style: none;
+}
+.log-opt > summary::-webkit-details-marker {
+  display: none;
+}
+.log-opt > summary::before {
+  content: "▸";
+  color: var(--ink-3);
+}
+.log-opt[open] > summary::before {
+  content: "▾";
+}
+.log-opt > summary .muted {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 12.5px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.log-opt > fieldset {
+  margin-top: 8px;
 }
 .log-form legend {
   margin-bottom: 8px;

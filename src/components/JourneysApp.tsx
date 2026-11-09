@@ -23,6 +23,7 @@ import { StatusLine, TopBar } from "./chrome";
 import { MultiPicker, PlacePicker, type MultiOption } from "./pickers";
 import { RouteMap, type MapRoute } from "./RouteMap";
 import { cx, radioKeys, roving, Tip } from "./ui";
+import { useMedia } from "@/lib/media";
 import { JourneyTimings } from "./JourneyTimings";
 
 const PAGE = 30;
@@ -87,10 +88,23 @@ export function JourneysApp() {
     update({ ...EMPTY_PLAN, al: [], ...x });
     setSel(null);
   };
+  // stacked (phones, narrow windows): the list comes first and the picked journey under it, so picking one scrolls to it
+  const stacked = useMedia("(max-width: 1000px)");
   const pick = (key: string) => {
     setSel(key);
     setDep(null);
     setSaved(null);
+    if (stacked)
+      requestAnimationFrame(() => {
+        const d = document.querySelector<HTMLElement>(".jr-detail");
+        d?.scrollIntoView({ block: "start", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+        d?.focus({ preventScroll: true });
+      });
+  };
+  const backToList = () => {
+    const c = document.querySelector<HTMLElement>('.jr-card[aria-pressed="true"]');
+    c?.scrollIntoView({ block: "center" });
+    c?.focus({ preventScroll: true });
   };
 
   /* ---------- picker options ---------- */
@@ -574,33 +588,6 @@ export function JourneysApp() {
                   </div>
                 ) : (
                   <div className={cx("jr-split", search.busy && "is-stale")}>
-                    {current && (
-                      <JourneyDetail
-                        key={current.key}
-                        group={current}
-                        dep={dep}
-                        onDep={(d) => setDep({ vi: d.vi, day: d.day })}
-                        byDate={active === "next"}
-                        now={now}
-                        rows={rowsOf}
-                        airports={airports!}
-                        airlines={airlines}
-                        reportMin={plan.reportMin}
-                        saved={saved}
-                        onSave={(name, flights) => setSaved(saveJourney(name, flights))}
-                        onTime={() => {
-                          const s = current.stops;
-                          update({
-                            from: s[0],
-                            to: s[s.length - 1],
-                            via: s.slice(1, -1),
-                            legs: { kind: "exact", n: s.length - 1 },
-                            timing: "timed",
-                            sort: "next",
-                          });
-                        }}
-                      />
-                    )}
                     <div className="jr-listcol">
                     <div className="jr-sorts" role="group" aria-label="Sort journeys">
                       <span className="ctl-label">Sort</span>
@@ -639,6 +626,34 @@ export function JourneysApp() {
                       )}
                     </ol>
                     </div>
+                    {current && (
+                      <JourneyDetail
+                        key={current.key}
+                        group={current}
+                        dep={dep}
+                        onDep={(d) => setDep({ vi: d.vi, day: d.day })}
+                        byDate={active === "next"}
+                        onBack={stacked ? backToList : undefined}
+                        now={now}
+                        rows={rowsOf}
+                        airports={airports!}
+                        airlines={airlines}
+                        reportMin={plan.reportMin}
+                        saved={saved}
+                        onSave={(name, flights) => setSaved(saveJourney(name, flights))}
+                        onTime={() => {
+                          const s = current.stops;
+                          update({
+                            from: s[0],
+                            to: s[s.length - 1],
+                            via: s.slice(1, -1),
+                            legs: { kind: "exact", n: s.length - 1 },
+                            timing: "timed",
+                            sort: "next",
+                          });
+                        }}
+                      />
+                    )}
                   </div>
                 )}
               </section>
@@ -925,6 +940,7 @@ function JourneyDetail({
   dep,
   onDep,
   byDate,
+  onBack,
   now,
   rows,
   airports,
@@ -939,6 +955,8 @@ function JourneyDetail({
   onDep: (d: Departure) => void;
   /** Sorted by date: the card shows the soonest timing (else the best one); the detail opens on the same. */
   byDate: boolean;
+  /** Stacked layout: a way back up to the list. */
+  onBack?: () => void;
   now: number;
   rows: FlightRow[] | null;
   airports: Map<string, Airport>;
@@ -984,7 +1002,12 @@ function JourneyDetail({
   }
 
   return (
-    <article className="jr-detail" aria-label={`Journey ${title}`}>
+    <article className="jr-detail" aria-label={`Journey ${title}`} tabIndex={-1}>
+      {onBack && (
+        <button type="button" className="linkish jr-back" onClick={onBack}>
+          ↑ Back to the list
+        </button>
+      )}
       <header className="jr-dhead">
         <h2 className="jr-title mono">{j.stops.join(" › ")}</h2>
         <p className="jr-facts">

@@ -351,12 +351,17 @@ server_latch_container_alternative: |
 ## 10. Open items / ideas
 
   - BRANCHES IN FLIGHT (keep current):
+    · feature/phone-order: LOCAL ONLY, cut from feature/live-review-fixes (merge that first). The phone redesign from the UI review,
+      done on the user's "do as much as you can, decide yourself" (2026-11-09): Finder More filters (CSS-folded ≤640 px, .less;
+      count of advanced filters set; a link with one opens them), swap beside From/To ≤480; FlightCard dispatch first in the Finder
+      on phones (actionsFirst, .dispatch.is-first); Journeys ≤1000 px list then detail (pick scrolls + focuses .jr-detail, Back to the
+      list); Brief Next leg = section 4; logbook form Times / Landing and more folded while empty (details.log-opt); Settings index
+      (.set-index) + −/+ on every Section header (BoxToggleIcon). verify section "phone order".
     · feature/live-review-fixes: 1.7.3, LOCAL ONLY, not pushed. Fixes from the second outside review (live site, 22 findings L01–L22 +
       32 UI notes UI01–UI32). The review files moved out of the repo to ../ofp-planner-reviews/adversarial-2026-11-09/ (LIVE-FINDINGS.md,
       ui-design/UI-USABILITY-REVIEW.md, SCREEN-PLAN.md; its scripts target the live site and can be rerun after deploy).
-      Left for a later phone redesign (1.8.0, needs the user's OK on each screen's order): UI05 More filters, UI12 city names in phone rows,
-      UI13/14 dispatch near the top of the flight panel, UI15 Brief date before onward legs, UI18/20 Journeys list before detail on phones,
-      UI22 Saved flights naming, UI24/26 minimal logbook form + list first, UI29/L16 Settings index. Skipped as polish/opinion: UI01, UI06–10,
+      Phone redesign items done on feature/phone-order: UI05, UI06, UI13, UI15, UI18, UI24, UI29/L16. Not done: UI12 city names in phone
+      rows, UI14 action styles, UI20 phone timings rows, UI22 Saved flights naming, UI26 logbook list before totals. Skipped as polish/opinion: UI01, UI06–10,
       UI16, UI17, UI23, UI27/28, UI30/31; the first report's #9 (data swap race on the server).
     · feature/more-airlines: released as 1.7.0 on 2026-11-08 (PR #7 via release/1.7.0), with its own snapshot
       (20 Sep → 13 Oct 2026, 77 airlines); no new data.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
-import { useCollapse } from "./collapse";
+import { BoxToggleIcon, useCollapse } from "./collapse";
 import { Replay } from "./replay";
 const isBlank = (v: string) => v.trim() === "";
 
@@ -140,6 +140,10 @@ export function Section({
             {title}
           </span>
           {meta && <span className="sheet-meta">{meta}</span>}
+          {/* open or closed, at a glance: the drafting-box − / + */}
+          <span className="sheet-toggle">
+            <BoxToggleIcon open={!collapsed} />
+          </span>
         </button>
       </h2>
       <div className="sheet-body" id={`${id}-body`} ref={bodyRef}>

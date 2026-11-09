@@ -30,6 +30,15 @@ Fixes from a review of the live site.
 - **Journeys: a reversed list says what it is** when there are more than 240 journeys: the search keeps the best 240 for the sort, so Distance reversed is "the 240 shortest found, longest first", not the longest of all.
 - **Backup restore** stops reading a file once it unpacks past 20 MB (a small gzip can unpack to gigabytes and freeze the tab), and says why; nothing is replaced.
 
+### Phones: what you do before what you read
+
+- **Finder:** aircraft, block time, days, time and flight number fold behind **More filters** (with a count of the ones set; a link that sets one opens them), and the swap button sits beside From and To. Random and the first flights are on the first screen (the first flight was 1,000 px down).
+- **A flight opened in the Finder:** the aircraft choice, **Open in SimBrief**, brief, gate screen and log come right after the route, before the map and times (SimBrief was 1,270 px down, below the fold).
+- **Journeys** (phones and narrow windows): the list of journeys comes first and the picked one under it; picking a journey scrolls to it, and **Back to the list** returns to its card. Before, the first journey's map and timings came before the list.
+- **Brief:** the next leg is its own last section, after the date and the weather, instead of inside the flight card before them.
+- **Logbook:** a new flight is date, route and Add; **Times** and **Landing and more** are folded until opened, or open already when they hold something (a flight logged from its brief, an edit). The form is half as tall.
+- **Settings:** an index at the top goes straight to Airframes, Display, Favourites, Snapshot or **Theme & backup** (the backup was 11,900 px down a 12,350 px page), opening the section if it was folded. Every section header shows − / + for open or folded.
+
 ## 1.7.2 — 2026-11-09
 
 Fixes from an outside review of the planner.

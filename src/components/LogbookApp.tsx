@@ -759,6 +759,10 @@ const fact = (k: string, v: ReactNode) =>
 
 /* ---------- add / edit ---------- */
 
+/** The form's optional groups, by their fields (folded while empty). */
+const TIME_KEYS: readonly string[] = ["std", "sta", "out", "off", "on", "in", "blockMin", "airMin", "started"];
+const MORE_KEYS: readonly string[] = ["landingFpm", "landingG", "cruiseFl", "fuelKg", "pax", "status", "notes"];
+
 const TIME_FIELDS = [
   ["std", "STD"],
   ["sta", "STA"],
@@ -836,6 +840,9 @@ function LogForm({ start, ref_, onDone }: { start: LogFlight | null; ref_: Ref |
     if (!f.id) f.id = defaultId(f);
     return f;
   };
+  const filled = (keys: readonly string[]) => keys.some((k) => (d[k] ?? "").trim() !== "");
+  const [openTimes, setOpenTimes] = useState(() => filled(TIME_KEYS));
+  const [openMore, setOpenMore] = useState(() => filled(MORE_KEYS));
   const preview = build();
   const missing = "miss" in preview ? preview : null;
   // after a submit that was refused, the hint becomes the error (and follows the fixes); before, it's a quiet preview
@@ -847,7 +854,9 @@ function LogForm({ start, ref_, onDone }: { start: LogFlight | null; ref_: Ref |
     if ("miss" in f) {
       setTried(true);
       setErr(null);
-      formRef.current?.querySelector<HTMLInputElement>(`[name="${f.field}"]`)?.focus();
+      // a time field is in the folded Times group: open it first
+      if (TIME_KEYS.includes(f.field)) setOpenTimes(true);
+      requestAnimationFrame(() => formRef.current?.querySelector<HTMLInputElement>(`[name="${f.field}"]`)?.focus());
       return;
     }
     if (!saveFlight(f, start?.id)) return setErr("The browser refused to save it (storage full or blocked). Nothing was saved; the form still holds what you typed.");
@@ -879,8 +888,13 @@ function LogForm({ start, ref_, onDone }: { start: LogFlight | null; ref_: Ref |
           {text("sim", "Simulator", { placeholder: "MSFS24", maxLength: 24 })}
         </div>
       </fieldset>
+      {/* the optional groups stay folded until they hold something (a prefilled flight opens them), so a minimal flight is date, route, save */}
+      <details className="log-opt" open={openTimes} onToggle={(e) => setOpenTimes(e.currentTarget.open)}>
+        <summary>
+          Times <span className="muted">(UTC, HH:MM) · {filled(TIME_KEYS) ? "filled in" : "optional"}</span>
+        </summary>
       <fieldset>
-        <legend>Times (UTC, HH:MM)</legend>
+        <legend className="sr-only">Times (UTC, HH:MM)</legend>
         <div className="log-grid log-times">
           {TIME_FIELDS.map(([k, label]) => (
             <label key={k} className="ctl">
@@ -915,8 +929,13 @@ function LogForm({ start, ref_, onDone }: { start: LogFlight | null; ref_: Ref |
           </label>
         </div>
       </fieldset>
+      </details>
+      <details className="log-opt" open={openMore} onToggle={(e) => setOpenMore(e.currentTarget.open)}>
+        <summary>
+          Landing and more <span className="muted">· {filled(MORE_KEYS) ? "filled in" : "optional"}</span>
+        </summary>
       <fieldset>
-        <legend>Landing and more</legend>
+        <legend className="sr-only">Landing and more</legend>
         <div className="log-grid">
           {text("landingFpm", "Landing rate (fpm)", { inputMode: "numeric", placeholder: "-180" })}
           {text("landingG", "Landing g", { inputMode: "decimal", placeholder: "1.18" })}
@@ -940,6 +959,7 @@ function LogForm({ start, ref_, onDone }: { start: LogFlight | null; ref_: Ref |
           </label>
         </div>
       </fieldset>
+      </details>
       <p className="log-preview small" aria-live="polite">
         {"miss" in preview ? (
           !tried && <span className="muted">{preview.miss}</span>

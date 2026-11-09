@@ -15,7 +15,7 @@ import { DayTabs, WeekTimes } from "./WeekTimes";
 import { FlightIdent, GuessMark, TypeBadge } from "./badges";
 import { StatusLine, TopBar } from "./chrome";
 import { SavedFlights } from "./SavedFlights";
-import { CollapseProvider } from "./collapse";
+import { CollapseProvider, useCollapse } from "./collapse";
 import { Badge, ScrollBox, Section } from "./ui";
 
 /**
@@ -53,6 +53,7 @@ export function SettingsApp() {
       </StatusLine>
       <main className="settings">
         <h1 className="sr-only">Settings</h1>
+        <SettingsIndex />
         {v >= 0 && (
           <>
         <Section id="airframes" no={1} title="Airframes" meta={<span>Used for SimBrief links</span>}>
@@ -74,6 +75,28 @@ export function SettingsApp() {
         )}
       </main>
     </CollapseProvider>
+  );
+}
+
+const INDEX = [
+  ["airframes", "Airframes"],
+  ["display", "Display"],
+  ["favourites", "Favourites"],
+  ["data", "Snapshot"],
+  ["device", "Theme & backup"],
+] as const;
+
+/** Straight to a section (opened if it was folded): Settings is long, and the backup is at the bottom. */
+function SettingsIndex() {
+  const { open } = useCollapse();
+  return (
+    <nav className="set-index" aria-label="Settings sections">
+      {INDEX.map(([id, label]) => (
+        <a key={id} href={`#${id}`} onClick={() => open(id)}>
+          {label}
+        </a>
+      ))}
+    </nav>
   );
 }
 

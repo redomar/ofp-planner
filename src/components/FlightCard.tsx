@@ -12,10 +12,11 @@ import { defaultChoice, flightDispatch, simbriefUrl, typeChoices, useAirframes }
 import { TypeBadge, WeekStrip, freqLabel } from "./badges";
 import { RouteHead } from "./RouteHead";
 import { RouteMap } from "./RouteMap";
-import { Badge, Tip, V } from "./ui";
+import { Badge, Tip, V, cx } from "./ui";
 import { GLOSSARY } from "@/lib/glossary";
 import { routeColor } from "@/lib/colors";
 import { useDisplay } from "@/lib/display";
+import { useMedia } from "@/lib/media";
 import { DayTabs, WeekTimes } from "./WeekTimes";
 
 /** The selected flight: route, map, OOOI times, facts, and dispatch to SimBrief. */
@@ -75,6 +76,7 @@ export function FlightCard({
   // Times through the week (flights whose times change by weekday): a section under the OOOI
   // table, or day tabs that switch the table (Settings → Display). Tabs start on the card's day.
   const display = useDisplay();
+  const phone = useMedia("(max-width: 640px)");
   const weekVaries = varies(f);
   const [tab, setTab] = useState<number | null>(null);
   const shown: Row = tab != null && tab !== f.day ? { ...row, f: onDay(f, tab), block: blockTime(onDay(f, tab), nm) } : row;
@@ -83,6 +85,74 @@ export function FlightCard({
   const [folded, setFolded] = useState(false);
   const bodyId = useId();
   const toggleFold = () => setFolded((v) => !v);
+
+  // on a phone in the Finder, the dispatch (aircraft, SimBrief, brief, log) comes right after the route, before the map and times
+  const actionsFirst = phone && context === "finder";
+  const dispatch = (
+    <div className={cx("dispatch", actionsFirst && "is-first")}>
+      <label className="dispatch-type">
+        <span className="ctl-label">Aircraft for SimBrief</span>
+        <select className="ctl-input" value={picked.value} onChange={(e) => setChoice(e.target.value)}>
+          {choices.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="dispatch-actions">
+        <a className="btn btn-primary" href={url} target="_blank" rel="noopener noreferrer">
+          Open in SimBrief
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M4 2h6v6M10 2L3 9" fill="none" stroke="currentColor" strokeWidth="1.6" />
+          </svg>
+          <span className="sr-only">(opens in a new tab)</span>
+        </a>
+        <div className="dispatch-more">
+          {context === "finder" ? (
+            <Link className="btn" href={`/brief?f=${encodeURIComponent(f.id)}`} onClick={() => setReady(f, null, picked.value)}>
+              Open brief · weather →
+            </Link>
+          ) : (
+            <Link className="btn" href={`/?al=${f.al}&dep=${f.o}&arr=${f.d}&f=${encodeURIComponent(f.id)}`}>
+              ← Back to finder
+            </Link>
+          )}
+          <Link className="btn" href={`/board?tab=gate&f=${encodeURIComponent(f.id)}`}>
+            Gate screen
+          </Link>
+          <Link className="btn" href={`/logbook?f=${encodeURIComponent(f.id)}`} title="Open the logbook form prefilled with this flight (nothing is saved until you submit)">
+            Log this flight
+          </Link>
+          {onContinue && (
+            <button type="button" className="btn" onClick={onContinue} title={`Roll an onward flight from ${f.d}`}>
+              Next leg from {to?.iata ?? f.d}
+            </button>
+          )}
+        </div>
+      </div>
+      <CopyLink url={url} />
+      {fav && saved && saved.groups.length > 0 && (
+        <div className="fav-group" role="group" aria-label="Favourite groups">
+          <span className="fav-group-star" aria-hidden="true">
+            ★
+          </span>
+          <span className="ctl-label">In groups</span>
+          {saved.groups.map((g) => {
+            const on = favIn.includes(g);
+            return (
+              <button key={g} type="button" className={`chip fav-group-chip${on ? " on" : ""}`} aria-pressed={on} onClick={() => setInGroup(f, g, !on)}>
+                {on && <span aria-hidden="true">✓ </span>}
+                {g}
+              </button>
+            );
+          })}
+          {favIn.length > 1 && <span className="badge b-amber">shared by {favIn.length}</span>}
+        </div>
+      )}
+      {extra}
+    </div>
+  );
 
   return (
     <article className="fcard" aria-label={`Flight ${flightNo(f, iata)}`} style={{ ["--al" as string]: color }}>
@@ -143,6 +213,7 @@ export function FlightCard({
 
       <div className="fcard-body" id={bodyId} hidden={folded}>
       <RouteHead f={f} from={from} to={to} blockMin={block?.min ?? null} nm={nm} onPlace={onPlace} placeHref={placeHref} />
+      {actionsFirst && dispatch}
 
       {from && to && (
         <RouteMap
@@ -206,69 +277,7 @@ export function FlightCard({
         </div>
       </dl>
 
-      <div className="dispatch">
-        <label className="dispatch-type">
-          <span className="ctl-label">Aircraft for SimBrief</span>
-          <select className="ctl-input" value={picked.value} onChange={(e) => setChoice(e.target.value)}>
-            {choices.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="dispatch-actions">
-          <a className="btn btn-primary" href={url} target="_blank" rel="noopener noreferrer">
-            Open in SimBrief
-            <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
-              <path d="M4 2h6v6M10 2L3 9" fill="none" stroke="currentColor" strokeWidth="1.6" />
-            </svg>
-            <span className="sr-only">(opens in a new tab)</span>
-          </a>
-          <div className="dispatch-more">
-            {context === "finder" ? (
-              <Link className="btn" href={`/brief?f=${encodeURIComponent(f.id)}`} onClick={() => setReady(f, null, picked.value)}>
-                Open brief · weather →
-              </Link>
-            ) : (
-              <Link className="btn" href={`/?al=${f.al}&dep=${f.o}&arr=${f.d}&f=${encodeURIComponent(f.id)}`}>
-                ← Back to finder
-              </Link>
-            )}
-            <Link className="btn" href={`/board?tab=gate&f=${encodeURIComponent(f.id)}`}>
-              Gate screen
-            </Link>
-            <Link className="btn" href={`/logbook?f=${encodeURIComponent(f.id)}`} title="Open the logbook form prefilled with this flight (nothing is saved until you submit)">
-              Log this flight
-            </Link>
-            {onContinue && (
-              <button type="button" className="btn" onClick={onContinue} title={`Roll an onward flight from ${f.d}`}>
-                Next leg from {to?.iata ?? f.d}
-              </button>
-            )}
-          </div>
-        </div>
-        <CopyLink url={url} />
-        {fav && saved && saved.groups.length > 0 && (
-          <div className="fav-group" role="group" aria-label="Favourite groups">
-            <span className="fav-group-star" aria-hidden="true">
-              ★
-            </span>
-            <span className="ctl-label">In groups</span>
-            {saved.groups.map((g) => {
-              const on = favIn.includes(g);
-              return (
-                <button key={g} type="button" className={`chip fav-group-chip${on ? " on" : ""}`} aria-pressed={on} onClick={() => setInGroup(f, g, !on)}>
-                  {on && <span aria-hidden="true">✓ </span>}
-                  {g}
-                </button>
-              );
-            })}
-            {favIn.length > 1 && <span className="badge b-amber">shared by {favIn.length}</span>}
-          </div>
-        )}
-        {extra}
-      </div>
+      {!actionsFirst && dispatch}
       </div>
     </article>
   );

@@ -231,6 +231,10 @@ export function FinderApp() {
   );
   // on a phone the panel covers the list: what's behind it is out of reach until it closes
   const narrow = useMedia("(max-width: 640px)");
+  // the advanced filters in use (for "More filters · 2 on"); folded on a phone unless one is set or they're opened
+  const advancedOn = [q.types.length > 0, q.minLen != null || q.maxLen != null, q.days.length > 0, q.after != null, q.text.trim() !== ""].filter(Boolean).length;
+  const [moreOpen, setMoreOpen] = useState<boolean | null>(null);
+  const moreShown = moreOpen ?? advancedOn > 0;
 
   // Escape closes the flight card (unless typing in a field or a picker is open).
   useEffect(() => {
@@ -327,7 +331,7 @@ export function FinderApp() {
       <main className="finder" inert={!!selected && narrow}>
         <h1 className="sr-only">Finder</h1>
         <section className="panel filters" aria-label="Filters">
-          <div className="filters-grid">
+          <div className={cx("filters-grid", !moreShown && "less")}>
             <MultiPicker
               label="Airline"
               values={q.al}
@@ -367,6 +371,12 @@ export function FinderApp() {
               />
             </label>
           </div>
+          {/* phones (CSS, so it's folded from the first paint): aircraft, block time, days, time and flight number fold away;
+              what's set is counted, and a link with any opens them */}
+          <button type="button" className="linkish more-filters" aria-expanded={moreShown} onClick={() => setMoreOpen(!moreShown)}>
+            {moreShown ? "Fewer filters" : "More filters"}
+            {advancedOn > 0 && <span className="badge b-mag">{advancedOn} on</span>}
+          </button>
           <div className="rollbar">
             <button type="button" className="btn btn-roll" onClick={doRoll} disabled={!filtered.length}>
               <Dice />

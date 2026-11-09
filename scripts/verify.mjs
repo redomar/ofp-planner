@@ -1094,6 +1094,10 @@ async function run() {
     await f.getByRole("combobox", { name: "To" }).fill("LFPG");
     await page.keyboard.press("Enter");
     await f.getByLabel("Callsign").fill("EZY8011");
+    // the optional groups are folded on an empty form; open one to fill it
+    const folded = await f.locator("details.log-opt:not([open])").count();
+    folded === 2 ? pass("logbook: an empty form folds Times and Landing and more (date, route, save)") : fail(`logbook: ${folded} groups folded`);
+    await f.locator("summary", { hasText: "Landing and more" }).click();
     await f.getByLabel("Landing rate (fpm)").fill("-95");
     await f.getByRole("button", { name: "Add to logbook" }).click();
     await page.waitForTimeout(300);
@@ -2002,6 +2006,70 @@ async function run() {
         : fail(`live: structure ${w}px ${bad.join(" | ")}`);
       await o.ctx.close();
     }
+  });
+
+  /* ---------- phones: the action before the detail (UI review) ---------- */
+  await section("phone order", async () => {
+    const o = await open("/?al=EZY&dep=EGKK", { width: 390, height: 844 });
+    await o.page.locator("table.flights tbody tr").first().waitFor({ timeout: 20000 });
+    const f = await o.page.evaluate(() => ({
+      roll: document.querySelector(".btn-roll").getBoundingClientRect().bottom,
+      row: document.querySelector("table.flights tbody tr").getBoundingClientRect().top,
+      typeShown: !!document.querySelector(".filters-grid > .multi:nth-child(5)")?.getClientRects().length,
+    }));
+    await o.page.getByRole("button", { name: /More filters/ }).click();
+    const opened = await o.page.locator(".filters-grid > .multi:nth-child(5)").isVisible();
+    f.roll < 844 && f.row < 844 && !f.typeShown && opened
+      ? pass(`phone: Finder folds the advanced filters, Random and the first result on the first screen (${Math.round(f.roll)}, ${Math.round(f.row)} px); More filters opens them`)
+      : fail(`phone: Finder first screen ${JSON.stringify(f)} opened ${opened}`);
+    await o.page.goto(`${base}/?al=EZY&dep=EGKK&type=A320`, { waitUntil: "networkidle" });
+    await o.page.locator("table.flights tbody tr").first().waitFor({ timeout: 20000 }).catch(() => undefined);
+    const linked = await o.page.locator(".filters-grid > .multi:nth-child(5)").isVisible();
+    const badge = await o.page.locator(".more-filters").innerText();
+    linked && /1 on/i.test(badge) ? pass(`phone: a link with an advanced filter shows it, counted ("${badge.replace(/\s+/g, " ")}")`) : fail(`phone: linked filter visible ${linked} "${badge}"`);
+    // the flight panel: SimBrief right after the route, on the first screen
+    await o.page.goto(`${base}/?al=EZY&dep=EGKK`, { waitUntil: "networkidle" });
+    await o.page.locator("table.flights tbody .row-btn").first().click();
+    await o.page.waitForSelector(".drawer .dispatch.is-first");
+    const sb = await o.page.evaluate(() => {
+      const a = document.querySelector(".drawer a.btn-primary").getBoundingClientRect().bottom;
+      const map = document.querySelector(".drawer .map")?.getBoundingClientRect().top ?? Infinity;
+      return { a, map };
+    });
+    const fid = new URL(o.page.url()).searchParams.get("f");
+    sb.a < 844 && sb.a < sb.map ? pass(`phone: the flight panel has Open in SimBrief on its first screen, above the map (${Math.round(sb.a)} px)`) : fail(`phone: panel dispatch ${JSON.stringify(sb)}`);
+    await o.ctx.close();
+    // Journeys stacked: the choices first, a pick scrolls to the journey, and there's a way back
+    const j = await open("/journeys?from=EGBB&to=LOWI", { width: 390, height: 844 });
+    await j.page.locator(".jr-card").nth(1).waitFor({ timeout: 60000 });
+    const order = await j.page.evaluate(() => document.querySelector(".jr-list").getBoundingClientRect().top < document.querySelector(".jr-detail").getBoundingClientRect().top);
+    await j.page.locator(".jr-card").nth(1).click();
+    await j.page.waitForTimeout(900);
+    const at = await j.page.evaluate(() => ({ top: document.querySelector(".jr-detail").getBoundingClientRect().top, focus: document.activeElement?.classList.contains("jr-detail") }));
+    await j.page.getByRole("button", { name: /Back to the list/ }).click();
+    await j.page.waitForTimeout(300);
+    const back = await j.page.evaluate(() => document.activeElement?.getAttribute("aria-pressed") === "true");
+    order && at.top < 300 && at.focus && back
+      ? pass("phone: Journeys lists the choices before the picked journey; a pick scrolls to it, Back to the list returns to the card")
+      : fail(`phone: Journeys order ${order} pick ${JSON.stringify(at)} back ${back}`);
+    await j.ctx.close();
+    // Brief: the flight, its date, the weather, then onward legs
+    const b = await open(`/brief?f=${encodeURIComponent(fid)}`, { width: 390, height: 844 });
+    await b.page.locator("#flight").waitFor({ timeout: 20000 });
+    const ids = await b.page.locator("main > section.sheet").evaluateAll((ss) => ss.map((x) => x.id));
+    const inCard = await b.page.locator("#flight .nextleg").count();
+    ids.join(",") === "flight,when,weather,next" && !inCard ? pass(`phone: Brief reads flight, date, weather, then next leg (${ids.join(" → ")})`) : fail(`phone: Brief order ${ids} next leg in card ${inCard}`);
+    await b.ctx.close();
+    // Settings: an index straight to each section (Theme & backup opens and shows it)
+    const st = await open("/settings", { width: 390, height: 844 });
+    await st.page.locator("#device .sheet-head").click(); // fold it first
+    await st.page.goto(`${base}/settings`, { waitUntil: "networkidle" });
+    await st.page.getByRole("link", { name: "Theme & backup" }).click();
+    await st.page.waitForTimeout(500);
+    const dev = await st.page.evaluate(() => ({ top: document.querySelector("#device").getBoundingClientRect().top, open: !document.querySelector("#device-body").hidden, toggles: document.querySelectorAll(".sheet-toggle").length }));
+    dev.top < 400 && dev.open && dev.toggles >= 5 ? pass(`phone: Settings index jumps to Theme & backup and opens it (${Math.round(dev.top)} px); every section shows −/+`) : fail(`phone: settings index ${JSON.stringify(dev)}`);
+    await checkPage("settings index 390 light", st.page, st.errors);
+    await st.ctx.close();
   });
 
   /* ---------- night screenshots ---------- */
