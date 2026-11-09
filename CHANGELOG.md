@@ -6,6 +6,10 @@ Fixes from a review of the live site.
 
 - **Gate screen: the step line runs unbroken** from Gate open to Take-off. The done part used to stop halfway to the next step and leave a gap before the rest of the line; now one line runs under every step, and the done part follows the clock to the point between the current step and the next (boarding at 05:05 of 05:02–05:17 is a fifth of the way to Final call).
 - **Gate screen and Board: times say their zone.** The clock, Scheduled, New time and Arrives each name it (UTC+1, UTC+2…), as does the Board's clock; the Board's header also gives the airport's IATA and ICAO codes.
+- **A failed download is no longer shown as an answer.**
+  - **Board:** when the route index doesn't download, the status line says so with **Retry**, and the board says it doesn't know how many flights there are, instead of "0 flights" next to "Loading…". While a board loads it says "loading…", not "0 flights". On phones the status line keeps "simulated" (from the weekly timetable) once a board is showing.
+  - **Brief:** a schedule that didn't download says "Couldn't load the flight" with **Retry**, which loads it in place. Before, it said the flight wasn't in the snapshot, which only a successful lookup can tell.
+  - **Weather:** with no forecast for one or both ends, the summary says the weather there is unknown. It used to say "No significant weather at either end" with both forecasts missing. "fetching…" changes to "unavailable" once the services have failed.
 ## 1.7.2 — 2026-11-09
 
 Fixes from an outside review of the planner.

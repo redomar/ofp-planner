@@ -26,13 +26,16 @@ const ymd = (d: Date) => d.toISOString().slice(0, 10);
  * forecast for both ends at those times. Weather is only fetched here, on demand.
  */
 export function BriefApp() {
-  const [state, setState] = useState<{ row: Row | null; airports: Map<string, Airport> | null; manifest: Manifest | null; error: string | null; done: boolean }>({
+  // error: a file didn't download (retry); notFound: the snapshot was read and has no such flight
+  const [state, setState] = useState<{ row: Row | null; airports: Map<string, Airport> | null; manifest: Manifest | null; error: string | null; notFound: boolean; done: boolean }>({
     row: null,
     airports: null,
     manifest: null,
     error: null,
+    notFound: false,
     done: false,
   });
+  const [attempt, setAttempt] = useState(0);
   const [date, setDate] = useState<string | null>(null);
   const [minDate] = useState(() => ymd(new Date(Date.now() - 86_400_000)));
 
@@ -69,13 +72,18 @@ export function BriefApp() {
           setDate(d);
           window.history.replaceState(null, "", `/brief?f=${encodeURIComponent(f.id)}`);
         }
-        setState({ row, airports, manifest, error: f ? null : "This flight isn't in the current snapshot.", done: true });
+        setState({ row, airports, manifest, error: null, notFound: !f, done: true });
       })
-      .catch((e: unknown) => live && setState((s) => ({ ...s, error: e instanceof Error ? e.message : String(e), done: true })));
+      .catch((e: unknown) => live && setState((s) => ({ ...s, error: e instanceof Error ? e.message : String(e), notFound: false, done: true })));
     return () => {
       live = false;
     };
-  }, [loadId]);
+  }, [loadId, attempt]);
+  // the loaders forget a failed download, so trying again fetches it afresh
+  const retry = () => {
+    setState((s) => ({ ...s, error: null, done: false }));
+    setAttempt((n) => n + 1);
+  };
 
   const { airports, manifest } = state;
   // the user's flight number (added on the card) applies as soon as it's saved
@@ -150,6 +158,13 @@ export function BriefApp() {
         </span>
       )}
     </span>
+  ) : state.error ? (
+    <span className="st-err">
+      Couldn’t load the schedule snapshot ({state.error}).{" "}
+      <button type="button" className="linkish" onClick={retry}>
+        Retry
+      </button>
+    </span>
   ) : (
     <span className="muted">No flight picked yet</span>
   );
@@ -163,8 +178,16 @@ export function BriefApp() {
           <div className="brief-start">
             <div className="panel brief-intro">
               <div className="brief-intro-text">
-                <p className="brief-kicker">{state.error ? "That flight isn’t in the current snapshot" : "Brief"}</p>
+                <p className="brief-kicker">{state.error ? "Couldn’t load the flight" : state.notFound ? "That flight isn’t in the current snapshot" : "Brief"}</p>
                 <h2 className="brief-title">Choose a flight to brief</h2>
+                {state.error && (
+                  <p className="form-err">
+                    The schedule snapshot didn’t download ({state.error}), so the flight couldn’t be looked up. It may well still be there.{" "}
+                    <button type="button" className="linkish" onClick={retry}>
+                      Retry
+                    </button>
+                  </p>
+                )}
                 <p className="muted">
                   Pick one of your favourites or a recent flight below, or find one in the Finder. The brief gathers the SimBrief dispatch link, the day
                   you’ll fly it and the forecast at both ends.
@@ -203,7 +226,7 @@ export function BriefApp() {
               <SavedFlights
                 onOpen={(id) => {
                   window.history.replaceState(null, "", `/brief?f=${encodeURIComponent(id)}`);
-                  setState((s) => ({ ...s, done: false, error: null }));
+                  setState((s) => ({ ...s, done: false, error: null, notFound: false }));
                   setLoadId(id);
                 }}
               />
@@ -233,7 +256,7 @@ export function BriefApp() {
                 onClose={() => {
                   removeKey(KEYS.ready);
                   window.history.replaceState(null, "", "/brief");
-                  setState((s) => ({ ...s, row: null, error: null }));
+                  setState((s) => ({ ...s, row: null, error: null, notFound: false }));
                   setDate(null);
                 }}
                 row={row} airline={airline} airports={airports} />

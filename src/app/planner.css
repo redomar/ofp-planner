@@ -802,9 +802,16 @@ div.empty-note p {
     display: none;
   }
 }
+/* the short form of a text that .hide-xs hides on phones */
+.only-xs {
+  display: none;
+}
 @media (max-width: 480px) {
   .hide-xs {
     display: none;
+  }
+  .only-xs {
+    display: inline;
   }
   .flights td small.muted {
     display: none;

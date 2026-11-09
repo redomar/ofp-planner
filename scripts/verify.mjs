@@ -1748,6 +1748,61 @@ async function run() {
       (zones.match(/UTC/g) ?? []).length >= 2 ? pass(`live: gate screen ${w}px labels its times' zones ("${zones.replace(/\s+/g, " ")}")`) : fail(`live: gate zones "${zones}"`);
       await g.ctx.close();
     }
+
+    // failures say they're failures: Board, Brief, weather
+    const fid = gu.searchParams.get("f");
+    const down = (r) => r.fulfill({ status: 503, body: "down" });
+    {
+      const o = await open("/settings");
+      const rx = /\/data\/routes\.json/;
+      await o.page.route(rx, down);
+      await o.page.goto(`${base}/board?ap=EGKK`, { waitUntil: "networkidle" });
+      await o.page.getByText(/Couldn’t load the schedule snapshot/).waitFor({ timeout: 15000 }).catch(() => undefined);
+      const st = await o.page.locator(".statusline").innerText();
+      const panel = await o.page.locator(".board-body").innerText();
+      await o.page.unroute(rx);
+      await o.page.getByRole("button", { name: "Retry" }).first().click();
+      await o.page.waitForLoadState("networkidle");
+      await o.page.locator(".fids-tbl tbody tr").first().waitFor({ timeout: 30000 }).catch(() => undefined);
+      const rows = await o.page.locator(".fids-tbl tbody tr").count();
+      /Couldn’t load/.test(st) && !/\b0 flights/.test(st) && /isn’t empty/.test(panel) && rows > 0
+        ? pass(`live: Board with a failed route index says so with Retry (no "0 flights"), Retry brings ${rows} rows`)
+        : fail(`live: Board routes failure "${st}" | "${panel.slice(0, 160)}" rows ${rows}`);
+      await o.ctx.close();
+    }
+    {
+      const o = await open("/settings");
+      const rx = /\/data\/manifest\.json/;
+      await o.page.route(rx, down);
+      await o.page.goto(`${base}/brief?f=${encodeURIComponent(fid)}`, { waitUntil: "networkidle" });
+      await o.page.locator(".brief-kicker").waitFor({ timeout: 15000 });
+      const kicker = await o.page.locator(".brief-kicker").innerText();
+      const st = await o.page.locator(".statusline").innerText();
+      await o.page.unroute(rx);
+      await o.page.getByRole("button", { name: "Retry" }).first().click();
+      await o.page.locator(".fcard").first().waitFor({ timeout: 20000 }).catch(() => undefined);
+      const back = await o.page.locator(".fcard").count();
+      await o.page.goto(`${base}/brief?f=EZY:EZYNOPE1:EGKK-LEMD:1`, { waitUntil: "networkidle" });
+      await o.page.locator(".brief-kicker").waitFor({ timeout: 15000 });
+      const miss = await o.page.locator(".brief-kicker").innerText();
+      /couldn’t load the flight/i.test(kicker) && !/isn’t in the current snapshot/i.test(kicker) && /Couldn’t load/.test(st) && back > 0 && /isn’t in the current snapshot/i.test(miss)
+        ? pass("live: Brief tells a failed download (Retry, in place) from a flight that isn't in the snapshot")
+        : fail(`live: Brief failure kicker "${kicker}" status "${st}" back ${back} miss "${miss}"`);
+      await o.ctx.close();
+    }
+    {
+      const o = await open("/settings");
+      await o.page.route(/open-meteo\.com|vatsim\.net/, down);
+      await o.page.goto(`${base}/brief?f=${encodeURIComponent(fid)}`, { waitUntil: "networkidle" });
+      await o.page.locator(".wx-err-inline").nth(1).waitFor({ timeout: 20000 }).catch(() => undefined);
+      await o.page.waitForFunction(() => !/fetching/.test(document.querySelector(".wx-age")?.textContent ?? "fetching"), null, { timeout: 15000 }).catch(() => undefined);
+      const adv = await o.page.locator(".wb-advice").innerText();
+      const age = await o.page.locator(".wx-age").innerText();
+      !/No significant weather/.test(adv) && /unknown/.test(adv) && /unavailable/.test(age)
+        ? pass(`live: weather that didn't load is unknown, not "no significant weather" ("${adv}", "${age.trim()}")`)
+        : fail(`live: weather failure advice "${adv}" age "${age}"`);
+      await o.ctx.close();
+    }
   });
 
   /* ---------- night screenshots ---------- */

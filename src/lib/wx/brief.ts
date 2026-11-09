@@ -64,7 +64,10 @@ export function clearsAt(fc: Forecast, fromMs: number, span = 12): Hour | null {
   return null;
 }
 
-/** One or two plain sentences across both ends. */
+/**
+ * One or two plain sentences across both ends. An end without a forecast hour (the service failed, or
+ * there's no data) is unknown: it's named as such and never counted as "no significant weather".
+ */
 export function advice(dep: { icao: string; h: Hour | null; fc: Forecast | null; at: number | null }, arr: { icao: string; h: Hour | null }): string {
   const s: string[] = [];
   const bad = (h: Hour | null) => !!h?.category && CAT_RANK[h.category] >= 2;
@@ -82,7 +85,10 @@ export function advice(dep: { icao: string; h: Hour | null; fc: Forecast | null;
     [arr.icao, arr.h],
   ] as const)
     if (h?.gustKt != null && h.windKt != null && h.gustKt >= h.windKt + 10) s.push(`Gusts to ${Math.round(h.gustKt)} kt at ${icao}.`);
-  return s.length ? s.join(" ") : "No significant weather at either end.";
+  const unknown = [dep, arr].filter((e) => !e.h).map((e) => e.icao);
+  if (unknown.length === 2) return `No forecast for ${dep.icao} or ${arr.icao}, so the weather at both ends is unknown.`;
+  const said = s.length ? s.join(" ") : unknown.length ? `No significant weather at ${(dep.h ? dep : arr).icao}.` : "No significant weather at either end.";
+  return unknown.length ? `${said} No forecast for ${unknown[0]}, so the weather there is unknown.` : said;
 }
 
 /** The forecast hour coded like a METAR (est.): FCST EGKK 060724Z 00000KT 0300 FG VV001 12/12 Q1021. */
