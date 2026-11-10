@@ -364,8 +364,8 @@ server_latch_container_alternative: |
 
   - BRANCHES IN FLIGHT (keep current):
     · THE 1.8 / 1.9 SPEC FOR WHAT IS LEFT: docs/V1.8-BRIEF.md (decisions, each branch, what "done" means). Read it before continuing.
-    · feature/settings-display: LOCAL ONLY (2026-11-10), cut from feature/boarding-pass (it regroups that branch's settings), so its PR
-      goes on top of #16 (or rebase on main after #16 merges). Settings → Display rebuilt: src/components/DisplaySettings.tsx (groups, rows,
+    · feature/settings-display: PUSHED, PR #17 (base feature/boarding-pass, 2026-11-10); cut from branch 1 because it regroups its
+      settings. After #16 merges, retarget #17 to main. Settings → Display rebuilt: src/components/DisplaySettings.tsx (groups, rows,
       segmented radios named after each display key, picture cards for the pass, Rows | Preview = display.settingsView, typeColour "none",
       filled-by-airline badge = tint). verify section "settings display". Finder layout group arrives with branch 3.
     · feature/boarding-pass: PUSHED, PR #16 open (2026-11-10; full verify 598/598). First of three 1.8 branches (then feature/settings-display,
