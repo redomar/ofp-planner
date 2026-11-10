@@ -842,6 +842,73 @@ async function run() {
     }
   });
 
+  /* ---------- 1.9 D: an arrived flight goes to the Logbook in one click ---------- */
+  await section("log arrival", async () => {
+    // the recorded KCLT → KJFK replayed to the gate; SimBrief answered here with its ends, type and registration
+    const OFP = {
+      fetch: { status: "Success" },
+      general: { icao_airline: "", flight_number: "", initial_altitude: "39000", gc_distance: "471" },
+      atc: { callsign: "HBIOO" },
+      origin: { icao_code: "KCLT", pos_lat: "35.214", pos_long: "-80.943", name: "CHARLOTTE/DOUGLAS INTL" },
+      destination: { icao_code: "KJFK", pos_lat: "40.640", pos_long: "-73.779", name: "JOHN F KENNEDY INTL" },
+      times: { sched_out: "2026-11-10T18:15:00Z", est_out: "2026-11-10T18:15:00Z", sched_block: "01:50:00", taxi_out: "00:15:00" },
+      aircraft: { icaocode: "A321", name: "A321-211", reg: "HB-IOO" },
+      params: { time_generated: "2026-11-10T17:30:00Z" },
+    };
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    await ctx.addInitScript(SEED);
+    await ctx.addInitScript(() => {
+      window.__cls = 0;
+      window.__shifts = [];
+      new PerformanceObserver((l) => {
+        for (const e of l.getEntries()) if (!e.hadRecentInput) (window.__cls += e.value), window.__shifts.push({ v: +e.value.toFixed(3), src: (e.sources ?? []).map((x) => x.node?.className?.baseVal ?? x.node?.className ?? x.node?.nodeName) });
+      }).observe({ type: "layout-shift", buffered: true });
+    });
+    await ctx.route(/simbrief\.com\/api\/xml\.fetcher\.php/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(OFP) }));
+    const page = await ctx.newPage();
+    const errors = [];
+    page.on("pageerror", (e) => errors.push(String(e)));
+    await page.goto(`${base}/board?tab=gate&sb=example-pilot&feed=replay&rec=/recordings/kclt-kjfk.jsonl&at=80`, { waitUntil: "networkidle" });
+    await page.waitForSelector(".la", { timeout: 20_000 }).catch(() => {});
+    const shown = (await page.locator(".la").innerText().catch(() => "")).replace(/\s+/g, " ");
+    /KCLT → KJFK/.test(shown) && /ON 19:56Z/.test(shown) && /IN 19:58Z/.test(shown) && /-489 fpm/.test(shown) && !/OUT/.test(shown) && /joined the flight part-way/.test(shown)
+      ? pass(`log arrival: at the gate the screen offers the stamped times (${shown.slice(0, 90)})`)
+      : fail(`log arrival: panel "${shown}"`);
+    await checkPage("log arrival 1280", page, errors);
+    for (const theme of ["light", "dark"]) {
+      const p2 = await ctx.newPage();
+      await p2.emulateMedia({ colorScheme: theme });
+      await p2.setViewportSize({ width: 390, height: 844 });
+      await p2.goto(page.url(), { waitUntil: "networkidle" });
+      await p2.waitForSelector(".la", { timeout: 20_000 }).catch(() => {});
+      await checkPage(`log arrival 390 ${theme}`, p2, []);
+      await p2.close();
+    }
+    await page.getByRole("button", { name: "Write to my Logbook" }).click();
+    const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("ofp-planner:logbook") ?? "[]"));
+    const e = saved.find((x) => x.from === "KCLT" && x.to === "KJFK");
+    e && e.on === "19:56" && e.in === "19:58" && e.out == null && e.off == null && e.landingFpm === -489 && e.reg === "HB-IOO" && e.type === "A321" && e.callsign === "HBIOO" && e.source === "recording" && e.date === "2026-11-10"
+      ? pass("log arrival: one click writes ON, IN, the landing rate and the flight's details to the Logbook")
+      : fail(`log arrival: saved ${JSON.stringify(e ?? saved)}`);
+    const again = await page.locator(".la .btn-primary").textContent();
+    await page.getByRole("button", { name: "Written to your Logbook" }).click();
+    const n = await page.evaluate(() => JSON.parse(localStorage.getItem("ofp-planner:logbook") ?? "[]").filter((x) => x.from === "KCLT").length);
+    again === "Written to your Logbook" && n === 1 ? pass("log arrival: writing it again replaces the same entry") : fail(`log arrival: again ${again} n ${n}`);
+    await page.getByRole("link", { name: "Open the Logbook" }).click();
+    await page.waitForURL(/\/logbook/);
+    await page.waitForSelector("text=KJFK", { timeout: 15_000 }).catch(() => {});
+    (await page.locator("text=KJFK").count()) > 0 ? pass("log arrival: the flight is in the Logbook") : fail("log arrival: not shown in the Logbook");
+    errors.length ? fail(`log arrival: errors ${errors.join(" ")}`) : pass("log arrival: 0 page errors");
+    // a rehearsal is not a flight: nothing offered while the preview plays the recording
+    await page.goto(`${base}/board?tab=gate&sb=example-pilot`, { waitUntil: "networkidle" });
+    await page.waitForSelector(".rs-b");
+    await page.locator(".rs-b", { hasText: "Arrived" }).click();
+    await page.getByRole("button", { name: "▶ Play in 60 s" }).click();
+    await page.waitForTimeout(4000);
+    (await page.locator(".la").count()) === 0 ? pass("log arrival: a rehearsal offers nothing for the Logbook") : fail("log arrival: offered during a rehearsal");
+    await ctx.close();
+  });
+
   /* ---------- 1.8.1: the track never mixes typical OUT/OFF with a scheduled ON/IN ---------- */
   await section("track estimates", async () => {
     // FR5237 EBBR-GMMX: scheduled, tracked OUT and OFF on every day it flies, never tracked arriving

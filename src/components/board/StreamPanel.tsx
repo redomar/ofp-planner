@@ -5,6 +5,8 @@ import { DEFAULT_STAGES, STAGES, type GateFlight, type GateState, type ShownView
 import { detectAll, parseRecording, type FlightContext, type FlightStage, type FlightState } from "@/lib/feed/core";
 import type { FeedConfig, FlightFeed } from "@/lib/feed/useFlightFeed";
 import { inObs } from "@/lib/feed/obs";
+import { readLog, saveFlight, type LogFlight } from "@/lib/logbook";
+import Link from "next/link";
 
 /** The recorded flight the rehearse strip plays (the only one so far: the owner's KCLT → KJFK). */
 export const REHEARSE_REC = "/recordings/kclt-kjfk.jsonl";
@@ -354,3 +356,59 @@ export function RehearseStrip({
 }
 
 export { STAGE_NAMES };
+
+/* ---------- arrived: one click writes the flight to the Logbook ---------- */
+
+/**
+ * Once the aircraft is at the gate, the times the screen stamped (OUT, OFF, ON, IN) and the landing
+ * rate go to the Logbook in one click. Writing it again replaces the same entry.
+ */
+export function LogArrival({ entry }: { entry: LogFlight }) {
+  const [done, setDone] = useState<"saved" | "failed" | null>(null);
+  const had = useMemo(() => readLog().some((x) => x.id === entry.id), [entry.id, done]); // eslint-disable-line react-hooks/exhaustive-deps
+  const times = (
+    [
+      ["OUT", entry.out],
+      ["OFF", entry.off],
+      ["ON", entry.on],
+      ["IN", entry.in],
+    ] as const
+  ).filter(([, v]) => v);
+  return (
+    <section className="la" aria-labelledby="la-h">
+      <div>
+        <h3 id="la-h" className="sp-h">
+          Arrived: {entry.from} → {entry.to}
+        </h3>
+        <p className="la-times mono">
+          {times.map(([k, v]) => (
+            <span key={k}>
+              <small>{k}</small> {v}Z
+            </span>
+          ))}
+          {entry.landingFpm != null && (
+            <span>
+              <small>Landing</small> {entry.landingFpm} fpm
+            </span>
+          )}
+        </p>
+        {times.length < 4 && <p className="muted small">Only the times the feed saw: it joined the flight part-way.</p>}
+      </div>
+      <div className="la-act">
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => setDone(saveFlight(entry) ? "saved" : "failed")}
+        >
+          {done === "saved" ? "Written to your Logbook" : had ? "Update it in your Logbook" : "Write to my Logbook"}
+        </button>
+        {done === "saved" && (
+          <Link className="linkish small" href="/logbook">
+            Open the Logbook
+          </Link>
+        )}
+        {done === "failed" && <span className="small">The browser refused to save it (storage full or blocked).</span>}
+      </div>
+    </section>
+  );
+}

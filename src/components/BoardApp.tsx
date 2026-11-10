@@ -36,7 +36,8 @@ import type { FlightContext } from "@/lib/feed/core";
 import { useObsScene } from "@/lib/feed/obs";
 import { CLOCK_FEED, feedFromParams, useFlightFeed, type FeedConfig } from "@/lib/feed/useFlightFeed";
 import { GateViewScreen, shownView } from "./board/GateViews";
-import { REHEARSE_REC, RehearseStrip, StreamPanel } from "./board/StreamPanel";
+import { LogArrival, REHEARSE_REC, RehearseStrip, StreamPanel } from "./board/StreamPanel";
+import { logFromFeed } from "@/lib/feed/toLog";
 import { localClock, screenNow, zoneLabel, type GateWx } from "./board/GateScreen";
 import { cx, radioKeys, roving } from "./ui";
 
@@ -351,6 +352,12 @@ export function BoardApp() {
     return `${window.location.origin}/board?${q}`;
   };
 
+  // at the gate (a live flight, not a rehearsal): one click writes its times to the Logbook
+  const arrivedLog = useMemo(
+    () => (!screen && !rehearse && flight && live.state?.stage === "arrived" ? logFromFeed(flight, live.state, live.using, gate.reg || null) : null),
+    [screen, rehearse, flight, live.state, live.using, gate.reg],
+  );
+
   // the Stream panel's URL: one browser source that follows the aircraft and the OBS scene
   const streamUrl = () => {
     const q = gateToParams({ ...gate, view: "auto" }, now, { tab: "gate", screen: "1", feed: "auto", who: feedCfg.who });
@@ -593,6 +600,8 @@ export function BoardApp() {
                   onStop={() => setRehearse(null)}
                   onHold={(hold) => patch({ hold })}
                 />
+                {/* last on the page: it appears when the aircraft reaches the gate and moves nothing */}
+                {arrivedLog && <LogArrival entry={arrivedLog} />}
               </>
             )}
           </div>
