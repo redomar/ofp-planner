@@ -420,22 +420,22 @@ select.ctl-input {
     transform: rotate(90deg);
   }
 }
-/* phones: the advanced filters fold behind "More filters" (wider screens show them all, without the button) */
+/* the advanced filters fold behind "More filters" on every screen (1.8): Airline, From and To stay; a filter in use opens them */
 .more-filters {
-  display: none !important;
+  display: inline-flex !important;
 }
-@media (max-width: 640px) {
-  .more-filters {
-    display: inline-flex !important;
-  }
-  .filters-grid.less > .multi:nth-child(5),
-  .filters-grid.less > .len,
-  .filters-grid.less > .days,
-  .filters-grid.less > .after,
-  .filters-grid.less > .search {
-    display: none;
-  }
-  /* …and their rows go too (an empty grid row still takes its gap) */
+.filters-grid.less > .multi:nth-child(5),
+.filters-grid.less > .len,
+.filters-grid.less > .days,
+.filters-grid.less > .after,
+.filters-grid.less > .search {
+  display: none;
+}
+/* …and their rows go too (an empty grid row still takes its gap) */
+.filters-grid.less {
+  grid-template-areas: "al dep swap arr type";
+}
+@media (max-width: 900px) {
   .filters-grid.less {
     grid-template-areas:
       "al al al"
@@ -6561,6 +6561,23 @@ div.empty-note p {
 .dp-sketch .sk-dot {
   fill: var(--ink);
 }
+.dp-sketch .sk-mag {
+  fill: var(--magenta);
+}
+.dp-sketch .sk-water {
+  fill: var(--water);
+  stroke: var(--rule-strong);
+}
+.dp-sketch .sk-hot {
+  fill: var(--magenta-bg);
+}
+.dp-cards.four {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+}
+.dp-pv-finder {
+  display: grid;
+  gap: 8px;
+}
 /* the badge sample: real rows, then a key that follows the answer */
 .dp-badges {
   margin: 10px 0 4px;
@@ -6771,4 +6788,274 @@ div.empty-note p {
   .dp-city {
     display: none;
   }
+}
+
+/* ---------- Finder layouts (1.8): Full, Calm, Roll first, In place ---------- */
+/* the filter as a sentence: each word a control (its label kept for screen readers) */
+.sf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 8px;
+  min-width: 0;
+  font-size: 15px;
+}
+.sf .ctl-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.sf-w {
+  color: var(--ink-2);
+}
+.sf-ctl {
+  min-width: 0;
+}
+.sf-al {
+  width: 170px;
+}
+.sf-place {
+  width: 190px;
+}
+.sf .ctl-input {
+  height: 34px;
+}
+.sf-day {
+  width: auto;
+  padding-right: 24px;
+}
+.sf-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+.sf-end {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sf-end .more-filters,
+.rh-actions .more-filters {
+  margin-top: 0;
+}
+.sf-more {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--rule);
+  display: grid;
+  gap: 10px;
+}
+.sf-more-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 12px;
+  align-items: end;
+}
+.sf-more-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+@media (max-width: 640px) {
+  .sf-al,
+  .sf-place {
+    width: 100%;
+  }
+  .sf-ctl:has(.sf-day) {
+    flex: 1;
+  }
+  .sf-end {
+    margin-left: 0;
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+/* Roll first: the question, the sentence and a rolled flight on the pass */
+.roll-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 470px);
+  gap: 20px 28px;
+  align-items: start;
+  padding: 22px 22px 20px;
+}
+.rh-title {
+  margin: 0 0 6px;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 30px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.rh-ask > p {
+  margin: 0 0 14px;
+}
+.rh-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-top: 14px;
+}
+.rh-ask .rh-after {
+  margin: 12px 0 0;
+  min-height: 1.5em;
+}
+.rh-card {
+  min-width: 0;
+  scroll-margin-top: 72px;
+}
+.rh-empty {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  margin: 0;
+  border: 1px dashed var(--rule-strong);
+  border-radius: var(--radius);
+  text-align: center;
+  padding: 16px;
+}
+.rh-card .fcard-head,
+.row-open .fcard-head {
+  position: static;
+}
+.list-title {
+  margin: 0;
+  padding: 12px 14px 4px;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+@media (max-width: 900px) {
+  .roll-hero {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 16px 14px;
+  }
+  .rh-title {
+    font-size: 24px;
+  }
+}
+/* short rows: city first, the code quiet beside it; a pinned airline is its colour square */
+.flights.short td,
+.flights.short th {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+.city-first {
+  font-weight: 600;
+}
+.id-sq {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.al-sq {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  flex: none;
+}
+/* In place: the picked row opens under itself into the pass and the map */
+.flights tr.is-open > td {
+  border-bottom: 0;
+}
+.flights tr.row-open > td {
+  padding: 4px 10px 14px;
+  background: var(--magenta-bg);
+  cursor: default;
+}
+.row-open .fcard {
+  box-shadow: none;
+}
+@container (min-width: 820px) {
+  .row-open .fcard-body {
+    display: grid;
+    grid-template-columns: minmax(0, 470px) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+.flights tr.row-open:hover > td {
+  background: var(--magenta-bg);
+}
+/* the flight panel's extras: folded sections (Full) or tabs (the calmer layouts) */
+.fc-fold {
+  border-top: 1px solid var(--rule);
+}
+.fc-fold > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 13.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  list-style: none;
+}
+.fc-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.fc-fold > summary::before {
+  content: "+";
+  font-family: var(--font-mono);
+  width: 1ch;
+  color: var(--ink-2);
+}
+.fc-fold[open] > summary::before {
+  content: "−";
+}
+.fc-fold-body {
+  display: grid;
+  gap: 12px;
+  padding: 0 0 12px;
+}
+.fc-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--rule);
+}
+.fc-tab {
+  padding: 9px 10px 7px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.fc-tab[aria-selected="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--magenta);
+}
+.fc-tabpanel {
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+}
+/* T1: a dot after a time = other days differ (the column heading says it once) */
+.var-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 3px;
+  border-radius: 50%;
+  background: var(--ink-2);
+  vertical-align: 3px;
+}
+.th-dot {
+  margin-left: 5px;
 }

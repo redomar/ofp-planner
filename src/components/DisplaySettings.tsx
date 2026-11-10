@@ -10,7 +10,7 @@ import { enrich } from "@/lib/data/query";
 import type { AirlineInfo, Manifest } from "@/lib/data/types";
 import { routeColor, textOn } from "@/lib/colors";
 import { airportLabel, cityName, hhmm, isoDay, onDay, plannedOut, varies } from "@/lib/data/flight";
-import { DEFAULT_DISPLAY, useDisplay, writeDisplay, type AirlineSet, type Display, type PassStyle, type VariesMark } from "@/lib/display";
+import { DEFAULT_DISPLAY, useDisplay, writeDisplay, type AirlineSet, type Display, type FinderLayout, type PassStyle, type VariesMark } from "@/lib/display";
 import { RouteHead } from "./RouteHead";
 import { DayTabs, WeekTimes } from "./WeekTimes";
 import { FlightIdent, GuessMark, TypeBadge, VariesMark as VaryMark } from "./badges";
@@ -64,6 +64,25 @@ const SETTINGS: Record<Key, Setting> = {
       ["tag", "VAR tag"],
       ["word", "“varies”"],
       ["tilde", "~"],
+      ["dot", "Dot"],
+    ],
+  },
+  pinShort: {
+    name: "What the filter pins",
+    help: "One airline or origin chosen",
+    options: [
+      [false, "Shown in full"],
+      [true, "Shown short"],
+    ],
+  },
+  finder: {
+    name: "Finder layout",
+    help: "How much the Finder shows",
+    options: [
+      ["full", "Full"],
+      ["calm", "Calm"],
+      ["roll", "Roll first"],
+      ["place", "In place"],
     ],
   },
   pass: {
@@ -144,9 +163,10 @@ const SETTINGS: Record<Key, Setting> = {
   },
 };
 
-type GroupId = "list" | "card" | "maps" | "log" | "listed";
+type GroupId = "finder" | "list" | "card" | "maps" | "log" | "listed";
 const GROUPS: { id: GroupId; title: string; keys: Key[] }[] = [
-  { id: "list", title: "Flights list", keys: ["airlineTag", "flightFirst", "typeColour", "typeTheme", "variesMark"] },
+  { id: "finder", title: "Finder layout", keys: ["finder"] },
+  { id: "list", title: "Flights list", keys: ["airlineTag", "flightFirst", "typeColour", "typeTheme", "variesMark", "pinShort"] },
   { id: "card", title: "Flight card", keys: ["pass", "passFlip", "tickets", "week"] },
   { id: "maps", title: "Maps", keys: ["mapCodes", "mapLines"] },
   { id: "log", title: "Logbook", keys: ["logbook"] },
@@ -162,12 +182,19 @@ const PASS_CARDS: [PassStyle, string, string][] = [
   ["city", "Ticket, city first", "Big city names, local time first."],
 ];
 
+const FINDER_CARDS: [FinderLayout, string, string][] = [
+  ["full", "Full", "Everything on one page, a little tidier: unused filters behind More filters, the panel’s extras folded."],
+  ["calm", "Calm", "A sentence for the filter, shorter rows, the flight in a panel with tabs."],
+  ["roll", "Roll first", "Opens on “Where are you flying from?” and a rolled flight; the list below."],
+  ["place", "In place", "No panel: the row you pick opens where it is, pass and map."],
+];
+
 const optLabel = (k: Key, v: Display[Key]) => SETTINGS[k].options.find(([o]) => o === v)?.[1] ?? String(v);
 
 export function DisplayPrefs({ manifest }: { manifest: Manifest | null }) {
   const d = useDisplay();
   const view = d.settingsView;
-  const [group, setGroup] = useState<GroupId>("list");
+  const [group, setGroup] = useState<GroupId>("finder");
   const [hot, setHot] = useState<Key | null>(null);
   const changed = ALL_KEYS.filter((k) => d[k] !== DEFAULT_DISPLAY[k]);
   const resetAll = () => writeDisplay(Object.fromEntries(ALL_KEYS.map((k) => [k, DEFAULT_DISPLAY[k]])) as Partial<Display>);
@@ -282,19 +309,21 @@ function Row({ k, d, view, hot, onHot, manifest, onPreview }: { k: Key; d: Displ
     </div>
   );
   // settings with a shape are picture cards
-  if (k === "pass" && view === "rows")
+  if ((k === "pass" || k === "finder") && view === "rows") {
+    const cards: [string, string, string, ReactNode][] =
+      k === "pass" ? PASS_CARDS.map(([v, t, n]) => [v, t, n, <PassSketch key={v} style={v} />]) : FINDER_CARDS.map(([v, t, n]) => [v, t, n, <FinderSketch key={v} layout={v} />]);
     return (
       <div className={cx("dp-row dp-wide", hot && "hot")} onMouseEnter={() => onHot(k)} onFocus={() => onHot(k)}>
         {head}
-        <div className="dp-cards" role="radiogroup" aria-labelledby="dp-pass-l" aria-describedby="dp-pass-h">
-          {PASS_CARDS.map(([v, title, note]) => (
+        <div className={cx("dp-cards", k === "finder" && "four")} role="radiogroup" aria-labelledby={`dp-${k}-l`} aria-describedby={`dp-${k}-h`}>
+          {cards.map(([v, title, note, pic]) => (
             <label key={v} className="dp-card">
-              <input type="radio" name="pass" checked={d.pass === v} onChange={() => writeDisplay({ pass: v })} />
+              <input type="radio" name={k} checked={d[k] === v} onChange={() => writeDisplay({ [k]: v } as Partial<Display>)} />
               <span className="dp-card-t">
                 {title}
-                {v === DEFAULT_DISPLAY.pass && <small className="muted"> default</small>}
+                {v === DEFAULT_DISPLAY[k] && <small className="muted"> default</small>}
               </span>
-              <PassSketch style={v} />
+              {pic}
               <small className="dp-card-n">{note}</small>
             </label>
           ))}
@@ -302,6 +331,7 @@ function Row({ k, d, view, hot, onHot, manifest, onPreview }: { k: Key; d: Displ
         {undo && <div className="dp-c">{undo}</div>}
       </div>
     );
+  }
   return (
     <div className={cx("dp-row", hot && "hot")} onMouseEnter={() => onHot(k)} onFocus={() => onHot(k)}>
       {head}
@@ -481,6 +511,13 @@ function Preview({ group, hot, manifest }: { group: GroupId; hot: string | null;
   const varying = useVaryingSample();
   const al = (c: string) => manifest?.airlines.find((a) => a.icao === c);
   if (group === "list") return <SampleTable rows={rows} hot={hot} />;
+  if (group === "finder")
+    return (
+      <div className="dp-pv-finder">
+        <FinderSketch layout={d.finder} />
+        <p className="small muted">{FINDER_CARDS.find(([v]) => v === d.finder)?.[2]}</p>
+      </div>
+    );
   if (group === "maps")
     return (
       <div className="dp-pv-maps">
@@ -568,6 +605,68 @@ function band(al: AirlineInfo | undefined) {
   const second = al?.colors?.secondary;
   const accent = second && /^#[0-9a-f]{6}$/i.test(second) && second.toLowerCase() !== color.toLowerCase() ? second : ink;
   return { ["--al" as string]: color, ["--al-ink" as string]: ink, ["--al-2" as string]: accent };
+}
+
+/** A picture of each Finder layout: filters, list and where the flight opens. */
+function FinderSketch({ layout }: { layout: FinderLayout }) {
+  const lines = (x: number, y: number, w: number, n: number, gap = 7) =>
+    Array.from({ length: n }, (_, i) => <rect key={i} className="sk-dim" x={x} y={y + i * gap} width={w} height="2.5" />);
+  return (
+    <svg className="dp-sketch" viewBox="0 0 160 96" aria-hidden="true">
+      <rect className="sk-paper" x="1" y="1" width="158" height="94" rx="4" />
+      {layout === "full" ? (
+        <>
+          <rect className="sk-dim" x="8" y="8" width="34" height="7" />
+          <rect className="sk-dim" x="46" y="8" width="34" height="7" />
+          <rect className="sk-dim" x="84" y="8" width="34" height="7" />
+          <rect className="sk-mag" x="8" y="19" width="30" height="5" />
+          {lines(8, 32, 80, 9)}
+          <rect className="sk-paper" x="94" y="28" width="60" height="62" />
+          <rect className="sk-band" x="94" y="28" width="60" height="7" />
+          <rect className="sk-water" x="98" y="58" width="52" height="26" />
+        </>
+      ) : layout === "roll" ? (
+        <>
+          <rect className="sk-ink" x="8" y="10" width="54" height="6" />
+          <rect className="sk-dim" x="8" y="21" width="44" height="3" />
+          <rect className="sk-dim" x="8" y="30" width="26" height="7" />
+          <rect className="sk-mag" x="38" y="30" width="26" height="7" />
+          <rect className="sk-paper" x="90" y="8" width="62" height="40" />
+          <rect className="sk-band" x="90" y="8" width="62" height="7" />
+          <rect className="sk-btn" x="95" y="38" width="40" height="5" />
+          {lines(8, 60, 144, 5)}
+        </>
+      ) : (
+        <>
+          <rect className="sk-ink" x="8" y="8" width="18" height="6" />
+          <rect className="sk-dim" x="30" y="10" width="20" height="3" />
+          <rect className="sk-ink" x="54" y="8" width="22" height="6" />
+          <rect className="sk-dim" x="80" y="10" width="14" height="3" />
+          <rect className="sk-mag" x="130" y="8" width="22" height="6" />
+          {layout === "calm" ? (
+            <>
+              {lines(8, 26, 84, 9)}
+              <rect className="sk-paper" x="98" y="22" width="56" height="68" />
+              <rect className="sk-band" x="98" y="22" width="56" height="7" />
+              <rect className="sk-dim" x="102" y="52" width="10" height="3" />
+              <rect className="sk-dim" x="116" y="52" width="10" height="3" />
+              <rect className="sk-dim" x="130" y="52" width="10" height="3" />
+              <rect className="sk-water" x="102" y="60" width="48" height="24" />
+            </>
+          ) : (
+            <>
+              {lines(8, 26, 144, 2)}
+              <rect className="sk-hot" x="6" y="38" width="148" height="34" />
+              <rect className="sk-paper" x="10" y="42" width="66" height="26" />
+              <rect className="sk-band" x="10" y="42" width="66" height="6" />
+              <rect className="sk-water" x="82" y="42" width="68" height="26" />
+              {lines(8, 78, 144, 2)}
+            </>
+          )}
+        </>
+      )}
+    </svg>
+  );
 }
 
 /** A picture of each pass: band, both ends, and where the stub sits. */

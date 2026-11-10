@@ -46,6 +46,7 @@ export function PlacePicker({
   name,
   invalid,
   describedBy,
+  word,
 }: {
   label: string;
   value: string | null;
@@ -57,6 +58,8 @@ export function PlacePicker({
   /** A form error is about this field. */
   invalid?: boolean;
   describedBy?: string;
+  /** Reads as a word in a sentence ("Brussels EBBR" instead of "EBBR / BRU · Brussels Airport"): the airport's city for a value. */
+  word?: (value: string) => string | null;
 }) {
   const id = useId();
   const [text, setText] = useState("");
@@ -92,7 +95,11 @@ export function PlacePicker({
   const shown = open
     ? text
     : current
-      ? `${current.code}${current.alt && !current.country ? ` / ${current.alt}` : ""} · ${current.name}`
+      ? word
+        ? current.country
+          ? current.name
+          : `${word(current.value) ?? current.name} ${current.code}`
+        : `${current.code}${current.alt && !current.country ? ` / ${current.alt}` : ""} · ${current.name}`
       : (value?.replace(/^C:/, "") ?? "");
 
   return (

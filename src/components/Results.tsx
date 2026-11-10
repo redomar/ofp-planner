@@ -1,7 +1,7 @@
 "use client";
 
 import { Flag } from "./Flag";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { airportLabel, cityName, dur, hhmm } from "@/lib/data/flight";
 import type { Airport } from "@/lib/data/load";
 import type { Destination, Row, Sort, SortKey } from "@/lib/data/query";
@@ -12,6 +12,7 @@ import { useFontsReady, widestLabel } from "@/lib/measure";
 import { RouteMap } from "./RouteMap";
 import { FlightIdent, GuessMark, MoreTypes, TypeBadge, VariesMark, WeekStrip, freqLabel, guessedEnd } from "./badges";
 import { Tip, cx } from "./ui";
+import { useDisplay } from "@/lib/display";
 import { countryName } from "@/lib/places";
 
 const PAGE = 80;
@@ -37,6 +38,10 @@ export function FlightTable({
   onSelect,
   airports,
   airlines,
+  short = false,
+  pin,
+  pinShort = false,
+  renderOpen,
 }: {
   rows: Row[];
   sort: Sort | null;
@@ -45,6 +50,14 @@ export function FlightTable({
   onSelect: (r: Row) => void;
   airports: Map<string, Airport> | null;
   airlines: Map<string, AirlineInfo>;
+  /** Short rows: flight, the ends the filter leaves open (city first), times, block and type. */
+  short?: boolean;
+  /** What the filter pins down: one airline, one origin airport, one destination airport. */
+  pin?: { al: boolean; dep: boolean; arr: boolean };
+  /** Full rows with what the filter pins shown short: the airline as a colour square, a pinned airport as its code. */
+  pinShort?: boolean;
+  /** The picked row opens in place: what to show in a full-width row under it. */
+  renderOpen?: (r: Row) => ReactNode;
 }) {
   const [limit, setLimit] = useState(PAGE);
   // A new result set starts at the first page (adjusted during render, not in an effect).
@@ -74,15 +87,41 @@ export function FlightTable({
     const a = airports?.get(icao);
     return a ? (cityName(a) ?? a.name) : "";
   };
+  // what each row shows: short rows drop what the filter already says, and the columns nobody needs to pick a flight
+  const p = pin ?? { al: false, dep: false, arr: false };
+  const dotKey = useDisplay().variesMark === "dot";
+  const SHORT_OUT: SortKey[] = ["dist", "freq"];
+  const cols = COLS.filter(([k]) => !short || !(SHORT_OUT.includes(k) || (k === "dep" && p.dep) || (k === "arr" && p.arr)));
+  const has = (k: SortKey) => cols.some(([c]) => c === k);
+  const square = (short || pinShort) && p.al;
+  const codeOnly = (side: "dep" | "arr") => !short && pinShort && p[side];
+  const place = (icao: string, side: "o" | "d", f: Row["f"]) =>
+    short ? (
+      <>
+        <span className="city-first">{name(icao) || icao}</span>
+        {guessedEnd(f, side) && <GuessMark side={side} name={name(icao)} />} <small className="mono muted">{icao}</small>
+      </>
+    ) : (
+      <>
+        <span className="mono">{icao}</span>
+        {guessedEnd(f, side) && <GuessMark side={side} name={name(icao)} />}
+        {!codeOnly(side === "o" ? "dep" : "arr") && (
+          <>
+            {" "}
+            <small className="muted city">{name(icao)}</small>
+          </>
+        )}
+      </>
+    );
 
   return (
     <div className="results">
       <div className="tbl-wrap">
-        <table className="tbl flights" style={{ ["--id-w" as string]: `${idW}ch`, ["--al-w" as string]: `${alW}px` }}>
+        <table className={cx("tbl flights", short && "short")} style={{ ["--id-w" as string]: `${idW}ch`, ["--al-w" as string]: `${alW}px` }}>
           <caption className="sr-only">Flights matching the filters, {rows.length} in total. Select a flight to see its details.</caption>
           <thead>
             <tr>
-              {COLS.map(([k, label, tip, cls]) => {
+              {cols.map(([k, label, tip, cls]) => {
                 const on = sort?.key === k;
                 return (
                   <th key={k} scope="col" className={cls} aria-sort={on ? (sort!.dir === 1 ? "ascending" : "descending") : undefined}>
@@ -94,6 +133,7 @@ export function FlightTable({
                       ) : (
                         label
                       )}
+                      {dotKey && (k === "std" || k === "sta") && <span className="var-dot th-dot" role="img" aria-label="a dot after a time: other days differ" title="A dot after a time: other days differ" />}
                       <span className="th-arrow" aria-hidden="true">
                         {on ? (sort!.dir === 1 ? "▲" : "▼") : ""}
                       </span>
@@ -101,11 +141,13 @@ export function FlightTable({
                   </th>
                 );
               })}
-              <th scope="col" className="hide-s">
-                <Tip tip={GLOSSARY.days} title="Days" plain>
-                  Days
-                </Tip>
-              </th>
+              {!short && (
+                <th scope="col" className="hide-s">
+                  <Tip tip={GLOSSARY.days} title="Days" plain>
+                    Days
+                  </Tip>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -113,27 +155,31 @@ export function FlightTable({
               const { f } = r;
               const al = airlines.get(f.al);
               const sel = selected === f.id;
+              const open = sel && renderOpen;
               return (
-                <tr key={f.id} className={cx(sel && "sel")} onClick={() => onSelect(r)}>
+                <Fragment key={f.id}>
+                <tr className={cx(sel && "sel", open && "is-open")} onClick={() => onSelect(r)}>
                   <td>
                     <button
                       type="button"
                       className="row-btn"
                       aria-pressed={sel}
+                      aria-expanded={renderOpen ? sel : undefined}
                       title={f.fn && f.cs ? `Callsign ${f.cs}` : undefined}
                       onClick={(e) => (e.stopPropagation(), onSelect(r))}
                     >
-                      <FlightIdent airline={al} fallback={f.al} ident={identOf(r)} />
+                      {square ? (
+                        <span className="id-sq">
+                          <span className="al-sq" style={{ background: routeColor(al) }} title={al?.name ?? f.al} aria-hidden="true" />
+                          <span className="mono">{identOf(r)}</span>
+                        </span>
+                      ) : (
+                        <FlightIdent airline={al} fallback={f.al} ident={identOf(r)} />
+                      )}
                     </button>
                   </td>
-                  <td>
-                    <span className="mono">{f.o}</span>
-                    {guessedEnd(f, "o") && <GuessMark side="o" name={name(f.o)} />} <small className="muted city">{name(f.o)}</small>
-                  </td>
-                  <td>
-                    <span className="mono">{f.d}</span>
-                    {guessedEnd(f, "d") && <GuessMark side="d" name={name(f.d)} />} <small className="muted city">{name(f.d)}</small>
-                  </td>
+                  {has("dep") && <td>{place(f.o, "o", f)}</td>}
+                  {has("arr") && <td>{place(f.d, "d", f)}</td>}
                   <td className="mono num">
                     <VariesMark f={f}>
                       <Clock sched={f.std} obs={f.out ?? f.off} kind={f.out != null ? "OUT" : "OFF"} />
@@ -152,16 +198,24 @@ export function FlightTable({
                       </span>
                     )}
                   </td>
-                  <td className="mono num hide-s c-dist">{r.nm ?? "—"}</td>
+                  {has("dist") && <td className="mono num hide-s c-dist">{r.nm ?? "—"}</td>}
                   <td className="hide-xs">
                     {f.types[0] ? <TypeBadge type={f.types[0]} airline={al} guessed={f.typeGuessed} /> : "—"}
                     <MoreTypes types={f.types.slice(1)} />
                   </td>
-                  <td className="mono num hide-xs freq">{freqLabel(f.days) ?? <span className="muted">—</span>}</td>
-                  <td className="hide-s">
-                    <WeekStrip days={f.days} />
-                  </td>
+                  {has("freq") && <td className="mono num hide-xs freq">{freqLabel(f.days) ?? <span className="muted">—</span>}</td>}
+                  {!short && (
+                    <td className="hide-s">
+                      <WeekStrip days={f.days} />
+                    </td>
+                  )}
                 </tr>
+                {open && (
+                  <tr className="row-open">
+                    <td colSpan={cols.length + (short ? 0 : 1)}>{renderOpen(r)}</td>
+                  </tr>
+                )}
+                </Fragment>
               );
             })}
           </tbody>

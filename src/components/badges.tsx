@@ -216,6 +216,8 @@ export function VariesMark({ f, children }: { f: FlightRow; children: ReactNode 
         <span className="var-tilde" aria-label="varies by day">
           ~
         </span>
+      ) : variesMark === "dot" ? (
+        <span className="var-dot" role="img" aria-label="varies by day" />
       ) : (
         <sup className="var-tag" aria-label="varies by day">
           VAR

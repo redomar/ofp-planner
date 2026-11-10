@@ -19,6 +19,13 @@ The flight card becomes a boarding pass (the first part of 1.8).
 - **Rows or Preview.** A View switch at the top of Display: Rows (a sample on each row) or Preview, where one live preview beside the rows (real table rows, the pass with its band, the week’s times, a ticket, the maps) redraws as you choose, and pointing at a setting outlines what it changes. The choice is remembered.
 - **Aircraft badges as two plain questions**: “Colour shows: Maker, Airline or Nothing” and “Style: Filled or Edge”, answered on real table rows with a key that follows the answer. “Filled” is now one recipe: by airline it is a light tint of the airline’s colour with its edge, like by maker (it was a solid block). “Nothing” is new: plain badges, the maker on hover. Saved choices carry over.
 - Airlines (common / Extra+) and Guessed airports are now in the What’s listed group.
+- **Four Finder layouts** (Settings → Display → Finder layout), built from the same parts:
+  - **Full** (default): everything on one page, as before, a little tidier.
+  - **Calm**: the filter reads as a sentence (“Ryanair flights from Brussels to anywhere on any day”), each word a control, the rest behind More filters; shorter rows that leave out what the sentence already says (city first, the code beside it); the flight in a panel with tabs (Map, Times, Week, Details; the last tab is kept).
+  - **Roll first**: opens on “Where are you flying from?” with a real flight already rolled onto the pass; Roll again, or pick from the list below and it lands on the pass.
+  - **In place**: no floating panel; the row you pick opens under itself into the pass and the map, and closes when you pick it again.
+- **Full, tidier**: the filters you haven’t set (aircraft, block time, days, after, flight number) fold behind More filters on every screen, as phones already did; one in use shows them. The flight panel opens with the pass and the map; Times, Week and Details are headed sections you open with a click, and the panel remembers what you left open.
+- Two new display options, off by default: **a dot** for times that change on other days (the column heading explains it once), and **what the filter pins shown short** (one airline as its colour square, one origin as its code).
 
 ## 1.7.3 — 2026-11-09
 

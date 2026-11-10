@@ -151,7 +151,14 @@ async function run() {
           }
       }).observe({ type: "layout-shift", buffered: true });
     });
-    await page.goto(base + path, { waitUntil: "networkidle" });
+    // a busy machine can miss the 30 s window once; a second, longer wait still fails a page that never settles
+    try {
+      await page.goto(base + path, { waitUntil: "networkidle" });
+    } catch (e) {
+      if (e?.name !== "TimeoutError") throw e;
+      console.log(`note: ${path} slow to settle, retrying once`);
+      await page.goto(base + path, { waitUntil: "networkidle", timeout: 90000 });
+    }
     return { ctx, page, errors };
   };
 
@@ -180,6 +187,11 @@ async function run() {
       return true;
     });
     errs.length ? fail(`${label}: console errors ${JSON.stringify(errs.slice(0, 3))}`) : pass(`${label}: 0 console errors`);
+  };
+  /** Opens a folded section of the flight panel (Full layout) if it's closed. */
+  const openFold = async (page, sec) => {
+    const d = page.locator(`.drawer .fc-fold[data-sec="${sec}"]:not([open]) > summary`);
+    if (await d.count()) await d.click();
   };
   const shot = async (page, name) => {
     if (!SHOTS) return;
@@ -308,6 +320,8 @@ async function run() {
     // next leg
     await page.locator("table.flights tbody tr").first().click();
     const firstDest = (await page.locator(".fcard-end.arr .code-flap .flap").getAttribute("aria-label"))?.slice(0, 4);
+    // (Full keeps Details folded until opened, 1.8)
+    await openFold(page, "details");
     await page.getByRole("button", { name: /^Next leg from/ }).click();
     await page.waitForTimeout(300);
     const dep2 = new URL(page.url()).searchParams.get("dep");
@@ -1070,7 +1084,7 @@ async function run() {
     await page.waitForSelector(".dp-badges .dp-tr");
     // groups on the left with how many settings each holds
     const groups = await page.locator(".dp-nav-i").evaluateAll((b) => b.map((x) => x.innerText.replace(/\s+/g, " ").trim()));
-    groups.join("|").toLowerCase() === "Flights list 5|Flight card 4|Maps 2|Logbook 1|What’s listed 2".toLowerCase()
+    groups.join("|").toLowerCase() === "Finder layout 1|Flights list 6|Flight card 4|Maps 2|Logbook 1|What’s listed 2".toLowerCase()
       ? pass(`display: groups with their counts (${groups.join(", ")})`)
       : fail(`display: groups ${JSON.stringify(groups)}`);
     // one row per setting, a segmented control of real radios, "changed · undo", Reset all
@@ -1100,7 +1114,7 @@ async function run() {
     await checkPage("settings display rows 1280 light", page, errors);
     await shot(page, "settings-display-rows-day");
     // the pass style is three picture cards
-    const cards = await page.locator(".dp-card").count();
+    const cards = await page.locator(".dp-card:has(input[name=pass])").count();
     await page.locator(".dp-card").filter({ hasText: "Ticket, city first" }).click();
     const pass3 = await page.evaluate(() => JSON.parse(localStorage.getItem("ofp-planner:display")).pass);
     cards === 3 && pass3 === "city" ? pass("display: the pass style is three picture cards") : fail(`display: pass cards ${cards} ${pass3}`);
@@ -1153,6 +1167,140 @@ async function run() {
       if (w === 390) await shot(o.page, `settings-display-${view}-phone-${theme}`);
       await o.ctx.close();
     }
+  });
+
+  /* ---------- 1.8: Finder layouts (Full, Calm, Roll first, In place) and the Full tweaks ---------- */
+  await section("finder layouts", async () => {
+    const at = async (display, path, opts) => {
+      const o = await open("/settings", opts);
+      await o.page.evaluate((d) => localStorage.setItem("ofp-planner:display", JSON.stringify(d)), display);
+      await o.page.goto(`${base}${path}`, { waitUntil: "networkidle" });
+      return o;
+    };
+    // Full (default), T4: the filters you haven't set fold behind More filters on a desktop too; a filter in use shows them
+    {
+      const o = await at({}, "/?al=RYR&dep=EBBR");
+      await o.page.waitForSelector("table.flights tbody tr");
+      const folded = await o.page.evaluate(() => ({ days: getComputedStyle(document.querySelector(".filters-grid > .days")).display, more: getComputedStyle(document.querySelector(".more-filters")).display }));
+      await o.page.goto(`${base}/?al=RYR&dep=EBBR&days=1`, { waitUntil: "networkidle" });
+      const shown = await o.page.evaluate(() => getComputedStyle(document.querySelector(".filters-grid > .days")).display);
+      folded.days === "none" && folded.more !== "none" && shown !== "none" ? pass("full: unused filters fold behind More filters at 1280; a filter in use opens them") : fail(`full T4: ${JSON.stringify({ folded, shown })}`);
+      // T3: the panel opens with the pass and the map; Times/Week/Details fold, and what was left open is remembered
+      await o.page.locator("table.flights tbody tr").first().click();
+      await o.page.waitForSelector(".drawer .fc-fold");
+      const secs = await o.page.locator(".drawer .fc-fold > summary").allInnerTexts();
+      const closed = await o.page.locator(".drawer .fc-fold[open]").count();
+      const map = await o.page.locator(".drawer .fcard-rest > .route-map, .drawer .fcard-rest svg").count();
+      await o.page.locator(".drawer .fc-fold > summary", { hasText: "Details" }).click();
+      await o.page.locator("table.flights tbody tr").nth(1).click();
+      await o.page.waitForTimeout(300);
+      const kept = await o.page.locator('.drawer .fc-fold[data-sec="details"][open] .facts').count();
+      secs.map((x) => x.toLowerCase()).includes("details") && closed === 0 && map > 0 && kept === 1
+        ? pass(`full: the panel opens with pass and map, ${secs.join(", ")} folded; Details stays open for the next flight`)
+        : fail(`full T3: ${JSON.stringify({ secs, closed, map, kept })}`);
+      await checkPage("finder full 1280 light", o.page, o.errors);
+      await o.ctx.close();
+    }
+    // T1 and T2: a dot for times that vary (explained once in the heading); what the filter pins shown short
+    {
+      const o = await at({ variesMark: "dot", pinShort: true }, "/?al=RYR&dep=EBBR");
+      await o.page.waitForSelector("table.flights tbody tr");
+      const t = await o.page.evaluate(() => ({
+        dots: document.querySelectorAll("table.flights tbody .var-dot").length,
+        head: document.querySelectorAll("table.flights thead .th-dot").length,
+        tags: document.querySelectorAll("table.flights tbody .var-tag").length,
+        sq: document.querySelectorAll("table.flights tbody .al-sq").length,
+        names: document.querySelectorAll("table.flights tbody .al-tag, table.flights tbody .split-pill").length,
+        fromCity: document.querySelector("table.flights tbody tr td:nth-child(2) small.city"),
+        toCity: !!document.querySelector("table.flights tbody tr td:nth-child(3) small.city"),
+      }));
+      t.dots > 0 && t.head >= 1 && t.tags === 0 && t.sq > 0 && !t.fromCity && t.toCity
+        ? pass(`full: VAR as a dot (${t.dots}, heading explains it); one airline as its colour square, the pinned origin as its code`)
+        : fail(`full T1/T2: ${JSON.stringify(t)}`);
+      await checkPage("finder full dot + short 1280 light", o.page, o.errors);
+      await o.ctx.close();
+    }
+    // Calm: the sentence, short rows, the panel with tabs (the tab is remembered)
+    {
+      const o = await at({ finder: "calm" }, "/?al=RYR&dep=EBBR");
+      await o.page.waitForSelector("table.flights tbody tr");
+      const heads = await o.page.locator("table.flights thead th").allInnerTexts();
+      const sentence = await o.page.locator(".sf").innerText();
+      const day = await o.page.getByLabel("Day", { exact: true }).count();
+      await o.page.locator("table.flights tbody tr").first().click();
+      await o.page.waitForSelector(".drawer .fc-tabs");
+      const tabs = await o.page.locator(".drawer .fc-tab").allInnerTexts();
+      await o.page.getByRole("tab", { name: "Details" }).click();
+      const facts = await o.page.locator(".drawer .fc-tabpanel .facts").count();
+      await o.page.locator("table.flights tbody tr").nth(1).click();
+      await o.page.waitForTimeout(300);
+      const still = await o.page.locator(".drawer .fc-tab[aria-selected=true]").innerText();
+      const h = heads.map((x) => x.trim().toLowerCase());
+      !h.includes("from") && !h.includes("dist") && !h.includes("freq") && /flights from/.test(sentence) && day === 1 && tabs.length >= 2 && facts === 1 && /details/i.test(still)
+        ? pass(`calm: “${sentence.replace(/\s+/g, " ").trim()}”; short rows (${h.join(", ")}); panel tabs ${tabs.join(" | ")}, the last tab kept`)
+        : fail(`calm: ${JSON.stringify({ h, sentence, day, tabs, facts, still })}`);
+      await checkPage("finder calm 1280 light", o.page, o.errors);
+      await o.ctx.close();
+    }
+    // Roll first: opens on the question with a rolled flight; Roll again changes it; a row from the list lands in the hero
+    {
+      const o = await at({ finder: "roll" }, "/?al=RYR&dep=EBBR");
+      await o.page.waitForSelector(".roll-hero .rh-card .fcard");
+      const q = await o.page.locator("#rh-q").innerText();
+      const first = await o.page.locator(".rh-card .fcard-no").innerText();
+      let again = first;
+      for (let i = 0; i < 5 && again === first; i++) {
+        await o.page.getByRole("button", { name: "Roll again" }).click();
+        again = await o.page.locator(".rh-card .fcard-no").innerText();
+      }
+      const row = o.page.locator("table.flights tbody tr").nth(3);
+      const ident = (await row.locator(".row-btn").innerText()).replace(/\s+/g, "");
+      await row.click();
+      await o.page.waitForTimeout(300);
+      const inHero = (await o.page.locator(".rh-card .fcard-no").innerText()).replace(/\s+/g, "");
+      const drawers = await o.page.locator(".drawer").count();
+      /where are you flying from/i.test(q) && again !== first && inHero.includes(ident.replace(/^[A-Z]{2,3}(?=\d)/, "")) && drawers === 0
+        ? pass(`roll first: opens on “${q}” with ${first.replace(/\s+/g, " ")} rolled; Roll again → ${again.replace(/\s+/g, " ")}; ${ident} from the list lands in the hero`)
+        : fail(`roll: ${JSON.stringify({ q, first, again, ident, inHero, drawers })}`);
+      await checkPage("finder roll 1280 light", o.page, o.errors);
+      await o.ctx.close();
+    }
+    // In place: the row opens under itself (pass and map), no floating panel; picking it again closes it
+    {
+      const o = await at({ finder: "place" }, "/?al=RYR&dep=EBBR");
+      await o.page.waitForSelector("table.flights tbody tr");
+      await o.page.locator("table.flights tbody tr").nth(2).click();
+      await o.page.waitForSelector("tr.row-open .fcard");
+      const r = await o.page.evaluate(() => {
+        const open = document.querySelector("tr.row-open");
+        return { prev: open.previousElementSibling.classList.contains("sel"), drawer: document.querySelectorAll(".drawer").length, map: !!open.querySelector(".fc-tabpanel svg, .fc-tabpanel canvas") };
+      });
+      await checkPage("finder in place 1280 light", o.page, o.errors);
+      await o.page.locator("table.flights tbody tr.sel .row-btn").click();
+      const closed = await o.page.locator("tr.row-open").count();
+      r.prev && r.drawer === 0 && r.map && closed === 0 ? pass("in place: the picked row opens under itself with the pass and the map, no panel; picking it again closes it") : fail(`place: ${JSON.stringify({ ...r, closed })}`);
+      await o.ctx.close();
+    }
+    // every layout at 1280 and 390, day and night, with a flight open
+    for (const layout of ["full", "calm", "roll", "place"])
+      for (const [w, theme] of [
+        [1280, "dark"],
+        [390, "light"],
+        [390, "dark"],
+      ]) {
+        const o = await at({ finder: layout }, "/?al=RYR&dep=EBBR", { width: w, height: 844, theme });
+        await o.page.waitForSelector(layout === "roll" ? ".rh-card .fcard" : "table.flights tbody tr");
+        await o.page.evaluate(() => (window.__cls = 0));
+        if (layout !== "roll") {
+          await o.page.locator("table.flights tbody tr .row-btn").nth(1).click();
+          await o.page.waitForSelector(layout === "place" ? "tr.row-open .fcard" : ".drawer .fcard");
+        }
+        await o.page.waitForTimeout(500);
+        await checkPage(`finder ${layout} ${w} ${theme}`, o.page, o.errors);
+        if (w === 390) await shot(o.page, `finder-${layout}-phone-${theme}`);
+        else await shot(o.page, `finder-${layout}-${theme}`);
+        await o.ctx.close();
+      }
   });
 
   /* ---------- 1.5.0: one row per flight, times by weekday ---------- */

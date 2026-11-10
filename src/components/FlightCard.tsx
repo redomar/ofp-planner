@@ -1,18 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { AirlineInfo } from "@/lib/data/types";
 import { DAY_NAMES, airportLabel, blockTime, dur, flightNo, hhmm, localHHMM, onDay, varies } from "@/lib/data/flight";
 import type { Airport } from "@/lib/data/load";
 import type { Row } from "@/lib/data/query";
 import { cleanFn, setFnOverride } from "@/lib/fnoverride";
-import { pushHistory, setInGroup, setReady, toggleFavourite, useSaved } from "@/lib/saved";
+import { pushHistory, readPrefs, setInGroup, setReady, toggleFavourite, useSaved, writePrefs } from "@/lib/saved";
 import { defaultChoice, flightDispatch, simbriefUrl, typeChoices, useAirframes } from "@/lib/simbrief";
 import { TypeBadge, WeekStrip, freqLabel } from "./badges";
 import { RouteHead } from "./RouteHead";
 import { RouteMap } from "./RouteMap";
-import { Badge, Tip, V, cx } from "./ui";
+import { Badge, Tip, V, cx, roving } from "./ui";
 import { GLOSSARY } from "@/lib/glossary";
 import { routeColor, textOn } from "@/lib/colors";
 import { markDispatched, useDispatched } from "@/lib/dispatched";
@@ -36,6 +36,7 @@ export function FlightCard({
   context = "finder",
   extra,
   placeHref,
+  rest = "stack",
 }: {
   row: Row;
   airline: AirlineInfo | undefined;
@@ -53,6 +54,11 @@ export function FlightCard({
   extra?: ReactNode;
   /** Makes each airport a link (the brief: to the finder with that airport as the origin). */
   placeHref?: (icao: string) => string;
+  /**
+   * What follows the pass: everything in a column (stack), the map then headed sections folded and
+   * remembered (folded, the Finder's Full layout), or the map, times, week and details as tabs (tabs).
+   */
+  rest?: "stack" | "folded" | "tabs";
 }) {
   const { f, nm, block } = row;
   const from = airports?.get(f.o);
@@ -179,6 +185,67 @@ export function FlightCard({
     </div>
   );
 
+  const map =
+    from && to ? (
+      <RouteMap
+          routes={[{ key: f.id, from, to, color, active: true }]}
+          height={250}
+          label={`Map: great-circle route from ${airportLabel(from)} to ${airportLabel(to)}, ${nm ?? "?"} nautical miles.`}
+        />
+    ) : null;
+
+  const facts = (
+    <dl className="facts">
+        <div>
+          <dt>
+            <Tip tip={GLOSSARY.types} title="Aircraft">
+              Aircraft
+            </Tip>
+          </dt>
+          <dd className="types-dd">
+            {f.types.length ? f.types.map((t) => <TypeBadge key={t} type={t} airline={airline} guessed={f.typeGuessed} />) : <V v={null} w={5} />}
+            {f.typeGuessed && <small className="muted"> airline’s usual type</small>}
+          </dd>
+        </div>
+        <div>
+          <dt>
+            <Tip tip={GLOSSARY.days} title="Operates">
+              Operates
+            </Tip>
+          </dt>
+          <dd className="days-dd">
+            {f.days.length ? (
+              <>
+                <WeekStrip days={f.days} />
+                <span className="mono">{freqLabel(f.days)}</span>
+              </>
+            ) : (
+              <span className="muted">Days not in snapshot</span>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>
+            <Tip tip={GLOSSARY.block} title="Block time">
+              Block
+            </Tip>
+          </dt>
+          <dd>
+            <span className="mono">{dur(block?.min) ?? "—"}</span>{" "}
+            {block && block.source !== "scheduled" && <Badge tone={block.source === "estimated" ? "amber" : "blue"}>{block.source}</Badge>}
+          </dd>
+        </div>
+        <div>
+          <dt>
+            <Tip tip={GLOSSARY.distance} title="Distance">
+              Distance
+            </Tip>
+          </dt>
+          <dd className="mono">{nm != null ? `${nm.toLocaleString("en-GB")} NM` : "—"}</dd>
+        </div>
+      </dl>
+  );
+
   const more = (
     <div className="dispatch">
       {onContinue && (
@@ -295,72 +362,105 @@ export function FlightCard({
           {stub}
         </div>
 
-        <div className="fcard-rest">
-      {from && to && (
-        <RouteMap
-          routes={[{ key: f.id, from, to, color, active: true }]}
-          height={250}
-          label={`Map: great-circle route from ${airportLabel(from)} to ${airportLabel(to)}, ${nm ?? "?"} nautical miles.`}
+        <CardRest
+          mode={rest}
+          sections={[
+            { id: "map", title: "Map", body: map },
+            !flip && { id: "times", title: "Times", body: times },
+            weekVaries && display.week !== "tabs" && { id: "week", title: "Week", body: <WeekTimes f={f} style={display.week} /> },
+            {
+              id: "details",
+              title: "Details",
+              body: (
+                <>
+                  {facts}
+                  {more}
+                </>
+              ),
+            },
+          ]}
         />
-      )}
-
-      {!flip && times}
-      {weekVaries && display.week !== "tabs" && <WeekTimes f={f} style={display.week} />}
-
-      <dl className="facts">
-        <div>
-          <dt>
-            <Tip tip={GLOSSARY.types} title="Aircraft">
-              Aircraft
-            </Tip>
-          </dt>
-          <dd className="types-dd">
-            {f.types.length ? f.types.map((t) => <TypeBadge key={t} type={t} airline={airline} guessed={f.typeGuessed} />) : <V v={null} w={5} />}
-            {f.typeGuessed && <small className="muted"> airline’s usual type</small>}
-          </dd>
-        </div>
-        <div>
-          <dt>
-            <Tip tip={GLOSSARY.days} title="Operates">
-              Operates
-            </Tip>
-          </dt>
-          <dd className="days-dd">
-            {f.days.length ? (
-              <>
-                <WeekStrip days={f.days} />
-                <span className="mono">{freqLabel(f.days)}</span>
-              </>
-            ) : (
-              <span className="muted">Days not in snapshot</span>
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt>
-            <Tip tip={GLOSSARY.block} title="Block time">
-              Block
-            </Tip>
-          </dt>
-          <dd>
-            <span className="mono">{dur(block?.min) ?? "—"}</span>{" "}
-            {block && block.source !== "scheduled" && <Badge tone={block.source === "estimated" ? "amber" : "blue"}>{block.source}</Badge>}
-          </dd>
-        </div>
-        <div>
-          <dt>
-            <Tip tip={GLOSSARY.distance} title="Distance">
-              Distance
-            </Tip>
-          </dt>
-          <dd className="mono">{nm != null ? `${nm.toLocaleString("en-GB")} NM` : "—"}</dd>
-        </div>
-      </dl>
-
-      {more}
-        </div>
       </div>
     </article>
+  );
+}
+
+/** Arrow keys, Home and End move between tabs and open the one reached (the tablist pattern). */
+function tabKeys(e: KeyboardEvent<HTMLElement>) {
+  const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+  if (!step && e.key !== "Home" && e.key !== "End") return;
+  const tabs = [...e.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]')];
+  const i = tabs.indexOf(document.activeElement as HTMLElement);
+  if (i < 0) return;
+  e.preventDefault();
+  const n = tabs.length;
+  const j = e.key === "Home" ? 0 : e.key === "End" ? n - 1 : (i + step + n) % n;
+  tabs[j].focus();
+  tabs[j].click();
+}
+
+type RestSection = { id: string; title: string; body: ReactNode };
+
+/** What follows the pass, in the chosen arrangement. Folded sections and the last tab are remembered. */
+function CardRest({ mode, sections }: { mode: "stack" | "folded" | "tabs"; sections: (RestSection | false)[] }) {
+  const list = sections.filter((x): x is RestSection => !!x && x.body != null);
+  const saved = useSaved();
+  const tabsId = useId();
+  if (mode === "stack")
+    return (
+      <div className="fcard-rest">
+        {list.map((x) => (
+          <Fragment key={x.id}>{x.body}</Fragment>
+        ))}
+      </div>
+    );
+  if (mode === "folded") {
+    const open = saved?.prefs.cardOpen ?? [];
+    const toggle = (id: string, on: boolean) => {
+      const now = readPrefs().cardOpen ?? [];
+      writePrefs({ cardOpen: on ? [...new Set([...now, id])] : now.filter((x) => x !== id) });
+    };
+    return (
+      <div className="fcard-rest">
+        {list.map((x) =>
+          x.id === "map" ? (
+            <Fragment key={x.id}>{x.body}</Fragment>
+          ) : (
+            <details key={x.id} className="fc-fold" data-sec={x.id} open={open.includes(x.id)} onToggle={(e) => toggle(x.id, (e.currentTarget as HTMLDetailsElement).open)}>
+              <summary>{x.title}</summary>
+              <div className="fc-fold-body">{x.body}</div>
+            </details>
+          ),
+        )}
+      </div>
+    );
+  }
+  const want = saved?.prefs.cardTab;
+  const cur = list.find((x) => x.id === want) ?? list[0];
+  const pick = (id: string) => writePrefs({ cardTab: id });
+  return (
+    <div className="fcard-rest fc-tabbed">
+      <div className="fc-tabs" role="tablist" aria-label="More about this flight" onKeyDown={tabKeys}>
+        {list.map((x, i) => (
+          <button
+            key={x.id}
+            type="button"
+            role="tab"
+            id={`${tabsId}-${x.id}`}
+            aria-selected={x === cur}
+            aria-controls={`${tabsId}-panel`}
+            tabIndex={roving(x === cur, i)}
+            className="fc-tab"
+            onClick={() => pick(x.id)}
+          >
+            {x.title}
+          </button>
+        ))}
+      </div>
+      <div className="fc-tabpanel" role="tabpanel" id={`${tabsId}-panel`} aria-labelledby={`${tabsId}-${cur?.id}`} data-sec={cur?.id}>
+        {cur?.body}
+      </div>
+    </div>
   );
 }
 

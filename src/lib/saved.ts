@@ -242,6 +242,10 @@ export interface Prefs {
   spread: boolean;
   /** Group new favourites go into. */
   lastGroup?: string | null;
+  /** Flight panel (Full layout): which folded sections were left open. */
+  cardOpen?: string[];
+  /** Flight panel with tabs: the tab last picked. */
+  cardTab?: string;
 }
 export const DEFAULT_PREFS: Prefs = { airlines: ["EZY"], sort: null, view: "flights", spread: true };
 export const readPrefs = (): Prefs => ({ ...DEFAULT_PREFS, ...readJSON<Partial<Prefs>>(KEYS.prefs, {}) });

@@ -36,14 +36,20 @@ export interface Display {
   airlines: AirlineSet;
   /** List flights with an airport guessed from the climb-out or descent (Flight.inf). */
   guessed: boolean;
+  /** How much the Finder shows: everything (F0), calm (sentence filter, short rows, panel with tabs), roll first, or in place (the row unfolds). */
+  finder: FinderLayout;
+  /** Flights table: what the filter pins (one airline, one origin) shown short, a colour square and the code only. */
+  pinShort: boolean;
   /** Settings → Display: one row per setting with a sample, or the rows beside one live preview. */
   settingsView: SettingsView;
 }
 export type TypeColour = "maker" | "airline" | "none";
+export type FinderLayout = "full" | "calm" | "roll" | "place";
+export const FINDER_LAYOUTS: readonly FinderLayout[] = ["full", "calm", "roll", "place"];
 export type SettingsView = "rows" | "preview";
 export type AirlineSet = "common" | "extra";
 export type WeekStyle = "table" | "grouped" | "tabs" | "timeline";
-export type VariesMark = "tag" | "word" | "tilde";
+export type VariesMark = "tag" | "word" | "tilde" | "dot";
 export type MapCodes = "iata" | "icao" | "off";
 export type MapLines = "great" | "rhumb";
 export type LogbookStyle = "table" | "strips";
@@ -51,7 +57,7 @@ export type PassStyle = "side" | "track" | "city";
 
 export const PASS_STYLES: readonly PassStyle[] = ["side", "track", "city"];
 
-export const DEFAULT_DISPLAY: Display = { airlineTag: "solid", flightFirst: true, typeColour: "maker", typeTheme: "full", mapCodes: "iata", mapLines: "great", pass: "track", passFlip: true, tickets: true, week: "table", variesMark: "tag", logbook: "table", logBars: false, airlines: "common", guessed: false, settingsView: "rows" };
+export const DEFAULT_DISPLAY: Display = { airlineTag: "solid", flightFirst: true, typeColour: "maker", typeTheme: "full", mapCodes: "iata", mapLines: "great", pass: "track", passFlip: true, tickets: true, week: "table", variesMark: "tag", logbook: "table", logBars: false, airlines: "common", guessed: false, finder: "full", pinShort: false, settingsView: "rows" };
 
 export const readDisplay = (): Display => {
   const stored = readJSON<Partial<Display> & { mapCodes?: MapCodes | boolean; routeHead?: string }>(KEYS.display, {});
@@ -63,6 +69,7 @@ export const readDisplay = (): Display => {
   if (!rest.pass && routeHead) d.pass = routeHead === "pass" ? "side" : "track";
   if (!PASS_STYLES.includes(d.pass)) d.pass = DEFAULT_DISPLAY.pass;
   if (!["maker", "airline", "none"].includes(d.typeColour)) d.typeColour = DEFAULT_DISPLAY.typeColour;
+  if (!FINDER_LAYOUTS.includes(d.finder)) d.finder = DEFAULT_DISPLAY.finder;
   if (d.settingsView !== "rows" && d.settingsView !== "preview") d.settingsView = DEFAULT_DISPLAY.settingsView;
   return d as Display;
 };
