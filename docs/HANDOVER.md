@@ -364,7 +364,7 @@ server_latch_container_alternative: |
 
   - BRANCHES IN FLIGHT (keep current):
     · THE 1.8 / 1.9 SPEC FOR WHAT IS LEFT: docs/V1.8-BRIEF.md (decisions, each branch, what "done" means). Read it before continuing.
-    · feature/boarding-pass: LOCAL ONLY, committed, not pushed (2026-11-10). First of three 1.8 branches (then feature/settings-display,
+    · feature/boarding-pass: PUSHED, PR #16 open (2026-11-10; full verify 598/598). First of three 1.8 branches (then feature/settings-display,
       feature/finder-layouts; 1.9 = in-flight gate screen, stream flow, the OFP Link .exe). The user's decisions and the option sheets:
       ../ofp-planner-previews/v1.8-direction/ (01–07 + live/index.html). Done here: the pass in three styles, flip, stamp, tickets for
       favourites and recent, motion, migration of display.routeHead, verify sections "boarding pass styles" and "boarding pass behaviour".
