@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.8.0 — 2026-11-10
+
+The 1.8 redesign: the flight card becomes a boarding pass, Settings → Display is regrouped with a live preview, and the Finder comes in four layouts.
+
+- **The flight card is a boarding pass.** One object instead of four blocks: the header is the airline's band in its own colour (text in black or white, whichever reads), under it where and when, and a tear-off stub with what to do with the flight. Open in SimBrief, the aircraft choice, Brief, Gate screen and Log now sit right under the route on every screen size, above the map; Next leg, the SimBrief link and favourite groups stay at the bottom.
+- **Three passes to choose from** (Settings → Display → Flight card: boarding pass):
+  - **Pass with track** (default): split-flap codes at both ends, the headline OUT and IN, then the OUT · OFF · ON · IN track. Where a flight has a published schedule and tracked times, the headline is the schedule and the track shows how it really runs ("Typical Tue · usually +5 min off-block"); without a schedule the track only adds OFF and ON, so no time is said twice.
+  - **Pass, stub at the side**: the same pass without the track, the actions on a stub at the side (along the bottom on a phone).
+  - **Ticket, city first**: the city names large, codes on a quiet line, local time first with Z beside it, the airline's colours on a spine.
+  - They replace the three older styles. A saved choice carries over: timeline and departure board open as the pass with track, boarding pass as the pass with the stub at the side.
+- **Flip for times.** The scheduled and typical OUT · OFF · ON · IN table is the back of the pass: the Times button (or F) turns it over, and the pass keeps its height. Settings → Display → "Times always open" puts the table back under the map.
+- **Dispatched.** Opening SimBrief stamps the stub "Dispatched" with the time (UTC); the stamp stays for a day, in this browser.
+- **Which day's times.** For a flight whose times change through the week, the band names the day shown (TUE).
+- **Favourites and recent flights are small tickets**: the airline's colour on the spine, the route on a dotted line, the actions on a perforated stub (along the bottom on a phone). Settings → Display → "Plain rows" brings the list back.
+- **Motion with a reason** (none of it with reduced motion on): picking a flight in the table unfolds the panel out of that row; the codes flip when the flight changes, no longer every time the card scrolls back into view; the track draws once; the stub nudges along its perforation when you send the flight to SimBrief.
+- **Settings → Display, shorter and in groups.** The settings sit in five groups on the left (Flights list, Flight card, Maps, Logbook, What’s listed), each with how many it holds. Each setting is one row: its name, one line of help, the choices side by side and a small sample of the current one. A setting you changed says “changed · undo”; Reset all puts every display setting back. The pass style stays three picture cards.
+- **Rows or Preview.** A View switch at the top of Display: Rows (a sample on each row) or Preview, where one live preview beside the rows (real table rows, the pass with its band, the week’s times, a ticket, the maps) redraws as you choose, and pointing at a setting outlines what it changes. The choice is remembered.
+- **Aircraft badges as two plain questions**: “Colour shows: Maker, Airline or Nothing” and “Style: Filled or Edge”, answered on real table rows with a key that follows the answer. “Filled” is now one recipe: by airline it is a light tint of the airline’s colour with its edge, like by maker (it was a solid block). “Nothing” is new: plain badges, the maker on hover. Saved choices carry over.
+- Airlines (common / Extra+) and Guessed airports are now in the What’s listed group.
+- **Four Finder layouts** (Settings → Display → Finder layout), built from the same parts:
+  - **Full** (default): everything on one page, as before, a little tidier.
+  - **Calm**: the filter reads as a sentence (“Ryanair flights from Brussels to anywhere on any day”), each word a control, the rest behind More filters; shorter rows that leave out what the sentence already says (city first, the code beside it); the flight in a panel with tabs (Map, Times, Week, Details; the last tab is kept).
+  - **Roll first**: opens on “Where are you flying from?” with a real flight already rolled onto the pass; Roll again, or pick from the list below and it lands on the pass.
+  - **In place**: no floating panel; the row you pick opens under itself into the pass and the map, and closes when you pick it again.
+- **Full, tidier**: the filters you haven’t set (aircraft, block time, days, after, flight number) fold behind More filters on every screen, as phones already did; one in use shows them. The flight panel opens with the pass and the map; Times, Week and Details are headed sections you open with a click, and the panel remembers what you left open.
+- Two new display options, off by default: **a dot** for times that change on other days (the column heading explains it once), and **what the filter pins shown short** (one airline as its colour square, one origin as its code).
+
 ## 1.7.3 — 2026-11-09
 
 Fixes from a review of the live site, and phone pages reordered so the action comes before the detail.

@@ -420,22 +420,22 @@ select.ctl-input {
     transform: rotate(90deg);
   }
 }
-/* phones: the advanced filters fold behind "More filters" (wider screens show them all, without the button) */
+/* the advanced filters fold behind "More filters" on every screen (1.8): Airline, From and To stay; a filter in use opens them */
 .more-filters {
-  display: none !important;
+  display: inline-flex !important;
 }
-@media (max-width: 640px) {
-  .more-filters {
-    display: inline-flex !important;
-  }
-  .filters-grid.less > .multi:nth-child(5),
-  .filters-grid.less > .len,
-  .filters-grid.less > .days,
-  .filters-grid.less > .after,
-  .filters-grid.less > .search {
-    display: none;
-  }
-  /* …and their rows go too (an empty grid row still takes its gap) */
+.filters-grid.less > .multi:nth-child(5),
+.filters-grid.less > .len,
+.filters-grid.less > .days,
+.filters-grid.less > .after,
+.filters-grid.less > .search {
+  display: none;
+}
+/* …and their rows go too (an empty grid row still takes its gap) */
+.filters-grid.less {
+  grid-template-areas: "al dep swap arr type";
+}
+@media (max-width: 900px) {
   .filters-grid.less {
     grid-template-areas:
       "al al al"
@@ -1296,6 +1296,12 @@ div.empty-note p {
 .tb-side.tb-brand {
   border-left-color: var(--c);
 }
+/* filled by airline: the same recipe as by maker, a light tint of the colour with its edge */
+.tb-full.tb-brand {
+  background: color-mix(in srgb, var(--c) 18%, var(--field));
+  color: var(--ink);
+  border-color: var(--c);
+}
 .types-dd {
   display: flex;
   flex-wrap: wrap;
@@ -1332,69 +1338,6 @@ div.empty-note p {
   display: flex;
   gap: 8px;
   align-items: center;
-}
-
-/* settings: display options */
-.display-prefs {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  align-items: flex-start;
-}
-.opt-group {
-  border: 0;
-  margin: 0;
-  padding: 0;
-  width: 100%;
-}
-.opt-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
-  gap: 8px;
-}
-.opt {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  padding: 10px 12px;
-  border: 1px solid var(--rule-strong);
-  border-radius: var(--radius);
-  background: var(--field);
-  cursor: pointer;
-}
-.opt:has(input:checked) {
-  border-color: var(--ink);
-  box-shadow: inset 0 0 0 1px var(--ink);
-}
-.opt input {
-  margin-top: 3px;
-}
-.opt-body {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-width: 0;
-}
-.opt-title {
-  font-family: var(--font-cond);
-  font-weight: 700;
-  font-size: 15px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.opt-title .muted {
-  text-transform: none;
-  letter-spacing: 0;
-  font-family: var(--font-sans);
-  font-weight: 400;
-  font-size: 12.5px;
-}
-.opt-note {
-  font-size: 12.5px;
-  color: var(--ink-2);
-}
-.opt-sample {
-  margin: 8px 0 0;
 }
 
 /* ---------- map (chart style: depth, land tint, contours, grid, lettering) ---------- */
@@ -1764,14 +1707,6 @@ div.empty-note p {
 .fcard:has(.fcard-body[hidden]) .fcard-head {
   border-bottom: 0;
 }
-.fcard-bar {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 6px;
-  background: var(--al);
-}
 .fcard-title {
   flex: 1;
   min-width: 0;
@@ -1968,11 +1903,6 @@ div.empty-note p {
   gap: 10px;
   padding-top: 12px;
   border-top: 1px dashed var(--rule);
-}
-/* first on a phone (right after the route): a rule under it too, before the map */
-.dispatch.is-first {
-  padding-bottom: 12px;
-  border-bottom: 1px dashed var(--rule);
 }
 .dispatch-actions {
   display: flex;
@@ -3285,17 +3215,7 @@ div.empty-note p {
   font-size: 12px;
   color: var(--ink-2);
 }
-.rh-arrow {
-  width: 100%;
-  height: 10px;
-  fill: none;
-  stroke: var(--ink-3);
-  stroke-width: 1.4;
-}
-.rh-plane {
-  fill: var(--ink);
-  transform: rotate(90deg);
-}
+
 .rh-linkrow {
   display: flex;
   justify-content: space-between;
@@ -3306,7 +3226,7 @@ div.empty-note p {
   font-size: 12.5px;
 }
 
-/* R7 timeline */
+/* both ends, and the OUT · OFF · ON · IN track */
 .rh-ends {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 76px minmax(0, 1fr);
@@ -3387,147 +3307,19 @@ div.empty-note p {
   border: 2px dashed var(--ink-3);
 }
 
-/* R2 boarding pass */
-.rh-pass {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 76px minmax(0, 1fr);
-  border: 1px solid var(--rule-strong);
-  border-radius: 6px;
-  background: var(--field);
-  overflow: hidden;
-}
-.rh-pass .stub {
-  padding: 10px 12px;
-}
-.rh-pass .ctl-label {
-  margin-bottom: 6px;
-}
-.rh-pass .perf {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  border-left: 2px dashed var(--rule-strong);
-  border-right: 2px dashed var(--rule-strong);
-  background: var(--sunk);
-}
-.rh-pass .perf .rh-mid {
-  padding-top: 0;
-  gap: 6px;
-}
-.rh-pass .strip {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 4px 12px;
-  align-items: end;
-  padding: 8px 12px;
-  border-top: 1px dashed var(--rule-strong);
-  background: var(--sunk);
-}
-.rh-pass .strip > span {
-  display: flex;
-  flex-direction: column;
-}
-.rh-pass .strip .r {
-  align-items: flex-end;
-}
-.rh-pass .strip .pass-mid {
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
-  align-self: center;
-}
-.rh-pass .strip i {
-  font-style: normal;
-  font-size: 11.5px;
-  color: var(--ink-2);
-}
-
-/* R5 departure board: themed, so a light board by day and a dark one at night */
-.rh-board {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-  border: 1px solid var(--rule-strong);
-  border-radius: 4px;
-  background: var(--sunk);
-}
-.rh-board .brow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  text-align: left;
-}
-.rh-board .brow .ctl-label {
-  margin: 0;
-  width: 30px;
-}
-.rh-board .flap {
-  font: 700 21px/1 var(--font-mono);
-}
-.rh-board .flap-tile {
-  background: var(--field);
-}
-.rh-board .bcity {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-  font-family: var(--font-cond);
-  font-size: 16px;
-  letter-spacing: 0.1em;
-}
-.rh-board .bcity b {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.rh-board .bcity .fcard-placelink {
-  color: inherit;
-}
-.rh-board .meta {
-  margin: 2px 0 0;
-  font-size: 11.5px;
-  color: var(--ink-2);
-}
 @media (max-width: 420px) {
-  .rh-ends,
-  .rh-pass {
+  .rh-ends {
     grid-template-columns: minmax(0, 1fr) 56px minmax(0, 1fr);
   }
   .code-flap .flap {
     font-size: 23px;
   }
-  .rh-board .flap {
-    font-size: 17px;
-  }
-  .rh-board .brow {
-    gap: 8px;
-  }
+
 }
 
 /* tooltip descriptions stay hidden whatever layout rule matches them */
 .rh [hidden] {
   display: none !important;
-}
-
-/* settings: live samples inside each option */
-.opt-grid.wide {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
-}
-.opt-body {
-  flex: 1;
-}
-.opt-sample {
-  display: block;
-  margin-top: 4px;
-  padding: 10px;
-  border: 1px dashed var(--rule);
-  border-radius: var(--radius);
-  background: var(--sheet);
 }
 .rh-sample {
   display: block;
@@ -3544,108 +3336,12 @@ div.empty-note p {
   border: 1px solid var(--rule);
   border-radius: 2px;
 }
-/* fieldsets default to min-width: min-content; let them shrink on phones */
-.opt-group {
-  min-width: 0;
-}
+/* fieldsets default to min-width: min-content;
 .rh-sample {
   overflow: hidden;
 }
-/* flight-card options: title and description, then the sample centred at real card width */
-/* two side by side when there's room for real-width samples, else one per row */
-.opt-grid.stack {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 470px), 1fr));
-}
-.opt-grid.stack .opt-sample {
-  width: 100%;
-  max-width: 480px;
-  margin: 6px auto 0;
-}
 
-/* aircraft type badges: colour (rows) × style (columns) */
-.opt-lead {
-  margin: 0 0 10px;
-  font-size: 13px;
-}
-.badge-matrix {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr);
-  gap: 8px;
-  align-items: stretch;
-}
-.bm-col {
-  font-family: var(--font-cond);
-  font-weight: 700;
-  font-size: 13px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-2);
-  align-self: end;
-  padding-left: 4px;
-}
-.bm-row {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-}
-.bm-row b {
-  font-family: var(--font-cond);
-  font-weight: 700;
-  font-size: 15px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.bm-row small {
-  font-size: 12.5px;
-  color: var(--ink-2);
-}
-.bm-cell {
-  align-items: center;
-  flex-wrap: wrap;
-}
-.bm-cell input {
-  margin-top: 0;
-}
-.bm-cell .bm-cap {
-  display: none;
-}
-.bm-def {
-  margin-left: auto;
-  font-size: 11.5px;
-}
-@media (max-width: 640px) {
-  .bm-col {
-    display: none;
-  }
-  .bm-cell .bm-cap {
-    display: block;
-    width: 100%;
-    font-family: var(--font-cond);
-    font-weight: 700;
-    font-size: 12px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--ink-2);
-  }
-}
-@media (max-width: 640px) {
-  .badge-matrix {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  }
-  .badge-matrix > span[aria-hidden="true"] {
-    display: none;
-  }
-  .bm-row {
-    grid-column: 1 / -1;
-    margin-top: 6px;
-  }
-}
-
-/* fieldsets default to min-width: min-content; let them shrink on phones */
-.opt-group {
-  min-width: 0;
-}
+/* fieldsets default to min-width: min-content;
 .rh-sample {
   overflow: hidden;
 }
@@ -3664,13 +3360,11 @@ div.empty-note p {
   white-space: nowrap;
 }
 @container (max-width: 400px) {
-  .rh-ends,
-  .rh-pass {
+  .rh-ends {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 10px;
   }
-  .rh-ends > .rh-mid,
-  .rh-pass > .perf {
+  .rh-ends > .rh-mid {
     display: none;
   }
   .rh-mid-inline {
@@ -3680,37 +3374,14 @@ div.empty-note p {
     font-size: 12px;
     color: var(--ink-2);
   }
-  .rh-pass .strip .rh-mid-inline {
-    display: inline;
-    margin: 0;
-  }
+
   .rh-city .mono {
     display: none;
   }
   .code-flap .flap {
     font-size: 23px;
   }
-  .rh-pass .strip {
-    grid-template-columns: 1fr 1fr;
-  }
-  .rh-pass .strip .pass-mid {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    flex-wrap: wrap;
-  }
-  .rh-board {
-    padding: 10px;
-  }
-  .rh-board .brow {
-    gap: 7px;
-  }
-  .rh-board .flap {
-    font-size: 15px;
-  }
-  .rh-board .bcity {
-    font-size: 14px;
-    letter-spacing: 0.06em;
-  }
+
   .rh-ticks.top {
     margin-top: 2px;
   }
@@ -3724,12 +3395,6 @@ div.empty-note p {
 .rh-ticks.top > span:last-child {
   transform: translateX(calc(-100% + 10px));
   align-items: flex-end;
-}
-.bm-cell {
-  gap: 8px 10px;
-}
-.bm-cell .types-dd {
-  flex: 1;
 }
 
 /* ---------- journeys (multi-leg planner) ---------- */
@@ -5232,26 +4897,6 @@ div.empty-note p {
 .week-key.week-tl-sched {
   height: 10px;
 }
-
-/* settings: samples for the times-by-day and varies choices */
-.opt-intro {
-  margin: 0 0 8px;
-}
-.week-sample {
-  display: block;
-  width: 100%;
-  font-size: 13px;
-  pointer-events: none;
-}
-.week-sample .week-title {
-  display: none;
-}
-/* the narrowest phones: the week table sample is drawn smaller so it fits beside its radio button */
-@media (max-width: 400px) {
-  .week-sample {
-    zoom: 0.8;
-  }
-}
 .var-sample {
   display: inline-block;
   font-size: 14px;
@@ -5979,4 +5624,1438 @@ div.empty-note p {
   width: 100%;
   color: var(--ink-2);
   font-style: italic;
+}
+
+/* ==========================================================================
+   Flight card as a boarding pass (1.8)
+   The header is the airline's band, .bp the pass under it: two faces (front: route and times,
+   back: the times table) and the tear-off stub with the actions. Three styles on .fcard:
+   .bp-track (default), .bp-side (stub at the side), .bp-city (city names first).
+   ========================================================================== */
+
+.fcard {
+  gap: 0;
+}
+.fcard-body {
+  margin: 0;
+  gap: 0;
+  container: card / inline-size;
+}
+/* everything under the pass: map, times, facts, the rest of the actions */
+.fcard-rest {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 12px 14px 0;
+}
+
+/* the band: the airline's colour with black or white on it (textOn(), always ≥ 4.5:1), edged in its second colour */
+.fcard-head {
+  background: var(--al);
+  color: var(--al-ink);
+  border-bottom: 3px solid var(--al-2);
+}
+.fcard-head .fcard-airline,
+.fcard-head .fcard-airline .muted,
+.fcard-head .fcard-no small,
+.fcard-head .fn-line .muted,
+.fcard-head .fn-prefix {
+  color: var(--al-ink);
+}
+.fcard-head .fn-add {
+  border-color: var(--al-ink);
+  color: var(--al-ink);
+}
+.fcard-head .fn-add:hover {
+  background: color-mix(in srgb, var(--al-ink) 16%, transparent);
+}
+.fcard-head .chip {
+  background: var(--field);
+  color: var(--ink);
+  border-style: solid;
+}
+.fcard-head .fn-err {
+  padding: 2px 8px;
+  border-radius: 2px;
+  background: var(--red-bg);
+}
+.fcard-head :focus-visible {
+  outline-color: var(--al-ink);
+}
+/* which weekday's times the pass shows, for a flight whose times change through the week */
+.bp-day {
+  flex: none;
+  padding: 1px 7px;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: help;
+}
+
+.bp {
+  /* what shows through the punched notches: the page behind the card */
+  --hole: var(--paper);
+  position: relative;
+  display: grid;
+  background: var(--field);
+  border-bottom: 1px solid var(--rule-strong);
+  overflow: clip;
+}
+/* on the brief the card has no frame of its own, so the pass draws its edge */
+.sheet .fcard .bp {
+  --hole: var(--sheet);
+  border: 1px solid var(--rule-strong);
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+}
+.sheet .fcard .fcard-head {
+  border-radius: 4px 4px 0 0;
+}
+.sheet .fcard .fcard-rest {
+  margin-inline: 0;
+}
+
+/* the two faces share one cell, so the pass keeps its height when it turns over */
+.bp-faces {
+  display: grid;
+  min-width: 0;
+  perspective: 1600px;
+}
+.bp-face {
+  grid-area: 1 / 1;
+  min-width: 0;
+  padding: 12px 14px 10px;
+  backface-visibility: hidden;
+  transition:
+    transform 0.45s cubic-bezier(0.3, 0.7, 0.2, 1),
+    visibility 0s 0.2s;
+}
+.bp-face-back {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  transform: rotateY(-180deg);
+  visibility: hidden;
+}
+.bp.is-back .bp-face-front {
+  transform: rotateY(180deg);
+  visibility: hidden;
+}
+.bp.is-back .bp-face-back {
+  transform: none;
+  visibility: visible;
+}
+
+/* the stub tears off along a perforation, with a notch punched at each end */
+.bp-stub {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  padding: 10px 14px 12px;
+  background: var(--sunk);
+  border-top: 2px dashed var(--rule-strong);
+}
+.bp-stub::before,
+.bp-stub::after {
+  content: "";
+  position: absolute;
+  top: -10px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--hole);
+  border: 1px solid var(--rule-strong);
+}
+.bp-stub::before {
+  left: -9px;
+}
+.bp-stub::after {
+  right: -9px;
+}
+.bp-stub .dispatch-type {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+.bp-stub .dispatch-type .ctl-input {
+  height: 32px;
+}
+.bp-stub .dispatch-actions {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+.bp-stub .dispatch-actions > .btn-primary {
+  flex: 1 1 150px;
+  gap: 6px;
+}
+.bp-stub .dispatch-more {
+  display: flex;
+  flex: 0 1 auto;
+}
+.bp-stub .dispatch-more .btn {
+  flex: 1 0 auto;
+  padding-inline: 10px;
+}
+.bp-flip {
+  gap: 6px;
+}
+.bp-flip[aria-pressed="true"] {
+  border-color: var(--magenta);
+  color: var(--magenta);
+}
+/* stamped once the flight has gone to SimBrief; it stays for the day */
+.bp-stamp {
+  justify-self: end;
+  margin: 0;
+  padding: 1px 8px;
+  border: 2px solid currentColor;
+  border-radius: 3px;
+  color: var(--green);
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 12.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transform: rotate(-3deg);
+}
+.bp-stamp .mono {
+  letter-spacing: 0;
+}
+
+/* stub at the side */
+.bp-side .bp {
+  grid-template-columns: minmax(0, 1fr) 164px;
+}
+.bp-side .bp-stub {
+  align-content: start;
+  padding: 12px 12px 12px 14px;
+  border-top: 0;
+  border-left: 2px dashed var(--rule-strong);
+}
+.bp-side .bp-stub::before {
+  top: -9px;
+  left: -10px;
+}
+.bp-side .bp-stub::after {
+  top: auto;
+  right: auto;
+  bottom: -9px;
+  left: -10px;
+}
+.bp-side .bp-stub .dispatch-type {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3px;
+}
+.bp-side .bp-stub .dispatch-type .ctl-label {
+  margin: 0;
+}
+/* Brief and Log share a row; Gate screen and Times take one each */
+.bp-side .bp-stub .dispatch-more {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  flex: 1 1 100%;
+}
+.bp-side .bp-stub .dispatch-more > :nth-child(2),
+.bp-side .bp-stub .dispatch-more > .bp-flip {
+  grid-column: 1 / -1;
+  order: 1;
+}
+.bp-side .bp-stub .dispatch-more > .bp-flip {
+  order: 2;
+}
+.bp-side .bp-stub .dispatch-actions .btn {
+  height: 34px;
+  padding-inline: 6px;
+}
+.bp-side .bp-stamp {
+  justify-self: start;
+}
+/* beside the stub the front is narrow: keep the aircraft between the ends, drop the three-letter codes */
+@container card (min-width: 401px) {
+  .bp-side .rh-ends {
+    grid-template-columns: minmax(0, 1fr) 62px minmax(0, 1fr);
+    gap: 4px;
+  }
+  .bp-side .rh-ends > .rh-mid {
+    display: flex;
+    font-size: 11.5px;
+    white-space: nowrap;
+  }
+  .bp-side .rh-mid-inline {
+    display: none;
+  }
+  .bp-side .rh-city .mono {
+    display: none;
+  }
+  .bp-side .code-flap .flap {
+    font-size: 24px;
+  }
+  /* the back is as narrow: the times table drops its local-time lines (the front has them) */
+  .bp-side .bp-face-back .oooi th,
+  .bp-side .bp-face-back .oooi td {
+    padding-inline: 5px;
+  }
+  .bp-side .bp-face-back .oooi td small {
+    display: none;
+  }
+  /* "gate only" stays for screen readers; the hatching says it to the eye */
+  .bp-side .bp-face-back .oooi td.na .muted {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .bp-side .bp-face-back .oooi td .mono {
+    font-size: 12.5px;
+  }
+  .bp-side .bp-face-back .oooi-note {
+    font-size: 11.5px;
+  }
+}
+/* too narrow for a side stub (phones, ≤ 400 px of card): it tears off along the bottom like the others */
+@container card (max-width: 400px) {
+  .bp-side .bp {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bp-side .bp-stub {
+    border-left: 0;
+    border-top: 2px dashed var(--rule-strong);
+    padding: 10px 14px 12px;
+  }
+  .bp-side .bp-stub::before {
+    top: -10px;
+    left: -9px;
+  }
+  .bp-side .bp-stub::after {
+    top: -10px;
+    bottom: auto;
+    left: auto;
+    right: -9px;
+  }
+  .bp-side .bp-stub .dispatch-more {
+    display: flex;
+    flex: 0 1 auto;
+  }
+  .bp-side .bp-stub .dispatch-more > * {
+    order: 0;
+  }
+  .bp-side .bp-stub .dispatch-type {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+  }
+  .bp-stub .dispatch-more .btn {
+    padding-inline: 8px;
+  }
+}
+
+/* the front */
+.bp-front {
+  gap: 0;
+}
+.bp-front .rh-ends .ctl-label {
+  margin-bottom: 5px;
+}
+.bp-front .rh-mid {
+  padding-top: 24px;
+  gap: 2px;
+}
+/* the dotted line between the ends, the aircraft on it */
+.bp-ln {
+  position: relative;
+  align-self: stretch;
+  height: 0;
+  margin: 10px 0 9px;
+  border-top: 2px dotted var(--rule-strong);
+}
+.bp-ln svg {
+  position: absolute;
+  left: 50%;
+  top: -10px;
+  margin-left: -11px;
+  padding: 0 2px;
+  box-sizing: content-box;
+  background: var(--field);
+  fill: var(--ink);
+  transform: rotate(90deg);
+}
+.bp-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 10px -14px 0;
+  border-top: 1px solid var(--rule);
+}
+.bp-fields > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 7px 14px 2px;
+}
+.bp-fields > .r {
+  align-items: flex-end;
+  text-align: right;
+  border-left: 1px solid var(--rule);
+}
+.bp-fields i {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+.bp-fields .rh-big {
+  font-size: 19px;
+  font-weight: 700;
+}
+.bp-k .rh-k {
+  text-transform: uppercase;
+}
+.bp-trk {
+  margin: 8px -14px 0;
+  padding: 7px 20px 0;
+  border-top: 1px solid var(--rule);
+}
+.bp-trk-cap {
+  margin: 0 -6px;
+  font-family: var(--font-cond);
+  font-weight: 600;
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.bp-trk .rh-ticks.top {
+  margin-top: 2px;
+}
+.bp-trk .rh-dot:not(.est):not(.none) {
+  border-color: var(--field);
+}
+.bp-trk .rh-dot.est,
+.bp-trk .rh-dot.none {
+  background: var(--field);
+}
+.bp-front .rh-linkrow {
+  margin-top: 8px;
+}
+
+/* city first */
+.bp-city .bp {
+  border-left: 10px solid var(--al);
+  box-shadow: inset 3px 0 0 var(--al-2);
+}
+.bp-city .bp-face {
+  padding-left: 17px;
+}
+.bp-cities {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1fr);
+  gap: 10px;
+}
+.bp-cline {
+  margin: 0;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.fcard-end.arr .bp-cline,
+.fcard-end.arr .bp-codes {
+  justify-content: flex-end;
+}
+.bp-cname {
+  min-width: 0;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 31px;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
+}
+.bp-codes {
+  margin: 4px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 7px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.bp-codes .flag {
+  width: 18px;
+  height: 13px;
+  flex: none;
+}
+.bp-lt {
+  display: flex;
+  flex-direction: column;
+  margin-top: 12px;
+}
+.fcard-end.arr .bp-lt {
+  align-items: flex-end;
+}
+.bp-ltime {
+  font-size: 25px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.bp-lt i {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+.bp-f-city .rh-mid {
+  padding-top: 30px;
+}
+@container (max-width: 400px) {
+  .bp-cities {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .bp-cities > .rh-mid {
+    display: none;
+  }
+  .bp-cname {
+    font-size: 24px;
+  }
+  .bp-ltime {
+    font-size: 22px;
+  }
+}
+
+/* motion: the track draws once when the pass appears, the stub nudges along its perforation when torn */
+@keyframes bp-draw {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes bp-tear {
+  40% {
+    transform: translateX(6px);
+  }
+}
+@keyframes bp-tear-side {
+  40% {
+    transform: translateY(6px);
+  }
+}
+@keyframes bp-stamp {
+  from {
+    opacity: 0;
+    transform: rotate(-3deg) scale(1.5);
+  }
+}
+.bp-trk .rh-line,
+.bp-trk .rh-air {
+  transform-origin: left;
+  animation: bp-draw 0.4s cubic-bezier(0.3, 0.7, 0.2, 1) both;
+}
+.bp-trk .rh-air {
+  animation-delay: 0.12s;
+}
+.bp-stub.is-torn {
+  animation: bp-tear 0.32s ease-out;
+}
+.bp-side .bp-stub.is-torn {
+  animation-name: bp-tear-side;
+}
+.bp-stub.is-torn .bp-stamp {
+  animation: bp-stamp 0.22s ease-out 0.1s both;
+}
+@container card (max-width: 400px) {
+  .bp-side .bp-stub.is-torn {
+    animation-name: bp-tear;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bp-face {
+    transition: none;
+  }
+  .bp-trk .rh-line,
+  .bp-trk .rh-air,
+  .bp-stub.is-torn,
+  .bp-stub.is-torn .bp-stamp {
+    animation: none;
+  }
+}
+
+/* ---------- favourites and recent as small tickets (Settings → Display) ----------
+   The same flight, folded to one line: the airline's colour on the spine, the actions on a
+   perforated stub. States keep their marks: shared = amber inside the spine, found from the map = magenta. */
+.fl-list.tickets {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px 10px;
+}
+.fl-list.tickets .fl-row {
+  gap: 0;
+  border: 1px solid var(--rule-strong);
+  border-left: 8px solid var(--c, var(--ink-3));
+  border-radius: 4px;
+  background: var(--field);
+  overflow: clip;
+}
+.fl-list.tickets .fl-row:hover {
+  background: var(--sheet);
+}
+.fl-list.tickets .fl-row.is-twin {
+  background: color-mix(in srgb, var(--amber) 16%, var(--field));
+}
+.fl-list.tickets .fl-row.is-mark {
+  background: var(--magenta-bg);
+}
+.fl-list.tickets .fl-grip {
+  margin-right: -8px;
+}
+.fl-list.tickets .fl-codes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* the arrow becomes the dotted line of the pass */
+.fl-list.tickets .fl-arrow {
+  flex: 0 1 70px;
+  min-width: 18px;
+  height: 0;
+  border-top: 2px dotted var(--rule-strong);
+  font-size: 0;
+}
+.fl-list.tickets .fl-actions {
+  align-self: stretch;
+  padding: 0 10px;
+  border-left: 2px dashed var(--rule-strong);
+  background: var(--sunk);
+}
+@media (max-width: 560px) {
+  /* the stub tears off along the bottom, the grip on it */
+  .fl-list.tickets .fl-grip,
+  .fl-list.tickets .fl-actions {
+    align-self: stretch;
+    margin: 0;
+    padding: 6px 10px;
+    border-left: 0;
+    border-top: 2px dashed var(--rule-strong);
+    background: var(--sunk);
+  }
+  .fl-list.tickets .fl-grip {
+    height: auto;
+    padding-right: 0;
+  }
+  .fl-list.tickets .fl-actions {
+    flex: 1;
+    justify-content: flex-end;
+  }
+}
+
+/* Settings: the three passes as samples (front and an idle stub, at the panel's width) */
+.bp-sample {
+  --al-2: var(--al);
+  container: card / inline-size;
+  border: 1px solid var(--rule-strong);
+  border-radius: 6px;
+}
+.bp-sample .bp {
+  border-bottom: 0;
+}
+.bp-sample .bp-stub .btn {
+  height: 30px;
+  justify-content: center;
+}
+
+/* ---------- Settings → Display (1.8): groups on the left, one row per setting, Rows | Preview ---------- */
+.dp {
+  display: grid;
+  gap: 10px;
+}
+.dp-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--rule);
+}
+.dp-changed {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.dp-view {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dp-view .ctl-label {
+  margin: 0;
+}
+.dp-body {
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+  align-items: start;
+}
+.dp-preview .dp-body {
+  grid-template-columns: 150px minmax(0, 1fr) minmax(0, 440px);
+}
+.dp-nav {
+  position: sticky;
+  top: 72px;
+  display: grid;
+  gap: 2px;
+  padding: 4px 0;
+  border-right: 1px solid var(--rule);
+}
+.dp-nav-i {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 0;
+  background: none;
+  font-family: var(--font-cond);
+  font-weight: 600;
+  font-size: 13.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.dp-nav-i small {
+  margin-left: auto;
+  font-size: 11.5px;
+  letter-spacing: 0;
+}
+.dp-nav-i:hover {
+  color: var(--ink);
+}
+.dp-nav-i.on {
+  color: var(--ink);
+  background: var(--magenta-bg);
+  box-shadow: inset 3px 0 0 var(--magenta);
+}
+.dp-rows {
+  min-width: 0;
+  padding: 0 0 4px 18px;
+}
+.dp-grp {
+  scroll-margin-top: 72px;
+}
+.dp-gh {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 2px;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.dp-gh::after {
+  content: "";
+  flex: 1;
+  border-top: 1px dashed var(--rule-strong);
+}
+.dp-row {
+  display: grid;
+  grid-template-columns: minmax(0, 190px) minmax(0, 1fr) minmax(0, 200px);
+  align-items: center;
+  gap: 8px 14px;
+  min-height: 48px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.dp-preview .dp-row {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+}
+.dp-row.dp-wide {
+  grid-template-columns: minmax(0, 1fr);
+}
+.dp-preview .dp-row.hot {
+  background: var(--magenta-bg);
+  box-shadow: -10px 0 0 var(--magenta-bg), 10px 0 0 var(--magenta-bg);
+}
+.dp-n {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.dp-n b {
+  font-size: 14px;
+  font-weight: 600;
+}
+.dp-n small {
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.dp-preview .dp-n small {
+  display: none;
+}
+.dp-c {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-width: 0;
+}
+.dp-s {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+}
+/* segmented control made of real radios (arrow keys move the choice) */
+.dp-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  max-width: 100%;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--field);
+}
+.dp-seg-o {
+  position: relative;
+  display: flex;
+}
+.dp-seg-o + .dp-seg-o {
+  border-left: 1px solid var(--rule);
+}
+.dp-seg-o input {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.dp-seg-o span {
+  padding: 6px 11px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.dp-seg-o input:checked + span {
+  background: var(--ink);
+  color: var(--sheet);
+  font-weight: 600;
+}
+.dp-seg-o input:focus-visible + span {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+.dp-undo {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: var(--font-cond);
+  font-weight: 600;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--magenta);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.dp-see {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: 12.5px;
+  color: var(--blue);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.dp-map .mini-map {
+  width: 120px;
+}
+/* picture cards: settings with a shape */
+.dp-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr));
+  gap: 10px;
+}
+.dp-card {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  padding: 9px 10px 10px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--field);
+  cursor: pointer;
+}
+.dp-card:has(input:checked) {
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+.dp-card:has(input:focus-visible) {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.dp-card input {
+  position: absolute;
+  top: 11px;
+  left: 10px;
+  margin: 0;
+}
+.dp-card-t {
+  padding-left: 22px;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 13.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.dp-card-t small {
+  font-family: var(--font-sans);
+  font-weight: 400;
+  font-size: 11.5px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.dp-card-n {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.dp-sketch {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.dp-sketch .sk-paper {
+  fill: var(--sheet);
+  stroke: var(--rule-strong);
+}
+.dp-sketch .sk-band {
+  fill: var(--blue);
+}
+.dp-sketch .sk-ink {
+  fill: var(--ink);
+}
+.dp-sketch .sk-dim {
+  fill: var(--rule-strong);
+}
+.dp-sketch .sk-btn {
+  fill: var(--ink-2);
+}
+.dp-sketch .sk-perf {
+  stroke: var(--rule-strong);
+  stroke-dasharray: 3 3;
+  fill: none;
+}
+.dp-sketch .sk-trk {
+  stroke: var(--magenta);
+  stroke-width: 2.5;
+}
+.dp-sketch .sk-dot {
+  fill: var(--ink);
+}
+.dp-sketch .sk-mag {
+  fill: var(--magenta);
+}
+.dp-sketch .sk-water {
+  fill: var(--water);
+  stroke: var(--rule-strong);
+}
+.dp-sketch .sk-hot {
+  fill: var(--magenta-bg);
+}
+.dp-cards.four {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+}
+.dp-pv-finder {
+  display: grid;
+  gap: 8px;
+}
+/* the badge sample: real rows, then a key that follows the answer */
+.dp-badges {
+  margin: 10px 0 4px;
+}
+.dp-smp-h,
+.dp-pv-cap {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  padding: 4px 10px;
+  font-family: var(--font-cond);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.dp-smp-h {
+  border: 1px dashed var(--rule-strong);
+  border-bottom: 0;
+  background: var(--sunk);
+}
+.dp-badges .dp-tbl {
+  border: 1px dashed var(--rule-strong);
+}
+.dp-tbl {
+  display: grid;
+  background: var(--field);
+}
+.dp-tr {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 10px;
+  border-top: 1px solid var(--rule);
+}
+.dp-tr:first-child {
+  border-top: 0;
+}
+.dp-td {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+.dp-city {
+  gap: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.dp-city small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dp-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 8px 0 0;
+  color: var(--ink-2);
+}
+.dp-key span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.dp-key-sw {
+  width: 11px;
+  height: 11px;
+  border: 1px solid;
+}
+.dp-key-sw.tb-blue {
+  background: var(--blue-bg);
+  border-color: var(--blue);
+}
+.dp-key-sw.tb-green {
+  background: var(--green-bg);
+  border-color: var(--green);
+}
+.dp-key-sw.tb-amber {
+  background: var(--amber-bg);
+  border-color: var(--amber);
+}
+.dp-key-sw.tb-red {
+  background: var(--red-bg);
+  border-color: var(--red);
+}
+/* Preview: one live preview beside the rows, outlining what the pointed-at row changes */
+.dp-pv {
+  position: sticky;
+  top: 72px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  grid-template-columns: minmax(0, 1fr);
+  margin-left: 14px;
+  padding: 10px 12px 12px;
+  border-left: 1px solid var(--rule);
+  background: var(--sunk);
+  min-width: 0;
+}
+.dp-pv-cap {
+  padding: 0;
+}
+.dp-pv .dp-tbl {
+  border: 1px solid var(--rule-strong);
+}
+.dp-pv .pv-hot,
+.dp-pv-card > .pv-hot {
+  outline: 2px solid var(--magenta);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.dp-pv-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+}
+.dp-pv-note {
+  margin: 0;
+}
+.dp-pv .bp-sample {
+  width: 100%;
+  overflow: clip;
+}
+.dp-band.fcard-head {
+  display: flex;
+  position: static;
+  padding: 8px 12px;
+  cursor: default;
+}
+.dp-band .fcard-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.dp-band .fcard-no {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 15px;
+}
+.dp-pv-week {
+  overflow-x: auto;
+  background: var(--field);
+  border: 1px solid var(--rule);
+  padding: 8px;
+}
+.dp-pv-ticket {
+  margin: 0;
+}
+.dp-pv-maps,
+.dp-pv-listed {
+  display: grid;
+  gap: 10px;
+}
+.dp-pv-maps .mini-map {
+  max-width: none;
+}
+@media (max-width: 1000px) {
+  .dp-body,
+  .dp-preview .dp-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dp-nav {
+    position: static;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 0 6px;
+    border-right: 0;
+  }
+  .dp-nav-i {
+    padding: 6px 10px;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius);
+    background: var(--field);
+  }
+  .dp-rows {
+    padding-left: 0;
+  }
+  .dp-pv {
+    position: static;
+    margin: 10px 0 0;
+    border: 1px solid var(--rule);
+  }
+}
+@media (max-width: 640px) {
+  .dp-row,
+  .dp-preview .dp-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .dp-s {
+    justify-self: start;
+  }
+  .dp-view {
+    margin-left: 0;
+  }
+}
+/* the sample rows keep flight, time and badge on a phone; the destination steps out */
+@media (max-width: 480px) {
+  .dp-tr {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 8px;
+  }
+  .dp-city {
+    display: none;
+  }
+}
+
+/* ---------- Finder layouts (1.8): Full, Calm, Roll first, In place ---------- */
+/* the filter as a sentence: each word a control (its label kept for screen readers) */
+.sf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 8px;
+  min-width: 0;
+  font-size: 15px;
+}
+.sf .ctl-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.sf-w {
+  color: var(--ink-2);
+}
+.sf-ctl {
+  min-width: 0;
+}
+.sf-al {
+  width: 170px;
+}
+.sf-place {
+  width: 190px;
+}
+.sf .ctl-input {
+  height: 34px;
+}
+.sf-day {
+  width: auto;
+  padding-right: 24px;
+}
+.sf-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+.sf-end {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.sf-end .more-filters,
+.rh-actions .more-filters {
+  margin-top: 0;
+}
+.sf-more {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--rule);
+  display: grid;
+  gap: 10px;
+}
+.sf-more-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 12px;
+  align-items: end;
+}
+.sf-more-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+@media (max-width: 640px) {
+  .sf-al,
+  .sf-place {
+    width: 100%;
+  }
+  .sf-ctl:has(.sf-day) {
+    flex: 1;
+  }
+  .sf-end {
+    margin-left: 0;
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+/* Roll first: the question, the sentence and a rolled flight on the pass */
+.roll-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 470px);
+  gap: 20px 28px;
+  align-items: start;
+  padding: 22px 22px 20px;
+}
+.rh-title {
+  margin: 0 0 6px;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 30px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.rh-ask > p {
+  margin: 0 0 14px;
+}
+.rh-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-top: 14px;
+}
+.rh-ask .rh-after {
+  margin: 12px 0 0;
+  min-height: 1.5em;
+}
+.rh-card {
+  min-width: 0;
+  scroll-margin-top: 72px;
+}
+.rh-empty {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  margin: 0;
+  border: 1px dashed var(--rule-strong);
+  border-radius: var(--radius);
+  text-align: center;
+  padding: 16px;
+}
+.rh-card .fcard-head,
+.row-open .fcard-head {
+  position: static;
+}
+.list-title {
+  margin: 0;
+  padding: 12px 14px 4px;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+@media (max-width: 900px) {
+  .roll-hero {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 16px 14px;
+  }
+  .rh-title {
+    font-size: 24px;
+  }
+}
+/* short rows: city first, the code quiet beside it; a pinned airline is its colour square */
+.flights.short td,
+.flights.short th {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+.city-first {
+  font-weight: 600;
+}
+.id-sq {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.al-sq {
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  flex: none;
+}
+/* In place: the picked row opens under itself into the pass and the map */
+.flights tr.is-open > td {
+  border-bottom: 0;
+}
+.flights tr.row-open > td {
+  padding: 4px 10px 14px;
+  background: var(--magenta-bg);
+  cursor: default;
+}
+.row-open .fcard {
+  box-shadow: none;
+}
+@container (min-width: 820px) {
+  .row-open .fcard-body {
+    display: grid;
+    grid-template-columns: minmax(0, 470px) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+.flights tr.row-open:hover > td {
+  background: var(--magenta-bg);
+}
+/* the flight panel's extras: folded sections (Full) or tabs (the calmer layouts) */
+.fc-fold {
+  border-top: 1px solid var(--rule);
+}
+.fc-fold > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 13.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  list-style: none;
+}
+.fc-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.fc-fold > summary::before {
+  content: "+";
+  font-family: var(--font-mono);
+  width: 1ch;
+  color: var(--ink-2);
+}
+.fc-fold[open] > summary::before {
+  content: "−";
+}
+.fc-fold-body {
+  display: grid;
+  gap: 12px;
+  padding: 0 0 12px;
+}
+.fc-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--rule);
+}
+.fc-tab {
+  padding: 9px 10px 7px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.fc-tab[aria-selected="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--magenta);
+}
+.fc-tabpanel {
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+}
+/* T1: a dot after a time = other days differ (the column heading says it once) */
+.var-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  margin-left: 3px;
+  border-radius: 50%;
+  background: var(--ink-2);
+  vertical-align: 3px;
+}
+.th-dot {
+  margin-left: 5px;
 }

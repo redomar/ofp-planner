@@ -7,7 +7,7 @@ project:
     first), roll random ones, browse destinations, see scheduled vs typical OUT/OFF/ON/IN times, and
     open a pre-filled SimBrief dispatch. A Brief page shows the forecast at both ends for the day flown.
   owner: Mohamed Omar (github.com/redomar); sister project OFP Reader (../ofp-reader, charts.massorbit.co.uk)
-  status: v1.7.3 released 2026-11-09 (a second outside review of the live site: gate screen step line + time zones, failures shown as failures, cancelled flights out of flown totals, form focus, keyboard/screen-reader structure, phone header and status lines, journey card = detail timing; phones reordered: More filters, SimBrief first in the flight panel, Journeys list first, Brief next leg last, folded logbook form, Settings index; no data change); v1.7.2 released 2026-11-09 (fixes from an outside review: refused saves reported, stored-data shapes checked on read and on backup restore, stricter logbook import, Journeys load errors with Retry, sticky dataset errors, schedule coverage on phones, no ±5% Range claim; no data change); v1.7.1 released 2026-11-08 (snapshot 20 Sep → 24 Oct, the end of summer 2026: 47,111 flights; Ryanair STD/STA from the window's own timetable days and season, which drops ~500 winter-only Ryanair flights 1.7.0 had); v1.7.0 released 2026-11-08 (more airlines: 77 airlines incl. 20 Extra+ behind a Settings toggle, regional operators under their brands, Greenland, guessed airports behind a Settings toggle; snapshot 20 Sep → 13 Oct, no new data; data:push done at release); v1.6.3 released 2026-11-08 (click a route line on a map to focus its flights: Finder, Logbook, Favourites, Board, Journeys; there is no 1.6.2, the user's pick so 1.7.0 = more airlines); v1.6.1 released 2026-10-29 (Next.js 16.4.3 security update; stay on ≥ 16.4.1); v1.6.0 released 2026-10-24 (Range page: range rings per sim A320 with payload, custom ZFW/FOB, MLW; maps cover the globe as a disc round their content; aircraft side profiles + liveries prepared, not used yet; feature/more-airlines is a separate draft PR, needs a rebase on 1.6.0); 1.5.2: (a flight in several favourites groups; shared journey legs kept and marked; 1.5.1: map route lines: great circle or rhumb line, Settings → Display; 1.5.0: one row per flight with per-weekday times, Brief/Finder/Board by day, logbook list redone: month table, punctuality switch, flight strips; 1.4.4: Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
+  status: v1.8.0 prepared 2026-11-10 on release/1.8.0 (boarding pass, Settings → Display in groups with Rows | Preview, four Finder layouts; no data change), PR open, not merged; v1.7.3 released 2026-11-09 (a second outside review of the live site: gate screen step line + time zones, failures shown as failures, cancelled flights out of flown totals, form focus, keyboard/screen-reader structure, phone header and status lines, journey card = detail timing; phones reordered: More filters, SimBrief first in the flight panel, Journeys list first, Brief next leg last, folded logbook form, Settings index; no data change); v1.7.2 released 2026-11-09 (fixes from an outside review: refused saves reported, stored-data shapes checked on read and on backup restore, stricter logbook import, Journeys load errors with Retry, sticky dataset errors, schedule coverage on phones, no ±5% Range claim; no data change); v1.7.1 released 2026-11-08 (snapshot 20 Sep → 24 Oct, the end of summer 2026: 47,111 flights; Ryanair STD/STA from the window's own timetable days and season, which drops ~500 winter-only Ryanair flights 1.7.0 had); v1.7.0 released 2026-11-08 (more airlines: 77 airlines incl. 20 Extra+ behind a Settings toggle, regional operators under their brands, Greenland, guessed airports behind a Settings toggle; snapshot 20 Sep → 13 Oct, no new data; data:push done at release); v1.6.3 released 2026-11-08 (click a route line on a map to focus its flights: Finder, Logbook, Favourites, Board, Journeys; there is no 1.6.2, the user's pick so 1.7.0 = more airlines); v1.6.1 released 2026-10-29 (Next.js 16.4.3 security update; stay on ≥ 16.4.1); v1.6.0 released 2026-10-24 (Range page: range rings per sim A320 with payload, custom ZFW/FOB, MLW; maps cover the globe as a disc round their content; aircraft side profiles + liveries prepared, not used yet; feature/more-airlines is a separate draft PR, needs a rebase on 1.6.0); 1.5.2: (a flight in several favourites groups; shared journey legs kept and marked; 1.5.1: map route lines: great circle or rhumb line, Settings → Display; 1.5.0: one row per flight with per-weekday times, Brief/Finder/Board by day, logbook list redone: month table, punctuality switch, flight strips; 1.4.4: Settings: full browser backup .json.gz + restore; 1.4.3: a chosen logbook Status overrides the derived one, data to 10-08; 1.4.2: Log this flight in the Finder panel, grouped dispatch buttons; 1.4.1: logbook Listed time field, data to 10-07; 1.4.0: Logbook, favourites drag, map-tab sort + airport names, Journeys avoid, 4000/5000 m terrain; 1.3.1 folded in, never tagged) · github.com/redomar/ofp-planner (public) · https://plans.massorbit.co.uk (Dokploy)
   repo_url_assumed: https://github.com/redomar/ofp-planner   # src/lib/build-info.ts REPO_URL; change if different
   design_source: ../ofp-reader-handover.md (tokens, type, animation and layout rules came from there)
 
@@ -95,13 +95,22 @@ pages:        # all client components; one shared TopBar (Finder · Journeys · 
               RANGE_NM 6000 (grows only for rings past it; airports beyond the rim aren't drawn); Terrain toggle
               (relief, default off = parchment/blue, no lettering; on = the same bands + contours as every map). Night uses its own darker
               palette (.range-map overrides --m-*, from the first sketch). Figure height is CSS-only (.range-map) so nothing shifts while it loads.
-  /settings:  src/components/SettingsApp.tsx — airframes, Display, favourites, recent, snapshot info, theme/storage
+  /settings:  src/components/SettingsApp.tsx — airframes, favourites, recent, snapshot info, theme/storage; Display is src/components/DisplaySettings.tsx (groups, Rows | Preview)
               backup: lib/backup.ts — every "ofp-planner:*" key (+ theme, minus wx cache) as raw strings, schema "ofp-planner/backup" v1,
               gzipped with CompressionStream; restore replaces those keys (rolls back on a quota error) and reloads.
 components:
-  FlightCard.tsx:  sticky foldable header (bg sunk), RouteHead, RouteMap, OOOI table, facts, SimBrief dispatch
-  RouteHead.tsx:   departs/arrives in display.routeHead = "timeline" (user's R7, default) | "pass" (R2) | "board" (R5);
-                   times from fourTimes() in data/flight.ts (sched → tracked → estimated, EST. badge)
+  FlightCard.tsx:  a boarding pass (1.8). header.fcard-head = the airline's band (--al, text --al-ink = textOn, edge --al-2 = secondary colour;
+                   sticky, folds the card), then .bp = .bp-faces (front: RouteHead; back: the OOOI table when display.passFlip) + .bp-stub
+                   (aircraft select, Open in SimBrief, Brief/Finder, Gate screen, Log, Times flip; "Dispatched HH:MMZ" stamp from lib/dispatched.ts,
+                   key ofp-planner:dispatched, kept a day), then .fcard-rest (map, OOOI when not flipped, week, facts, .dispatch = next leg,
+                   SimBrief link, favourite groups, extra). Style class on the article: bp-track | bp-side | bp-city. Faces share one grid cell
+                   (same height turned over), the hidden one is inert; F flips unless typing. .fcard-body is the "card" container: the side
+                   stub drops under the pass at ≤400 px of card.
+  RouteHead.tsx:   the front of the pass in display.pass = "track" (default: flaps, headline OUT/IN, OUT · OFF · ON · IN track) | "side" (no track)
+                   | "city" (city names, local time first). Times from fourTimes() in data/flight.ts (sched → tracked → estimated, EST. badge).
+                   trackTimes(): with std and tracked out the track shows the typical four and "usually +N min off-block"; otherwise only OFF and ON
+                   are named (the headline already is OUT/IN). Flaps are FlapCode keyed by code: they flip on change, not on scroll.
+                   Before 1.8: display.routeHead timeline|pass|board; readDisplay() maps it (pass → side, the others → track).
   Results.tsx:     FlightTable (sortable, paged 80, scroll box) and PlacesView (fan map + airport rows)
   RouteMap.tsx:    d3-geo azimuthal-equidistant chart (user's pick "48" from the map previews): depth bands + dashed depth
                    contours, parchment land + height bands/contours, 10°/5° grid, edge degrees (no shading behind),
@@ -270,6 +279,9 @@ server_latch_container_alternative: |
     "Not flying to X" group at 0.
   - After (Z) filter (blank by default: no reference, Scheduled unticked; no reference = compare OUT): OUT/OFF/ON/IN switch + Scheduled preference; missing times estimated from the neighbour
     (taxi-out 12 min, taxi-in 6 min); same day only (no wrap past midnight); flights with no usable time excluded.
+  - Display settings (1.8, first branch): display.pass track|side|city, display.passFlip (default true: times on the back of the pass),
+    display.tickets (default true: favourites and recent as small tickets, .fl-list.tickets, the airline colour as --c on each .fl-row).
+    Finder: picking a row unfolds the drawer out of it (FinderApp useLayoutEffect, WAAPI clip-path, 220 ms; skipped with reduced motion).
   - Display settings (Settings → Display): airline tag solid (default) / tinted / split / edge; flight first
     (default) or airline first; aircraft badges by maker (default) or airline, fully coloured (default) or edge.
     Airlines (Extra+): display.airlines "common" (default) | "extra". Brands with extra: true in airlines.mjs (→ manifest
@@ -351,6 +363,20 @@ server_latch_container_alternative: |
 ## 10. Open items / ideas
 
   - BRANCHES IN FLIGHT (keep current):
+    · THE 1.8 / 1.9 SPEC FOR WHAT IS LEFT: docs/V1.8-BRIEF.md (decisions, each branch, what "done" means). Read it before continuing.
+    · feature/finder-layouts: PUSHED, PR #18 (base feature/settings-display, 2026-11-10; full verify 702/702). Merge order #16 → #17 → #18, retargeting each to main. display.finder (full|calm|roll|place),
+      display.pinShort (T2), variesMark "dot" (T1), More filters folds on desktop too (T4), FlightCard rest="folded"|"tabs" (T3 / tabs).
+      Parts live in FinderApp.tsx (sentence, roll hero, layout switch), Results.tsx FlightTable (short, pin, pinShort, renderOpen).
+    · feature/settings-display: PUSHED, PR #17 (base feature/boarding-pass, 2026-11-10); cut from branch 1 because it regroups its
+      settings. After #16 merges, retarget #17 to main. Settings → Display rebuilt: src/components/DisplaySettings.tsx (groups, rows,
+      segmented radios named after each display key, picture cards for the pass, Rows | Preview = display.settingsView, typeColour "none",
+      filled-by-airline badge = tint). verify section "settings display". Finder layout group arrives with branch 3.
+    · feature/boarding-pass: PUSHED, PR #16 open (2026-11-10; full verify 598/598). First of three 1.8 branches (then feature/settings-display,
+      feature/finder-layouts; 1.9 = in-flight gate screen, stream flow, the OFP Link .exe). The user's decisions and the option sheets:
+      ../ofp-planner-previews/v1.8-direction/ (01–07 + live/index.html). Done here: the pass in three styles, flip, stamp, tickets for
+      favourites and recent, motion, migration of display.routeHead, verify sections "boarding pass styles" and "boarding pass behaviour".
+      Not done: tickets for journey legs and the brief's next leg (they carry other content: leg number, dates, waits); the Settings
+      redesign (branch 2) will regroup the three new option groups; README screenshots still show the 1.7 card (refresh at release).
     · feature/phone-order: released in 1.7.3 on 2026-11-09 (PR via release/1.7.3, with feature/live-review-fixes). The phone redesign from the UI review,
       done on the user's "do as much as you can, decide yourself" (2026-11-09): Finder More filters (CSS-folded ≤640 px, .less;
       count of advanced filters set; a link with one opens them), swap beside From/To ≤480; FlightCard dispatch first in the Finder

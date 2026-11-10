@@ -6,7 +6,7 @@ import { routeColor, textOn } from "@/lib/colors";
 import { DAY_NAMES, hhmm, plannedOut, varies, weekTimes } from "@/lib/data/flight";
 import type { FlightRow } from "@/lib/data/load";
 import type { AirlineInfo } from "@/lib/data/types";
-import { useDisplay, type AirlineTagStyle } from "@/lib/display";
+import { useDisplay, type AirlineTagStyle, type TypeColour } from "@/lib/display";
 import { cx } from "./ui";
 
 /* ---------- airline name tag (+ flight number) ---------- */
@@ -105,7 +105,7 @@ export function TypeBadge({
   airline?: AirlineInfo;
   guessed?: boolean;
   /** Override the Display setting (Settings samples). */
-  colour?: "maker" | "airline";
+  colour?: TypeColour;
   theme?: "side" | "full";
 }) {
   const dd = useDisplay();
@@ -113,13 +113,10 @@ export function TypeBadge({
   const { maker, model } = aircraft(type);
   const tone = makerTone(maker);
   const byAirline = d.typeColour === "airline" && !!airline;
-  const brand = routeColor(airline);
-  const style: CSSProperties = byAirline
-    ? d.typeTheme === "full"
-      ? { background: brand, color: textOn(brand), borderColor: brand }
-      : ({ ["--c" as string]: brand } as CSSProperties)
-    : {};
-  const cls = cx("tbadge", d.typeTheme === "side" ? "tb-side" : "tb-full", !byAirline && `tb-${tone}`, byAirline && "tb-brand");
+  // one recipe for both: filled = a tint of the colour with its edge; edge = neutral with the colour on the left
+  const style: CSSProperties = byAirline ? ({ ["--c" as string]: routeColor(airline) } as CSSProperties) : {};
+  const shade = d.typeColour === "none" ? "ink" : tone;
+  const cls = cx("tbadge", d.typeTheme === "side" ? "tb-side" : "tb-full", !byAirline && `tb-${shade}`, byAirline && "tb-brand");
   const text = [maker && model ? `${maker} ${model}.` : "Type not in the catalogue.", `ICAO type designator ${type}.`, guessed ? "The snapshot has no type for this flight; this is the airline's usual type." : null, byAirline ? `Flown by ${airline!.name}.` : null]
     .filter(Boolean)
     .join(" ");
@@ -219,6 +216,8 @@ export function VariesMark({ f, children }: { f: FlightRow; children: ReactNode 
         <span className="var-tilde" aria-label="varies by day">
           ~
         </span>
+      ) : variesMark === "dot" ? (
+        <span className="var-dot" role="img" aria-label="varies by day" />
       ) : (
         <sup className="var-tag" aria-label="varies by day">
           VAR

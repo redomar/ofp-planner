@@ -22,6 +22,7 @@ import {
   type SavedFlight,
 } from "@/lib/saved";
 import { routeColor } from "@/lib/colors";
+import { useDisplay } from "@/lib/display";
 import { nextFocus, reveal, type LineFocus } from "@/lib/lineFocus";
 import { overrideFor, useFnOverrides } from "@/lib/fnoverride";
 import { FlightIdent, TypeBadge, WeekStrip } from "./badges";
@@ -41,6 +42,7 @@ const EDGE = 56;
  */
 export function SavedFlights({ onOpen, recentMax = 8, showRecent = true }: { onOpen?: (id: string) => void; recentMax?: number; showRecent?: boolean }) {
   const saved = useSaved();
+  const listClass = useListClass();
   const [ref, setRef] = useState<{ airlines: Map<string, AirlineInfo>; airports: Map<string, Airport> } | null>(null);
   useEffect(() => {
     let live = true;
@@ -227,7 +229,7 @@ export function SavedFlights({ onOpen, recentMax = 8, showRecent = true }: { onO
             )}
           </header>
           {history.length ? (
-            <ul className="fl-list">{history.slice(0, recentMax).map((f) => row(f, "recent"))}</ul>
+            <ul className={listClass}>{history.slice(0, recentMax).map((f) => row(f, "recent"))}</ul>
           ) : (
             <p className="lib-empty">Flights you open in the Finder show up here.</p>
           )}
@@ -236,6 +238,9 @@ export function SavedFlights({ onOpen, recentMax = 8, showRecent = true }: { onO
     </div>
   );
 }
+
+/** Saved flights as small tickets (airline spine, actions on a perforated stub) or plain rows: Settings → Display. */
+const useListClass = () => (useDisplay().tickets ? "fl-list tickets" : "fl-list");
 
 function NewGroup() {
   const [name, setName] = useState("");
@@ -301,6 +306,7 @@ function Group({
   shared: number;
   children: React.ReactNode;
 }) {
+  const listClass = useListClass();
   const [map, setMap] = useState(false);
   // a route line clicked on the map: its flights marked, then one at a time
   const [line, setLine] = useState<LineFocus>(null);
@@ -425,7 +431,7 @@ function Group({
       {open &&
         (flights.length ? (
           <MarkedCtx.Provider value={marked}>
-            <ul className="fl-list">{children}</ul>
+            <ul className={listClass}>{children}</ul>
           </MarkedCtx.Provider>
         ) : (
           <p className="lib-empty small">Empty. Drag a flight here by its handle, pick this group in its menu, or star one while this group is marked “new stars”.</p>
@@ -480,6 +486,7 @@ function Row({
   const place = (a: Airport | undefined, icao: string) => (a ? (cityName(a) ?? airportLabel(a)) : icao);
   return (
     <li
+      style={{ ["--c" as string]: routeColor(al) }}
       className={`fl-row${dragging ? " is-dragging" : ""}${drop ? ` drop-${drop}` : ""}${others.length ? " is-shared" : ""}${twin ? " is-twin" : ""}${marked ? " is-mark" : ""}`}
       data-fav={kind === "fav" ? f.id : undefined}
       data-group={groupKey}
@@ -545,7 +552,11 @@ function Row({
         </span>
         <span className="fl-route">
           <span className="fl-codes mono">
-            {f.o} <span aria-hidden="true">→</span> {f.d}
+            {f.o}{" "}
+            <span className="fl-arrow" aria-hidden="true">
+              →
+            </span>{" "}
+            {f.d}
           </span>
           <small className="fl-places">
             {o?.country && <Flag cc={o.country} />}

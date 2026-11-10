@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { airportLabel, isoDay, onDay, shortDate } from "@/lib/data/flight";
+import { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
+import { airportLabel, cityName, isoDay, onDay, shortDate } from "@/lib/data/flight";
 import { findFlight, loadRoutes, useDataset, type FlightRow } from "@/lib/data/load";
 import {
   EMPTY_QUERY,
@@ -50,9 +50,11 @@ export function FinderApp() {
   /** Airports tab: only this country's airports (ISO code), or every country. */
   const [placeCc, setPlaceCc] = useState<string | null>(null);
   const detailRef = useRef<HTMLElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
 
-  // Read the URL (wins) and saved preferences once, after hydration.
-  useEffect(() => {
+  // Read the URL (wins) and saved preferences once, after hydration and before the first paint, so the filters
+  // (which fold or open by what's set) don't change size on screen.
+  useLayoutEffect(() => {
     const p = new URLSearchParams(window.location.search);
     const prefs = readPrefs();
     /* eslint-disable react-hooks/set-state-in-effect -- one-time read of browser-only state after hydration */
@@ -67,7 +69,9 @@ export function FinderApp() {
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
-  const airlineSet = useDisplay().airlines;
+  const display = useDisplay();
+  const airlineSet = display.airlines;
+  const layout = display.finder;
   const data = useDataset(ready ? (q.al.length ? q.al : "all") : [], { extra: airlineSet === "extra" });
   const { airports, airlines, manifest } = data;
 
@@ -218,6 +222,11 @@ export function FinderApp() {
       }
       setSelId(r?.f.id ?? null);
       requestAnimationFrame(() => {
+        // Roll first: a flight picked from the list lands in the hero, so go back up to it
+        if (r && heroRef.current) {
+          const top = heroRef.current.getBoundingClientRect().top;
+          if (top < 0) heroRef.current.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+        }
         if (r) detailRef.current?.scrollTo({ top: 0 });
         if (opening) detailRef.current?.focus({ preventScroll: true });
         if (closing) {
@@ -229,6 +238,26 @@ export function FinderApp() {
     },
     [selId],
   );
+  // The panel opens out of the row that was picked: it unfolds from the row's height, so you see
+  // where the flight came from. (No row beside it, e.g. the Destinations tab: the panel's own slide-in.)
+  useLayoutEffect(() => {
+    const el = detailRef.current;
+    if (!el || !selId || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const row = document.querySelector("table.flights tr.sel");
+    if (!row) return;
+    const d = el.getBoundingClientRect();
+    const r = row.getBoundingClientRect();
+    if (r.bottom <= d.top || r.top >= d.bottom) return;
+    el.getAnimations().forEach((a) => a.cancel());
+    const top = Math.max(0, r.top - d.top);
+    const bottom = Math.max(0, d.bottom - r.bottom);
+    el.animate([{ clipPath: `inset(${top}px 0 ${bottom}px 0)`, opacity: 0.5 }, { clipPath: "inset(0 0 0 0)", opacity: 1 }], { duration: 220, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)" });
+  }, [selId]);
+
+  // what the filter pins down (short rows leave it out; "shown short" draws it small)
+  const pin = { al: q.al.length === 1, dep: !!q.dep && !q.dep.startsWith("C:"), arr: !!q.arr && !q.arr.startsWith("C:") };
+  // Roll first opens on a rolled flight: once, when the list is ready and nothing is picked
+  const [autoRolled, setAutoRolled] = useState(false);
   // on a phone the panel covers the list: what's behind it is out of reach until it closes
   const narrow = useMedia("(max-width: 640px)");
   // the advanced filters in use (for "More filters · 2 on"); folded on a phone unless one is set or they're opened
@@ -323,86 +352,213 @@ export function FinderApp() {
 
   // The list appears once every requested airline has loaded (all at once), so rows don't shuffle in.
   const nothingYet = !ready || !manifest || !airports || data.loading.length > 0;
+  if (layout === "roll" && !autoRolled && !nothingYet && ready) {
+    setAutoRolled(true);
+    if (!selId && filtered.length) setSelId(roll(filtered, { spreadBy: spread && q.dep && !q.arr ? "d" : null, avoid: null })?.f.id ?? null);
+  }
+  const onPlace = (side: "dep" | "arr", icao: string) => {
+    update(side === "dep" ? { dep: icao, arr: null } : { arr: icao, dep: null });
+    changeView("places");
+  };
+
+  /* ---------- the filter controls, arranged per layout ---------- */
+
+  const cityOf = (icao: string) => cityName(airports?.get(icao)) ?? null;
+
+  const alPicker = (
+    <MultiPicker
+      label="Airline"
+      values={q.al}
+      options={airlineOptions}
+      onChange={setAirlines}
+      allLabel="All airlines"
+      searchable
+      note={placeCounts ? `Flights ${q.dep && !q.arr ? "from" : q.arr && !q.dep ? "to" : "on"} ${routeLabel}` : "Flights in the snapshot"}
+      restLabel={placeCounts ? `Not flying ${q.dep && !q.arr ? "from" : q.arr && !q.dep ? "to" : "on"} ${routeLabel}` : undefined}
+    />
+  );
+  const fromPicker = <PlacePicker label="From" value={q.dep} options={placeOpts} onChange={(dep) => update({ dep })} />;
+  const toPicker = <PlacePicker label="To" value={q.arr} options={placeOpts} onChange={(arr) => update({ arr })} />;
+  const swapBtn = (
+    <button type="button" className="btn btn-icon swap" aria-label="Swap from and to" title="Swap from and to" onClick={() => update({ dep: q.arr, arr: q.dep })}>
+      <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M2 5h11M10 2l3 3-3 3M14 11H3M6 8l-3 3 3 3" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+    </button>
+  );
+  const advanced = (
+    <>
+      <MultiPicker label="Aircraft" values={q.types} options={typeOptions} onChange={(types) => update({ types })} allLabel="Any type" searchable />
+      <LengthPicker min={q.minLen} max={q.maxLen} onChange={(minLen, maxLen) => update({ minLen, maxLen })} />
+      <DayPicker values={q.days} onChange={(days) => update({ days })} />
+      <AfterPicker after={q.after} oooi={q.ref} sched={q.sched} onChange={(p) => update(p)} />
+      <label className="search">
+        <span className="ctl-label">Flight or callsign</span>
+        <input className="ctl-input" value={q.text} placeholder="1016, EJU54LH" spellCheck={false} autoComplete="off" onChange={(e) => update({ text: e.target.value })} />
+      </label>
+    </>
+  );
+  // what's set is counted, and a link with any opens them
+  const moreBtn = (
+    <button type="button" className="linkish more-filters" aria-expanded={moreShown} onClick={() => setMoreOpen(!moreShown)}>
+      {moreShown ? "Fewer filters" : "More filters"}
+      {advancedOn > 0 && <span className="badge b-mag">{advancedOn} on</span>}
+    </button>
+  );
+  const spreadCheck = (
+    <label className="check" title="Every destination (or origin) is equally likely, so busy routes don't dominate.">
+      <input
+        type="checkbox"
+        checked={spread}
+        onChange={(e) => {
+          setSpread(e.target.checked);
+          writePrefs({ spread: e.target.checked });
+        }}
+      />
+      Even odds per airport
+    </label>
+  );
+  const count = (
+    <span className="rollbar-count mono" aria-live="polite">
+      {nothingYet ? "" : `${filtered.length.toLocaleString("en-GB")} ${filtered.length === 1 ? "match" : "matches"}`}
+    </span>
+  );
+  const clearBtn = (
+    <button type="button" className="btn" onClick={reset} hidden={!filtersOn}>
+      Clear filters
+    </button>
+  );
+  // the filter as a sentence: each word a control, the rest behind More filters
+  const sentence = (
+    <div className="sf" role="group" aria-label="Filter">
+      <span className="sf-ctl sf-al">{alPicker}</span>
+      <span className="sf-w">flights from</span>
+      <span className="sf-ctl sf-place">
+        <PlacePicker label="From" value={q.dep} options={placeOpts} onChange={(dep) => update({ dep })} anyLabel="anywhere" word={cityOf} />
+      </span>
+      <span className="sf-w">to</span>
+      <span className="sf-ctl sf-place">
+        <PlacePicker label="To" value={q.arr} options={placeOpts} onChange={(arr) => update({ arr })} anyLabel="anywhere" word={cityOf} />
+      </span>
+      <span className="sf-w">on</span>
+      <span className="sf-ctl">
+        <DayWord days={q.days} onChange={(days) => update({ days })} />
+      </span>
+    </div>
+  );
+  const sentenceMore = moreShown && (
+    <div className="sf-more">
+      <div className="sf-more-grid">{advanced}</div>
+      <div className="sf-more-bar">
+        {spreadCheck}
+        {count}
+        {clearBtn}
+      </div>
+    </div>
+  );
+  const filtersPanel =
+    layout === "full" ? (
+      <section className="panel filters" aria-label="Filters">
+        <div className={cx("filters-grid", !moreShown && "less")}>
+          {alPicker}
+          {fromPicker}
+          {swapBtn}
+          {toPicker}
+          {advanced}
+        </div>
+        {moreBtn}
+        <div className="rollbar">
+          <button type="button" className="btn btn-roll" onClick={doRoll} disabled={!filtered.length}>
+            <Dice />
+            {rollLabel}
+          </button>
+          {spreadCheck}
+          {count}
+          {clearBtn}
+        </div>
+      </section>
+    ) : layout === "roll" ? (
+      <section className="panel roll-hero" aria-labelledby="rh-q">
+        <div className="rh-ask">
+          <h2 id="rh-q" className="rh-title">
+            Where are you flying from?
+          </h2>
+          <p className="muted">Pick an airport and roll a real airline flight: real callsign, real times, ready for SimBrief.</p>
+          {sentence}
+          <div className="rh-actions">
+            <button type="button" className="btn btn-roll" onClick={doRoll} disabled={!filtered.length}>
+              <Dice />
+              Roll a flight
+            </button>
+            {moreBtn}
+          </div>
+          {sentenceMore}
+          <p className="small rh-after" aria-live="polite">
+            {nothingYet ? (
+              "\u00a0"
+            ) : selected ? (
+              <>
+                Rolled from {filtered.length.toLocaleString("en-GB")} {filtered.length === 1 ? "flight" : "flights"} ·{" "}
+                <button type="button" className="linkish" onClick={doRoll} disabled={filtered.length < 2}>
+                  Roll again
+                </button>{" "}
+                ·{" "}
+                <a className="linkish" href="#or-choose">
+                  Browse all {filtered.length.toLocaleString("en-GB")} ↓
+                </a>
+              </>
+            ) : (
+              `${filtered.length.toLocaleString("en-GB")} flights to roll from`
+            )}
+          </p>
+        </div>
+        <div className="rh-card" ref={heroRef}>
+          {selected ? (
+            <FlightCard
+              key={selected.f.id}
+              row={selected}
+              airline={airlines.get(selected.f.al)}
+              airports={airports}
+              rest="tabs"
+              onContinue={nextLeg}
+              onClose={() => select(null)}
+              onPlace={onPlace}
+            />
+          ) : (
+            <p className="rh-empty muted">{nothingYet ? "Loading the schedule…" : filtered.length ? "Roll, and the flight lands here." : "No flights match: widen the sentence."}</p>
+          )}
+        </div>
+      </section>
+    ) : (
+      <section className="panel filters sentence" aria-label="Filters">
+        <div className="sf-bar">
+          {sentence}
+          <span className="sf-end">
+            {moreBtn}
+            <button type="button" className="btn btn-roll" onClick={doRoll} disabled={!filtered.length}>
+              <Dice />
+              Roll one
+            </button>
+          </span>
+        </div>
+        {sentenceMore}
+      </section>
+    );
 
   return (
     <>
       <TopBar finderHref="/" />
       <StatusLine progress={ready && !data.error ? data.progress : null}>{status}</StatusLine>
-      <main className="finder" inert={!!selected && narrow}>
+      <main className={cx("finder", `finder-${layout}`)} inert={!!selected && narrow && (layout === "full" || layout === "calm")}>
         <h1 className="sr-only">Finder</h1>
-        <section className="panel filters" aria-label="Filters">
-          <div className={cx("filters-grid", !moreShown && "less")}>
-            <MultiPicker
-              label="Airline"
-              values={q.al}
-              options={airlineOptions}
-              onChange={setAirlines}
-              allLabel="All airlines"
-              searchable
-              note={placeCounts ? `Flights ${q.dep && !q.arr ? "from" : q.arr && !q.dep ? "to" : "on"} ${routeLabel}` : "Flights in the snapshot"}
-              restLabel={placeCounts ? `Not flying ${q.dep && !q.arr ? "from" : q.arr && !q.dep ? "to" : "on"} ${routeLabel}` : undefined}
-            />
-            <PlacePicker label="From" value={q.dep} options={placeOpts} onChange={(dep) => update({ dep })} />
-            <button
-              type="button"
-              className="btn btn-icon swap"
-              aria-label="Swap from and to"
-              title="Swap from and to"
-              onClick={() => update({ dep: q.arr, arr: q.dep })}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-                <path d="M2 5h11M10 2l3 3-3 3M14 11H3M6 8l-3 3 3 3" fill="none" stroke="currentColor" strokeWidth="1.5" />
-              </svg>
-            </button>
-            <PlacePicker label="To" value={q.arr} options={placeOpts} onChange={(arr) => update({ arr })} />
-            <MultiPicker label="Aircraft" values={q.types} options={typeOptions} onChange={(types) => update({ types })} allLabel="Any type" searchable />
-            <LengthPicker min={q.minLen} max={q.maxLen} onChange={(minLen, maxLen) => update({ minLen, maxLen })} />
-            <DayPicker values={q.days} onChange={(days) => update({ days })} />
-            <AfterPicker after={q.after} oooi={q.ref} sched={q.sched} onChange={(p) => update(p)} />
-            <label className="search">
-              <span className="ctl-label">Flight or callsign</span>
-              <input
-                className="ctl-input"
-                value={q.text}
-                placeholder="1016, EJU54LH"
-                spellCheck={false}
-                autoComplete="off"
-                onChange={(e) => update({ text: e.target.value })}
-              />
-            </label>
-          </div>
-          {/* phones (CSS, so it's folded from the first paint): aircraft, block time, days, time and flight number fold away;
-              what's set is counted, and a link with any opens them */}
-          <button type="button" className="linkish more-filters" aria-expanded={moreShown} onClick={() => setMoreOpen(!moreShown)}>
-            {moreShown ? "Fewer filters" : "More filters"}
-            {advancedOn > 0 && <span className="badge b-mag">{advancedOn} on</span>}
-          </button>
-          <div className="rollbar">
-            <button type="button" className="btn btn-roll" onClick={doRoll} disabled={!filtered.length}>
-              <Dice />
-              {rollLabel}
-            </button>
-            <label className="check" title="Every destination (or origin) is equally likely, so busy routes don't dominate.">
-              <input
-                type="checkbox"
-                checked={spread}
-                onChange={(e) => {
-                  setSpread(e.target.checked);
-                  writePrefs({ spread: e.target.checked });
-                }}
-              />
-              Even odds per airport
-            </label>
-            <span className="rollbar-count mono" aria-live="polite">
-              {nothingYet ? "" : `${filtered.length.toLocaleString("en-GB")} ${filtered.length === 1 ? "match" : "matches"}`}
-            </span>
-            <button type="button" className="btn" onClick={reset} hidden={!filtersOn}>
-              Clear filters
-            </button>
-          </div>
-        </section>
+        {/* drawn once the link and the saved layout are read (before the first paint after hydration), so the
+            static page never shows one layout or one set of filters and then moves to another */}
+        {ready && filtersPanel}
 
-        <section className="panel list" aria-label="Results">
+        {/* Roll first: the list comes with the rolled flight, so it doesn't move down when the pass lands */}
+        {ready && !(layout === "roll" && nothingYet) && (
+        <section className={cx("panel list", layout !== "full" && "is-short")} aria-label="Results" id="or-choose">
+          {layout === "roll" && <h2 className="list-title">Or choose</h2>}
           <div className="tabs-bar">
           <div className="tabs" role="tablist" aria-label="Show">
             <button type="button" role="tab" aria-selected={view === "flights"} className="tab" onClick={() => changeView("flights")}>
@@ -455,7 +611,23 @@ export function FinderApp() {
                 onCountry={setPlaceCc}
               />
             ) : filtered.length ? (
-              <FlightTable rows={sorted} sort={sort} onSort={onSort} selected={selId} onSelect={(r) => select(r)} airports={airports} airlines={airlines} />
+              <FlightTable
+                rows={sorted}
+                sort={sort}
+                onSort={onSort}
+                selected={selId}
+                onSelect={(r) => select(layout === "place" && r.f.id === selId ? null : r)}
+                airports={airports}
+                airlines={airlines}
+                short={layout !== "full"}
+                pin={pin}
+                pinShort={display.pinShort}
+                renderOpen={
+                  layout === "place"
+                    ? (r) => <FlightCard key={r.f.id} row={r} airline={airlines.get(r.f.al)} airports={airports} rest="tabs" onContinue={nextLeg} onClose={() => select(null)} onPlace={onPlace} />
+                    : undefined
+                }
+              />
             ) : data.loading.length ? (
               <SkeletonRows />
             ) : (
@@ -475,24 +647,44 @@ export function FinderApp() {
             )}
           </div>
         </section>
+        )}
       </main>
-      {selected && (
+      {selected && (layout === "full" || layout === "calm") && (
         <aside className="drawer" aria-label={`Selected flight ${selected.f.cs ?? selected.f.fn ?? ""}`} ref={detailRef} tabIndex={-1}>
           <FlightCard
             key={selected.f.id}
             row={selected}
             airline={airlines.get(selected.f.al)}
             airports={airports}
+            rest={layout === "full" ? "folded" : "tabs"}
             onContinue={nextLeg}
             onClose={() => select(null)}
-            onPlace={(side, icao) => {
-              update(side === "dep" ? { dep: icao, arr: null } : { arr: icao, dep: null });
-              changeView("places");
-            }}
+            onPlace={onPlace}
           />
         </aside>
       )}
     </>
+  );
+}
+
+const DAY_WORDS = ["Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays", "Sundays"];
+/** "on any day" in the sentence: one weekday or any (several picked under More filters read as a count). */
+function DayWord({ days, onChange }: { days: number[]; onChange: (d: number[]) => void }) {
+  const value = days.length === 0 ? "" : days.length === 1 ? String(days[0]) : "many";
+  return (
+    <select className="ctl-input sf-day" aria-label="Day" value={value} onChange={(e) => onChange(e.target.value ? [Number(e.target.value)] : [])}>
+      <option value="">any day</option>
+      {DAY_WORDS.map((d, i) => (
+        <option key={d} value={String(i + 1)}>
+          {d}
+        </option>
+      ))}
+      {days.length > 1 && (
+        <option value="many" disabled>
+          {days.length} days
+        </option>
+      )}
+    </select>
   );
 }
 

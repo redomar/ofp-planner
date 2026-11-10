@@ -239,9 +239,9 @@ export interface FourTimes {
   in: Moment | null;
 }
 
-const TAXI_OUT = 12;
-const TAXI_IN = 6;
-const wrap = (m: number) => ((m % 1440) + 1440) % 1440;
+export const TAXI_OUT = 12;
+export const TAXI_IN = 6;
+export const wrap = (m: number) => ((m % 1440) + 1440) % 1440;
 
 /**
  * OUT / OFF / ON / IN for the flight card: the schedule (gate times), else the tracked medians,

@@ -151,8 +151,25 @@ async function run() {
           }
       }).observe({ type: "layout-shift", buffered: true });
     });
-    await page.goto(base + path, { waitUntil: "networkidle" });
+    // a busy machine can miss the 30 s window once; a second, longer wait still fails a page that never settles
+    try {
+      await page.goto(base + path, { waitUntil: "networkidle" });
+    } catch (e) {
+      if (e?.name !== "TimeoutError") throw e;
+      console.log(`note: ${path} slow to settle, retrying once`);
+      await page.goto(base + path, { waitUntil: "networkidle", timeout: 90000 });
+    }
     return { ctx, page, errors };
+  };
+
+  /** For contexts made outside open(): the example airframe (never a real one in a screenshot) and the layout-shift counter. */
+  const SEED = () => {
+    if (!localStorage.getItem("ofp-planner:airframes"))
+      localStorage.setItem("ofp-planner:airframes", JSON.stringify({ list: [{ id: "ex", name: "G-ABCD", icao: "A20N", sbType: "123456_1700000000000", note: "example" }], preferred: "ex" }));
+    window.__cls = 0;
+    new PerformanceObserver((l) => {
+      for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value;
+    }).observe({ type: "layout-shift", buffered: true });
   };
 
   const checkPage = async (label, page, errors) => {
@@ -170,6 +187,11 @@ async function run() {
       return true;
     });
     errs.length ? fail(`${label}: console errors ${JSON.stringify(errs.slice(0, 3))}`) : pass(`${label}: 0 console errors`);
+  };
+  /** Opens a folded section of the flight panel (Full layout) if it's closed. */
+  const openFold = async (page, sec) => {
+    const d = page.locator(`.drawer .fc-fold[data-sec="${sec}"]:not([open]) > summary`);
+    if (await d.count()) await d.click();
   };
   const shot = async (page, name) => {
     if (!SHOTS) return;
@@ -298,6 +320,8 @@ async function run() {
     // next leg
     await page.locator("table.flights tbody tr").first().click();
     const firstDest = (await page.locator(".fcard-end.arr .code-flap .flap").getAttribute("aria-label"))?.slice(0, 4);
+    // (Full keeps Details folded until opened, 1.8)
+    await openFold(page, "details");
     await page.getByRole("button", { name: /^Next leg from/ }).click();
     await page.waitForTimeout(300);
     const dep2 = new URL(page.url()).searchParams.get("dep");
@@ -462,13 +486,14 @@ async function run() {
     await ctx.close();
   });
 
-  /* ---------- flight card departs/arrives styles × theme × width ---------- */
-  await section("route head", async () => {
-    for (const style of ["timeline", "pass", "board"])
+  /* ---------- flight card: the boarding pass, three styles × theme × width ---------- */
+  await section("boarding pass styles", async () => {
+    for (const style of ["track", "side", "city"])
       for (const theme of ["light", "dark"])
         for (const width of [1280, 390]) {
           const ctx = await browser.newContext({ viewport: { width, height: 900 }, colorScheme: theme, deviceScaleFactor: SHOTS ? 2 : 1 });
-          await ctx.addInitScript((s) => localStorage.setItem("ofp-planner:display", JSON.stringify({ routeHead: s })), style);
+          await ctx.addInitScript(SEED);
+          await ctx.addInitScript((s) => localStorage.setItem("ofp-planner:display", JSON.stringify({ pass: s })), style);
           const page = await ctx.newPage();
           const errors = [];
           page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
@@ -476,23 +501,205 @@ async function run() {
           // PC1528 LEBL→LTBJ: departure tracked, arrival not → estimated with an EST. badge
           await page.goto(`${base}/?al=PGT&dep=LEBL&arr=LTBJ`, { waitUntil: "networkidle" });
           await page.waitForSelector("table.flights tbody tr");
-          await page.locator("table.flights tbody tr").first().click();
+          await page.locator(width < 640 ? "table.flights tbody .row-btn" : "table.flights tbody tr").first().click();
           await page.waitForSelector(".drawer .fcard");
           await page.waitForTimeout(700);
-          const cls = { timeline: ".rh-timeline", pass: ".rh-pass", board: ".rh-board" }[style];
-          const ok = (await page.locator(`.drawer ${cls}`).count()) === 1;
+          const ok = (await page.locator(`.drawer .fcard.bp-${style} .bp-front.bp-f-${style}`).count()) === 1;
           const est = await page.locator(".drawer .rh .est-badge").count();
           const wavy = await page.locator(".drawer .rh").evaluate((el) => el.textContent.includes("≈"));
-          ok && est > 0 && !wavy ? pass(`route head ${style} ${theme} ${width}px: shown, ${est} EST. badge(s), no ≈`) : fail(`route head ${style} ${theme} ${width}px: ok ${ok} est ${est} wavy ${wavy}`);
+          ok && est > 0 && !wavy ? pass(`pass ${style} ${theme} ${width}px: shown, ${est} EST. badge(s), no ≈`) : fail(`pass ${style} ${theme} ${width}px: ok ${ok} est ${est} wavy ${wavy}`);
+          // nothing in the pass is cut off or spills out of it, and SimBrief is on the first screen above the map
+          const fit = await page.evaluate(() => {
+            const bp = document.querySelector(".drawer .bp").getBoundingClientRect();
+            const spill = [...document.querySelectorAll(".drawer .bp-stub .btn, .drawer .bp-stub select, .drawer .bp-face-front .code-flap, .drawer .bp-face-front .rh-big, .drawer .bp-face-front .bp-ltime")]
+              .filter((e) => {
+                const r = e.getBoundingClientRect();
+                // (a select clips its own text by design, so only its box is checked)
+                return r.width > 0 && (r.left < bp.left - 0.5 || r.right > bp.right + 0.5 || (e.tagName !== "SELECT" && e.scrollWidth > e.clientWidth + 1));
+              })
+              .map((e) => (e.textContent || e.className).trim().slice(0, 20));
+            const sb = document.querySelector(".drawer .bp-stub a.btn-primary").getBoundingClientRect().bottom;
+            const map = document.querySelector(".drawer .map")?.getBoundingClientRect().top ?? Infinity;
+            return { spill, sb: Math.round(sb), above: sb < map };
+          });
+          fit.spill.length === 0 && fit.above && fit.sb < 900 ? pass(`pass ${style} ${theme} ${width}px: nothing spills, Open in SimBrief at ${fit.sb}px above the map`) : fail(`pass ${style} ${theme} ${width}px: ${JSON.stringify(fit)}`);
           const bad = await page.evaluate(CONTRAST);
-          const inCard = bad.filter((b) => b);
-          inCard.length ? fail(`route head ${style} ${theme} ${width}px: contrast ${JSON.stringify(inCard.slice(0, 4))}`) : pass(`route head ${style} ${theme} ${width}px: text contrast AA`);
+          bad.length ? fail(`pass ${style} ${theme} ${width}px: contrast ${JSON.stringify(bad.slice(0, 4))}`) : pass(`pass ${style} ${theme} ${width}px: text contrast AA`);
           const sw = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-          sw > 0 ? fail(`route head ${style} ${width}px: sideways scroll ${sw}`) : null;
-          errors.length ? fail(`route head ${style}: console errors ${JSON.stringify(errors.slice(0, 2))}`) : null;
-          if (width === 1280) await shot(page, `route-${style}-${theme === "light" ? "day" : "night"}`);
+          sw > 0 ? fail(`pass ${style} ${width}px: sideways scroll ${sw}`) : null;
+          errors.length ? fail(`pass ${style}: console errors ${JSON.stringify(errors.slice(0, 2))}`) : null;
+          if (width === 1280) await shot(page, `pass-${style}-${theme === "light" ? "day" : "night"}`);
           await ctx.close();
         }
+  });
+
+  /* ---------- flight card: band, flip, stamp, tickets, the choice saved before 1.8 ---------- */
+  await section("boarding pass behaviour", async () => {
+    const FR658 = encodeURIComponent("RYR:RYR658:EBBR-EIDW:1234567");
+    const start = async (display, opts = {}) => {
+      const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, colorScheme: opts.theme ?? "light", reducedMotion: opts.reduce ? "reduce" : "no-preference" });
+      await ctx.addInitScript(SEED);
+      if (display) await ctx.addInitScript((d) => localStorage.getItem("ofp-planner:display") ?? localStorage.setItem("ofp-planner:display", JSON.stringify(d)), display);
+      // SimBrief opens in a new tab: answered here, so nothing leaves the machine
+      await ctx.route(/simbrief\.com/, (r) => r.fulfill({ status: 200, contentType: "text/html", body: "<title>stub</title>" }));
+      const page = await ctx.newPage();
+      const errors = [];
+      page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+      page.on("pageerror", (e) => errors.push(String(e)));
+      return { ctx, page, errors };
+    };
+
+    // the band is the airline's colour with readable text on it, in both themes, also while a flight number is being added
+    for (const theme of ["light", "dark"]) {
+      const { ctx, page, errors } = await start(null, { theme });
+      await page.goto(`${base}/?al=RYR&dep=EBBR&f=${FR658}`, { waitUntil: "networkidle" });
+      await page.waitForSelector(".drawer .bp");
+      const band = await page.locator(".drawer .fcard-head").evaluate((h) => ({ bg: getComputedStyle(h).backgroundColor, fg: getComputedStyle(h.querySelector(".fcard-no")).color }));
+      band.bg === "rgb(7, 53, 144)" && band.fg === "rgb(255, 255, 255)" ? pass(`pass band ${theme}: Ryanair's blue with white text`) : fail(`pass band ${theme}: ${JSON.stringify(band)}`);
+      await page.goto(`${base}/?al=EZY&dep=EGKK`, { waitUntil: "networkidle" });
+      await page.waitForSelector("table.flights tbody tr");
+      const rows = page.locator("table.flights tbody tr");
+      let found = false;
+      for (let i = 0; i < Math.min(40, await rows.count()) && !found; i++) {
+        await rows.nth(i).click();
+        await page.waitForSelector(".drawer .fcard");
+        found = (await page.locator(".drawer .fn-add", { hasText: "Add flight number" }).count()) > 0;
+      }
+      if (found) {
+        await page.waitForTimeout(400);
+        const a = await page.evaluate(CONTRAST);
+        await page.locator(".drawer .fn-add").click();
+        await page.locator(".drawer .fn-edit input").fill("x");
+        await page.locator(".drawer .fn-edit").getByRole("button", { name: "Save" }).click();
+        await page.waitForSelector(".drawer .fn-err");
+        const b = await page.evaluate(CONTRAST);
+        a.length + b.length === 0 ? pass(`pass band ${theme}: adding a flight number on the band (button, form, error) is AA`) : fail(`pass band ${theme}: contrast ${JSON.stringify([...a, ...b].slice(0, 4))}`);
+      } else fail(`pass band ${theme}: no callsign-only easyJet flight found to test the add-number button`);
+      errors.length ? fail(`pass band ${theme}: console errors ${JSON.stringify(errors.slice(0, 2))}`) : null;
+      await ctx.close();
+    }
+
+    // flip: the times table is the back of the pass; the button and F turn it over, only one face is reachable
+    {
+      const { ctx, page, errors } = await start(null);
+      await page.goto(`${base}/?al=RYR&dep=EBBR&f=${FR658}`, { waitUntil: "networkidle" });
+      await page.waitForSelector(".drawer .bp");
+      const faces = () =>
+        page.evaluate(() => {
+          const q = (s) => document.querySelector(`.drawer ${s}`);
+          return { back: q(".bp").classList.contains("is-back"), frontInert: q(".bp-face-front").inert, backInert: q(".bp-face-back").inert, oooiVisible: getComputedStyle(q(".bp-face-back")).visibility === "visible", h: Math.round(q(".bp").getBoundingClientRect().height), under: !!q(".fcard-rest .oooi:not(.week-tbl)") };
+        });
+      const f0 = await faces();
+      await page.locator(".drawer .bp-flip").click();
+      await page.waitForTimeout(700);
+      const f1 = await faces();
+      const pressed = await page.locator(".drawer .bp-flip").getAttribute("aria-pressed");
+      const typical = (await page.locator(".drawer .bp-face-back .oooi tbody tr").nth(1).innerText()).replace(/\s+/g, " ");
+      !f0.back && f0.backInert && !f0.frontInert && !f0.oooiVisible && f1.back && f1.frontInert && !f1.backInert && f1.oooiVisible && pressed === "true" && f0.h === f1.h && !f0.under && /Typical/i.test(typical)
+        ? pass(`pass flip: Times turns the pass over (same height ${f1.h}px, the other face inert), the table is on the back`)
+        : fail(`pass flip: ${JSON.stringify({ f0, f1, pressed, typical: typical.slice(0, 40) })}`);
+      await checkPage("pass turned over 1280 light", page, errors);
+      await shot(page, "pass-back-day");
+      await page.locator(".drawer .bp-flip").focus();
+      await page.keyboard.press("f");
+      await page.waitForTimeout(600);
+      const f2 = await faces();
+      await page.locator(".drawer .dispatch-type select").focus();
+      await page.keyboard.press("f");
+      await page.waitForTimeout(300);
+      const f3 = await faces();
+      !f2.back && !f3.back ? pass("pass flip: F turns it back; F in the aircraft list doesn't flip") : fail(`pass flip: F ${JSON.stringify({ f2: f2.back, f3: f3.back })}`);
+
+      // the stub: Open in SimBrief stamps it Dispatched, and the stamp is still there after a reload
+      const [popup] = await Promise.all([ctx.waitForEvent("page"), page.locator(".drawer .bp-stub a.btn-primary").click()]);
+      await popup.close();
+      await page.locator(".drawer .bp-stamp").waitFor({ timeout: 3000 });
+      const stamp = (await page.locator(".drawer .bp-stamp").innerText()).replace(/\s+/g, " ");
+      await page.reload({ waitUntil: "networkidle" });
+      await page.waitForSelector(".drawer .bp");
+      const kept = await page.locator(".drawer .bp-stamp").count();
+      /^DISPATCHED \d\d:\d\dZ$/i.test(stamp) && kept === 1 ? pass(`pass stub: Open in SimBrief stamps it (“${stamp}”), kept after a reload`) : fail(`pass stub: stamp “${stamp}” kept ${kept}`);
+      await checkPage("pass stamped 1280 light", page, errors);
+      await ctx.close();
+    }
+
+    // "Times always open": no flip button, the table under the map as before 1.8
+    {
+      const { ctx, page } = await start({ passFlip: false });
+      await page.goto(`${base}/?al=RYR&dep=EBBR&f=${FR658}`, { waitUntil: "networkidle" });
+      await page.waitForSelector(".drawer .bp");
+      const r = await page.evaluate(() => ({ flip: document.querySelectorAll(".drawer .bp-flip, .drawer .bp-face-back").length, under: document.querySelectorAll(".drawer .fcard-rest .oooi:not(.week-tbl)").length }));
+      r.flip === 0 && r.under === 1 ? pass("pass flip off: the times table stays open under the map, no flip button") : fail(`pass flip off: ${JSON.stringify(r)}`);
+      await ctx.close();
+    }
+
+    // a choice saved before 1.8 carries over: boarding pass → side stub, timeline and departure board → track
+    for (const [old, now] of [["pass", "side"], ["board", "track"], ["timeline", "track"]]) {
+      const { ctx, page } = await start({ routeHead: old, airlineTag: "edge" });
+      await page.goto(`${base}/?al=RYR&dep=EBBR&f=${FR658}`, { waitUntil: "networkidle" });
+      await page.waitForSelector(".drawer .bp");
+      const cls = await page.locator(".drawer .fcard").getAttribute("class");
+      await page.goto(`${base}/settings`, { waitUntil: "networkidle" });
+      const picked = await page.locator('input[name="pass"]:checked').evaluate((i) => i.closest("label").innerText.split("\n")[0]);
+      const tag = await page.locator('input[name="airlineTag"]:checked').evaluate((i) => i.closest("label").innerText.split("\n")[0]);
+      cls.includes(`bp-${now}`) && /edge/i.test(tag) ? pass(`pass: a saved “${old}” style opens as ${now} (${picked.trim()}), other choices kept`) : fail(`pass migration ${old}: class ${cls}, picked ${picked}, tag ${tag}`);
+      await ctx.close();
+    }
+
+    // the panel unfolds out of the picked row; with reduced motion nothing animates
+    for (const reduce of [false, true]) {
+      const { ctx, page } = await start(null, { reduce });
+      // the unfold lasts 220 ms, so note it as it starts rather than racing it
+      await page.addInitScript(() => {
+        const animate = Element.prototype.animate;
+        window.__unfold = 0;
+        Element.prototype.animate = function (frames, options) {
+          if (this.classList.contains("drawer") && JSON.stringify(frames).includes("clipPath")) window.__unfold++;
+          return animate.call(this, frames, options);
+        };
+      });
+      await page.goto(`${base}/?al=RYR&dep=EBBR`, { waitUntil: "networkidle" });
+      await page.waitForSelector("table.flights tbody tr");
+      await page.locator("table.flights tbody tr").nth(2).click();
+      await page.waitForSelector(".drawer .bp-trk .rh-line");
+      const anim = await page.evaluate(() => {
+        const name = (s) => getComputedStyle(document.querySelector(`.drawer ${s}`)).animationName;
+        return { unfold: window.__unfold, track: name(".bp-trk .rh-line"), slide: getComputedStyle(document.querySelector(".drawer")).animationName, turn: getComputedStyle(document.querySelector(".drawer .bp-face")).transitionDuration };
+      });
+      (reduce ? anim.unfold === 0 && anim.track === "none" && anim.slide === "none" && parseFloat(anim.turn) < 0.01 : anim.unfold === 1 && anim.track === "bp-draw" && parseFloat(anim.turn) > 0.2)
+        ? pass(reduce ? "pass motion: reduced motion → no unfold, no track draw, no slide, the pass turns at once" : "pass motion: the panel unfolds from the picked row, the track draws")
+        : fail(`pass motion (reduce ${reduce}): ${JSON.stringify(anim)}`);
+      await ctx.close();
+    }
+
+    // favourites and recent as small tickets (airline colour on the spine), or plain rows
+    for (const tickets of [true, false]) {
+      const { ctx, page, errors } = await start({ tickets });
+      await page.goto(`${base}/?al=RYR&dep=EBBR&f=${FR658}`, { waitUntil: "networkidle" });
+      await page.locator(".drawer .fav").click();
+      await page.goto(`${base}/settings`, { waitUntil: "networkidle" });
+      await page.waitForSelector("#favourites .fl-row");
+      const t = await page.evaluate(() => {
+        const rows = [...document.querySelectorAll("#favourites .fl-row")];
+        const cs = getComputedStyle(rows[0]);
+        const stub = getComputedStyle(rows[0].querySelector(".fl-actions"));
+        return { n: rows.length, lists: document.querySelectorAll("#favourites .fl-list.tickets").length, spine: `${cs.borderLeftWidth} ${cs.borderLeftColor}`, perf: stub.borderLeftStyle };
+      });
+      (tickets ? t.lists === 2 && t.spine === "8px rgb(7, 53, 144)" && t.perf === "dashed" : t.lists === 0 && t.perf !== "dashed")
+        ? pass(tickets ? `tickets: ${t.n} saved flights as tickets, Ryanair's blue on the spine, a perforated stub` : "tickets off: plain rows")
+        : fail(`tickets ${tickets}: ${JSON.stringify(t)}`);
+      if (tickets) {
+        await page.locator("#favourites").scrollIntoViewIfNeeded();
+        await checkPage("settings with tickets 1280 light", page, errors);
+        await shot(page, "tickets-day");
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.waitForTimeout(300);
+        const sw = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+        const bad = await page.evaluate(CONTRAST);
+        sw <= 0 && bad.length === 0 ? pass("tickets 390: no sideways scroll, text contrast AA") : fail(`tickets 390: scroll ${sw}, contrast ${JSON.stringify(bad.slice(0, 3))}`);
+      }
+      await ctx.close();
+    }
   });
 
   /* ---------- journeys: multi-leg search ---------- */
@@ -831,7 +1038,7 @@ async function run() {
     // display options apply in the finder
     await page.getByRole("radio", { name: /Split pill/ }).check();
     await page.getByRole("radio", { name: /Airline, then flight/ }).check();
-    await page.getByRole("radio", { name: "Colour by manufacturer, edge only" }).check();
+    await page.locator("input[name=typeTheme]").nth(1).check();
     await page.locator("input[name=mapCodes]").nth(2).check();
     await page.goto(page.url().replace(/\/settings.*$/, "/?al=EZY&dep=EGKK"), { waitUntil: "networkidle" });
     await page.waitForSelector("table.flights tbody tr");
@@ -869,6 +1076,231 @@ async function run() {
     (await page.locator(".backup .form-err").innerText()).includes("isn't an OFP Planner backup") ? pass("settings: a file that isn't a backup is refused") : fail("settings: bad backup not refused");
     errors.length ? fail(`settings: console errors ${JSON.stringify(errors)}`) : pass("settings: 0 console errors");
     await ctx.close();
+  });
+
+  /* ---------- 1.8: Settings → Display in groups, Rows | Preview ---------- */
+  await section("settings display", async () => {
+    const { ctx, page, errors } = await open("/settings");
+    await page.waitForSelector(".dp-badges .dp-tr");
+    // groups on the left with how many settings each holds
+    const groups = await page.locator(".dp-nav-i").evaluateAll((b) => b.map((x) => x.innerText.replace(/\s+/g, " ").trim()));
+    groups.join("|").toLowerCase() === "Finder layout 1|Flights list 6|Flight card 4|Maps 2|Logbook 1|What’s listed 2".toLowerCase()
+      ? pass(`display: groups with their counts (${groups.join(", ")})`)
+      : fail(`display: groups ${JSON.stringify(groups)}`);
+    // one row per setting, a segmented control of real radios, "changed · undo", Reset all
+    const before = await page.locator(".dp-changed").innerText();
+    await page.getByRole("radio", { name: "Tinted" }).check();
+    await page.getByRole("radio", { name: "Nothing" }).check();
+    const changed = await page.locator(".dp-changed").innerText();
+    const undos = await page.locator(".dp-undo").count();
+    const plain = await page.locator(".dp-badges .tbadge").evaluateAll((b) => b.every((x) => x.classList.contains("tb-ink")));
+    const key = await page.locator(".dp-key").innerText();
+    await page.getByRole("button", { name: /Aircraft badge colour changed: undo/ }).click();
+    const afterUndo = await page.locator(".dp-changed").innerText();
+    const makerKey = await page.locator(".dp-key").innerText();
+    await page.getByRole("button", { name: "Reset all" }).click();
+    const afterReset = await page.locator(".dp-changed").innerText();
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("ofp-planner:display")));
+    before.startsWith("All") && changed === "2 changed from default" && undos === 2 && plain && /plain/.test(key) && afterUndo === "1 changed from default" && /Airbus/.test(makerKey) && afterReset.startsWith("All") && stored.airlineTag === "solid"
+      ? pass("display: a segment changes the setting, “changed · undo” puts one back, Reset all the rest; “Nothing” makes plain badges and the key says so")
+      : fail(`display: rows ${JSON.stringify({ before, changed, undos, plain, key, afterUndo, makerKey, afterReset, tag: stored.airlineTag })}`);
+    // filled is one recipe: by airline it's a tint of the airline's colour with its edge, text in ink
+    await page.getByRole("radio", { name: "Airline", exact: true }).check();
+    const tint = await page.locator(".dp-badges .tbadge").first().evaluate((b) => {
+      const cs = getComputedStyle(b);
+      return { bg: cs.backgroundColor, border: cs.borderTopColor, ink: cs.color === getComputedStyle(document.body).color };
+    });
+    tint.bg !== tint.border && tint.ink ? pass(`display: filled by airline is a tint with the airline's edge (${tint.bg} / ${tint.border})`) : fail(`display: airline fill ${JSON.stringify(tint)}`);
+    await checkPage("settings display rows 1280 light", page, errors);
+    await shot(page, "settings-display-rows-day");
+    // the pass style is three picture cards
+    const cards = await page.locator(".dp-card:has(input[name=pass])").count();
+    await page.locator(".dp-card").filter({ hasText: "Ticket, city first" }).click();
+    const pass3 = await page.evaluate(() => JSON.parse(localStorage.getItem("ofp-planner:display")).pass);
+    cards === 3 && pass3 === "city" ? pass("display: the pass style is three picture cards") : fail(`display: pass cards ${cards} ${pass3}`);
+    // Preview: one live preview beside the rows; pointing at a row outlines what it changes; the view is remembered
+    await page.getByRole("radio", { name: "Preview" }).check();
+    await page.locator(".dp-nav-i", { hasText: "Flight card" }).click();
+    await page.waitForSelector(".dp-pv .bp-sample.bp-city");
+    await page.locator(".dp-row", { hasText: "Times by day" }).hover();
+    const hot = await page.locator(".dp-pv .pv-hot").getAttribute("class");
+    await page.getByRole("radio", { name: "Track" }).check();
+    const live = await page.locator(".dp-pv .bp-sample").getAttribute("class");
+    await page.goto(`${base}/settings`, { waitUntil: "networkidle" });
+    const kept = await page.locator("input[name=settingsView]:checked").evaluate((i) => i.closest("label").innerText);
+    hot?.includes("dp-pv-week") && live?.includes("bp-track") && kept === "Preview" && (await page.locator(".dp-pv").count()) === 1
+      ? pass("display: Preview redraws the pass live, outlines what the pointed-at row changes, and is remembered")
+      : fail(`display: preview ${JSON.stringify({ hot, live, kept })}`);
+    await page.locator(".dp-nav-i", { hasText: "Flights list" }).click();
+    await page.waitForSelector(".dp-pv .dp-tr");
+    await checkPage("settings display preview 1280 light", page, errors);
+    await shot(page, "settings-display-preview-day");
+    await ctx.close();
+    // a choice saved before 1.8 (edge badges by airline) shows as Airline + Edge
+    {
+      const o = await open("/settings");
+      await o.page.evaluate(() => localStorage.setItem("ofp-planner:display", JSON.stringify({ typeColour: "airline", typeTheme: "side", settingsView: "nonsense" })));
+      await o.page.reload({ waitUntil: "networkidle" });
+      const c = await o.page.locator("input[name=typeColour]:checked").evaluate((i) => i.closest("label").innerText);
+      const t = await o.page.locator("input[name=typeTheme]:checked").evaluate((i) => i.closest("label").innerText);
+      const v = await o.page.locator("input[name=settingsView]:checked").evaluate((i) => i.closest("label").innerText);
+      c === "Airline" && t === "Edge" && v === "Rows" ? pass("display: saved badge choices carry over (Airline + Edge); an unknown view falls back to Rows") : fail(`display: carry-over ${c} ${t} ${v}`);
+      await o.ctx.close();
+    }
+    // both views at phone width and at night
+    for (const [w, theme, view] of [
+      [1280, "dark", "rows"],
+      [1280, "dark", "preview"],
+      [390, "light", "rows"],
+      [390, "dark", "preview"],
+    ]) {
+      const o = await open("/settings", { width: w, height: 844, theme });
+      await o.page.evaluate((v) => localStorage.setItem("ofp-planner:display", JSON.stringify({ settingsView: v })), view);
+      await o.page.reload({ waitUntil: "networkidle" });
+      await o.page.evaluate(() => (window.__cls = 0));
+      await o.page.locator("#display").scrollIntoViewIfNeeded();
+      if (view === "preview") {
+        await o.page.locator(".dp-nav-i", { hasText: "Flight card" }).click();
+        await o.page.waitForSelector(".dp-pv .bp-sample");
+      } else await o.page.waitForSelector(".dp-badges .dp-tr");
+      await checkPage(`settings display ${view} ${w} ${theme}`, o.page, o.errors);
+      if (w === 390) await shot(o.page, `settings-display-${view}-phone-${theme}`);
+      await o.ctx.close();
+    }
+  });
+
+  /* ---------- 1.8: Finder layouts (Full, Calm, Roll first, In place) and the Full tweaks ---------- */
+  await section("finder layouts", async () => {
+    const at = async (display, path, opts) => {
+      const o = await open("/settings", opts);
+      await o.page.evaluate((d) => localStorage.setItem("ofp-planner:display", JSON.stringify(d)), display);
+      await o.page.goto(`${base}${path}`, { waitUntil: "networkidle" });
+      return o;
+    };
+    // Full (default), T4: the filters you haven't set fold behind More filters on a desktop too; a filter in use shows them
+    {
+      const o = await at({}, "/?al=RYR&dep=EBBR");
+      await o.page.waitForSelector("table.flights tbody tr");
+      const folded = await o.page.evaluate(() => ({ days: getComputedStyle(document.querySelector(".filters-grid > .days")).display, more: getComputedStyle(document.querySelector(".more-filters")).display }));
+      await o.page.goto(`${base}/?al=RYR&dep=EBBR&days=1`, { waitUntil: "networkidle" });
+      const shown = await o.page.evaluate(() => getComputedStyle(document.querySelector(".filters-grid > .days")).display);
+      folded.days === "none" && folded.more !== "none" && shown !== "none" ? pass("full: unused filters fold behind More filters at 1280; a filter in use opens them") : fail(`full T4: ${JSON.stringify({ folded, shown })}`);
+      // T3: the panel opens with the pass and the map; Times/Week/Details fold, and what was left open is remembered
+      await o.page.locator("table.flights tbody tr").first().click();
+      await o.page.waitForSelector(".drawer .fc-fold");
+      const secs = await o.page.locator(".drawer .fc-fold > summary").allInnerTexts();
+      const closed = await o.page.locator(".drawer .fc-fold[open]").count();
+      const map = await o.page.locator(".drawer .fcard-rest > .route-map, .drawer .fcard-rest svg").count();
+      await o.page.locator(".drawer .fc-fold > summary", { hasText: "Details" }).click();
+      await o.page.locator("table.flights tbody tr").nth(1).click();
+      await o.page.waitForTimeout(300);
+      const kept = await o.page.locator('.drawer .fc-fold[data-sec="details"][open] .facts').count();
+      secs.map((x) => x.toLowerCase()).includes("details") && closed === 0 && map > 0 && kept === 1
+        ? pass(`full: the panel opens with pass and map, ${secs.join(", ")} folded; Details stays open for the next flight`)
+        : fail(`full T3: ${JSON.stringify({ secs, closed, map, kept })}`);
+      await checkPage("finder full 1280 light", o.page, o.errors);
+      await o.ctx.close();
+    }
+    // T1 and T2: a dot for times that vary (explained once in the heading); what the filter pins shown short
+    {
+      const o = await at({ variesMark: "dot", pinShort: true }, "/?al=RYR&dep=EBBR");
+      await o.page.waitForSelector("table.flights tbody tr");
+      const t = await o.page.evaluate(() => ({
+        dots: document.querySelectorAll("table.flights tbody .var-dot").length,
+        head: document.querySelectorAll("table.flights thead .th-dot").length,
+        tags: document.querySelectorAll("table.flights tbody .var-tag").length,
+        sq: document.querySelectorAll("table.flights tbody .al-sq").length,
+        names: document.querySelectorAll("table.flights tbody .al-tag, table.flights tbody .split-pill").length,
+        fromCity: document.querySelector("table.flights tbody tr td:nth-child(2) small.city"),
+        toCity: !!document.querySelector("table.flights tbody tr td:nth-child(3) small.city"),
+      }));
+      t.dots > 0 && t.head >= 1 && t.tags === 0 && t.sq > 0 && !t.fromCity && t.toCity
+        ? pass(`full: VAR as a dot (${t.dots}, heading explains it); one airline as its colour square, the pinned origin as its code`)
+        : fail(`full T1/T2: ${JSON.stringify(t)}`);
+      await checkPage("finder full dot + short 1280 light", o.page, o.errors);
+      await o.ctx.close();
+    }
+    // Calm: the sentence, short rows, the panel with tabs (the tab is remembered)
+    {
+      const o = await at({ finder: "calm" }, "/?al=RYR&dep=EBBR");
+      await o.page.waitForSelector("table.flights tbody tr");
+      const heads = await o.page.locator("table.flights thead th").allInnerTexts();
+      const sentence = await o.page.locator(".sf").innerText();
+      const day = await o.page.getByLabel("Day", { exact: true }).count();
+      await o.page.locator("table.flights tbody tr").first().click();
+      await o.page.waitForSelector(".drawer .fc-tabs");
+      const tabs = await o.page.locator(".drawer .fc-tab").allInnerTexts();
+      await o.page.getByRole("tab", { name: "Details" }).click();
+      const facts = await o.page.locator(".drawer .fc-tabpanel .facts").count();
+      await o.page.locator("table.flights tbody tr").nth(1).click();
+      await o.page.waitForTimeout(300);
+      const still = await o.page.locator(".drawer .fc-tab[aria-selected=true]").innerText();
+      const h = heads.map((x) => x.trim().toLowerCase());
+      !h.includes("from") && !h.includes("dist") && !h.includes("freq") && /flights from/.test(sentence) && day === 1 && tabs.length >= 2 && facts === 1 && /details/i.test(still)
+        ? pass(`calm: “${sentence.replace(/\s+/g, " ").trim()}”; short rows (${h.join(", ")}); panel tabs ${tabs.join(" | ")}, the last tab kept`)
+        : fail(`calm: ${JSON.stringify({ h, sentence, day, tabs, facts, still })}`);
+      await checkPage("finder calm 1280 light", o.page, o.errors);
+      await o.ctx.close();
+    }
+    // Roll first: opens on the question with a rolled flight; Roll again changes it; a row from the list lands in the hero
+    {
+      const o = await at({ finder: "roll" }, "/?al=RYR&dep=EBBR");
+      await o.page.waitForSelector(".roll-hero .rh-card .fcard");
+      const q = await o.page.locator("#rh-q").innerText();
+      const first = await o.page.locator(".rh-card .fcard-no").innerText();
+      let again = first;
+      for (let i = 0; i < 5 && again === first; i++) {
+        await o.page.getByRole("button", { name: "Roll again" }).click();
+        again = await o.page.locator(".rh-card .fcard-no").innerText();
+      }
+      const row = o.page.locator("table.flights tbody tr").nth(3);
+      const ident = (await row.locator(".row-btn").innerText()).replace(/\s+/g, "");
+      await row.click();
+      await o.page.waitForTimeout(300);
+      const inHero = (await o.page.locator(".rh-card .fcard-no").innerText()).replace(/\s+/g, "");
+      const drawers = await o.page.locator(".drawer").count();
+      /where are you flying from/i.test(q) && again !== first && inHero.includes(ident.replace(/^[A-Z]{2,3}(?=\d)/, "")) && drawers === 0
+        ? pass(`roll first: opens on “${q}” with ${first.replace(/\s+/g, " ")} rolled; Roll again → ${again.replace(/\s+/g, " ")}; ${ident} from the list lands in the hero`)
+        : fail(`roll: ${JSON.stringify({ q, first, again, ident, inHero, drawers })}`);
+      await checkPage("finder roll 1280 light", o.page, o.errors);
+      await o.ctx.close();
+    }
+    // In place: the row opens under itself (pass and map), no floating panel; picking it again closes it
+    {
+      const o = await at({ finder: "place" }, "/?al=RYR&dep=EBBR");
+      await o.page.waitForSelector("table.flights tbody tr");
+      await o.page.locator("table.flights tbody tr").nth(2).click();
+      await o.page.waitForSelector("tr.row-open .fcard");
+      const r = await o.page.evaluate(() => {
+        const open = document.querySelector("tr.row-open");
+        return { prev: open.previousElementSibling.classList.contains("sel"), drawer: document.querySelectorAll(".drawer").length, map: !!open.querySelector(".fc-tabpanel svg, .fc-tabpanel canvas") };
+      });
+      await checkPage("finder in place 1280 light", o.page, o.errors);
+      await o.page.locator("table.flights tbody tr.sel .row-btn").click();
+      const closed = await o.page.locator("tr.row-open").count();
+      r.prev && r.drawer === 0 && r.map && closed === 0 ? pass("in place: the picked row opens under itself with the pass and the map, no panel; picking it again closes it") : fail(`place: ${JSON.stringify({ ...r, closed })}`);
+      await o.ctx.close();
+    }
+    // every layout at 1280 and 390, day and night, with a flight open
+    for (const layout of ["full", "calm", "roll", "place"])
+      for (const [w, theme] of [
+        [1280, "dark"],
+        [390, "light"],
+        [390, "dark"],
+      ]) {
+        const o = await at({ finder: layout }, "/?al=RYR&dep=EBBR", { width: w, height: 844, theme });
+        await o.page.waitForSelector(layout === "roll" ? ".rh-card .fcard" : "table.flights tbody tr");
+        await o.page.evaluate(() => (window.__cls = 0));
+        if (layout !== "roll") {
+          await o.page.locator("table.flights tbody tr .row-btn").nth(1).click();
+          await o.page.waitForSelector(layout === "place" ? "tr.row-open .fcard" : ".drawer .fcard");
+        }
+        await o.page.waitForTimeout(500);
+        await checkPage(`finder ${layout} ${w} ${theme}`, o.page, o.errors);
+        if (w === 390) await shot(o.page, `finder-${layout}-phone-${theme}`);
+        else await shot(o.page, `finder-${layout}-${theme}`);
+        await o.ctx.close();
+      }
   });
 
   /* ---------- 1.5.0: one row per flight, times by weekday ---------- */
@@ -924,6 +1356,8 @@ async function run() {
       const o = await open(`/brief?f=${FR}&d=2026-10-12`, { theme: week === "timeline" ? "dark" : "light" });
       await o.page.evaluate((w) => localStorage.setItem("ofp-planner:display", JSON.stringify({ week: w })), week);
       await o.page.reload({ waitUntil: "networkidle" });
+      // the day tabs go with the times table, which is the back of the pass: turn it over
+      if (week === "tabs") await o.page.locator(".bp-flip").click();
       await o.page.waitForSelector(sel);
       const n = await o.page.locator(sel).count();
       let extra = "";
@@ -1561,7 +1995,7 @@ async function run() {
     const rows = await page.locator("table.flights tbody tr").count();
     rows > 0 ? pass(`extra airlines: ?al=${icao} still shows its ${rows} flights with Extra+ hidden`) : fail(`extra airlines: ?al=${icao} shows nothing`);
     await page.goto(`${base}/settings`, { waitUntil: "networkidle" });
-    await page.waitForSelector(".al-set");
+    await page.waitForSelector("#dp-listed .dp-s .mono");
     await checkPage("settings extra airlines 1280 light", page, errors);
     await ctx.close();
   });
@@ -2030,7 +2464,7 @@ async function run() {
     // the flight panel: SimBrief right after the route, on the first screen
     await o.page.goto(`${base}/?al=EZY&dep=EGKK`, { waitUntil: "networkidle" });
     await o.page.locator("table.flights tbody .row-btn").first().click();
-    await o.page.waitForSelector(".drawer .dispatch.is-first");
+    await o.page.waitForSelector(".drawer .bp-stub");
     const sb = await o.page.evaluate(() => {
       const a = document.querySelector(".drawer a.btn-primary").getBoundingClientRect().bottom;
       const map = document.querySelector(".drawer .map")?.getBoundingClientRect().top ?? Infinity;

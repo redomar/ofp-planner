@@ -1,25 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { AirlineInfo } from "@/lib/data/types";
 import { DAY_NAMES, airportLabel, blockTime, dur, flightNo, hhmm, localHHMM, onDay, varies } from "@/lib/data/flight";
 import type { Airport } from "@/lib/data/load";
 import type { Row } from "@/lib/data/query";
 import { cleanFn, setFnOverride } from "@/lib/fnoverride";
-import { pushHistory, setInGroup, setReady, toggleFavourite, useSaved } from "@/lib/saved";
+import { pushHistory, readPrefs, setInGroup, setReady, toggleFavourite, useSaved, writePrefs } from "@/lib/saved";
 import { defaultChoice, flightDispatch, simbriefUrl, typeChoices, useAirframes } from "@/lib/simbrief";
 import { TypeBadge, WeekStrip, freqLabel } from "./badges";
 import { RouteHead } from "./RouteHead";
 import { RouteMap } from "./RouteMap";
-import { Badge, Tip, V, cx } from "./ui";
+import { Badge, Tip, V, cx, roving } from "./ui";
 import { GLOSSARY } from "@/lib/glossary";
-import { routeColor } from "@/lib/colors";
+import { routeColor, textOn } from "@/lib/colors";
+import { markDispatched, useDispatched } from "@/lib/dispatched";
 import { useDisplay } from "@/lib/display";
-import { useMedia } from "@/lib/media";
 import { DayTabs, WeekTimes } from "./WeekTimes";
 
-/** The selected flight: route, map, OOOI times, facts, and dispatch to SimBrief. */
+/**
+ * The selected flight as a boarding pass: the airline's band (the header, which stays in view and
+ * folds the card), the front with where and when, the tear-off stub with what to do with it, and
+ * under the pass the map, times, facts and the rest. With Settings → Display "Flip for times" the
+ * OUT · OFF · ON · IN table is the back of the pass.
+ */
 export function FlightCard({
   row,
   airline,
@@ -31,6 +36,7 @@ export function FlightCard({
   context = "finder",
   extra,
   placeHref,
+  rest = "stack",
 }: {
   row: Row;
   airline: AirlineInfo | undefined;
@@ -48,6 +54,11 @@ export function FlightCard({
   extra?: ReactNode;
   /** Makes each airport a link (the brief: to the finder with that airport as the origin). */
   placeHref?: (icao: string) => string;
+  /**
+   * What follows the pass: everything in a column (stack), the map then headed sections folded and
+   * remembered (folded, the Finder's Full layout), or the map, times, week and details as tabs (tabs).
+   */
+  rest?: "stack" | "folded" | "tabs";
 }) {
   const { f, nm, block } = row;
   const from = airports?.get(f.o);
@@ -63,6 +74,10 @@ export function FlightCard({
   const picked = choices.find((c) => c.value === (choice ?? dflt)) ?? choices[0];
   const url = simbriefUrl(flightDispatch(f, picked.sbType));
   const color = routeColor(airline);
+  const ink = textOn(color);
+  // the airline's second colour edges the band (as on the gate screen); the band's own text colour when it has none
+  const second = airline?.colors.secondary;
+  const accent = second && /^#[0-9a-f]{6}$/i.test(second) && second.toLowerCase() !== color.toLowerCase() ? second : ink;
   const iata = airline?.iata ?? null;
 
   // record each flight once when it's shown (not on every re-render of the same flight)
@@ -76,7 +91,14 @@ export function FlightCard({
   // Times through the week (flights whose times change by weekday): a section under the OOOI
   // table, or day tabs that switch the table (Settings → Display). Tabs start on the card's day.
   const display = useDisplay();
-  const phone = useMedia("(max-width: 640px)");
+  const style = display.pass;
+  const flip = display.passFlip;
+  // the pass turned over: the times table instead of the route
+  const [back, setBack] = useState(false);
+  const turned = flip && back;
+  // sent to SimBrief: the stub stays stamped for a day; `torn` plays the nudge once, on the click
+  const sentAt = useDispatched(f.id);
+  const [torn, setTorn] = useState(false);
   const weekVaries = varies(f);
   const [tab, setTab] = useState<number | null>(null);
   const shown: Row = tab != null && tab !== f.day ? { ...row, f: onDay(f, tab), block: blockTime(onDay(f, tab), nm) } : row;
@@ -86,10 +108,16 @@ export function FlightCard({
   const bodyId = useId();
   const toggleFold = () => setFolded((v) => !v);
 
-  // on a phone in the Finder, the dispatch (aircraft, SimBrief, brief, log) comes right after the route, before the map and times
-  const actionsFirst = phone && context === "finder";
-  const dispatch = (
-    <div className={cx("dispatch", actionsFirst && "is-first")}>
+  const times = (
+    <>
+      {weekVaries && display.week === "tabs" && <DayTabs f={f} day={shown.f.day} onPick={setTab} />}
+      <Oooi row={shown} from={from} to={to} />
+    </>
+  );
+
+  // the stub: what you do with the flight. Right after the route in every layout, so SimBrief is on the first screen.
+  const stub = (
+    <div className={cx("bp-stub", torn && "is-torn")}>
       <label className="dispatch-type">
         <span className="ctl-label">Aircraft for SimBrief</span>
         <select className="ctl-input" value={picked.value} onChange={(e) => setChoice(e.target.value)}>
@@ -101,7 +129,16 @@ export function FlightCard({
         </select>
       </label>
       <div className="dispatch-actions">
-        <a className="btn btn-primary" href={url} target="_blank" rel="noopener noreferrer">
+        <a
+          className="btn btn-primary"
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => {
+            markDispatched(f.id);
+            setTorn(true);
+          }}
+        >
           Open in SimBrief
           <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
             <path d="M4 2h6v6M10 2L3 9" fill="none" stroke="currentColor" strokeWidth="1.6" />
@@ -110,124 +147,55 @@ export function FlightCard({
         </a>
         <div className="dispatch-more">
           {context === "finder" ? (
-            <Link className="btn" href={`/brief?f=${encodeURIComponent(f.id)}`} onClick={() => setReady(f, null, picked.value)}>
-              Open brief · weather →
+            <Link className="btn" href={`/brief?f=${encodeURIComponent(f.id)}`} onClick={() => setReady(f, null, picked.value)} aria-label="Open brief · weather" title="Open the brief: weather at both ends for the day you fly">
+              Brief →
             </Link>
           ) : (
-            <Link className="btn" href={`/?al=${f.al}&dep=${f.o}&arr=${f.d}&f=${encodeURIComponent(f.id)}`}>
-              ← Back to finder
+            <Link className="btn" href={`/?al=${f.al}&dep=${f.o}&arr=${f.d}&f=${encodeURIComponent(f.id)}`} aria-label="Back to finder">
+              ← Finder
             </Link>
           )}
           <Link className="btn" href={`/board?tab=gate&f=${encodeURIComponent(f.id)}`}>
             Gate screen
           </Link>
-          <Link className="btn" href={`/logbook?f=${encodeURIComponent(f.id)}`} title="Open the logbook form prefilled with this flight (nothing is saved until you submit)">
-            Log this flight
+          <Link className="btn" href={`/logbook?f=${encodeURIComponent(f.id)}`} aria-label="Log this flight" title="Open the logbook form prefilled with this flight (nothing is saved until you submit)">
+            Log
           </Link>
-          {onContinue && (
-            <button type="button" className="btn" onClick={onContinue} title={`Roll an onward flight from ${f.d}`}>
-              Next leg from {to?.iata ?? f.d}
+          {flip && (
+            <button
+              type="button"
+              className="btn bp-flip"
+              aria-pressed={back}
+              title={back ? "The times are showing: turn the pass back to the route (F)" : "Turn the pass over for the scheduled and typical OUT · OFF · ON · IN times (F)"}
+              onClick={() => setBack((v) => !v)}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M12.5 1.5v3h-3" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Times
             </button>
           )}
         </div>
       </div>
-      <CopyLink url={url} />
-      {fav && saved && saved.groups.length > 0 && (
-        <div className="fav-group" role="group" aria-label="Favourite groups">
-          <span className="fav-group-star" aria-hidden="true">
-            ★
-          </span>
-          <span className="ctl-label">In groups</span>
-          {saved.groups.map((g) => {
-            const on = favIn.includes(g);
-            return (
-              <button key={g} type="button" className={`chip fav-group-chip${on ? " on" : ""}`} aria-pressed={on} onClick={() => setInGroup(f, g, !on)}>
-                {on && <span aria-hidden="true">✓ </span>}
-                {g}
-              </button>
-            );
-          })}
-          {favIn.length > 1 && <span className="badge b-amber">shared by {favIn.length}</span>}
-        </div>
+      {sentAt != null && (
+        <p className="bp-stamp" role="status">
+          Dispatched <span className="mono">{new Date(sentAt).toISOString().slice(11, 16)}Z</span>
+        </p>
       )}
-      {extra}
     </div>
   );
 
-  return (
-    <article className="fcard" aria-label={`Flight ${flightNo(f, iata)}`} style={{ ["--al" as string]: color }}>
-      <header
-        className="fcard-head"
-        onClick={(e) => {
-          if (!(e.target as HTMLElement).closest("button, a, input, select, form")) toggleFold();
-        }}
-        title={folded ? "Show the flight details" : "Hide the flight details"}
-      >
-        <span className="fcard-bar" aria-hidden="true" />
-        <div className="fcard-title">
-          <p className="fcard-airline">
-            {airline?.name ?? f.al}
-            {f.op !== f.al && (
-              <Tip tip={`Operated by ${f.op}, the airline whose code is filed with ATC.`} title="Operator">
-                <span className="muted"> · op. {f.op}</span>
-              </Tip>
-            )}
-          </p>
-          <h2 className="fcard-no">
-            <span>{flightNo(f, iata)}</span>
-            <FnLine f={f} iata={iata} />
-          </h2>
-        </div>
-        <button
-          type="button"
-          className={`btn btn-icon fav${fav ? " on" : ""}`}
-          aria-pressed={fav}
-          aria-label={fav ? (favIn.length > 1 ? `Remove from favourites (all ${favIn.length} groups)` : "Remove from favourites") : "Add to favourites"}
-          title={fav ? (favIn.length > 1 ? `Favourite, in ${favIn.length} groups` : "Favourite") : "Add to favourites"}
-          onClick={() => toggleFavourite(f)}
-        >
-          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          className="btn btn-icon fold"
-          aria-expanded={!folded}
-          aria-controls={bodyId}
-          aria-label={folded ? "Show the flight details" : "Hide the flight details"}
-          onClick={toggleFold}
-        >
-          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-            <path d={folded ? "M2 5l5 5 5-5" : "M2 9l5-5 5 5"} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
-        </button>
-        {onClose && (
-          <button type="button" className="btn btn-icon" aria-label={closeLabel} title={closeLabel} onClick={onClose}>
-            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
-              <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-          </button>
-        )}
-      </header>
-
-      <div className="fcard-body" id={bodyId} hidden={folded}>
-      <RouteHead f={f} from={from} to={to} blockMin={block?.min ?? null} nm={nm} onPlace={onPlace} placeHref={placeHref} />
-      {actionsFirst && dispatch}
-
-      {from && to && (
-        <RouteMap
+  const map =
+    from && to ? (
+      <RouteMap
           routes={[{ key: f.id, from, to, color, active: true }]}
           height={250}
           label={`Map: great-circle route from ${airportLabel(from)} to ${airportLabel(to)}, ${nm ?? "?"} nautical miles.`}
         />
-      )}
+    ) : null;
 
-      {weekVaries && display.week === "tabs" && <DayTabs f={f} day={shown.f.day} onPick={setTab} />}
-      <Oooi row={shown} from={from} to={to} />
-      {weekVaries && display.week !== "tabs" && <WeekTimes f={f} style={display.week} />}
-
-      <dl className="facts">
+  const facts = (
+    <dl className="facts">
         <div>
           <dt>
             <Tip tip={GLOSSARY.types} title="Aircraft">
@@ -276,10 +244,223 @@ export function FlightCard({
           <dd className="mono">{nm != null ? `${nm.toLocaleString("en-GB")} NM` : "—"}</dd>
         </div>
       </dl>
+  );
 
-      {!actionsFirst && dispatch}
+  const more = (
+    <div className="dispatch">
+      {onContinue && (
+        <button type="button" className="btn" onClick={onContinue} title={`Roll an onward flight from ${f.d}`}>
+          Next leg from {to?.iata ?? f.d}
+        </button>
+      )}
+      <CopyLink url={url} />
+      {fav && saved && saved.groups.length > 0 && (
+        <div className="fav-group" role="group" aria-label="Favourite groups">
+          <span className="fav-group-star" aria-hidden="true">
+            ★
+          </span>
+          <span className="ctl-label">In groups</span>
+          {saved.groups.map((g) => {
+            const on = favIn.includes(g);
+            return (
+              <button key={g} type="button" className={`chip fav-group-chip${on ? " on" : ""}`} aria-pressed={on} onClick={() => setInGroup(f, g, !on)}>
+                {on && <span aria-hidden="true">✓ </span>}
+                {g}
+              </button>
+            );
+          })}
+          {favIn.length > 1 && <span className="badge b-amber">shared by {favIn.length}</span>}
+        </div>
+      )}
+      {extra}
+    </div>
+  );
+
+  return (
+    <article
+      className={`fcard bp-${style}`}
+      aria-label={`Flight ${flightNo(f, iata)}`}
+      style={{ ["--al" as string]: color, ["--al-ink" as string]: ink, ["--al-2" as string]: accent }}
+      onKeyDown={(e) => {
+        // F turns the pass over, unless a field is being typed in
+        if (!flip || e.key.toLowerCase() !== "f" || e.metaKey || e.ctrlKey || e.altKey) return;
+        if ((e.target as HTMLElement).closest("input, select, textarea, [contenteditable]")) return;
+        setBack((v) => !v);
+      }}
+    >
+      <header
+        className="fcard-head"
+        onClick={(e) => {
+          if (!(e.target as HTMLElement).closest("button, a, input, select, form")) toggleFold();
+        }}
+        title={folded ? "Show the flight details" : "Hide the flight details"}
+      >
+        <div className="fcard-title">
+          <p className="fcard-airline">
+            {airline?.name ?? f.al}
+            {f.op !== f.al && (
+              <Tip tip={`Operated by ${f.op}, the airline whose code is filed with ATC.`} title="Operator">
+                <span className="muted"> · op. {f.op}</span>
+              </Tip>
+            )}
+          </p>
+          <h2 className="fcard-no">
+            <span>{flightNo(f, iata)}</span>
+            <FnLine f={f} iata={iata} />
+          </h2>
+        </div>
+        {f.day && weekVaries ? (
+          <span className="bp-day" title={`The times shown are ${["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][f.day - 1]}’s; they change through the week`}>
+            {DAY_NAMES[f.day - 1]}
+          </span>
+        ) : null}
+        <button
+          type="button"
+          className={`btn btn-icon fav${fav ? " on" : ""}`}
+          aria-pressed={fav}
+          aria-label={fav ? (favIn.length > 1 ? `Remove from favourites (all ${favIn.length} groups)` : "Remove from favourites") : "Add to favourites"}
+          title={fav ? (favIn.length > 1 ? `Favourite, in ${favIn.length} groups` : "Favourite") : "Add to favourites"}
+          onClick={() => toggleFavourite(f)}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className="btn btn-icon fold"
+          aria-expanded={!folded}
+          aria-controls={bodyId}
+          aria-label={folded ? "Show the flight details" : "Hide the flight details"}
+          onClick={toggleFold}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+            <path d={folded ? "M2 5l5 5 5-5" : "M2 9l5-5 5 5"} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        </button>
+        {onClose && (
+          <button type="button" className="btn btn-icon" aria-label={closeLabel} title={closeLabel} onClick={onClose}>
+            <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+              <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </button>
+        )}
+      </header>
+
+      <div className="fcard-body" id={bodyId} hidden={folded}>
+        <div className={cx("bp", turned && "is-back")}>
+          <div className="bp-faces">
+            <div className="bp-face bp-face-front" inert={turned || undefined}>
+              <RouteHead f={f} from={from} to={to} blockMin={block?.min ?? null} nm={nm} onPlace={onPlace} placeHref={placeHref} />
+            </div>
+            {flip && (
+              <div className="bp-face bp-face-back" inert={!turned || undefined}>
+                {times}
+              </div>
+            )}
+          </div>
+          {stub}
+        </div>
+
+        <CardRest
+          mode={rest}
+          sections={[
+            { id: "map", title: "Map", body: map },
+            !flip && { id: "times", title: "Times", body: times },
+            weekVaries && display.week !== "tabs" && { id: "week", title: "Week", body: <WeekTimes f={f} style={display.week} /> },
+            {
+              id: "details",
+              title: "Details",
+              body: (
+                <>
+                  {facts}
+                  {more}
+                </>
+              ),
+            },
+          ]}
+        />
       </div>
     </article>
+  );
+}
+
+/** Arrow keys, Home and End move between tabs and open the one reached (the tablist pattern). */
+function tabKeys(e: KeyboardEvent<HTMLElement>) {
+  const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+  if (!step && e.key !== "Home" && e.key !== "End") return;
+  const tabs = [...e.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]')];
+  const i = tabs.indexOf(document.activeElement as HTMLElement);
+  if (i < 0) return;
+  e.preventDefault();
+  const n = tabs.length;
+  const j = e.key === "Home" ? 0 : e.key === "End" ? n - 1 : (i + step + n) % n;
+  tabs[j].focus();
+  tabs[j].click();
+}
+
+type RestSection = { id: string; title: string; body: ReactNode };
+
+/** What follows the pass, in the chosen arrangement. Folded sections and the last tab are remembered. */
+function CardRest({ mode, sections }: { mode: "stack" | "folded" | "tabs"; sections: (RestSection | false)[] }) {
+  const list = sections.filter((x): x is RestSection => !!x && x.body != null);
+  const saved = useSaved();
+  const tabsId = useId();
+  if (mode === "stack")
+    return (
+      <div className="fcard-rest">
+        {list.map((x) => (
+          <Fragment key={x.id}>{x.body}</Fragment>
+        ))}
+      </div>
+    );
+  if (mode === "folded") {
+    const open = saved?.prefs.cardOpen ?? [];
+    const toggle = (id: string, on: boolean) => {
+      const now = readPrefs().cardOpen ?? [];
+      writePrefs({ cardOpen: on ? [...new Set([...now, id])] : now.filter((x) => x !== id) });
+    };
+    return (
+      <div className="fcard-rest">
+        {list.map((x) =>
+          x.id === "map" ? (
+            <Fragment key={x.id}>{x.body}</Fragment>
+          ) : (
+            <details key={x.id} className="fc-fold" data-sec={x.id} open={open.includes(x.id)} onToggle={(e) => toggle(x.id, (e.currentTarget as HTMLDetailsElement).open)}>
+              <summary>{x.title}</summary>
+              <div className="fc-fold-body">{x.body}</div>
+            </details>
+          ),
+        )}
+      </div>
+    );
+  }
+  const want = saved?.prefs.cardTab;
+  const cur = list.find((x) => x.id === want) ?? list[0];
+  const pick = (id: string) => writePrefs({ cardTab: id });
+  return (
+    <div className="fcard-rest fc-tabbed">
+      <div className="fc-tabs" role="tablist" aria-label="More about this flight" onKeyDown={tabKeys}>
+        {list.map((x, i) => (
+          <button
+            key={x.id}
+            type="button"
+            role="tab"
+            id={`${tabsId}-${x.id}`}
+            aria-selected={x === cur}
+            aria-controls={`${tabsId}-panel`}
+            tabIndex={roving(x === cur, i)}
+            className="fc-tab"
+            onClick={() => pick(x.id)}
+          >
+            {x.title}
+          </button>
+        ))}
+      </div>
+      <div className="fc-tabpanel" role="tabpanel" id={`${tabsId}-panel`} aria-labelledby={`${tabsId}-${cur?.id}`} data-sec={cur?.id}>
+        {cur?.body}
+      </div>
+    </div>
   );
 }
 
