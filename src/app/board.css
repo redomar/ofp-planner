@@ -400,6 +400,8 @@
   display: flex;
   align-items: center;
   gap: calc(var(--u) * 2.4);
+  /* as tall as the gate (or live-from) box, so it coming or going moves nothing */
+  min-height: calc(var(--u) * 6.4);
 }
 .gs-brand {
   display: flex;
@@ -823,4 +825,709 @@ html.screen-mode body > :not(.screen-root) {
   .board-panel .tab .mono {
     display: none;
   }
+}
+
+/* ---------- 1.9: the gate screen's views (sheets 02 and 05) ---------- */
+.gv {
+  --u: 1cqw;
+  position: relative;
+  height: 100%;
+  color: var(--gs-ink);
+  font-family: var(--font-sans);
+  overflow: hidden;
+}
+.gv-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(var(--u) * 0.9);
+  font-size: calc(var(--u) * 2.2);
+  font-weight: 700;
+}
+.gv-picto {
+  width: calc(var(--u) * 2.4);
+  height: calc(var(--u) * 2.4);
+  fill: var(--gs-accent);
+  transform: rotate(45deg);
+}
+.gv-clock {
+  font-size: calc(var(--u) * 2.2);
+  font-weight: 600;
+}
+.gv-ident {
+  font-size: calc(var(--u) * 1.6);
+  font-weight: 600;
+}
+.gv-ident span {
+  font-weight: 400;
+}
+.gv-dest {
+  font-size: calc(var(--u) * 5.4);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gv-sub {
+  font-size: calc(var(--u) * 1.4);
+}
+.gv-tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: calc(var(--u) * 0.8);
+}
+.gv-tile {
+  display: flex;
+  flex-direction: column;
+  padding: calc(var(--u) * 0.6) calc(var(--u) * 1);
+  border: calc(var(--u) * 0.12) solid color-mix(in srgb, var(--gs-ink) 35%, transparent);
+  border-radius: calc(var(--u) * 0.5);
+  min-width: 0;
+}
+.gv-tile small,
+.gv-strip-st small,
+.gv-strip-id small {
+  font-family: var(--font-cond);
+  font-size: calc(var(--u) * 1.05);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.gv-tile b {
+  font-size: calc(var(--u) * 2.4);
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.gv-tile i {
+  font-style: normal;
+  font-size: 0.55em;
+}
+.gv-status {
+  padding: calc(var(--u) * 0.9) calc(var(--u) * 1.6);
+  border-radius: calc(var(--u) * 0.7);
+  background: #ffffff;
+  color: #111111;
+  border-left: calc(var(--u) * 0.8) solid #111111;
+  display: flex;
+  flex-direction: column;
+}
+.gv-status b {
+  font-family: var(--font-cond);
+  font-size: calc(var(--u) * 3.2);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.1;
+}
+.gv-status small {
+  font-size: calc(var(--u) * 1.4);
+  font-weight: 500;
+}
+
+/* the moving map */
+.gm {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.gm-sea {
+  fill: color-mix(in srgb, #000000 28%, var(--gs-bg));
+}
+.gm-land {
+  fill: color-mix(in srgb, var(--gs-ink) 14%, var(--gs-bg));
+}
+.gm-coast {
+  fill: none;
+  stroke: color-mix(in srgb, var(--gs-ink) 30%, var(--gs-bg));
+  stroke-width: 1.2;
+}
+.gm-borders {
+  fill: none;
+  stroke: color-mix(in srgb, var(--gs-ink) 22%, var(--gs-bg));
+  stroke-width: 0.8;
+  stroke-dasharray: 3 3;
+}
+.gm-togo {
+  fill: none;
+  stroke: var(--gs-ink);
+  stroke-linecap: round;
+}
+.gm-flown {
+  fill: none;
+  stroke: var(--gs-accent);
+  stroke-linecap: round;
+}
+.gm-plane {
+  fill: var(--gs-accent);
+  stroke: color-mix(in srgb, #000000 50%, var(--gs-bg));
+  stroke-width: 2;
+}
+.gm-ap {
+  fill: var(--gs-ink);
+}
+.gm-code {
+  fill: var(--gs-ink);
+  font-family: var(--font-cond);
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: color-mix(in srgb, #000000 28%, var(--gs-bg));
+  stroke-width: 4;
+}
+
+/* G3 map and G3c map with a window: the map, then the facts on a rail */
+.gv-map {
+  display: grid;
+  grid-template-columns: 58fr 42fr;
+  background: var(--gs-bg);
+}
+.gv-map-pic {
+  min-width: 0;
+  overflow: hidden;
+}
+.gv-rail {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 1);
+  padding: calc(var(--u) * 2) calc(var(--u) * 2.2);
+  border-left: calc(var(--u) * 0.6) solid var(--gs-accent);
+  background: var(--gs-bg);
+  overflow: hidden;
+}
+.gv-rail-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(var(--u) * 1);
+}
+.gv-map .gv-tiles {
+  margin-top: auto;
+}
+/* a window onto the game capture: everything around it is painted, the window itself left clear */
+.gv-window {
+  flex: 1 1 auto;
+  min-height: 0;
+  border-radius: calc(var(--u) * 0.6);
+  outline: calc(var(--u) * 0.15) solid color-mix(in srgb, var(--gs-ink) 45%, transparent);
+  box-shadow: 0 0 0 200cqw var(--gs-bg);
+}
+.gv-map.is-win,
+.gv-map.is-win .gv-rail {
+  background: none;
+}
+.gv-map.is-win .gv-map-pic {
+  background: var(--gs-bg);
+}
+/* the window's paint (its shadow) goes under the rail's text */
+.gv-map.is-win .gv-rail > :not(.gv-window) {
+  position: relative;
+  z-index: 1;
+}
+.gv-map.is-win .gv-window {
+  aspect-ratio: 16 / 9;
+  flex: none;
+  margin: calc(var(--u) * 0.6) 0;
+}
+
+/* G3a: a big window for the sim, the map on the rail, the status under it */
+.gv-frame {
+  display: grid;
+  grid-template-columns: 66fr 34fr;
+  grid-template-rows: auto 1fr;
+  gap: calc(var(--u) * 1.4);
+  padding: calc(var(--u) * 1.6);
+}
+.gv-frame > .gv-window {
+  grid-area: 1 / 1;
+  aspect-ratio: 16 / 9;
+  flex: none;
+}
+.gv-frame > .gv-rail {
+  grid-area: 1 / 2 / 3 / 3;
+  border-left: none;
+  padding: calc(var(--u) * 0.4) 0 0;
+  background: none;
+  gap: calc(var(--u) * 0.8);
+}
+.gv-frame .gv-dest {
+  font-size: calc(var(--u) * 4.2);
+}
+.gv-frame-map {
+  flex: 1 1 auto;
+  min-height: 0;
+  border-radius: calc(var(--u) * 0.5);
+  overflow: hidden;
+}
+.gv-under {
+  grid-area: 2 / 1;
+  display: grid;
+  grid-template-columns: 34fr 66fr;
+  gap: calc(var(--u) * 1.2);
+  min-height: 0;
+}
+.gv-under-prog {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: calc(var(--u) * 0.4);
+  padding: calc(var(--u) * 0.6) calc(var(--u) * 1.6);
+  border: calc(var(--u) * 0.12) solid color-mix(in srgb, var(--gs-ink) 35%, transparent);
+  border-radius: calc(var(--u) * 0.6);
+}
+.gv-under-times {
+  display: flex;
+  justify-content: space-between;
+  font-size: calc(var(--u) * 1.2);
+}
+
+/* route progress: BRU ——✈······ DUB */
+.gv-prog {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 1);
+  min-width: 0;
+}
+.gv-prog > b {
+  font-size: calc(var(--u) * 2.4);
+  font-weight: 700;
+}
+.gv-prog-line {
+  position: relative;
+  flex: 1;
+  height: calc(var(--u) * 2.4);
+  background: linear-gradient(90deg, var(--gs-accent) 0 calc(var(--p) * 100%), transparent 0) center / 100% calc(var(--u) * 0.3) no-repeat;
+}
+.gv-prog-line > i {
+  position: absolute;
+  left: calc(var(--p) * 100%);
+  right: 0;
+  top: 50%;
+  border-top: calc(var(--u) * 0.2) dotted var(--gs-ink);
+}
+.gv-prog-line svg {
+  position: absolute;
+  left: calc(var(--p) * 100%);
+  top: 50%;
+  width: calc(var(--u) * 2.4);
+  height: calc(var(--u) * 2.4);
+  fill: var(--gs-accent);
+  transform: translate(-50%, -50%) rotate(90deg);
+}
+.gv-prog-line em {
+  position: absolute;
+  left: calc(var(--p) * 100%);
+  bottom: 100%;
+  transform: translateX(-50%);
+  font-style: normal;
+  font-size: calc(var(--u) * 1.15);
+  padding: calc(var(--u) * 0.2) calc(var(--u) * 0.6);
+  border-radius: calc(var(--u) * 0.3);
+  background: #111111;
+  color: #ffffff;
+  white-space: nowrap;
+}
+
+/* G4, G5, G3b: panels over the sim, nothing else drawn */
+.gv-over {
+  background: none;
+}
+.gv-strip,
+.gv-card,
+.gv-pill,
+.gv-corner {
+  position: absolute;
+  background: var(--gs-bg);
+  box-shadow: 0 calc(var(--u) * 0.4) calc(var(--u) * 1.6) rgb(0 0 0 / 0.35);
+}
+.gv-strip {
+  left: calc(var(--u) * 2);
+  right: calc(var(--u) * 2);
+  bottom: calc(var(--u) * 2.2);
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto;
+  align-items: stretch;
+  border-radius: calc(var(--u) * 0.6);
+  border-left: calc(var(--u) * 0.6) solid var(--gs-accent);
+  overflow: hidden;
+}
+.gv-strip > * {
+  padding: calc(var(--u) * 0.8) calc(var(--u) * 1.6);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.gv-strip > * + * {
+  border-left: calc(var(--u) * 0.1) solid color-mix(in srgb, var(--gs-ink) 25%, transparent);
+}
+.gv-strip .gv-prog {
+  flex-direction: row;
+}
+.gv-strip .gv-tile {
+  border: none;
+  border-left: calc(var(--u) * 0.1) solid color-mix(in srgb, var(--gs-ink) 25%, transparent);
+  border-radius: 0;
+}
+.gv-strip-id b {
+  font-size: calc(var(--u) * 2.4);
+  font-weight: 700;
+}
+.gv-strip-st {
+  min-width: calc(var(--u) * 14);
+  color: #111111;
+}
+.gv-strip-st b {
+  font-size: calc(var(--u) * 2.4);
+  font-weight: 700;
+}
+.gv-card {
+  top: calc(var(--u) * 2);
+  right: calc(var(--u) * 2);
+  width: calc(var(--u) * 30);
+  padding: calc(var(--u) * 1.2) calc(var(--u) * 1.6);
+  border-radius: calc(var(--u) * 0.6);
+  border-left: calc(var(--u) * 0.6) solid var(--gs-accent);
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 0.4);
+}
+.gv-card-top,
+.gv-corner-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: calc(var(--u) * 1);
+  font-size: calc(var(--u) * 1.3);
+  font-weight: 700;
+}
+.gv-card-top small,
+.gv-corner-top small {
+  font-family: var(--font-cond);
+  font-size: calc(var(--u) * 1.1);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.gv-card-dest {
+  font-size: calc(var(--u) * 3.6);
+  font-weight: 800;
+  line-height: 1.05;
+}
+.gv-card-facts,
+.gv-corner-facts {
+  display: flex;
+  justify-content: space-between;
+  gap: calc(var(--u) * 1);
+  font-size: calc(var(--u) * 1.3);
+  font-weight: 600;
+}
+.gv-card .gv-prog > b {
+  font-size: calc(var(--u) * 1.4);
+}
+.gv-pill {
+  top: calc(var(--u) * 2);
+  left: calc(var(--u) * 2);
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 0.8);
+  padding: calc(var(--u) * 0.6) calc(var(--u) * 1.6) calc(var(--u) * 0.6) calc(var(--u) * 0.6);
+  border-radius: 999px;
+  font-size: calc(var(--u) * 1.5);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.gv-pill svg {
+  width: calc(var(--u) * 2.2);
+  height: calc(var(--u) * 2.2);
+  padding: calc(var(--u) * 0.35);
+  border-radius: 50%;
+  background: var(--gs-ink);
+  fill: var(--gs-bg);
+  transform: rotate(45deg);
+}
+.gv-corner {
+  right: calc(var(--u) * 2);
+  bottom: calc(var(--u) * 2.4);
+  width: calc(var(--u) * 34);
+  padding: calc(var(--u) * 1) calc(var(--u) * 1.2);
+  border-radius: calc(var(--u) * 0.6);
+  border-left: calc(var(--u) * 0.6) solid var(--gs-accent);
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 0.6);
+}
+.gv-corner-top b {
+  font-size: calc(var(--u) * 2.2);
+  font-weight: 800;
+  margin-right: auto;
+}
+.gv-corner-map {
+  aspect-ratio: 800 / 520;
+  border-radius: calc(var(--u) * 0.4);
+  overflow: hidden;
+}
+
+/* ---------- 1.9: Stream panel and rehearse strip (sheet 07) ---------- */
+.sp,
+.rs {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--sheet);
+}
+.sp-h {
+  font-family: var(--font-cond);
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0 0 10px;
+}
+.sp-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 18px;
+}
+@media (max-width: 1000px) {
+  .sp-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.sp-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.sp-col + .sp-col {
+  border-left: 1px solid var(--rule);
+  padding-left: 18px;
+}
+@media (max-width: 1000px) {
+  .sp-col + .sp-col {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid var(--rule);
+    padding-top: 14px;
+  }
+}
+.sp-srcs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sp-src {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--field);
+}
+.sp-src i {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid var(--rule-strong);
+}
+.sp-src span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.sp-src small {
+  color: var(--ink-soft, inherit);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sp-src.is-on {
+  border-color: var(--green);
+  background: var(--green-bg);
+}
+.sp-src.is-on i {
+  background: var(--green);
+  border-color: var(--green);
+}
+.sp-who {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.sp-who .jr-ctl {
+  flex: 1;
+  min-width: 0;
+}
+.sp-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.sp-tbl th,
+.sp-tbl td {
+  text-align: left;
+  padding: 5px 6px 5px 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: middle;
+}
+.sp-tbl thead th {
+  font-family: var(--font-cond);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.sp-tbl tbody th {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.sp-now {
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--magenta);
+  border-radius: 2px;
+  color: var(--magenta);
+  font-family: var(--font-cond);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.sp-now.is-hold {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+.sp-view {
+  max-width: 100%;
+}
+.sp-sub {
+  margin-top: 8px;
+}
+.sp-rules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sp-rules li {
+  display: grid;
+  grid-template-columns: minmax(0, 7rem) minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+.sp-x {
+  min-width: 2rem;
+}
+.sp-url {
+  width: 100%;
+  font-size: 0.8rem;
+}
+.sp-steps {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* room for the strip before the recording has loaded, so nothing moves when it arrives */
+.rs {
+  min-height: 11.5rem;
+}
+.rs-strip {
+  position: relative;
+  display: flex;
+  gap: 3px;
+  margin-top: 10px;
+  touch-action: none;
+}
+.rs-b {
+  flex-basis: 0;
+  min-width: 4.5rem;
+  padding: 7px 6px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--field);
+  color: var(--ink);
+  font-family: var(--font-cond);
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: grab;
+}
+.rs-b.is-flying {
+  background: var(--magenta-bg);
+  border-color: var(--magenta);
+}
+.rs-b.is-held {
+  outline: 2px solid var(--amber);
+  outline-offset: 1px;
+}
+.rs-at {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--magenta);
+  pointer-events: none;
+}
+.rs-times {
+  position: relative;
+  height: 1.3rem;
+  margin-top: 4px;
+}
+.rs-times span {
+  position: absolute;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.rs-times span:first-child {
+  left: 0;
+  transform: none;
+}
+.rs-times span:last-child:not(:first-child) {
+  transform: translateX(-100%);
+}
+
+/* ---------- 1.9: arrived, one click to the Logbook ---------- */
+.la {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--green);
+  border-left-width: 6px;
+  border-radius: var(--radius);
+  background: var(--green-bg);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.la .sp-h {
+  margin-bottom: 4px;
+}
+.la-times {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+}
+.la-times small {
+  font-family: var(--font-cond);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.la-act {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
 }
