@@ -15,6 +15,10 @@ The flight card becomes a boarding pass (the first part of 1.8).
 - **Which day's times.** For a flight whose times change through the week, the band names the day shown (TUE).
 - **Favourites and recent flights are small tickets**: the airline's colour on the spine, the route on a dotted line, the actions on a perforated stub (along the bottom on a phone). Settings → Display → "Plain rows" brings the list back.
 - **Motion with a reason** (none of it with reduced motion on): picking a flight in the table unfolds the panel out of that row; the codes flip when the flight changes, no longer every time the card scrolls back into view; the track draws once; the stub nudges along its perforation when you send the flight to SimBrief.
+- **Settings → Display, shorter and in groups.** The settings sit in five groups on the left (Flights list, Flight card, Maps, Logbook, What’s listed), each with how many it holds. Each setting is one row: its name, one line of help, the choices side by side and a small sample of the current one. A setting you changed says “changed · undo”; Reset all puts every display setting back. The pass style stays three picture cards.
+- **Rows or Preview.** A View switch at the top of Display: Rows (a sample on each row) or Preview, where one live preview beside the rows (real table rows, the pass with its band, the week’s times, a ticket, the maps) redraws as you choose, and pointing at a setting outlines what it changes. The choice is remembered.
+- **Aircraft badges as two plain questions**: “Colour shows: Maker, Airline or Nothing” and “Style: Filled or Edge”, answered on real table rows with a key that follows the answer. “Filled” is now one recipe: by airline it is a light tint of the airline’s colour with its edge, like by maker (it was a solid block). “Nothing” is new: plain badges, the maker on hover. Saved choices carry over.
+- Airlines (common / Extra+) and Guessed airports are now in the What’s listed group.
 
 ## 1.7.3 — 2026-11-09
 

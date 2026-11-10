@@ -10,9 +10,9 @@ export interface Display {
   airlineTag: AirlineTagStyle;
   /** Flight number first, then the airline tag (default), or the other way round. */
   flightFirst: boolean;
-  /** Aircraft badge colour: by manufacturer or by the airline that flies it. */
-  typeColour: "maker" | "airline";
-  /** Aircraft badge theme: a coloured edge on the side, or fully coloured. */
+  /** Aircraft badge colour: by manufacturer, by the airline that flies it, or none. */
+  typeColour: TypeColour;
+  /** Aircraft badge theme: a coloured edge on the side, or filled (a tint of the colour, the same recipe for maker and airline). */
   typeTheme: "side" | "full";
   /** Airport codes beside destinations on maps (codes that would overlap are skipped). */
   mapCodes: MapCodes;
@@ -36,7 +36,11 @@ export interface Display {
   airlines: AirlineSet;
   /** List flights with an airport guessed from the climb-out or descent (Flight.inf). */
   guessed: boolean;
+  /** Settings → Display: one row per setting with a sample, or the rows beside one live preview. */
+  settingsView: SettingsView;
 }
+export type TypeColour = "maker" | "airline" | "none";
+export type SettingsView = "rows" | "preview";
 export type AirlineSet = "common" | "extra";
 export type WeekStyle = "table" | "grouped" | "tabs" | "timeline";
 export type VariesMark = "tag" | "word" | "tilde";
@@ -47,7 +51,7 @@ export type PassStyle = "side" | "track" | "city";
 
 export const PASS_STYLES: readonly PassStyle[] = ["side", "track", "city"];
 
-export const DEFAULT_DISPLAY: Display = { airlineTag: "solid", flightFirst: true, typeColour: "maker", typeTheme: "full", mapCodes: "iata", mapLines: "great", pass: "track", passFlip: true, tickets: true, week: "table", variesMark: "tag", logbook: "table", logBars: false, airlines: "common", guessed: false };
+export const DEFAULT_DISPLAY: Display = { airlineTag: "solid", flightFirst: true, typeColour: "maker", typeTheme: "full", mapCodes: "iata", mapLines: "great", pass: "track", passFlip: true, tickets: true, week: "table", variesMark: "tag", logbook: "table", logBars: false, airlines: "common", guessed: false, settingsView: "rows" };
 
 export const readDisplay = (): Display => {
   const stored = readJSON<Partial<Display> & { mapCodes?: MapCodes | boolean; routeHead?: string }>(KEYS.display, {});
@@ -58,6 +62,8 @@ export const readDisplay = (): Display => {
   // before 1.8 the card had three styles (timeline, boarding pass, departure board); each maps to a pass
   if (!rest.pass && routeHead) d.pass = routeHead === "pass" ? "side" : "track";
   if (!PASS_STYLES.includes(d.pass)) d.pass = DEFAULT_DISPLAY.pass;
+  if (!["maker", "airline", "none"].includes(d.typeColour)) d.typeColour = DEFAULT_DISPLAY.typeColour;
+  if (d.settingsView !== "rows" && d.settingsView !== "preview") d.settingsView = DEFAULT_DISPLAY.settingsView;
   return d as Display;
 };
 export function writeDisplay(p: Partial<Display>) {

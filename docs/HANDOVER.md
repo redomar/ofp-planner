@@ -95,7 +95,7 @@ pages:        # all client components; one shared TopBar (Finder · Journeys · 
               RANGE_NM 6000 (grows only for rings past it; airports beyond the rim aren't drawn); Terrain toggle
               (relief, default off = parchment/blue, no lettering; on = the same bands + contours as every map). Night uses its own darker
               palette (.range-map overrides --m-*, from the first sketch). Figure height is CSS-only (.range-map) so nothing shifts while it loads.
-  /settings:  src/components/SettingsApp.tsx — airframes, Display, favourites, recent, snapshot info, theme/storage
+  /settings:  src/components/SettingsApp.tsx — airframes, favourites, recent, snapshot info, theme/storage; Display is src/components/DisplaySettings.tsx (groups, Rows | Preview)
               backup: lib/backup.ts — every "ofp-planner:*" key (+ theme, minus wx cache) as raw strings, schema "ofp-planner/backup" v1,
               gzipped with CompressionStream; restore replaces those keys (rolls back on a quota error) and reloads.
 components:
@@ -364,6 +364,10 @@ server_latch_container_alternative: |
 
   - BRANCHES IN FLIGHT (keep current):
     · THE 1.8 / 1.9 SPEC FOR WHAT IS LEFT: docs/V1.8-BRIEF.md (decisions, each branch, what "done" means). Read it before continuing.
+    · feature/settings-display: LOCAL ONLY (2026-11-10), cut from feature/boarding-pass (it regroups that branch's settings), so its PR
+      goes on top of #16 (or rebase on main after #16 merges). Settings → Display rebuilt: src/components/DisplaySettings.tsx (groups, rows,
+      segmented radios named after each display key, picture cards for the pass, Rows | Preview = display.settingsView, typeColour "none",
+      filled-by-airline badge = tint). verify section "settings display". Finder layout group arrives with branch 3.
     · feature/boarding-pass: PUSHED, PR #16 open (2026-11-10; full verify 598/598). First of three 1.8 branches (then feature/settings-display,
       feature/finder-layouts; 1.9 = in-flight gate screen, stream flow, the OFP Link .exe). The user's decisions and the option sheets:
       ../ofp-planner-previews/v1.8-direction/ (01–07 + live/index.html). Done here: the pass in three styles, flip, stamp, tickets for

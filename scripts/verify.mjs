@@ -1024,7 +1024,7 @@ async function run() {
     // display options apply in the finder
     await page.getByRole("radio", { name: /Split pill/ }).check();
     await page.getByRole("radio", { name: /Airline, then flight/ }).check();
-    await page.getByRole("radio", { name: "Colour by manufacturer, edge only" }).check();
+    await page.locator("input[name=typeTheme]").nth(1).check();
     await page.locator("input[name=mapCodes]").nth(2).check();
     await page.goto(page.url().replace(/\/settings.*$/, "/?al=EZY&dep=EGKK"), { waitUntil: "networkidle" });
     await page.waitForSelector("table.flights tbody tr");
@@ -1062,6 +1062,97 @@ async function run() {
     (await page.locator(".backup .form-err").innerText()).includes("isn't an OFP Planner backup") ? pass("settings: a file that isn't a backup is refused") : fail("settings: bad backup not refused");
     errors.length ? fail(`settings: console errors ${JSON.stringify(errors)}`) : pass("settings: 0 console errors");
     await ctx.close();
+  });
+
+  /* ---------- 1.8: Settings → Display in groups, Rows | Preview ---------- */
+  await section("settings display", async () => {
+    const { ctx, page, errors } = await open("/settings");
+    await page.waitForSelector(".dp-badges .dp-tr");
+    // groups on the left with how many settings each holds
+    const groups = await page.locator(".dp-nav-i").evaluateAll((b) => b.map((x) => x.innerText.replace(/\s+/g, " ").trim()));
+    groups.join("|").toLowerCase() === "Flights list 5|Flight card 4|Maps 2|Logbook 1|What’s listed 2".toLowerCase()
+      ? pass(`display: groups with their counts (${groups.join(", ")})`)
+      : fail(`display: groups ${JSON.stringify(groups)}`);
+    // one row per setting, a segmented control of real radios, "changed · undo", Reset all
+    const before = await page.locator(".dp-changed").innerText();
+    await page.getByRole("radio", { name: "Tinted" }).check();
+    await page.getByRole("radio", { name: "Nothing" }).check();
+    const changed = await page.locator(".dp-changed").innerText();
+    const undos = await page.locator(".dp-undo").count();
+    const plain = await page.locator(".dp-badges .tbadge").evaluateAll((b) => b.every((x) => x.classList.contains("tb-ink")));
+    const key = await page.locator(".dp-key").innerText();
+    await page.getByRole("button", { name: /Aircraft badge colour changed: undo/ }).click();
+    const afterUndo = await page.locator(".dp-changed").innerText();
+    const makerKey = await page.locator(".dp-key").innerText();
+    await page.getByRole("button", { name: "Reset all" }).click();
+    const afterReset = await page.locator(".dp-changed").innerText();
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("ofp-planner:display")));
+    before.startsWith("All") && changed === "2 changed from default" && undos === 2 && plain && /plain/.test(key) && afterUndo === "1 changed from default" && /Airbus/.test(makerKey) && afterReset.startsWith("All") && stored.airlineTag === "solid"
+      ? pass("display: a segment changes the setting, “changed · undo” puts one back, Reset all the rest; “Nothing” makes plain badges and the key says so")
+      : fail(`display: rows ${JSON.stringify({ before, changed, undos, plain, key, afterUndo, makerKey, afterReset, tag: stored.airlineTag })}`);
+    // filled is one recipe: by airline it's a tint of the airline's colour with its edge, text in ink
+    await page.getByRole("radio", { name: "Airline", exact: true }).check();
+    const tint = await page.locator(".dp-badges .tbadge").first().evaluate((b) => {
+      const cs = getComputedStyle(b);
+      return { bg: cs.backgroundColor, border: cs.borderTopColor, ink: cs.color === getComputedStyle(document.body).color };
+    });
+    tint.bg !== tint.border && tint.ink ? pass(`display: filled by airline is a tint with the airline's edge (${tint.bg} / ${tint.border})`) : fail(`display: airline fill ${JSON.stringify(tint)}`);
+    await checkPage("settings display rows 1280 light", page, errors);
+    await shot(page, "settings-display-rows-day");
+    // the pass style is three picture cards
+    const cards = await page.locator(".dp-card").count();
+    await page.locator(".dp-card").filter({ hasText: "Ticket, city first" }).click();
+    const pass3 = await page.evaluate(() => JSON.parse(localStorage.getItem("ofp-planner:display")).pass);
+    cards === 3 && pass3 === "city" ? pass("display: the pass style is three picture cards") : fail(`display: pass cards ${cards} ${pass3}`);
+    // Preview: one live preview beside the rows; pointing at a row outlines what it changes; the view is remembered
+    await page.getByRole("radio", { name: "Preview" }).check();
+    await page.locator(".dp-nav-i", { hasText: "Flight card" }).click();
+    await page.waitForSelector(".dp-pv .bp-sample.bp-city");
+    await page.locator(".dp-row", { hasText: "Times by day" }).hover();
+    const hot = await page.locator(".dp-pv .pv-hot").getAttribute("class");
+    await page.getByRole("radio", { name: "Track" }).check();
+    const live = await page.locator(".dp-pv .bp-sample").getAttribute("class");
+    await page.goto(`${base}/settings`, { waitUntil: "networkidle" });
+    const kept = await page.locator("input[name=settingsView]:checked").evaluate((i) => i.closest("label").innerText);
+    hot?.includes("dp-pv-week") && live?.includes("bp-track") && kept === "Preview" && (await page.locator(".dp-pv").count()) === 1
+      ? pass("display: Preview redraws the pass live, outlines what the pointed-at row changes, and is remembered")
+      : fail(`display: preview ${JSON.stringify({ hot, live, kept })}`);
+    await page.locator(".dp-nav-i", { hasText: "Flights list" }).click();
+    await page.waitForSelector(".dp-pv .dp-tr");
+    await checkPage("settings display preview 1280 light", page, errors);
+    await shot(page, "settings-display-preview-day");
+    await ctx.close();
+    // a choice saved before 1.8 (edge badges by airline) shows as Airline + Edge
+    {
+      const o = await open("/settings");
+      await o.page.evaluate(() => localStorage.setItem("ofp-planner:display", JSON.stringify({ typeColour: "airline", typeTheme: "side", settingsView: "nonsense" })));
+      await o.page.reload({ waitUntil: "networkidle" });
+      const c = await o.page.locator("input[name=typeColour]:checked").evaluate((i) => i.closest("label").innerText);
+      const t = await o.page.locator("input[name=typeTheme]:checked").evaluate((i) => i.closest("label").innerText);
+      const v = await o.page.locator("input[name=settingsView]:checked").evaluate((i) => i.closest("label").innerText);
+      c === "Airline" && t === "Edge" && v === "Rows" ? pass("display: saved badge choices carry over (Airline + Edge); an unknown view falls back to Rows") : fail(`display: carry-over ${c} ${t} ${v}`);
+      await o.ctx.close();
+    }
+    // both views at phone width and at night
+    for (const [w, theme, view] of [
+      [1280, "dark", "rows"],
+      [1280, "dark", "preview"],
+      [390, "light", "rows"],
+      [390, "dark", "preview"],
+    ]) {
+      const o = await open("/settings", { width: w, height: 844, theme });
+      await o.page.evaluate((v) => localStorage.setItem("ofp-planner:display", JSON.stringify({ settingsView: v })), view);
+      await o.page.reload({ waitUntil: "networkidle" });
+      await o.page.evaluate(() => (window.__cls = 0));
+      await o.page.locator("#display").scrollIntoViewIfNeeded();
+      if (view === "preview") {
+        await o.page.locator(".dp-nav-i", { hasText: "Flight card" }).click();
+        await o.page.waitForSelector(".dp-pv .bp-sample");
+      } else await o.page.waitForSelector(".dp-badges .dp-tr");
+      await checkPage(`settings display ${view} ${w} ${theme}`, o.page, o.errors);
+      if (w === 390) await shot(o.page, `settings-display-${view}-phone-${theme}`);
+      await o.ctx.close();
+    }
   });
 
   /* ---------- 1.5.0: one row per flight, times by weekday ---------- */
@@ -1756,7 +1847,7 @@ async function run() {
     const rows = await page.locator("table.flights tbody tr").count();
     rows > 0 ? pass(`extra airlines: ?al=${icao} still shows its ${rows} flights with Extra+ hidden`) : fail(`extra airlines: ?al=${icao} shows nothing`);
     await page.goto(`${base}/settings`, { waitUntil: "networkidle" });
-    await page.waitForSelector(".al-set");
+    await page.waitForSelector("#dp-listed .dp-s .mono");
     await checkPage("settings extra airlines 1280 light", page, errors);
     await ctx.close();
   });
