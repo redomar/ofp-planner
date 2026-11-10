@@ -364,7 +364,7 @@ server_latch_container_alternative: |
 
   - BRANCHES IN FLIGHT (keep current):
     · THE 1.8 / 1.9 SPEC FOR WHAT IS LEFT: docs/V1.8-BRIEF.md (decisions, each branch, what "done" means). Read it before continuing.
-    · feature/finder-layouts: LOCAL ONLY (2026-11-10), cut from feature/settings-display. display.finder (full|calm|roll|place),
+    · feature/finder-layouts: PUSHED, PR #18 (base feature/settings-display, 2026-11-10; full verify 702/702). Merge order #16 → #17 → #18, retargeting each to main. display.finder (full|calm|roll|place),
       display.pinShort (T2), variesMark "dot" (T1), More filters folds on desktop too (T4), FlightCard rest="folded"|"tabs" (T3 / tabs).
       Parts live in FinderApp.tsx (sentence, roll hero, layout switch), Results.tsx FlightTable (short, pin, pinShort, renderOpen).
     · feature/settings-display: PUSHED, PR #17 (base feature/boarding-pass, 2026-11-10); cut from branch 1 because it regroups its
