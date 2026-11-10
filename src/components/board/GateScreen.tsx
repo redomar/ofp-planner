@@ -8,6 +8,7 @@ import { MIN, phaseAt, phases, type PhaseKey } from "@/lib/board/board";
 import type { GateFlight, GateState } from "@/lib/board/gate";
 import { aircraft } from "@/lib/aircraft";
 import { PHASE_LABEL, type FlightPhase, type FlightState } from "@/lib/feed/core";
+import { liveFacts } from "./GateViews";
 
 /** Destination weather for the info strip. */
 export interface GateWx {
@@ -68,6 +69,19 @@ const LIVE_STEP: Record<FlightPhase, PhaseKey> = {
   gate: "departed",
 };
 
+/** After pushback the step line runs on to the arrival gate (sheet 02, G1). */
+const FLIGHT_STEPS: { key: string; label: string; of: FlightPhase[] }[] = [
+  { key: "pushback", label: "Pushback", of: ["pushback", "taxi"] },
+  { key: "takeoff", label: "Take-off", of: ["takeoff"] },
+  { key: "climb", label: "Climb", of: ["climb"] },
+  { key: "cruise", label: "Cruise", of: ["cruise"] },
+  { key: "descent", label: "Descent", of: ["descent"] },
+  { key: "approach", label: "Approach", of: ["approach"] },
+  { key: "landing", label: "Landing", of: ["landed", "taxiIn"] },
+  { key: "gate", label: "At the gate", of: ["gate"] },
+];
+const zTime = (ms: number) => `${new Date(ms).toISOString().slice(11, 16)}Z`;
+
 /** "FL284 · 463 kt", or "3,200 ft · 180 kt" below FL100; on the ground, the speed alone. */
 function figures(st: FlightState): string | null {
   const s = st.last;
@@ -88,7 +102,22 @@ export const screenNow = (now: number, f: GateFlight, g: GateState) => (g.stdAt 
  * steps from gate open to take-off. Drawn on a 16:9 canvas sized in container units, so it scales
  * from the preview to a 1920×1080 stream source.
  */
-export function GateScreen({ flight: f, state: g, now, wx, live = null }: { flight: GateFlight; state: GateState; now: number; wx: GateWx | null; live?: FlightState | null }) {
+export function GateScreen({
+  flight: f,
+  state: g,
+  now,
+  wx,
+  live = null,
+  source = null,
+}: {
+  flight: GateFlight;
+  state: GateState;
+  now: number;
+  wx: GateWx | null;
+  live?: FlightState | null;
+  /** Where the live figures come from ("MSFS", "VATSIM", "Replay"), shown beside the clock. */
+  source?: string | null;
+}) {
   const bg = routeColor(f.brand);
   const ink = textOn(bg);
   const accent =
@@ -166,7 +195,8 @@ export function GateScreen({ flight: f, state: g, now, wx, live = null }: { flig
   ].filter(Boolean) as string[];
   const wxText =
     wx && (wx.temp != null || wx.text) ? `${dest} at arrival: ${[wx.temp != null ? `${Math.round(wx.temp)}°C` : null, wx.text?.toLowerCase()].filter(Boolean).join(", ")}` : null;
-  const items = [wxText, facts.length ? facts.join(" · ") : null, g.msg || null].filter((x): x is string => !!x);
+  const liveLine = live && live.stage === "flying" && live.last && !live.last.onGround && live.phase !== "landed" ? `${figures(live)?.replace(" · ", " · Ground speed ").replace(/^/, "Level ")}` : null;
+  const items = [liveLine, wxText, liveLine ? null : facts.length ? facts.join(" · ") : null, g.msg || null].filter((x): x is string => !!x);
   const item = items.length ? items[g.rotate ? Math.floor(now / 8000) % items.length : 0] : null;
 
   // how far along the step line: steps done, plus the part of the way to the next one the clock has gone
@@ -180,6 +210,40 @@ export function GateScreen({ flight: f, state: g, now, wx, live = null }: { flig
   }
   const progress = g.cancelled ? 0 : phase.key === "departed" ? 1 : step < 0 ? 0 : Math.min(1, (step + frac) / last);
 
+  // with a live feed past the gate, the steps run on to the arrival gate and the times are the
+  // ones stamped (est. for what's still to come)
+  const inFlight = !!live && live.stage !== "ready" && !g.pin && !g.cancelled;
+  const lf = live ? liveFacts(f, g, live, now) : null;
+  const fIdx = inFlight ? FLIGHT_STEPS.findIndex((x) => x.of.includes(live!.phase)) : -1;
+  const fTime = (k: string): string => {
+    if (!live) return "";
+    const st = live.stamps;
+    const e = live.entered;
+    const etaOn = lf?.arrives ?? null;
+    const at: Record<string, number | null | undefined> = {
+      pushback: st.out,
+      takeoff: st.off,
+      climb: e.climb,
+      cruise: e.cruise,
+      descent: e.descent,
+      approach: e.approach,
+      landing: st.on,
+      gate: st.in,
+    };
+    const v = at[k];
+    if (v != null) return zTime(v);
+    if (k === "landing" && etaOn != null) return `est ${zTime(etaOn)}`;
+    if (k === "gate" && etaOn != null) return `est ${zTime(etaOn + 6 * MIN)}`;
+    return "";
+  };
+  // the clock: the aircraft's own time once it's moving (a replay runs in the recording's sim time)
+  const clockAt = inFlight && live!.last ? live!.last.t : t;
+  if (inFlight && lf) {
+    status = lf.status;
+    tone = lf.tone;
+    next = lf.line;
+  }
+
   return (
     <div className="gs" style={{ "--gs-bg": bg, "--gs-ink": ink, "--gs-accent": accent } as CSSProperties} role="region" aria-label={`Gate screen: ${f.flightNo} to ${dest}`}>
       <svg className="gs-watermark" viewBox="0 0 64 64" aria-hidden="true">
@@ -192,16 +256,22 @@ export function GateScreen({ flight: f, state: g, now, wx, live = null }: { flig
           </svg>
           <span className="gs-wordmark">{f.airline}</span>
         </span>
-        {g.gate && (
+        {g.gate && !inFlight && (
           <span className="gs-gate">
             <small>Gate</small>
             <b>{g.gate}</b>
           </span>
         )}
+        {inFlight && source && (
+          <span className="gs-gate gs-live">
+            <small>Live from</small>
+            <b>{source}</b>
+          </span>
+        )}
         <span className="gs-clock">
-          <b className="mono">{localClock(t, fromTz)}</b>
+          <b className="mono">{localClock(clockAt, fromTz)}</b>
           <small>
-            {localDate(t, fromTz)} · {fromZone}
+            {localDate(clockAt, fromTz)} · {zoneLabel(clockAt, fromTz)}
           </small>
         </span>
       </header>
@@ -220,17 +290,37 @@ export function GateScreen({ flight: f, state: g, now, wx, live = null }: { flig
       </div>
 
       <div className="gs-times">
+        {inFlight && live!.stamps.off != null && (
+          <div>
+            <small>Took off · {zoneLabel(live!.stamps.off, fromTz)}</small>
+            <b className="mono">{localClock(live!.stamps.off, fromTz)}</b>
+          </div>
+        )}
+        {inFlight && live!.stamps.off == null && live!.stamps.out != null && (
+          <div>
+            <small>Off-block · {zoneLabel(live!.stamps.out, fromTz)}</small>
+            <b className="mono">{localClock(live!.stamps.out, fromTz)}</b>
+          </div>
+        )}
+        {inFlight && lf?.arrives != null && (
+          <div>
+            <small>{live!.stamps.on != null ? "Landed" : "Arrives"} · {zoneLabel(lf.arrives, toTz)}</small>
+            <b className="mono">{localClock(lf.arrives, toTz)}</b>
+          </div>
+        )}
+        {!inFlight && (
         <div className={delayed && !g.cancelled ? "is-struck" : undefined}>
           <small>Scheduled · {zoneLabel(f.stdMs, fromTz)}</small>
           <b className="mono">{localClock(f.stdMs, fromTz)}</b>
         </div>
-        {delayed && !g.cancelled && (
+        )}
+        {!inFlight && delayed && !g.cancelled && (
           <div className="gs-new">
             <small>New time · {zoneLabel(etd, fromTz)}</small>
             <b className="mono">{localClock(etd, fromTz)}</b>
           </div>
         )}
-        {eta != null && !g.cancelled && (
+        {!inFlight && eta != null && !g.cancelled && (
           <div>
             <small>Arrives · {toZone}</small>
             <b className="mono">{localClock(eta, toTz)}</b>
@@ -242,7 +332,22 @@ export function GateScreen({ flight: f, state: g, now, wx, live = null }: { flig
         </div>
       </div>
 
-      <ol className="gs-steps" aria-label={`Boarding steps, local time ${fromZone}`} style={{ "--gs-n": STEPS.length, "--gs-p": progress } as CSSProperties}>
+{inFlight ? (
+        <ol className="gs-steps" aria-label="Flight steps, UTC" style={{ "--gs-n": FLIGHT_STEPS.length, "--gs-p": Math.max(0, fIdx) / (FLIGHT_STEPS.length - 1) } as CSSProperties}>
+          {FLIGHT_STEPS.map((x, i) => {
+            const state = i < fIdx || live!.phase === "gate" ? "done" : i === fIdx ? "now" : "todo";
+            const tm = fTime(x.key);
+            return (
+              <li key={x.key} className={`is-${state}`} aria-current={state === "now" ? "step" : undefined}>
+                <i aria-hidden="true" />
+                <b>{x.label}</b>
+                <small className="mono">{state === "now" && x.key === "cruise" && lf?.toGo != null ? `${lf.toGo} nm to go` : tm}</small>
+              </li>
+            );
+          })}
+        </ol>
+      ) : (
+            <ol className="gs-steps" aria-label={`Boarding steps, local time ${fromZone}`} style={{ "--gs-n": STEPS.length, "--gs-p": progress } as CSSProperties}>
         {STEPS.map((k, i) => {
           const p = ps.find((x) => x.key === k)!;
           const state = g.cancelled ? "todo" : phase.key === "departed" || i < step ? "done" : i === step ? "now" : "todo";
@@ -255,6 +360,7 @@ export function GateScreen({ flight: f, state: g, now, wx, live = null }: { flig
           );
         })}
       </ol>
+      )}
 
       <footer className="gs-info">
         {item && (

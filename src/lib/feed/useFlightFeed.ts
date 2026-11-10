@@ -15,9 +15,11 @@ export interface FeedConfig {
   who: string | null;
   /** link: OFP Link's port. */
   port: number;
+  /** replay: start this many minutes of sim time into the recording. */
+  at: number;
 }
 
-export const CLOCK_FEED: FeedConfig = { source: "clock", rec: null, rate: 1, who: null, port: LINK_PORT };
+export const CLOCK_FEED: FeedConfig = { source: "clock", rec: null, rate: 1, who: null, port: LINK_PORT, at: 0 };
 
 /** ?feed=replay&rec=/recordings/x.jsonl&rate=60 · ?feed=vatsim&who=RYR7FE · ?feed=link&port=47800 */
 export function feedFromParams(q: URLSearchParams): FeedConfig {
@@ -26,12 +28,14 @@ export function feedFromParams(q: URLSearchParams): FeedConfig {
   const port = Number(q.get("port"));
   const rec = q.get("rec");
   const who = q.get("who");
+  const at = Number(q.get("at"));
   const cfg: FeedConfig = {
     source: f === "link" || f === "replay" || f === "vatsim" ? f : "clock",
     rec: rec && /^\/[\w./-]{1,200}\.jsonl$/.test(rec) && !rec.includes("..") ? rec : null,
     rate: Number.isFinite(rate) && rate >= 1 ? Math.min(240, Math.round(rate)) : 1,
     who: who && /^[A-Za-z0-9_-]{2,12}$/.test(who) ? who.toUpperCase() : null,
     port: Number.isInteger(port) && port >= 1024 && port <= 65535 ? port : LINK_PORT,
+    at: Number.isFinite(at) && at > 0 ? Math.min(1440, at) : 0,
   };
   if ((cfg.source === "replay" && !cfg.rec) || (cfg.source === "vatsim" && !cfg.who)) return CLOCK_FEED;
   return cfg;
@@ -47,16 +51,16 @@ export interface FlightFeed {
  * returns nulls, so the screen behaves exactly as before.
  */
 export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext): FlightFeed {
-  const { source, rec, rate, who, port } = cfg;
+  const { source, rec, rate, who, port, at } = cfg;
   const ctxKey = JSON.stringify(ctx);
-  const key = `${source}|${rec}|${rate}|${who}|${port}|${ctxKey}`;
+  const key = `${source}|${rec}|${rate}|${who}|${port}|${at}|${ctxKey}`;
   // what the running source has said, tagged with its key: a new source or flight starts over,
   // without an extra render (and nothing at all happens on the clock)
   const [feed, setFeed] = useState<FlightFeed & { key: string }>({ key: "", state: null, status: null });
   useEffect(() => {
     if (source === "clock") return;
     const c: FlightContext = JSON.parse(ctxKey);
-    const k = `${source}|${rec}|${rate}|${who}|${port}|${ctxKey}`;
+    const k = `${source}|${rec}|${rate}|${who}|${port}|${at}|${ctxKey}`;
     let st = startState();
     const h = {
       onSample: (s: Parameters<typeof step>[1]) => {
@@ -66,10 +70,10 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext): FlightFeed {
       },
       onStatus: (status: FeedStatus) => setFeed((f) => ({ key: k, state: f.key === k ? f.state : null, status })),
     };
-    if (source === "replay" && rec) return replaySource(rec, rate, h);
+    if (source === "replay" && rec) return replaySource(rec, rate, h, at * 60_000);
     if (source === "vatsim" && who) return vatsimSource(who, h);
     if (source === "link") return linkSource(port, h);
-  }, [source, rec, rate, who, port, ctxKey]);
+  }, [source, rec, rate, who, port, at, ctxKey]);
   return feed.key === key ? feed : NO_FEED;
 }
 

@@ -3,6 +3,7 @@
 ## Unreleased (1.9)
 
 - **Gate screen: a live feed (part 1).** The gate screen can follow the aircraft instead of the clock: add `&feed=link` (OFP Link on the sim PC, coming later), `&feed=vatsim&who=CALLSIGN` (reads the public VATSIM data file every 15 s; nothing is sent to VATSIM) or `&feed=replay&rec=/recordings/….jsonl&rate=60` (a recorded flight). The steps and the headline follow the aircraft (Boarding, Doors closed, Pushback … Cruising, On approach, Landed, At the gate) with live figures, and OUT, OFF, ON, IN and the landing rate are stamped as they happen. Without a feed the screen runs on the clock exactly as before.
+- **Gate screen views.** The same screen URL, with `&view=`: `full` (the screen you know; in flight its steps run on from pushback to the arrival gate, with the times stamped and the live source named), `map` (a moving map in the airline's colours with the facts beside it), `frame` (a 16:9 window for the game capture, the map on a rail and the status under it), `mapwin` (the map with a small window onto the sim), `corner` (the map as a card in a corner), `strip` (a lower third), `card` and `pill` (smallest). The views over the sim are transparent everywhere but their panels. `view=auto` follows the flight: the full screen on the ground, the strip while flying, the full screen again at the gate. With a feed, the clock shows the aircraft's time.
 - One recorded flight ships for testing and rehearsing: KCLT → KJFK in the Fenix A321, from cruise to the gate.
 
 ## 1.8.1 — 2026-11-10

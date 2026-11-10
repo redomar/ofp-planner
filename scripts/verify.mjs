@@ -631,7 +631,9 @@ async function run() {
     const junk = await screen("&feed=replay&rec=https://example.com/x.jsonl");
     const noLink = await screen("&feed=link");
     const offline = await screen("&feed=vatsim&who=RYR7FE");
-    /BOARDING/i.test(clock.st) && junk.st === clock.st && noLink.st === clock.st && offline.st === clock.st
+    // (minutes ignored: a minute can tick over between the four pages)
+    const same = (x) => x.st.replace(/\d+/g, "#") === clock.st.replace(/\d+/g, "#");
+    /BOARDING/i.test(clock.st) && same(junk) && same(noLink) && same(offline)
       ? pass("gate feed: no feed, a bad feed, OFP Link not running and a pilot not online all leave the clock screen as it was")
       : fail(`gate feed: clock ${clock.st} | junk ${junk.st} | link ${noLink.st} | offline ${offline.st}`);
     clock.asked.length === 0 && offline.asked.every((u) => u === "https://data.vatsim.net/v3/vatsim-data.json") && offline.asked.length >= 1
@@ -647,7 +649,7 @@ async function run() {
       const first = (await page.locator(".gs-status").innerText()).replace(/\s+/g, " ");
       await page.waitForFunction(() => /AT THE GATE/i.test(document.querySelector(".gs-status")?.textContent ?? ""), null, { timeout: 60_000 }).catch(() => {});
       const last = (await page.locator(".gs-status").innerText()).replace(/\s+/g, " ");
-      /CLIMBING|CRUISING/i.test(first) && /FL\d{3} · \d+ kt/.test(first) && /AT THE GATE/i.test(last) && /−?-?489 fpm/.test(last)
+      /CLIMBING|CRUISING/i.test(first) && /FL\d{3}/.test(first) && /AT THE GATE/i.test(last) && /−?-?489 fpm/.test(last)
         ? pass(`gate feed: the recorded flight replays on the screen (${first} … ${last})`)
         : fail(`gate feed: replay ${first} … ${last}`);
       await ctx.close();
@@ -655,9 +657,86 @@ async function run() {
     // a pilot online: the first reading of the recorded flight, as VATSIM would list it
     const pilot = { cid: 1000000, callsign: "RYR7FE", latitude: 34.195541, longitude: -80.70894, altitude: 28404, groundspeed: 463, heading: 346, last_updated: "2026-11-10T18:48:22Z" };
     const online = await screen("&feed=vatsim&who=RYR7FE", [pilot], "CLIMBING");
-    /CLIMBING/i.test(online.st) && /FL284 · 463 kt/.test(online.st) && online.errors.length === 0
+    /CLIMBING/i.test(online.st) && /Passing FL284/.test(online.st) && online.errors.length === 0
       ? pass(`gate feed: VATSIM pilot online drives the screen (${online.st})`)
       : fail(`gate feed: online ${online.st} ${online.errors.join(" ")}`);
+  });
+
+  /* ---------- 1.9 B: the gate screen's views, driven by the recorded flight ---------- */
+  await section("gate views", async () => {
+    // the flight is the owner's recorded KCLT → KJFK (Fenix A321, HB-IOO); there is no OFP for it,
+    // so SimBrief is answered here with its ends, type and registration (schedule illustrative)
+    const OFP = {
+      fetch: { status: "Success" },
+      general: { icao_airline: "", flight_number: "", initial_altitude: "39000", gc_distance: "471" },
+      atc: { callsign: "HBIOO" },
+      origin: { icao_code: "KCLT", pos_lat: "35.214", pos_long: "-80.943", name: "CHARLOTTE/DOUGLAS INTL", plan_rwy: "36C" },
+      destination: { icao_code: "KJFK", pos_lat: "40.640", pos_long: "-73.779", name: "JOHN F KENNEDY INTL" },
+      times: { sched_out: "2026-11-10T18:15:00Z", est_out: "2026-11-10T18:15:00Z", sched_block: "01:50:00", taxi_out: "00:15:00" },
+      aircraft: { icaocode: "A321", name: "A321-211", reg: "HB-IOO" },
+      params: { time_generated: "2026-11-10T17:30:00Z" },
+    };
+    const views = ["full", "map", "frame", "mapwin", "corner", "strip", "card", "pill"];
+    const open1 = async (view, { at = 20, width = 1920, height = 1080, until = "CRUIS" } = {}) => {
+      const ctx = await browser.newContext({ viewport: { width, height }, reducedMotion: "reduce" });
+      await ctx.addInitScript(SEED);
+      await ctx.addInitScript(() => {
+        window.__cls = 0;
+        window.__shifts = [];
+        new PerformanceObserver((l) => {
+          for (const e of l.getEntries()) if (!e.hadRecentInput) (window.__cls += e.value), window.__shifts.push({ v: +e.value.toFixed(3), src: (e.sources ?? []).map((x) => x.node?.className?.baseVal ?? x.node?.className ?? x.node?.nodeName) });
+        }).observe({ type: "layout-shift", buffered: true });
+      });
+      await ctx.route(/simbrief\.com\/api\/xml\.fetcher\.php/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(OFP) }));
+      const page = await ctx.newPage();
+      const errors = [];
+      page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+      page.on("pageerror", (e) => errors.push(String(e)));
+      await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&feed=replay&rec=/recordings/kclt-kjfk.jsonl&at=${at}&view=${view}`, { waitUntil: "networkidle" });
+      await page.waitForFunction((re) => new RegExp(re, "i").test(document.querySelector(".gs-frame")?.textContent ?? ""), until, { timeout: 20_000 }).catch(() => {});
+      // the readings keep coming: measure from here (CLS of the screen settling, not of arriving)
+      await page.evaluate(() => ((window.__cls = 0), (window.__shifts = [])));
+      await page.waitForTimeout(3000);
+      return { ctx, page, errors };
+    };
+    for (const view of views) {
+      for (const [w, h] of [
+        [1920, 1080],
+        [390, 844],
+      ]) {
+        const o = await open1(view, { width: w, height: h });
+        const txt = (await o.page.locator(".gs-frame").innerText()).replace(/\s+/g, " ");
+        (view === "pill" ? /KCLT → KJFK · \d+ min to go/ : /CRUIS/i).test(txt) ? pass(`gate view ${view} ${w}: shows the recorded flight cruising`) : fail(`gate view ${view} ${w}: ${txt.slice(0, 160)}`);
+        await checkPage(`gate view ${view} ${w}`, o.page, o.errors);
+        if (view !== "full") {
+          const clear = await o.page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+          const over = ["frame", "mapwin", "corner", "strip", "card", "pill"].includes(view);
+          over === (clear === "rgba(0, 0, 0, 0)") ? pass(`gate view ${view} ${w}: ${over ? "transparent around its panels" : "a full screen"}`) : fail(`gate view ${view} ${w}: body ${clear}`);
+        }
+        await shot(o.page, `gate-${view}-${w}`);
+        await o.ctx.close();
+      }
+    }
+    // full screen in flight: the steps run on to the arrival gate, the live source is named
+    const f = await open1("full");
+    const steps = await f.page.locator(".gs-steps li b").allTextContents();
+    const now = await f.page.locator(".gs-steps li.is-now b").textContent();
+    const badge = await f.page.locator(".gs-live").innerText().catch(() => "");
+    steps.join(",") === "Pushback,Take-off,Climb,Cruise,Descent,Approach,Landing,At the gate" && now === "Cruise" && /Replay/i.test(badge)
+      ? pass("gate view full: in flight the steps run on to the gate (now: Cruise), live source named")
+      : fail(`gate view full: steps ${steps} now ${now} badge ${badge}`);
+    await f.ctx.close();
+    // view=auto: the strip while flying, the full screen at the gate
+    const a1 = await open1("auto");
+    const a2 = await open1("auto", { at: 80, until: "AT THE GATE" });
+    const isStrip = await a1.page.locator(".gv-strip").count();
+    const atGate = (await a2.page.locator(".gs-status").innerText().catch(() => "")).replace(/\s+/g, " ");
+    isStrip === 1 && /AT THE GATE/i.test(atGate) && /-489 fpm/.test(atGate)
+      ? pass(`gate view auto: the strip while flying, the full screen at the gate (${atGate})`)
+      : fail(`gate view auto: strip ${isStrip} gate ${atGate}`);
+    await shot(a2.page, "gate-auto-arrived");
+    await a1.ctx.close();
+    await a2.ctx.close();
   });
 
   /* ---------- 1.8.1: the track never mixes typical OUT/OFF with a scheduled ON/IN ---------- */

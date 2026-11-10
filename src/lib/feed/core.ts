@@ -186,6 +186,8 @@ export interface FlightState {
   cruiseAlt: number | null;
   /** Ever airborne in this feed (a recording can start in the air). */
   airborne: boolean;
+  /** When each phase was first entered (ms), for the times under the steps. */
+  entered: Partial<Record<FlightPhase, number>>;
   /** Seconds parked with engines off after landing (feeds without engine state need a wait). */
   parkedSince: number | null;
 }
@@ -202,6 +204,7 @@ export const startState = (): FlightState => ({
   trendSince: null,
   cruiseAlt: null,
   airborne: false,
+  entered: {},
   parkedSince: null,
 });
 
@@ -350,6 +353,7 @@ export function step(prev: FlightState, s: FeedSample, ctx: FlightContext = {}):
   // the cruise level, kept until the aircraft settles at another (a step climb) or lands
   if (phase === "cruise" && st.trend === "level" && (st.cruiseAlt == null || Math.abs(s.alt - st.cruiseAlt) > RULE.leaveCruise)) st.cruiseAlt = s.alt;
   if (ground) st.cruiseAlt = null;
+  if (phase !== prev.phase || prev.last == null) st.entered = { ...prev.entered, [phase]: prev.entered[phase] ?? s.t };
   st.phase = phase;
   st.stage = STAGE_OF[phase];
   return st;

@@ -21,6 +21,7 @@ import {
   fromOfp,
   fromSnapshot,
   gateFromParams,
+  OVER_SIM,
   gateToParams,
   type GateFlight,
   type GateMessage,
@@ -33,7 +34,8 @@ import { RouteMap, type MapRoute } from "./RouteMap";
 import { FidsBoard } from "./board/FidsBoard";
 import type { FlightContext } from "@/lib/feed/core";
 import { CLOCK_FEED, feedFromParams, useFlightFeed, type FeedConfig } from "@/lib/feed/useFlightFeed";
-import { GateScreen, localClock, screenNow, zoneLabel, type GateWx } from "./board/GateScreen";
+import { GateViewScreen, shownView } from "./board/GateViews";
+import { localClock, screenNow, zoneLabel, type GateWx } from "./board/GateScreen";
 import { cx, radioKeys, roving } from "./ui";
 
 type Tab = "airport" | "gate";
@@ -346,14 +348,17 @@ export function BoardApp() {
 
   /* ---------- screen only (stream source / popup) ---------- */
 
+  // the views drawn over the sim are transparent outside their panels, like the overlay switch
+  const overSim = gate.overlay || OVER_SIM.includes(shownView(gate.view, live.state));
+
   if (screen) {
     if (!ready) return null;
     return createPortal(
-      <div className={cx("screen-root", gate.overlay && "is-overlay")}>
-        <ScreenModeClass overlay={gate.overlay} />
+      <div className={cx("screen-root", overSim && "is-overlay")}>
+        <ScreenModeClass overlay={overSim} />
         <div className="gs-frame">
           {flight ? (
-            <GateScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} />
+            <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={feedCfg.source} />
           ) : (
             <p className="screen-wait">{ofp?.error ? `SimBrief: ${ofp.error}` : "Loading the flight…"}</p>
           )}
@@ -519,7 +524,7 @@ export function BoardApp() {
                 <div className="gt-preview">
                   <div className="gs-frame" id="gs-preview">
                     {flight ? (
-                      <GateScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} />
+                      <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={feedCfg.source} />
                     ) : (
                       <div className="gs-empty">
                         <p>{gate.sb ? (ofp?.error ? `SimBrief: ${ofp.error}` : "Loading your SimBrief OFP…") : gate.f ? "Loading the flight…" : "No flight yet"}</p>
