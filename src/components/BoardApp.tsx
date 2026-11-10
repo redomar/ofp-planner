@@ -31,6 +31,8 @@ import { StatusLine, TopBar } from "./chrome";
 import { PlacePicker } from "./pickers";
 import { RouteMap, type MapRoute } from "./RouteMap";
 import { FidsBoard } from "./board/FidsBoard";
+import type { FlightContext } from "@/lib/feed/core";
+import { CLOCK_FEED, feedFromParams, useFlightFeed, type FeedConfig } from "@/lib/feed/useFlightFeed";
 import { GateScreen, localClock, screenNow, zoneLabel, type GateWx } from "./board/GateScreen";
 import { cx, radioKeys, roving } from "./ui";
 
@@ -70,6 +72,7 @@ export function BoardApp() {
   const [gate, setGate] = useState<GateState>(EMPTY_GATE);
   const [screen, setScreen] = useState(false);
   const [ch, setCh] = useState<string | null>(null);
+  const [feedCfg, setFeedCfg] = useState<FeedConfig>(CLOCK_FEED);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -83,6 +86,8 @@ export function BoardApp() {
     setGate(gateFromParams(p, Date.now()));
     setScreen(p.get("screen") === "1");
     setCh(p.get("ch") || Math.random().toString(36).slice(2, 10));
+    const fc = feedFromParams(p);
+    if (fc.source !== "clock") setFeedCfg(fc);
     setReady(true);
     /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
@@ -287,6 +292,12 @@ export function BoardApp() {
     const t = flight.types[0];
     return frames.list.find((a) => a.icao === t)?.name ?? null;
   }, [flight, frames]);
+  // 1.9: a live feed (OFP Link, a recorded flight or VATSIM) moves the screen with the aircraft
+  const feedCtx = useMemo<FlightContext>(
+    () => (flight ? { from: { lat: flight.from.lat, lon: flight.from.lon, elev: flight.from.elevFt }, to: { lat: flight.to.lat, lon: flight.to.lon, elev: flight.to.elevFt } } : {}),
+    [flight],
+  );
+  const live = useFlightFeed(feedCfg, feedCtx);
   const shownGate = useMemo(() => ({ ...gate, reg: gate.reg || autoReg || "" }), [gate, autoReg]);
 
   /* ---------- live link to a screen window ---------- */
@@ -342,7 +353,7 @@ export function BoardApp() {
         <ScreenModeClass overlay={gate.overlay} />
         <div className="gs-frame">
           {flight ? (
-            <GateScreen flight={flight} state={shownGate} now={now} wx={gateWx} />
+            <GateScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} />
           ) : (
             <p className="screen-wait">{ofp?.error ? `SimBrief: ${ofp.error}` : "Loading the flight…"}</p>
           )}
@@ -508,7 +519,7 @@ export function BoardApp() {
                 <div className="gt-preview">
                   <div className="gs-frame" id="gs-preview">
                     {flight ? (
-                      <GateScreen flight={flight} state={shownGate} now={now} wx={gateWx} />
+                      <GateScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} />
                     ) : (
                       <div className="gs-empty">
                         <p>{gate.sb ? (ofp?.error ? `SimBrief: ${ofp.error}` : "Loading your SimBrief OFP…") : gate.f ? "Loading the flight…" : "No flight yet"}</p>

@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased (1.9)
+
+- **Gate screen: a live feed (part 1).** The gate screen can follow the aircraft instead of the clock: add `&feed=link` (OFP Link on the sim PC, coming later), `&feed=vatsim&who=CALLSIGN` (reads the public VATSIM data file every 15 s; nothing is sent to VATSIM) or `&feed=replay&rec=/recordings/….jsonl&rate=60` (a recorded flight). The steps and the headline follow the aircraft (Boarding, Doors closed, Pushback … Cruising, On approach, Landed, At the gate) with live figures, and OUT, OFF, ON, IN and the landing rate are stamped as they happen. Without a feed the screen runs on the clock exactly as before.
+- One recorded flight ships for testing and rehearsing: KCLT → KJFK in the Fenix A321, from cruise to the gate.
+
 ## 1.8.1 — 2026-11-10
 
 - **Pass with track: no more impossible flight times.** When a flight had a schedule and tracked departures but no tracked arrivals (FR 5237 Brussels → Nador, for one), the track paired the typical OUT and OFF with an ON and IN taken from the schedule, which could show a three-hour flight as 39 minutes in the air. ON and IN are now estimated from the typical OUT plus the block time and carry the EST. badge.

@@ -7,6 +7,7 @@ import { countryName } from "@/lib/places";
 import { MIN, phaseAt, phases, type PhaseKey } from "@/lib/board/board";
 import type { GateFlight, GateState } from "@/lib/board/gate";
 import { aircraft } from "@/lib/aircraft";
+import { PHASE_LABEL, type FlightPhase, type FlightState } from "@/lib/feed/core";
 
 /** Destination weather for the info strip. */
 export interface GateWx {
@@ -51,6 +52,33 @@ function localDate(ms: number, tz: string | null): string {
 /** The steps drawn on the progress line. */
 const STEPS: PhaseKey[] = ["gate", "boarding", "final", "closed", "ready", "pushback", "lineup", "takeoff"];
 
+/** Where a live phase sits on the departure step line. */
+const LIVE_STEP: Record<FlightPhase, PhaseKey> = {
+  boarding: "boarding",
+  doorsClosed: "closed",
+  pushback: "pushback",
+  taxi: "pushback",
+  takeoff: "takeoff",
+  climb: "departed",
+  cruise: "departed",
+  descent: "departed",
+  approach: "departed",
+  landed: "departed",
+  taxiIn: "departed",
+  gate: "departed",
+};
+
+/** "FL284 · 463 kt", or "3,200 ft · 180 kt" below FL100; on the ground, the speed alone. */
+function figures(st: FlightState): string | null {
+  const s = st.last;
+  if (!s) return null;
+  if (st.stage === "ready" || st.phase === "gate") return null;
+  const kt = `${Math.round(s.gs)} kt`;
+  if (s.onGround ?? s.gs < 40) return st.phase === "pushback" ? null : kt;
+  const alt = s.alt >= 10_000 ? `FL${String(Math.round(s.alt / 100)).padStart(3, "0")}` : `${(Math.round(s.alt / 100) * 100).toLocaleString("en-GB")} ft`;
+  return `${alt} · ${kt}`;
+}
+
 /** The screen's own clock: real time, or shifted so STD comes round at state.stdAt. */
 export const screenNow = (now: number, f: GateFlight, g: GateState) => (g.stdAt != null ? now + (f.stdMs - g.stdAt) : now);
 
@@ -60,7 +88,7 @@ export const screenNow = (now: number, f: GateFlight, g: GateState) => (g.stdAt 
  * steps from gate open to take-off. Drawn on a 16:9 canvas sized in container units, so it scales
  * from the preview to a 1920×1080 stream source.
  */
-export function GateScreen({ flight: f, state: g, now, wx }: { flight: GateFlight; state: GateState; now: number; wx: GateWx | null }) {
+export function GateScreen({ flight: f, state: g, now, wx, live = null }: { flight: GateFlight; state: GateState; now: number; wx: GateWx | null; live?: FlightState | null }) {
   const bg = routeColor(f.brand);
   const ink = textOn(bg);
   const accent =
@@ -70,7 +98,9 @@ export function GateScreen({ flight: f, state: g, now, wx }: { flight: GateFligh
   const eta = f.block != null ? etd + f.block * MIN : null;
   const ps = phases(f.types, f.taxiOut);
   const auto = phaseAt(ps, (etd - t) / MIN);
-  const phase = g.pin ? (ps.find((p) => p.key === g.pin) ?? auto) : auto;
+  // with a live feed the aircraft sets the step, not the clock (a pinned step still wins)
+  const fed = live ? (ps.find((p) => p.key === LIVE_STEP[live.phase]) ?? auto) : auto;
+  const phase = g.pin ? (ps.find((p) => p.key === g.pin) ?? fed) : fed;
   const at = (k: PhaseKey) => etd + (ps.find((p) => p.key === k)?.at ?? 0) * MIN;
   const delayed = g.delay >= 5;
   const fromTz = f.from.tz;
@@ -112,6 +142,17 @@ export function GateScreen({ flight: f, state: g, now, wx }: { flight: GateFligh
     tone = "done";
     next = phase.key === "takeoff" ? `Climbing out${f.runway ? ` from runway ${f.runway}` : ""}` : `Off-block ${localClock(etd, fromTz)}${f.runway ? ` · runway ${f.runway}` : ""}`;
   }
+  if (live && !g.pin && !g.cancelled) {
+    status = PHASE_LABEL[live.phase];
+    tone = live.stage === "ready" ? (live.phase === "boarding" ? "go" : "stop") : "done";
+    const at2 = (ms: number | null, tz: string | null) => (ms == null ? null : localClock(ms, tz));
+    next =
+      live.phase === "gate"
+        ? [at2(live.stamps.in, toTz) && `On stand ${at2(live.stamps.in, toTz)}`, live.stamps.landingRate != null && `${Math.round(live.stamps.landingRate)} fpm`].filter(Boolean).join(" · ") || null
+        : live.stage === "ready"
+          ? `Off-block ${localClock(etd, fromTz)}`
+          : (figures(live) ?? (live.stamps.out != null ? `Off-block ${localClock(live.stamps.out, fromTz)}` : null));
+  }
   if (g.pin && !g.cancelled) next = null;
   if (g.oldGate && g.gate && !g.cancelled) next = `Gate change: ${g.oldGate} → ${g.gate}`;
 
@@ -132,7 +173,7 @@ export function GateScreen({ flight: f, state: g, now, wx }: { flight: GateFligh
   // (a pinned step sits on its marker; nothing is done before the gate opens or on a cancelled flight)
   const last = STEPS.length - 1;
   let frac = 0;
-  if (!g.pin && step >= 0 && step < last) {
+  if (!g.pin && !live && step >= 0 && step < last) {
     const a = at(STEPS[step]);
     const b = at(STEPS[step + 1]);
     frac = b > a ? Math.min(1, Math.max(0, (t - a) / (b - a))) : 0;

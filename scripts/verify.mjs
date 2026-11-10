@@ -534,6 +534,132 @@ async function run() {
   });
 
   /* ---------- flight card: band, flip, stamp, tickets, the choice saved before 1.8 ---------- */
+  /* ---------- 1.9 feed A: live readings and the phase detector ---------- */
+  await section("gate feed", async () => {
+    // the detector, straight from the source file, fed the owner's recorded flight (KCLT → KJFK,
+    // Fenix A321, recorder v1: starts in cruise, ends parked at the gate)
+    const REC = "public/recordings/kclt-kjfk.jsonl";
+    if (!existsSync(REC)) console.log(`note gate feed: ${REC} isn't here yet, detector checks NOT run`);
+    else {
+      const core = await import(join(process.cwd(), "src/lib/feed/core.ts"));
+      const rec = core.parseRecording(readFileSync(REC, "utf8"));
+      const jfk = { lat: 40.6398, lon: -73.7789, elev: 13 };
+      const clt = { lat: 35.214, lon: -80.9431, elev: 748 };
+      const states = core.detectAll(rec.samples, { from: clt, to: jfk });
+      const seen = [...new Set(states.map((x) => x.phase))];
+      const end = states.at(-1);
+      const order = ["cruise", "descent", "approach", "landed", "taxiIn", "gate"];
+      order.every((p, i) => seen.includes(p) && (i === 0 || seen.indexOf(order[i - 1]) < seen.indexOf(p)))
+        ? pass(`gate feed: phases in order (${seen.join(" → ")})`)
+        : fail(`gate feed: phases ${seen.join(" → ")}`);
+      const changes = states.filter((x, i) => i && x.phase !== states[i - 1].phase).length;
+      changes === seen.length - 1 ? pass(`gate feed: each phase entered once, no flicker in the turbulence (${changes} changes)`) : fail(`gate feed: ${changes} phase changes for ${seen.length} phases`);
+      const tdLine = rec.samples.findIndex((x) => x.tdSim != null);
+      end.stamps.out == null && end.stamps.off == null ? pass("gate feed: no OUT or OFF for a recording that starts in the air") : fail(`gate feed: stamps ${JSON.stringify(end.stamps)}`);
+      end.stamps.on === rec.samples[tdLine]?.t && end.stamps.landingRate === rec.samples[tdLine].tdSim && end.stamps.landingRate < 0
+        ? pass(`gate feed: ON stamped at touchdown, ${end.stamps.landingRate} fpm (v1: the sim's latched rate)`)
+        : fail(`gate feed: ON ${JSON.stringify(end.stamps)} td line ${tdLine}`);
+      end.phase === "gate" && end.stage === "arrived" && end.stamps.in > end.stamps.on ? pass(`gate feed: at the gate, IN ${Math.round((end.stamps.in - end.stamps.on) / 60000)} min after ON`) : fail(`gate feed: end ${end.phase} ${JSON.stringify(end.stamps)}`);
+      // a departure: SYNTHETIC (no departure recorded yet), built from the real JFK stand position
+      // and heading; for these checks only, never shown in a screenshot. Doors and beacon as the
+      // Fenix showed them, a pushback tail first at 3 kt, a stop for the tug, taxi nose first at
+      // 15 kt, a take-off roll, wheels off, a climb.
+      const dep = [];
+      let p0 = { lat: 40.644552, lon: -73.775303 };
+      const hdg = 299.8;
+      let t = Date.UTC(2026, 10, 10, 21, 0, 0);
+      const move = (kt, track) => {
+        const nm = kt / 3600;
+        p0 = { lat: p0.lat + (nm * Math.cos((track * Math.PI) / 180)) / 60, lon: p0.lon + (nm * Math.sin((track * Math.PI) / 180)) / (60 * Math.cos((p0.lat * Math.PI) / 180)) };
+      };
+      const add = (n, o) => {
+        for (let i = 0; i < n; i++) {
+          t += 1000;
+          if (o.gs) move(o.gs, o.track ?? o.hdg ?? hdg);
+          dep.push({ t, ...p0, alt: o.alt ?? 20, gs: o.gs ?? 0, hdg: o.hdg ?? hdg, vs: o.vs ?? 0, onGround: o.onGround ?? true, parkBrake: o.brake ?? false, engines: o.eng ?? [false, false], beacon: o.beacon ?? false, doors: o.doors ?? [0, 0, 0, 0], seatbelts: true, noSmoking: "auto", landingRate: null, tdSim: null });
+        }
+      };
+      add(10, { doors: [100, 0, 0, 100], brake: true });
+      add(10, { brake: true, beacon: true });
+      add(30, { gs: 3, track: (hdg + 180) % 360, beacon: true, eng: [true, false] });
+      add(20, { beacon: true, eng: [true, true], brake: true });
+      add(60, { gs: 15, beacon: true, eng: [true, true] });
+      add(25, { gs: 0, beacon: true, eng: [true, true] });
+      for (let k = 6; k <= 150; k += 6) add(1, { gs: k, beacon: true, eng: [true, true] });
+      add(40, { gs: 160, alt: 20, vs: 2000, onGround: false, beacon: true, eng: [true, true] });
+      for (const [i, x] of dep.entries()) if (!x.onGround) x.alt = 20 + (i - dep.findIndex((d) => !d.onGround)) * 33;
+      const ds = core.detectAll(dep, { from: { ...jfk } });
+      const dseen = [...new Set(ds.map((x) => x.phase))];
+      const dend = ds.at(-1).stamps;
+      const firstMove = dep.findIndex((x) => x.gs >= 1);
+      const firstAir = dep.findIndex((x) => !x.onGround);
+      dseen.join(" ") === "boarding doorsClosed pushback taxi takeoff climb" && dend.out === dep[firstMove].t && dend.off === dep[firstAir].t
+        ? pass(`gate feed: departure (synthetic) ${dseen.join(" → ")}, OUT at the first push, OFF at wheels off`)
+        : fail(`gate feed: departure ${dseen.join(" → ")} ${JSON.stringify(dend)}`);
+      const power = core.detectAll(dep.slice(10, 50).map((x) => ({ ...x, gs: x.gs ? 8 : 0, hdg: (hdg + 180) % 360 })));
+      power.find((x) => x.stamps.out)?.phase === "taxi" ? pass("gate feed: driving off a stand nose first is taxiing, not a pushback") : fail(`gate feed: power-out ${power.map((x) => x.phase).join(",")}`);
+
+      // recorder v2 (Fenix profile), parked at the gate with the doors open: the cabin fields come through
+      const v2 = core.parseRecording(readFileSync("public/recordings/kjfk-gate-v2.jsonl", "utf8"));
+      const g = v2.samples[0];
+      const gs = core.detectAll(v2.samples).at(-1);
+      v2.version === 2 && g.parkBrake === false && g.seatbelts === false && g.noSmoking === "off" && g.landingRate === null && gs.phase === "boarding" && gs.stamps.out == null
+        ? pass("gate feed: a v2 recording reads the parking brake and cabin signs; parked with doors open is boarding")
+        : fail(`gate feed: v2 ${JSON.stringify(g)} ${gs.phase}`);
+    }
+
+    // the screen: nothing leaves the machine (VATSIM answered here), and without a feed it is the clock as in 1.8
+    const gq = `f=${encodeURIComponent("RYR:RYR658:EBBR-EIDW:1234567")}&in=30&screen=1`;
+    const screen = async (extra, vatsim, until) => {
+      const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
+      await ctx.addInitScript(SEED);
+      const asked = [];
+      await ctx.route(/vatsim\.net/, (r) => (asked.push(r.request().url()), r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ pilots: vatsim ?? [] }) })));
+      const page = await ctx.newPage();
+      const errors = [];
+      page.on("pageerror", (e) => errors.push(String(e)));
+      await page.goto(`${base}/board?tab=gate&${gq}${extra}`, { waitUntil: "networkidle" });
+      await page.waitForSelector(".gs-status b");
+      if (until) await page.waitForFunction((re) => new RegExp(re, "i").test(document.querySelector(".gs-status")?.textContent ?? ""), until, { timeout: 15_000 }).catch(() => {});
+      else await page.waitForTimeout(1000);
+      const st = (await page.locator(".gs-status").innerText()).replace(/\s+/g, " ");
+      const now = await page.locator(".gs-steps li.is-now").count();
+      await ctx.close();
+      return { st, now, asked, errors };
+    };
+    const clock = await screen("");
+    const junk = await screen("&feed=replay&rec=https://example.com/x.jsonl");
+    const noLink = await screen("&feed=link");
+    const offline = await screen("&feed=vatsim&who=RYR7FE");
+    /BOARDING/i.test(clock.st) && junk.st === clock.st && noLink.st === clock.st && offline.st === clock.st
+      ? pass("gate feed: no feed, a bad feed, OFP Link not running and a pilot not online all leave the clock screen as it was")
+      : fail(`gate feed: clock ${clock.st} | junk ${junk.st} | link ${noLink.st} | offline ${offline.st}`);
+    clock.asked.length === 0 && offline.asked.every((u) => u === "https://data.vatsim.net/v3/vatsim-data.json") && offline.asked.length >= 1
+      ? pass("gate feed: VATSIM is only read (the public data file), and only when asked for")
+      : fail(`gate feed: requests ${JSON.stringify([clock.asked, offline.asked])}`);
+    // the recorded flight replayed on the screen (240× sim speed: the whole flight in about 21 s)
+    if (existsSync(REC)) {
+      const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
+      await ctx.addInitScript(SEED);
+      const page = await ctx.newPage();
+      await page.goto(`${base}/board?tab=gate&${gq}&feed=replay&rec=/recordings/kclt-kjfk.jsonl&rate=240`, { waitUntil: "networkidle" });
+      await page.waitForSelector(".gs-status b");
+      const first = (await page.locator(".gs-status").innerText()).replace(/\s+/g, " ");
+      await page.waitForFunction(() => /AT THE GATE/i.test(document.querySelector(".gs-status")?.textContent ?? ""), null, { timeout: 60_000 }).catch(() => {});
+      const last = (await page.locator(".gs-status").innerText()).replace(/\s+/g, " ");
+      /CLIMBING|CRUISING/i.test(first) && /FL\d{3} · \d+ kt/.test(first) && /AT THE GATE/i.test(last) && /−?-?489 fpm/.test(last)
+        ? pass(`gate feed: the recorded flight replays on the screen (${first} … ${last})`)
+        : fail(`gate feed: replay ${first} … ${last}`);
+      await ctx.close();
+    }
+    // a pilot online: the first reading of the recorded flight, as VATSIM would list it
+    const pilot = { cid: 1000000, callsign: "RYR7FE", latitude: 34.195541, longitude: -80.70894, altitude: 28404, groundspeed: 463, heading: 346, last_updated: "2026-11-10T18:48:22Z" };
+    const online = await screen("&feed=vatsim&who=RYR7FE", [pilot], "CLIMBING");
+    /CLIMBING/i.test(online.st) && /FL284 · 463 kt/.test(online.st) && online.errors.length === 0
+      ? pass(`gate feed: VATSIM pilot online drives the screen (${online.st})`)
+      : fail(`gate feed: online ${online.st} ${online.errors.join(" ")}`);
+  });
+
   /* ---------- 1.8.1: the track never mixes typical OUT/OFF with a scheduled ON/IN ---------- */
   await section("track estimates", async () => {
     // FR5237 EBBR-GMMX: scheduled, tracked OUT and OFF on every day it flies, never tracked arriving
