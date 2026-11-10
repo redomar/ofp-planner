@@ -8,6 +8,7 @@
 - **Rehearse:** the recorded flight as a strip of stages under the panel. Play it in a minute to see every switch on the preview; click or drag along the strip to hold a stage, on the stream too, and "Follow the aircraft" to let go.
 - **Arrived: one click to the Logbook.** When the aircraft reaches the gate, Board → Gate screen offers its OUT, OFF, ON and IN (UTC, as they happened) and the landing rate, with the flight's details, to write to your Logbook. Writing it again updates the same entry. Times the feed didn't see (it joined in the air) stay empty. A rehearsal offers nothing.
 - The gate screen's top row keeps its height when the gate or live-from box comes and goes, so nothing below it moves.
+- Rehearsing a flight on another route lays the recorded flight along that route's line (by the share of the way it had flown), so the map no longer draws a line from the departure airport to the recording's own position. A recording of the same route plays as recorded.
 - One recorded flight ships for testing and rehearsing: KCLT → KJFK in the Fenix A321, from cruise to the gate.
 
 ## 1.8.1 — 2026-11-10

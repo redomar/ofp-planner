@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { startState, step, type FeedSource, type FlightContext, type FlightState } from "./core";
+import { fitToRoute, startState, step, type FeedSample, type FeedSource, type FlightContext, type FlightState } from "./core";
 import { LINK_PORT, linkSource, replaySource, vatsimSource, type FeedStatus } from "./sources";
 
 /** Which feed the gate screen follows, from its URL: &feed=link|replay|vatsim (none = the clock, as before 1.9). */
@@ -18,6 +18,8 @@ export interface FeedConfig {
   port: number;
   /** replay: start this many minutes of sim time into the recording. */
   at: number;
+  /** replay (rehearse): lay a recording from another route along this flight's line. */
+  fit?: boolean;
 }
 
 export const CLOCK_FEED: FeedConfig = { source: "clock", rec: null, rate: 1, who: null, port: LINK_PORT, at: 0 };
@@ -57,16 +59,16 @@ export interface FlightFeed {
  * returns nulls, so the screen behaves exactly as before.
  */
 export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext): FlightFeed {
-  const { source, rec, rate, who, port, at } = cfg;
+  const { source, rec, rate, who, port, at, fit = false } = cfg;
   const ctxKey = JSON.stringify(ctx);
-  const key = `${source}|${rec}|${rate}|${who}|${port}|${at}|${ctxKey}`;
+  const key = `${source}|${rec}|${rate}|${who}|${port}|${at}|${fit}|${ctxKey}`;
   // what the running source has said, tagged with its key: a new source or flight starts over,
   // without an extra render (and nothing at all happens on the clock)
   const [feed, setFeed] = useState<FlightFeed & { key: string }>({ key: "", ...NO_FEED });
   useEffect(() => {
     if (source === "clock") return;
     const c: FlightContext = JSON.parse(ctxKey);
-    const k = `${source}|${rec}|${rate}|${who}|${port}|${at}|${ctxKey}`;
+    const k = `${source}|${rec}|${rate}|${who}|${port}|${at}|${fit}|${ctxKey}`;
     let st = startState();
     const put = (p: Partial<FlightFeed>) => setFeed((f) => ({ ...(f.key === k ? f : NO_FEED), ...p, key: k }));
     // auto: OFP Link wins while it's sending; VATSIM fills in when it isn't
@@ -79,7 +81,8 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext): FlightFeed {
       put({ state: now, using: from });
     };
     const said = (from: "link" | "vatsim" | "replay") => (status: FeedStatus) => put(from === "replay" ? { status } : { [from]: status, status });
-    if (source === "replay" && rec) return replaySource(rec, rate, { onSample: take("replay"), onStatus: said("replay") }, at * 60_000);
+    const fitTo = fit && c.from && c.to ? (x: FeedSample[]) => fitToRoute(x, c.from!, c.to!) : undefined;
+    if (source === "replay" && rec) return replaySource(rec, rate, { onSample: take("replay"), onStatus: said("replay") }, at * 60_000, fitTo);
     if (source === "vatsim" && who) return vatsimSource(who, { onSample: take("vatsim"), onStatus: said("vatsim") });
     if (source === "link") return linkSource(port, { onSample: take("link"), onStatus: said("link") });
     if (source === "auto") {
@@ -87,7 +90,7 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext): FlightFeed {
       if (who) stops.push(vatsimSource(who, { onSample: take("vatsim"), onStatus: said("vatsim") }));
       return () => stops.forEach((x) => x());
     }
-  }, [source, rec, rate, who, port, at, ctxKey]);
+  }, [source, rec, rate, who, port, at, fit, ctxKey]);
   return feed.key === key ? feed : NO_FEED;
 }
 

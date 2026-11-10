@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type PointerEvent as RPointerEvent } from "react";
 import { DEFAULT_STAGES, STAGES, type GateFlight, type GateState, type ShownView } from "@/lib/board/gate";
-import { detectAll, parseRecording, type FlightContext, type FlightStage, type FlightState } from "@/lib/feed/core";
+import { detectAll, fitToRoute, parseRecording, type FlightContext, type FlightStage, type FlightState } from "@/lib/feed/core";
 import type { FeedConfig, FlightFeed } from "@/lib/feed/useFlightFeed";
 import { inObs } from "@/lib/feed/obs";
 import { readLog, saveFlight, type LogFlight } from "@/lib/logbook";
@@ -252,8 +252,11 @@ export function RehearseStrip({
     fetch(REHEARSE_REC)
       .then((r) => (r.ok ? r.text() : Promise.reject(new Error("The recorded flight isn't on this site"))))
       .then((text) => {
-        const { samples } = parseRecording(text);
-        const states = detectAll(samples, JSON.parse(ctxKey));
+        const c: FlightContext = JSON.parse(ctxKey);
+        const raw = parseRecording(text).samples;
+        // as the preview plays it: along this flight's line when the recording flew another route
+        const samples = c.from && c.to ? fitToRoute(raw, c.from, c.to) : raw;
+        const states = detectAll(samples, c);
         const blocks: Block[] = [];
         states.forEach((s, i) => {
           const t = samples[i].t;

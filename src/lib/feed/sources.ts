@@ -19,7 +19,7 @@ export interface SourceHandlers {
  * Plays a recording from this site (a same-origin path only) at `rate` times sim speed, the first
  * reading at once. `hold` (ms of sim time from the start) starts the replay part-way through.
  */
-export function replaySource(path: string, rate: number, h: SourceHandlers, hold = 0): () => void {
+export function replaySource(path: string, rate: number, h: SourceHandlers, hold = 0, fit?: (s: FeedSample[]) => FeedSample[]): () => void {
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
   const ctl = new AbortController();
@@ -32,7 +32,8 @@ export function replaySource(path: string, rate: number, h: SourceHandlers, hold
   fetch(url, { signal: ctl.signal })
     .then((r) => (r.ok ? r.text() : Promise.reject(new Error(`Recording not found (${r.status})`))))
     .then((text) => {
-      const { samples } = parseRecording(text);
+      const parsed = parseRecording(text).samples;
+      const samples = fit ? fit(parsed) : parsed;
       if (!samples.length) throw new Error("The recording has no readings");
       const t0 = samples[0].t + hold;
       let i = Math.max(0, samples.findIndex((s) => s.t >= t0));

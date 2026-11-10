@@ -222,6 +222,44 @@ function bearing(a: { lat: number; lon: number }, b: { lat: number; lon: number 
   return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
+/* ---------- rehearsing another route: lay the recording along this flight's line ---------- */
+
+/** The point a fraction f of the way along the great circle from a to b. */
+export function alongRoute(a: Place, b: Place, f: number): { lat: number; lon: number } {
+  const p1 = rad(a.lat), l1 = rad(a.lon), p2 = rad(b.lat), l2 = rad(b.lon);
+  const d = distNm(a, b) / R_NM;
+  if (d < 1e-9) return { lat: a.lat, lon: a.lon };
+  const A = Math.sin((1 - f) * d) / Math.sin(d);
+  const B = Math.sin(f * d) / Math.sin(d);
+  const x = A * Math.cos(p1) * Math.cos(l1) + B * Math.cos(p2) * Math.cos(l2);
+  const y = A * Math.cos(p1) * Math.sin(l1) + B * Math.cos(p2) * Math.sin(l2);
+  const z = A * Math.sin(p1) + B * Math.sin(p2);
+  return { lat: (Math.atan2(z, Math.hypot(x, y)) * 180) / Math.PI, lon: (Math.atan2(y, x) * 180) / Math.PI };
+}
+
+/**
+ * A recording from another route, laid along this flight's line so a rehearsal makes sense on its
+ * map: each reading moves to the share of the way it had covered (by distance flown), heading along
+ * the line; altitude, speed, times and everything else stay as recorded. A recording that started
+ * in the air covers the last part of the route (as much of it as the recording flew). A recording
+ * that already ends at this flight's destination is returned as it is.
+ */
+export function fitToRoute(samples: FeedSample[], from: Place, to: Place): FeedSample[] {
+  if (samples.length < 2 || distNm(samples[samples.length - 1], to) < 30) return samples;
+  const cum = [0];
+  for (let i = 1; i < samples.length; i++) cum.push(cum[i - 1] + distNm(samples[i - 1], samples[i]));
+  const flown = cum[cum.length - 1] || 1;
+  const route = Math.max(1, distNm(from, to));
+  const f0 = samples[0].onGround ? 0 : Math.max(0, Math.min(0.9, 1 - flown / route));
+  return samples.map((s, i) => {
+    const f = Math.min(1, f0 + ((1 - f0) * cum[i]) / flown);
+    const p = alongRoute(from, to, f);
+    const ahead = alongRoute(from, to, Math.min(1, f + 0.001));
+    const moving = s.gs >= 1 && f < 0.999;
+    return { ...s, lat: p.lat, lon: p.lon, hdg: moving ? bearing(p, ahead) : s.hdg };
+  });
+}
+
 /** Thresholds from the rules table. */
 export const RULE = {
   /** Moving on the ground (kt). */

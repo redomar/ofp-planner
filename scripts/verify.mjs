@@ -599,6 +599,17 @@ async function run() {
       const power = core.detectAll(dep.slice(10, 50).map((x) => ({ ...x, gs: x.gs ? 8 : 0, hdg: (hdg + 180) % 360 })));
       power.find((x) => x.stamps.out)?.phase === "taxi" ? pass("gate feed: driving off a stand nose first is taxiing, not a pushback") : fail(`gate feed: power-out ${power.map((x) => x.phase).join(",")}`);
 
+      // rehearsing another route: the recording is laid along that flight's line (VKO → IST here)
+      const VKO = { lat: 55.5915, lon: 37.2615 };
+      const IST = { lat: 41.2753, lon: 28.7519 };
+      const fit = core.fitToRoute(rec.samples, VKO, IST);
+      const line = core.distNm(VKO, IST);
+      const offLine = Math.max(...fit.map((x) => core.distNm(VKO, x) + core.distNm(x, IST) - line));
+      const fitPhases = [...new Set(core.detectAll(fit, { from: VKO, to: IST }).map((x) => x.phase))].join(" ");
+      offLine < 0.5 && core.distNm(fit.at(-1), IST) < 0.5 && fitPhases === seen.join(" ") && core.fitToRoute(rec.samples, clt, jfk) === rec.samples
+        ? pass("gate feed: a recording rehearsed on another route stays on its line and ends at its destination; on its own route it plays as recorded")
+        : fail(`gate feed: fit off-line ${offLine} end ${core.distNm(fit.at(-1), IST)} phases ${fitPhases}`);
+
       // recorder v2 (Fenix profile), parked at the gate with the doors open: the cabin fields come through
       const v2 = core.parseRecording(readFileSync("public/recordings/kjfk-gate-v2.jsonl", "utf8"));
       const g = v2.samples[0];
@@ -827,6 +838,18 @@ async function run() {
       ? pass(`stream panel: rehearse plays the recorded flight (${blocks.join(" | ")}), a block holds its stage (preview and URL)`)
       : fail(`stream panel: rehearse ${JSON.stringify({ blocks, playing, marker, heldView, heldUrl, say })}`);
     await r.ctx.close();
+
+    // the owner's case: Turkish Airlines VKO → IST with the map at each stage, rehearsed: the
+    // aircraft stays on the VKO → IST line instead of the recording's own US position
+    const t = await start();
+    await t.page.goto(`${base}/board?f=${encodeURIComponent("THY:THYTHY2MH:UUWW-LTFM:123456")}&d=2026-11-11&view=auto&st=map%2Cfull%2Cmap%2Cfull&tab=gate`, { waitUntil: "networkidle" });
+    await t.page.waitForSelector(".rs-b");
+    await t.page.getByRole("button", { name: "▶ Play in 60 s" }).click();
+    await t.page.waitForFunction(() => /CLIMBING|CRUISING|DESCENDING/i.test(document.querySelector("#gs-preview .gv-status")?.textContent ?? ""), null, { timeout: 15_000 }).catch(() => {});
+    const toGo = Number(((await t.page.locator("#gs-preview .gv-tile", { hasText: "To go" }).innerText().catch(() => "")).match(/[\d,]+/)?.[0] ?? "NaN").replace(/,/g, ""));
+    toGo > 0 && toGo < 950 ? pass(`stream panel: rehearsing VKO → IST keeps the aircraft on its route (${toGo} nm to go)`) : fail(`stream panel: rehearse VKO → IST, ${toGo} nm to go`);
+    await shot(t.page, "rehearse-vko-ist");
+    await t.ctx.close();
 
     for (const [w, h, theme] of [
       [1280, 900, "dark"],

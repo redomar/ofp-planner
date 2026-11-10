@@ -594,7 +594,7 @@ export function BoardApp() {
                   rehearsing={!!rehearse}
                   feed={live}
                   onPlay={(rate) => {
-                    setRehearse({ ...CLOCK_FEED, source: "replay", rec: REHEARSE_REC, rate });
+                    setRehearse({ ...CLOCK_FEED, source: "replay", rec: REHEARSE_REC, rate, fit: true });
                     if (gate.view === "full") patch({ view: "auto" });
                   }}
                   onStop={() => setRehearse(null)}
