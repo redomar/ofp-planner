@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## 1.8.0 — 2026-11-10
 
-The flight card becomes a boarding pass (the first part of 1.8).
+The 1.8 redesign: the flight card becomes a boarding pass, Settings → Display is regrouped with a live preview, and the Finder comes in four layouts.
 
 - **The flight card is a boarding pass.** One object instead of four blocks: the header is the airline's band in its own colour (text in black or white, whichever reads), under it where and when, and a tear-off stub with what to do with the flight. Open in SimBrief, the aircraft choice, Brief, Gate screen and Log now sit right under the route on every screen size, above the map; Next leg, the SimBrief link and favourite groups stay at the bottom.
 - **Three passes to choose from** (Settings → Display → Flight card: boarding pass):

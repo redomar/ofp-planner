@@ -8,7 +8,7 @@ Filter a schedule snapshot of 57 European and EMEA airlines, roll a random fligh
 with real connections, browse every route from an airport on a chart, compare scheduled and tracked OUT · OFF · ON · IN times,
 and check the weather for the day you fly.
 
-![OFP Planner: easyJet flights from Barcelona with a flight card, timeline and terrain map](docs/screenshots/finder.png)
+![OFP Planner: Pegasus Barcelona to Izmir as a boarding pass in the airline’s yellow, split-flap codes, the OUT OFF ON IN track with EST badges, and a terrain map](docs/screenshots/finder.png)
 
 </div>
 
@@ -33,6 +33,7 @@ and check the weather for the day you fly.
 - **No server, no API at runtime.** The schedule is a static snapshot built offline and served as JSON; filtering, maps and dispatch links all happen in the browser. The app is a static site.
 - **Real flights, real callsigns.** 41,593 flights across 57 airlines (easyJet, Ryanair, Wizz, BA, Lufthansa group, KLM/AF, Pegasus, Turkish and more), with the ATC callsigns actually flown (EJU54LH), aircraft types, operating days and tracked times — for each weekday when a flight's times change through the week.
 - **Find anything.** Filter by airline, origin and destination (an airport *or* a whole country), aircraft type or family, block time, days, an **After (Z)** time against OUT / OFF / ON / IN, and flight number or callsign. Every filter lives in the URL.
+- **Your Finder, your way.** Four layouts in Settings → Display: **Full** (everything, the extras folded), **Calm** (the filter as a sentence, short rows, the flight in a panel with tabs), **Roll first** (opens on “Where are you flying from?” with a flight already rolled) and **In place** (the row you pick opens under itself). Display settings come in groups, one row each, with a live preview.
 - **Roll a flight.** Random flight, random destination from an airport or random origin into one, with even odds per airport so busy routes don't dominate. **Next leg** continues from where you land after a realistic turnaround.
 - **Charts, not just lists.** Destinations from an airport and every route matching the filters (Madrid → Spain, say) on an azimuthal chart: sea depth and land height contours, a lat/long grid with degrees on the edges, sea, country and mountain lettering, routes in airline colours. Zoom and pan with two fingers, pinch or the buttons.
 - **The times that matter.** Scheduled gate times (STD / STA) beside typical tracked OUT, OFF, ON and IN; anything neither scheduled nor tracked is estimated and badged **EST.** The flight card is a boarding pass in three styles (with the OUT · OFF · ON · IN track, with the actions on a side stub, or city names first), the times table on its back.
@@ -66,13 +67,17 @@ and check the weather for the day you fly.
 | --- | --- |
 | ![Brief weather: departure and arrival verdict, an illustrated scene of each airport with hazards, wind, visibility, temperature and QNH, and the through-the-day strip](docs/screenshots/brief-weather.png) | ![Favourite groups on the brief start page with the Alps group's routes on a map](docs/screenshots/favourites.png) |
 
-| Departure-board card (night) | Settings with live samples |
+| easyJet from Gatwick (night) | Display settings in groups |
 | --- | --- |
-| ![Vueling flight from Barcelona with the split-flap departure board style at night](docs/screenshots/finder-night.png) | ![Display settings: airline tags, aircraft badge grid and map codes, each with a sample](docs/screenshots/settings.png) |
+| ![easyJet flights from Gatwick at night with a boarding pass for Enfidha in easyJet orange](docs/screenshots/finder-night.png) | ![Settings → Display: groups on the left, the four Finder layouts as picture cards, one row per setting with a sample, and real table rows for the aircraft badges](docs/screenshots/settings.png) |
 
-**Flight card**
+**The back of the pass**
 
-![Flight card: callsign, timeline of OUT OFF ON IN with EST badges, terrain map, OOOI table](docs/screenshots/flight-card.png)
+![Ryanair FR 658 Brussels to Dublin turned over: the scheduled and typical OUT OFF ON IN table, with the SimBrief stub and the map below](docs/screenshots/flight-card.png)
+
+**In place layout (night)**
+
+![In place layout: a Ryanair row from Brussels opened under itself into the boarding pass with the map beside it, the filter as a sentence above](docs/screenshots/finder-in-place.png)
 
 **Airlines flying an airport**
 
@@ -211,15 +216,16 @@ src/
 │   ├── settings/page.tsx     settings
 │   └── base.css · planner.css · wx.css   design tokens (day / night) and styles
 ├── components/
-│   ├── FinderApp.tsx         filters, roll bar, Flights / Destinations / Map tabs, floating card
-│   ├── Results.tsx           flights table, destinations list
+│   ├── FinderApp.tsx         the four layouts: filters (grid or sentence), roll hero, tabs, floating card
+│   ├── Results.tsx           flights table (full or short rows, in-place row), destinations list
 │   ├── RoutesView.tsx        map tab: every matching route + table
-│   ├── FlightCard.tsx        card header, map, OOOI table, facts, SimBrief dispatch
+│   ├── FlightCard.tsx        the pass: band, stub, flip, then map/times/week/details (stacked, folded or tabs)
 │   ├── RouteHead.tsx         the front of the boarding pass: track, side stub, city first
 │   ├── RouteMap.tsx          chart (terrain, grid, lettering, routes, zoom)
 │   ├── BriefApp.tsx          brief: start page, date, next leg, weather
 │   ├── SavedFlights.tsx      favourites in groups + recent
-│   ├── SettingsApp.tsx       airframes, display (with samples), snapshot, storage
+│   ├── SettingsApp.tsx       airframes, favourites, snapshot, storage
+│   ├── DisplaySettings.tsx   Settings → Display: groups, rows, Rows | Preview
 │   ├── pickers.tsx           airport/country combobox, multi-select, days, block time, After (Z)
 │   ├── badges.tsx            airline tags, aircraft badges, week strip, “+n” pile
 │   ├── Flag.tsx              flags with country hover labels
