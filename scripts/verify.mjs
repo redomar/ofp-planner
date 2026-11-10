@@ -534,6 +534,29 @@ async function run() {
   });
 
   /* ---------- flight card: band, flip, stamp, tickets, the choice saved before 1.8 ---------- */
+  /* ---------- 1.8.1: the track never mixes typical OUT/OFF with a scheduled ON/IN ---------- */
+  await section("track estimates", async () => {
+    // FR5237 EBBR-GMMX: scheduled, tracked OUT and OFF on every day it flies, never tracked arriving
+    // (reported on a Tuesday as 39 min airborne; the brief shows its typical Wednesday, same gap)
+    const o = await open(`/brief?f=${encodeURIComponent("RYR:RYR5237:EBBR-GMMX:2367")}`);
+    await o.page.waitForSelector(".bp-trk .rh-line");
+    const tr = await o.page.evaluate(() => {
+      const tick = (sel, i = 0) => {
+        const z = document.querySelectorAll(sel)[i]?.querySelector(".rh-z");
+        return { t: z?.querySelector(".mono")?.textContent ?? "", est: !!z?.querySelector(".est-badge") };
+      };
+      const top = ".bp-trk .rh-ticks.top > span";
+      return { off: tick(top, 0), on: tick(top, 1), out: tick(".bp-trk .rh-ticks > .l"), in: tick(".bp-trk .rh-ticks > .r") };
+    });
+    const min = (s) => (/(\d\d):?(\d\d)Z/.test(s) ? +RegExp.$1 * 60 + +RegExp.$2 : NaN);
+    const air = (min(tr.on.t) - min(tr.off.t) + 1440) % 1440;
+    tr.out.t === "21:42Z" && tr.off.t === "21:55Z" && !tr.out.est && !tr.off.est ? pass("track estimates: OUT and OFF are the typical tracked times") : fail(`track estimates: ${JSON.stringify(tr)}`);
+    tr.on.est && tr.in.est ? pass("track estimates: ON and IN carry EST.") : fail(`track estimates: ON/IN not marked EST. ${JSON.stringify(tr)}`);
+    air > 120 && air < 240 ? pass(`track estimates: airborne ${air} min, not 39`) : fail(`track estimates: airborne ${air} min ${JSON.stringify(tr)}`);
+    (min(tr.in.t) - min(tr.on.t) + 1440) % 1440 === 6 ? pass("track estimates: IN is ON plus taxi-in") : fail(`track estimates: ON→IN ${JSON.stringify(tr)}`);
+    await o.ctx.close();
+  });
+
   await section("boarding pass behaviour", async () => {
     const FR658 = encodeURIComponent("RYR:RYR658:EBBR-EIDW:1234567");
     const start = async (display, opts = {}) => {
