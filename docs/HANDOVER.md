@@ -363,6 +363,13 @@ server_latch_container_alternative: |
 ## 10. Open items / ideas
 
   - BRANCHES IN FLIGHT (keep current):
+    · 1.9.0 RELEASED 2026-11-10 via release/1.9.0 (stack #22 A feed, #23 B views, #24 C stream panel, #25 D logbook, #26 E OFP Link spec,
+      #27 rehearse fix; closed into the release). Code: src/lib/feed/ (core.ts detector + recordings, sources.ts replay/VATSIM/link,
+      useFlightFeed.ts, obs.ts scene name, toLog.ts), src/components/board/GateViews.tsx, StreamPanel.tsx. Recordings in public/recordings/.
+      NOT VERIFIED: anything in OBS, a real departure (OUT/OFF, pushback guess; the departure check is synthetic), OFP Link (spec only:
+      docs/OFP-LINK.md). Sim PC: Windows, coldboot.local, MSFS 2024 + OBS 33 + Fenix A321; recorder prototype %USERPROFILE%\ofp-link-recorder.
+      The PC's Claude session is reachable by SendMessage (Remote Control); the owner approves each message there; it must ask the owner
+      before changing OBS. Known flaky check: "map lines" (depends on the time of day; fails on main too at some hours).
     · THE 1.8 / 1.9 SPEC FOR WHAT IS LEFT: docs/V1.8-BRIEF.md (decisions, each branch, what "done" means). Read it before continuing.
     · feature/finder-layouts: released in 1.8.0 via #19 (PR #18 closed, 2026-11-10; full verify 702/702). display.finder (full|calm|roll|place),
       display.pinShort (T2), variesMark "dot" (T1), More filters folds on desktop too (T4), FlightCard rest="folded"|"tabs" (T3 / tabs).
