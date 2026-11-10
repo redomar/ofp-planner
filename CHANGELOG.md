@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.1 — 2026-11-10
+
+- **Pass with track: no more impossible flight times.** When a flight had a schedule and tracked departures but no tracked arrivals (FR 5237 Brussels → Nador, for one), the track paired the typical OUT and OFF with an ON and IN taken from the schedule, which could show a three-hour flight as 39 minutes in the air. ON and IN are now estimated from the typical OUT plus the block time and carry the EST. badge.
+
 ## 1.8.0 — 2026-11-10
 
 The 1.8 redesign: the flight card becomes a boarding pass, Settings → Display is regrouped with a live preview, and the Finder comes in four layouts.

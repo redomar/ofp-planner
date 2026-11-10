@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { DAY_NAMES, TAXI_IN, cityName, dur, fourTimes, hhmm, localHHMM, tzLabel, varies, wrap, type FourTimes, type Moment } from "@/lib/data/flight";
+import { DAY_NAMES, TAXI_IN, TAXI_OUT, cityName, dur, fourTimes, hhmm, localHHMM, tzLabel, varies, wrap, type FourTimes, type Moment } from "@/lib/data/flight";
 import type { Airport, FlightRow } from "@/lib/data/load";
 import { useDisplay, type PassStyle } from "@/lib/display";
 import { GLOSSARY } from "@/lib/glossary";
@@ -181,7 +181,7 @@ function Codes({ f, from, to, blockMin, nm, onPlace, placeHref, t, track }: With
           <i className="mono">{local(t.in, to)}</i>
         </div>
       </div>
-      {track && <Track f={f} t={t} />}
+      {track && <Track f={f} t={t} blockMin={blockMin} />}
       <LinkRow f={f} from={from} to={to} onPlace={onPlace} placeHref={placeHref} />
     </div>
   );
@@ -193,17 +193,23 @@ function Codes({ f, from, to, blockMin, nm, onPlace, placeHref, t, track }: With
  * usually leaves late shows it. Without a schedule the headline already is the typical OUT and IN,
  * so the track only names OFF and ON.
  */
-function trackTimes(f: FlightRow, t: FourTimes) {
+function trackTimes(f: FlightRow, t: FourTimes, blockMin: number | null) {
   const obs = (v: number | null): Moment | null => (v == null ? null : { t: wrap(v), kind: "obs" });
+  const est = (v: number): Moment => ({ t: wrap(v), kind: "est" });
   const both = f.std != null && f.out != null;
-  const out = both ? obs(f.out) : t.out;
-  const inn = both ? (obs(f.in) ?? (f.on != null ? ({ t: wrap(f.on + TAXI_IN), kind: "est" } as Moment) : t.in)) : t.in;
-  const late = both ? ((f.out! - f.std! + 720 + 1440) % 1440) - 720 : null;
-  return { out, off: t.off, on: t.on, in: inn, ends: both, late };
+  if (!both) return { out: t.out, off: t.off, on: t.on, in: t.in, ends: false, late: null };
+  // every time on the track follows the typical OUT, never the schedule: a missing ON / IN is
+  // estimated from the tracked ON, else the typical OUT plus block time (an EST. badge shows it)
+  const out = obs(f.out)!;
+  const off = obs(f.off) ?? est(out.t + TAXI_OUT);
+  const inn = obs(f.in) ?? (f.on != null ? est(f.on + TAXI_IN) : blockMin != null ? est(out.t + blockMin) : null);
+  const on = obs(f.on) ?? (inn ? est(inn.t - TAXI_IN) : null);
+  const late = ((f.out! - f.std! + 720 + 1440) % 1440) - 720;
+  return { out, off, on, in: inn, ends: true, late };
 }
 
-function Track({ f, t }: { f: FlightRow; t: FourTimes }) {
-  const tr = trackTimes(f, t);
+function Track({ f, t, blockMin }: { f: FlightRow; t: FourTimes; blockMin: number | null }) {
+  const tr = trackTimes(f, t, blockMin);
   // place OFF and ON along the track by their real share of the block (clamped so labels fit)
   const span = tr.out && tr.in ? (tr.in.t - tr.out.t + 1440) % 1440 || 1 : null;
   const share = (a: Moment | null, b: Moment | null) => (span && a && b ? Math.min(24, Math.max(7, (((b.t - a.t + 1440) % 1440) / span) * 100)) : 9);
