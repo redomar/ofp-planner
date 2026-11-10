@@ -468,24 +468,66 @@ function DisplayPrefs({ manifest }: { manifest: Manifest | null }) {
       </fieldset>
 
       <fieldset className="opt-group">
-        <legend className="ctl-label">Flight card: departs / arrives</legend>
+        <legend className="ctl-label">Flight card: boarding pass</legend>
+        <p className="small muted opt-intro">The flight card is a boarding pass: the airline’s band, where and when, and a tear-off stub with what to do with it.</p>
         <div className="opt-grid stack">
           {(
             [
-              ["timeline", "Timeline", "Both ends with city and airport, then the OUT · OFF · ON · IN track with every time in order."],
-              ["pass", "Boarding pass", "Each end in a stub, a perforated middle with the aircraft, block time and distance; times along the bottom."],
-              ["board", "Departure board", "Split-flap rows like an airport screen: time, code and city. Light by day, dark at night."],
+              ["track", "Pass with track", "Both ends in split-flap codes, the headline OUT and IN, then the OUT · OFF · ON · IN track showing how the flight really runs."],
+              ["side", "Pass, stub at the side", "The same pass without the track; the actions sit on a stub at the side (along the bottom on a phone)."],
+              ["city", "Ticket, city first", "Reads the way you’d say it: the city names large, codes on a quiet line, local time first with Z beside it."],
             ] as const
           ).map(([v, label, note]) => (
-            <Opt key={v} name="routeHead" checked={d.routeHead === v} onChange={() => writeDisplay({ routeHead: v })} title={label} isDefault={v === "timeline"} note={note}>
+            <Opt key={v} name="pass" checked={d.pass === v} onChange={() => writeDisplay({ pass: v })} title={label} isDefault={v === "track"} note={note}>
               {sample ? (
-                <span className="rh-sample" aria-hidden="true" inert>
-                  <RouteHead style={v} f={sample.f} from={sample.from} to={sample.to} blockMin={sample.block} nm={sample.nm} />
+                <span className={`rh-sample bp-sample bp-${v}`} style={{ ["--al" as string]: routeColor(al(sample.f.al)) }} aria-hidden="true" inert>
+                  <span className="bp">
+                    <span className="bp-face">
+                      <RouteHead style={v} f={sample.f} from={sample.from} to={sample.to} blockMin={sample.block} nm={sample.nm} />
+                    </span>
+                    <span className="bp-stub">
+                      <span className="btn btn-primary">Open in SimBrief</span>
+                    </span>
+                  </span>
                 </span>
               ) : (
                 <span className="sk-block" />
               )}
             </Opt>
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="opt-group">
+        <legend className="ctl-label">Flight card: back of the pass</legend>
+        <div className="opt-grid two">
+          {([true, false] as const).map((on) => (
+            <Opt
+              key={String(on)}
+              name="passFlip"
+              checked={d.passFlip === on}
+              onChange={() => writeDisplay({ passFlip: on })}
+              title={on ? "Flip for times" : "Times always open"}
+              isDefault={on}
+              note={on ? "The scheduled and typical OUT · OFF · ON · IN table is on the back: the Times button (or F) turns the pass over." : "The table stays open under the map, as before 1.8."}
+            />
+          ))}
+        </div>
+      </fieldset>
+
+      <fieldset className="opt-group">
+        <legend className="ctl-label">Favourites and recent flights</legend>
+        <div className="opt-grid two">
+          {([true, false] as const).map((on) => (
+            <Opt
+              key={String(on)}
+              name="tickets"
+              checked={d.tickets === on}
+              onChange={() => writeDisplay({ tickets: on })}
+              title={on ? "Small tickets" : "Plain rows"}
+              isDefault={on}
+              note={on ? "Each saved flight is a small ticket in its airline’s colour, with its actions on the stub." : "A plain list, one flight per line."}
+            />
           ))}
         </div>
       </fieldset>

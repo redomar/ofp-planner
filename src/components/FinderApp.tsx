@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import { airportLabel, isoDay, onDay, shortDate } from "@/lib/data/flight";
 import { findFlight, loadRoutes, useDataset, type FlightRow } from "@/lib/data/load";
 import {
@@ -229,6 +229,22 @@ export function FinderApp() {
     },
     [selId],
   );
+  // The panel opens out of the row that was picked: it unfolds from the row's height, so you see
+  // where the flight came from. (No row beside it, e.g. the Destinations tab: the panel's own slide-in.)
+  useLayoutEffect(() => {
+    const el = detailRef.current;
+    if (!el || !selId || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const row = document.querySelector("table.flights tr.sel");
+    if (!row) return;
+    const d = el.getBoundingClientRect();
+    const r = row.getBoundingClientRect();
+    if (r.bottom <= d.top || r.top >= d.bottom) return;
+    el.getAnimations().forEach((a) => a.cancel());
+    const top = Math.max(0, r.top - d.top);
+    const bottom = Math.max(0, d.bottom - r.bottom);
+    el.animate([{ clipPath: `inset(${top}px 0 ${bottom}px 0)`, opacity: 0.5 }, { clipPath: "inset(0 0 0 0)", opacity: 1 }], { duration: 220, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)" });
+  }, [selId]);
+
   // on a phone the panel covers the list: what's behind it is out of reach until it closes
   const narrow = useMedia("(max-width: 640px)");
   // the advanced filters in use (for "More filters · 2 on"); folded on a phone unless one is set or they're opened

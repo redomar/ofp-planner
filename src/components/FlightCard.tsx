@@ -14,12 +14,17 @@ import { RouteHead } from "./RouteHead";
 import { RouteMap } from "./RouteMap";
 import { Badge, Tip, V, cx } from "./ui";
 import { GLOSSARY } from "@/lib/glossary";
-import { routeColor } from "@/lib/colors";
+import { routeColor, textOn } from "@/lib/colors";
+import { markDispatched, useDispatched } from "@/lib/dispatched";
 import { useDisplay } from "@/lib/display";
-import { useMedia } from "@/lib/media";
 import { DayTabs, WeekTimes } from "./WeekTimes";
 
-/** The selected flight: route, map, OOOI times, facts, and dispatch to SimBrief. */
+/**
+ * The selected flight as a boarding pass: the airline's band (the header, which stays in view and
+ * folds the card), the front with where and when, the tear-off stub with what to do with it, and
+ * under the pass the map, times, facts and the rest. With Settings → Display "Flip for times" the
+ * OUT · OFF · ON · IN table is the back of the pass.
+ */
 export function FlightCard({
   row,
   airline,
@@ -63,6 +68,10 @@ export function FlightCard({
   const picked = choices.find((c) => c.value === (choice ?? dflt)) ?? choices[0];
   const url = simbriefUrl(flightDispatch(f, picked.sbType));
   const color = routeColor(airline);
+  const ink = textOn(color);
+  // the airline's second colour edges the band (as on the gate screen); the band's own text colour when it has none
+  const second = airline?.colors.secondary;
+  const accent = second && /^#[0-9a-f]{6}$/i.test(second) && second.toLowerCase() !== color.toLowerCase() ? second : ink;
   const iata = airline?.iata ?? null;
 
   // record each flight once when it's shown (not on every re-render of the same flight)
@@ -76,7 +85,14 @@ export function FlightCard({
   // Times through the week (flights whose times change by weekday): a section under the OOOI
   // table, or day tabs that switch the table (Settings → Display). Tabs start on the card's day.
   const display = useDisplay();
-  const phone = useMedia("(max-width: 640px)");
+  const style = display.pass;
+  const flip = display.passFlip;
+  // the pass turned over: the times table instead of the route
+  const [back, setBack] = useState(false);
+  const turned = flip && back;
+  // sent to SimBrief: the stub stays stamped for a day; `torn` plays the nudge once, on the click
+  const sentAt = useDispatched(f.id);
+  const [torn, setTorn] = useState(false);
   const weekVaries = varies(f);
   const [tab, setTab] = useState<number | null>(null);
   const shown: Row = tab != null && tab !== f.day ? { ...row, f: onDay(f, tab), block: blockTime(onDay(f, tab), nm) } : row;
@@ -86,10 +102,16 @@ export function FlightCard({
   const bodyId = useId();
   const toggleFold = () => setFolded((v) => !v);
 
-  // on a phone in the Finder, the dispatch (aircraft, SimBrief, brief, log) comes right after the route, before the map and times
-  const actionsFirst = phone && context === "finder";
-  const dispatch = (
-    <div className={cx("dispatch", actionsFirst && "is-first")}>
+  const times = (
+    <>
+      {weekVaries && display.week === "tabs" && <DayTabs f={f} day={shown.f.day} onPick={setTab} />}
+      <Oooi row={shown} from={from} to={to} />
+    </>
+  );
+
+  // the stub: what you do with the flight. Right after the route in every layout, so SimBrief is on the first screen.
+  const stub = (
+    <div className={cx("bp-stub", torn && "is-torn")}>
       <label className="dispatch-type">
         <span className="ctl-label">Aircraft for SimBrief</span>
         <select className="ctl-input" value={picked.value} onChange={(e) => setChoice(e.target.value)}>
@@ -101,7 +123,16 @@ export function FlightCard({
         </select>
       </label>
       <div className="dispatch-actions">
-        <a className="btn btn-primary" href={url} target="_blank" rel="noopener noreferrer">
+        <a
+          className="btn btn-primary"
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={() => {
+            markDispatched(f.id);
+            setTorn(true);
+          }}
+        >
           Open in SimBrief
           <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
             <path d="M4 2h6v6M10 2L3 9" fill="none" stroke="currentColor" strokeWidth="1.6" />
@@ -110,27 +141,51 @@ export function FlightCard({
         </a>
         <div className="dispatch-more">
           {context === "finder" ? (
-            <Link className="btn" href={`/brief?f=${encodeURIComponent(f.id)}`} onClick={() => setReady(f, null, picked.value)}>
-              Open brief · weather →
+            <Link className="btn" href={`/brief?f=${encodeURIComponent(f.id)}`} onClick={() => setReady(f, null, picked.value)} aria-label="Open brief · weather" title="Open the brief: weather at both ends for the day you fly">
+              Brief →
             </Link>
           ) : (
-            <Link className="btn" href={`/?al=${f.al}&dep=${f.o}&arr=${f.d}&f=${encodeURIComponent(f.id)}`}>
-              ← Back to finder
+            <Link className="btn" href={`/?al=${f.al}&dep=${f.o}&arr=${f.d}&f=${encodeURIComponent(f.id)}`} aria-label="Back to finder">
+              ← Finder
             </Link>
           )}
           <Link className="btn" href={`/board?tab=gate&f=${encodeURIComponent(f.id)}`}>
             Gate screen
           </Link>
-          <Link className="btn" href={`/logbook?f=${encodeURIComponent(f.id)}`} title="Open the logbook form prefilled with this flight (nothing is saved until you submit)">
-            Log this flight
+          <Link className="btn" href={`/logbook?f=${encodeURIComponent(f.id)}`} aria-label="Log this flight" title="Open the logbook form prefilled with this flight (nothing is saved until you submit)">
+            Log
           </Link>
-          {onContinue && (
-            <button type="button" className="btn" onClick={onContinue} title={`Roll an onward flight from ${f.d}`}>
-              Next leg from {to?.iata ?? f.d}
+          {flip && (
+            <button
+              type="button"
+              className="btn bp-flip"
+              aria-pressed={back}
+              title={back ? "The times are showing: turn the pass back to the route (F)" : "Turn the pass over for the scheduled and typical OUT · OFF · ON · IN times (F)"}
+              onClick={() => setBack((v) => !v)}
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true">
+                <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M12.5 1.5v3h-3" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Times
             </button>
           )}
         </div>
       </div>
+      {sentAt != null && (
+        <p className="bp-stamp" role="status">
+          Dispatched <span className="mono">{new Date(sentAt).toISOString().slice(11, 16)}Z</span>
+        </p>
+      )}
+    </div>
+  );
+
+  const more = (
+    <div className="dispatch">
+      {onContinue && (
+        <button type="button" className="btn" onClick={onContinue} title={`Roll an onward flight from ${f.d}`}>
+          Next leg from {to?.iata ?? f.d}
+        </button>
+      )}
       <CopyLink url={url} />
       {fav && saved && saved.groups.length > 0 && (
         <div className="fav-group" role="group" aria-label="Favourite groups">
@@ -155,7 +210,17 @@ export function FlightCard({
   );
 
   return (
-    <article className="fcard" aria-label={`Flight ${flightNo(f, iata)}`} style={{ ["--al" as string]: color }}>
+    <article
+      className={`fcard bp-${style}`}
+      aria-label={`Flight ${flightNo(f, iata)}`}
+      style={{ ["--al" as string]: color, ["--al-ink" as string]: ink, ["--al-2" as string]: accent }}
+      onKeyDown={(e) => {
+        // F turns the pass over, unless a field is being typed in
+        if (!flip || e.key.toLowerCase() !== "f" || e.metaKey || e.ctrlKey || e.altKey) return;
+        if ((e.target as HTMLElement).closest("input, select, textarea, [contenteditable]")) return;
+        setBack((v) => !v);
+      }}
+    >
       <header
         className="fcard-head"
         onClick={(e) => {
@@ -163,7 +228,6 @@ export function FlightCard({
         }}
         title={folded ? "Show the flight details" : "Hide the flight details"}
       >
-        <span className="fcard-bar" aria-hidden="true" />
         <div className="fcard-title">
           <p className="fcard-airline">
             {airline?.name ?? f.al}
@@ -178,6 +242,11 @@ export function FlightCard({
             <FnLine f={f} iata={iata} />
           </h2>
         </div>
+        {f.day && weekVaries ? (
+          <span className="bp-day" title={`The times shown are ${["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][f.day - 1]}’s; they change through the week`}>
+            {DAY_NAMES[f.day - 1]}
+          </span>
+        ) : null}
         <button
           type="button"
           className={`btn btn-icon fav${fav ? " on" : ""}`}
@@ -212,9 +281,21 @@ export function FlightCard({
       </header>
 
       <div className="fcard-body" id={bodyId} hidden={folded}>
-      <RouteHead f={f} from={from} to={to} blockMin={block?.min ?? null} nm={nm} onPlace={onPlace} placeHref={placeHref} />
-      {actionsFirst && dispatch}
+        <div className={cx("bp", turned && "is-back")}>
+          <div className="bp-faces">
+            <div className="bp-face bp-face-front" inert={turned || undefined}>
+              <RouteHead f={f} from={from} to={to} blockMin={block?.min ?? null} nm={nm} onPlace={onPlace} placeHref={placeHref} />
+            </div>
+            {flip && (
+              <div className="bp-face bp-face-back" inert={!turned || undefined}>
+                {times}
+              </div>
+            )}
+          </div>
+          {stub}
+        </div>
 
+        <div className="fcard-rest">
       {from && to && (
         <RouteMap
           routes={[{ key: f.id, from, to, color, active: true }]}
@@ -223,8 +304,7 @@ export function FlightCard({
         />
       )}
 
-      {weekVaries && display.week === "tabs" && <DayTabs f={f} day={shown.f.day} onPick={setTab} />}
-      <Oooi row={shown} from={from} to={to} />
+      {!flip && times}
       {weekVaries && display.week !== "tabs" && <WeekTimes f={f} style={display.week} />}
 
       <dl className="facts">
@@ -277,7 +357,8 @@ export function FlightCard({
         </div>
       </dl>
 
-      {!actionsFirst && dispatch}
+      {more}
+        </div>
       </div>
     </article>
   );

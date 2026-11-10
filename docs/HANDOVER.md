@@ -99,9 +99,18 @@ pages:        # all client components; one shared TopBar (Finder · Journeys · 
               backup: lib/backup.ts — every "ofp-planner:*" key (+ theme, minus wx cache) as raw strings, schema "ofp-planner/backup" v1,
               gzipped with CompressionStream; restore replaces those keys (rolls back on a quota error) and reloads.
 components:
-  FlightCard.tsx:  sticky foldable header (bg sunk), RouteHead, RouteMap, OOOI table, facts, SimBrief dispatch
-  RouteHead.tsx:   departs/arrives in display.routeHead = "timeline" (user's R7, default) | "pass" (R2) | "board" (R5);
-                   times from fourTimes() in data/flight.ts (sched → tracked → estimated, EST. badge)
+  FlightCard.tsx:  a boarding pass (1.8). header.fcard-head = the airline's band (--al, text --al-ink = textOn, edge --al-2 = secondary colour;
+                   sticky, folds the card), then .bp = .bp-faces (front: RouteHead; back: the OOOI table when display.passFlip) + .bp-stub
+                   (aircraft select, Open in SimBrief, Brief/Finder, Gate screen, Log, Times flip; "Dispatched HH:MMZ" stamp from lib/dispatched.ts,
+                   key ofp-planner:dispatched, kept a day), then .fcard-rest (map, OOOI when not flipped, week, facts, .dispatch = next leg,
+                   SimBrief link, favourite groups, extra). Style class on the article: bp-track | bp-side | bp-city. Faces share one grid cell
+                   (same height turned over), the hidden one is inert; F flips unless typing. .fcard-body is the "card" container: the side
+                   stub drops under the pass at ≤400 px of card.
+  RouteHead.tsx:   the front of the pass in display.pass = "track" (default: flaps, headline OUT/IN, OUT · OFF · ON · IN track) | "side" (no track)
+                   | "city" (city names, local time first). Times from fourTimes() in data/flight.ts (sched → tracked → estimated, EST. badge).
+                   trackTimes(): with std and tracked out the track shows the typical four and "usually +N min off-block"; otherwise only OFF and ON
+                   are named (the headline already is OUT/IN). Flaps are FlapCode keyed by code: they flip on change, not on scroll.
+                   Before 1.8: display.routeHead timeline|pass|board; readDisplay() maps it (pass → side, the others → track).
   Results.tsx:     FlightTable (sortable, paged 80, scroll box) and PlacesView (fan map + airport rows)
   RouteMap.tsx:    d3-geo azimuthal-equidistant chart (user's pick "48" from the map previews): depth bands + dashed depth
                    contours, parchment land + height bands/contours, 10°/5° grid, edge degrees (no shading behind),
@@ -270,6 +279,9 @@ server_latch_container_alternative: |
     "Not flying to X" group at 0.
   - After (Z) filter (blank by default: no reference, Scheduled unticked; no reference = compare OUT): OUT/OFF/ON/IN switch + Scheduled preference; missing times estimated from the neighbour
     (taxi-out 12 min, taxi-in 6 min); same day only (no wrap past midnight); flights with no usable time excluded.
+  - Display settings (1.8, first branch): display.pass track|side|city, display.passFlip (default true: times on the back of the pass),
+    display.tickets (default true: favourites and recent as small tickets, .fl-list.tickets, the airline colour as --c on each .fl-row).
+    Finder: picking a row unfolds the drawer out of it (FinderApp useLayoutEffect, WAAPI clip-path, 220 ms; skipped with reduced motion).
   - Display settings (Settings → Display): airline tag solid (default) / tinted / split / edge; flight first
     (default) or airline first; aircraft badges by maker (default) or airline, fully coloured (default) or edge.
     Airlines (Extra+): display.airlines "common" (default) | "extra". Brands with extra: true in airlines.mjs (→ manifest
@@ -351,6 +363,13 @@ server_latch_container_alternative: |
 ## 10. Open items / ideas
 
   - BRANCHES IN FLIGHT (keep current):
+    · THE 1.8 / 1.9 SPEC FOR WHAT IS LEFT: docs/V1.8-BRIEF.md (decisions, each branch, what "done" means). Read it before continuing.
+    · feature/boarding-pass: LOCAL ONLY, committed, not pushed (2026-11-10). First of three 1.8 branches (then feature/settings-display,
+      feature/finder-layouts; 1.9 = in-flight gate screen, stream flow, the OFP Link .exe). The user's decisions and the option sheets:
+      ../ofp-planner-previews/v1.8-direction/ (01–07 + live/index.html). Done here: the pass in three styles, flip, stamp, tickets for
+      favourites and recent, motion, migration of display.routeHead, verify sections "boarding pass styles" and "boarding pass behaviour".
+      Not done: tickets for journey legs and the brief's next leg (they carry other content: leg number, dates, waits); the Settings
+      redesign (branch 2) will regroup the three new option groups; README screenshots still show the 1.7 card (refresh at release).
     · feature/phone-order: released in 1.7.3 on 2026-11-09 (PR via release/1.7.3, with feature/live-review-fixes). The phone redesign from the UI review,
       done on the user's "do as much as you can, decide yourself" (2026-11-09): Finder More filters (CSS-folded ≤640 px, .less;
       count of advanced filters set; a link with one opens them), swap beside From/To ≤480; FlightCard dispatch first in the Finder

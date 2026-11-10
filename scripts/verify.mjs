@@ -155,6 +155,16 @@ async function run() {
     return { ctx, page, errors };
   };
 
+  /** For contexts made outside open(): the example airframe (never a real one in a screenshot) and the layout-shift counter. */
+  const SEED = () => {
+    if (!localStorage.getItem("ofp-planner:airframes"))
+      localStorage.setItem("ofp-planner:airframes", JSON.stringify({ list: [{ id: "ex", name: "G-ABCD", icao: "A20N", sbType: "123456_1700000000000", note: "example" }], preferred: "ex" }));
+    window.__cls = 0;
+    new PerformanceObserver((l) => {
+      for (const e of l.getEntries()) if (!e.hadRecentInput) window.__cls += e.value;
+    }).observe({ type: "layout-shift", buffered: true });
+  };
+
   const checkPage = async (label, page, errors) => {
     await page.waitForTimeout(400);
     const { sw, iw, cls, shifts } = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.innerWidth, cls: window.__cls, shifts: window.__shifts ?? [] }));
@@ -462,13 +472,14 @@ async function run() {
     await ctx.close();
   });
 
-  /* ---------- flight card departs/arrives styles × theme × width ---------- */
-  await section("route head", async () => {
-    for (const style of ["timeline", "pass", "board"])
+  /* ---------- flight card: the boarding pass, three styles × theme × width ---------- */
+  await section("boarding pass styles", async () => {
+    for (const style of ["track", "side", "city"])
       for (const theme of ["light", "dark"])
         for (const width of [1280, 390]) {
           const ctx = await browser.newContext({ viewport: { width, height: 900 }, colorScheme: theme, deviceScaleFactor: SHOTS ? 2 : 1 });
-          await ctx.addInitScript((s) => localStorage.setItem("ofp-planner:display", JSON.stringify({ routeHead: s })), style);
+          await ctx.addInitScript(SEED);
+          await ctx.addInitScript((s) => localStorage.setItem("ofp-planner:display", JSON.stringify({ pass: s })), style);
           const page = await ctx.newPage();
           const errors = [];
           page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
@@ -476,23 +487,205 @@ async function run() {
           // PC1528 LEBL→LTBJ: departure tracked, arrival not → estimated with an EST. badge
           await page.goto(`${base}/?al=PGT&dep=LEBL&arr=LTBJ`, { waitUntil: "networkidle" });
           await page.waitForSelector("table.flights tbody tr");
-          await page.locator("table.flights tbody tr").first().click();
+          await page.locator(width < 640 ? "table.flights tbody .row-btn" : "table.flights tbody tr").first().click();
           await page.waitForSelector(".drawer .fcard");
           await page.waitForTimeout(700);
-          const cls = { timeline: ".rh-timeline", pass: ".rh-pass", board: ".rh-board" }[style];
-          const ok = (await page.locator(`.drawer ${cls}`).count()) === 1;
+          const ok = (await page.locator(`.drawer .fcard.bp-${style} .bp-front.bp-f-${style}`).count()) === 1;
           const est = await page.locator(".drawer .rh .est-badge").count();
           const wavy = await page.locator(".drawer .rh").evaluate((el) => el.textContent.includes("≈"));
-          ok && est > 0 && !wavy ? pass(`route head ${style} ${theme} ${width}px: shown, ${est} EST. badge(s), no ≈`) : fail(`route head ${style} ${theme} ${width}px: ok ${ok} est ${est} wavy ${wavy}`);
+          ok && est > 0 && !wavy ? pass(`pass ${style} ${theme} ${width}px: shown, ${est} EST. badge(s), no ≈`) : fail(`pass ${style} ${theme} ${width}px: ok ${ok} est ${est} wavy ${wavy}`);
+          // nothing in the pass is cut off or spills out of it, and SimBrief is on the first screen above the map
+          const fit = await page.evaluate(() => {
+            const bp = document.querySelector(".drawer .bp").getBoundingClientRect();
+            const spill = [...document.querySelectorAll(".drawer .bp-stub .btn, .drawer .bp-stub select, .drawer .bp-face-front .code-flap, .drawer .bp-face-front .rh-big, .drawer .bp-face-front .bp-ltime")]
+              .filter((e) => {
+                const r = e.getBoundingClientRect();
+                // (a select clips its own text by design, so only its box is checked)
+                return r.width > 0 && (r.left < bp.left - 0.5 || r.right > bp.right + 0.5 || (e.tagName !== "SELECT" && e.scrollWidth > e.clientWidth + 1));
+              })
+              .map((e) => (e.textContent || e.className).trim().slice(0, 20));
+            const sb = document.querySelector(".drawer .bp-stub a.btn-primary").getBoundingClientRect().bottom;
+            const map = document.querySelector(".drawer .map")?.getBoundingClientRect().top ?? Infinity;
+            return { spill, sb: Math.round(sb), above: sb < map };
+          });
+          fit.spill.length === 0 && fit.above && fit.sb < 900 ? pass(`pass ${style} ${theme} ${width}px: nothing spills, Open in SimBrief at ${fit.sb}px above the map`) : fail(`pass ${style} ${theme} ${width}px: ${JSON.stringify(fit)}`);
           const bad = await page.evaluate(CONTRAST);
-          const inCard = bad.filter((b) => b);
-          inCard.length ? fail(`route head ${style} ${theme} ${width}px: contrast ${JSON.stringify(inCard.slice(0, 4))}`) : pass(`route head ${style} ${theme} ${width}px: text contrast AA`);
+          bad.length ? fail(`pass ${style} ${theme} ${width}px: contrast ${JSON.stringify(bad.slice(0, 4))}`) : pass(`pass ${style} ${theme} ${width}px: text contrast AA`);
           const sw = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-          sw > 0 ? fail(`route head ${style} ${width}px: sideways scroll ${sw}`) : null;
-          errors.length ? fail(`route head ${style}: console errors ${JSON.stringify(errors.slice(0, 2))}`) : null;
-          if (width === 1280) await shot(page, `route-${style}-${theme === "light" ? "day" : "night"}`);
+          sw > 0 ? fail(`pass ${style} ${width}px: sideways scroll ${sw}`) : null;
+          errors.length ? fail(`pass ${style}: console errors ${JSON.stringify(errors.slice(0, 2))}`) : null;
+          if (width === 1280) await shot(page, `pass-${style}-${theme === "light" ? "day" : "night"}`);
           await ctx.close();
         }
+  });
+
+  /* ---------- flight card: band, flip, stamp, tickets, the choice saved before 1.8 ---------- */
+  await section("boarding pass behaviour", async () => {
+    const FR658 = encodeURIComponent("RYR:RYR658:EBBR-EIDW:1234567");
+    const start = async (display, opts = {}) => {
+      const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, colorScheme: opts.theme ?? "light", reducedMotion: opts.reduce ? "reduce" : "no-preference" });
+      await ctx.addInitScript(SEED);
+      if (display) await ctx.addInitScript((d) => localStorage.getItem("ofp-planner:display") ?? localStorage.setItem("ofp-planner:display", JSON.stringify(d)), display);
+      // SimBrief opens in a new tab: answered here, so nothing leaves the machine
+      await ctx.route(/simbrief\.com/, (r) => r.fulfill({ status: 200, contentType: "text/html", body: "<title>stub</title>" }));
+      const page = await ctx.newPage();
+      const errors = [];
+      page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+      page.on("pageerror", (e) => errors.push(String(e)));
+      return { ctx, page, errors };
+    };
+
+    // the band is the airline's colour with readable text on it, in both themes, also while a flight number is being added
+    for (const theme of ["light", "dark"]) {
+      const { ctx, page, errors } = await start(null, { theme });
+      await page.goto(`${base}/?al=RYR&dep=EBBR&f=${FR658}`, { waitUntil: "networkidle" });
+      await page.waitForSelector(".drawer .bp");
+      const band = await page.locator(".drawer .fcard-head").evaluate((h) => ({ bg: getComputedStyle(h).backgroundColor, fg: getComputedStyle(h.querySelector(".fcard-no")).color }));
+      band.bg === "rgb(7, 53, 144)" && band.fg === "rgb(255, 255, 255)" ? pass(`pass band ${theme}: Ryanair's blue with white text`) : fail(`pass band ${theme}: ${JSON.stringify(band)}`);
+      await page.goto(`${base}/?al=EZY&dep=EGKK`, { waitUntil: "networkidle" });
+      await page.waitForSelector("table.flights tbody tr");
+      const rows = page.locator("table.flights tbody tr");
+      let found = false;
+      for (let i = 0; i < Math.min(40, await rows.count()) && !found; i++) {
+        await rows.nth(i).click();
+        await page.waitForSelector(".drawer .fcard");
+        found = (await page.locator(".drawer .fn-add", { hasText: "Add flight number" }).count()) > 0;
+      }
+      if (found) {
+        await page.waitForTimeout(400);
+        const a = await page.evaluate(CONTRAST);
+        await page.locator(".drawer .fn-add").click();
+        await page.locator(".drawer .fn-edit input").fill("x");
+        await page.locator(".drawer .fn-edit").getByRole("button", { name: "Save" }).click();
+        await page.waitForSelector(".drawer .fn-err");
+        const b = await page.evaluate(CONTRAST);
+        a.length + b.length === 0 ? pass(`pass band ${theme}: adding a flight number on the band (button, form, error) is AA`) : fail(`pass band ${theme}: contrast ${JSON.stringify([...a, ...b].slice(0, 4))}`);
+      } else fail(`pass band ${theme}: no callsign-only easyJet flight found to test the add-number button`);
+      errors.length ? fail(`pass band ${theme}: console errors ${JSON.stringify(errors.slice(0, 2))}`) : null;
+      await ctx.close();
+    }
+
+    // flip: the times table is the back of the pass; the button and F turn it over, only one face is reachable
+    {
+      const { ctx, page, errors } = await start(null);
+      await page.goto(`${base}/?al=RYR&dep=EBBR&f=${FR658}`, { waitUntil: "networkidle" });
+      await page.waitForSelector(".drawer .bp");
+      const faces = () =>
+        page.evaluate(() => {
+          const q = (s) => document.querySelector(`.drawer ${s}`);
+          return { back: q(".bp").classList.contains("is-back"), frontInert: q(".bp-face-front").inert, backInert: q(".bp-face-back").inert, oooiVisible: getComputedStyle(q(".bp-face-back")).visibility === "visible", h: Math.round(q(".bp").getBoundingClientRect().height), under: !!q(".fcard-rest .oooi:not(.week-tbl)") };
+        });
+      const f0 = await faces();
+      await page.locator(".drawer .bp-flip").click();
+      await page.waitForTimeout(700);
+      const f1 = await faces();
+      const pressed = await page.locator(".drawer .bp-flip").getAttribute("aria-pressed");
+      const typical = (await page.locator(".drawer .bp-face-back .oooi tbody tr").nth(1).innerText()).replace(/\s+/g, " ");
+      !f0.back && f0.backInert && !f0.frontInert && !f0.oooiVisible && f1.back && f1.frontInert && !f1.backInert && f1.oooiVisible && pressed === "true" && f0.h === f1.h && !f0.under && /Typical/i.test(typical)
+        ? pass(`pass flip: Times turns the pass over (same height ${f1.h}px, the other face inert), the table is on the back`)
+        : fail(`pass flip: ${JSON.stringify({ f0, f1, pressed, typical: typical.slice(0, 40) })}`);
+      await checkPage("pass turned over 1280 light", page, errors);
+      await shot(page, "pass-back-day");
+      await page.locator(".drawer .bp-flip").focus();
+      await page.keyboard.press("f");
+      await page.waitForTimeout(600);
+      const f2 = await faces();
+      await page.locator(".drawer .dispatch-type select").focus();
+      await page.keyboard.press("f");
+      await page.waitForTimeout(300);
+      const f3 = await faces();
+      !f2.back && !f3.back ? pass("pass flip: F turns it back; F in the aircraft list doesn't flip") : fail(`pass flip: F ${JSON.stringify({ f2: f2.back, f3: f3.back })}`);
+
+      // the stub: Open in SimBrief stamps it Dispatched, and the stamp is still there after a reload
+      const [popup] = await Promise.all([ctx.waitForEvent("page"), page.locator(".drawer .bp-stub a.btn-primary").click()]);
+      await popup.close();
+      await page.locator(".drawer .bp-stamp").waitFor({ timeout: 3000 });
+      const stamp = (await page.locator(".drawer .bp-stamp").innerText()).replace(/\s+/g, " ");
+      await page.reload({ waitUntil: "networkidle" });
+      await page.waitForSelector(".drawer .bp");
+      const kept = await page.locator(".drawer .bp-stamp").count();
+      /^DISPATCHED \d\d:\d\dZ$/i.test(stamp) && kept === 1 ? pass(`pass stub: Open in SimBrief stamps it (“${stamp}”), kept after a reload`) : fail(`pass stub: stamp “${stamp}” kept ${kept}`);
+      await checkPage("pass stamped 1280 light", page, errors);
+      await ctx.close();
+    }
+
+    // "Times always open": no flip button, the table under the map as before 1.8
+    {
+      const { ctx, page } = await start({ passFlip: false });
+      await page.goto(`${base}/?al=RYR&dep=EBBR&f=${FR658}`, { waitUntil: "networkidle" });
+      await page.waitForSelector(".drawer .bp");
+      const r = await page.evaluate(() => ({ flip: document.querySelectorAll(".drawer .bp-flip, .drawer .bp-face-back").length, under: document.querySelectorAll(".drawer .fcard-rest .oooi:not(.week-tbl)").length }));
+      r.flip === 0 && r.under === 1 ? pass("pass flip off: the times table stays open under the map, no flip button") : fail(`pass flip off: ${JSON.stringify(r)}`);
+      await ctx.close();
+    }
+
+    // a choice saved before 1.8 carries over: boarding pass → side stub, timeline and departure board → track
+    for (const [old, now] of [["pass", "side"], ["board", "track"], ["timeline", "track"]]) {
+      const { ctx, page } = await start({ routeHead: old, airlineTag: "edge" });
+      await page.goto(`${base}/?al=RYR&dep=EBBR&f=${FR658}`, { waitUntil: "networkidle" });
+      await page.waitForSelector(".drawer .bp");
+      const cls = await page.locator(".drawer .fcard").getAttribute("class");
+      await page.goto(`${base}/settings`, { waitUntil: "networkidle" });
+      const picked = await page.locator('input[name="pass"]:checked').evaluate((i) => i.closest("label").innerText.split("\n")[0]);
+      const tag = await page.locator('input[name="airlineTag"]:checked').evaluate((i) => i.closest("label").innerText.split("\n")[0]);
+      cls.includes(`bp-${now}`) && /edge/i.test(tag) ? pass(`pass: a saved “${old}” style opens as ${now} (${picked.trim()}), other choices kept`) : fail(`pass migration ${old}: class ${cls}, picked ${picked}, tag ${tag}`);
+      await ctx.close();
+    }
+
+    // the panel unfolds out of the picked row; with reduced motion nothing animates
+    for (const reduce of [false, true]) {
+      const { ctx, page } = await start(null, { reduce });
+      // the unfold lasts 220 ms, so note it as it starts rather than racing it
+      await page.addInitScript(() => {
+        const animate = Element.prototype.animate;
+        window.__unfold = 0;
+        Element.prototype.animate = function (frames, options) {
+          if (this.classList.contains("drawer") && JSON.stringify(frames).includes("clipPath")) window.__unfold++;
+          return animate.call(this, frames, options);
+        };
+      });
+      await page.goto(`${base}/?al=RYR&dep=EBBR`, { waitUntil: "networkidle" });
+      await page.waitForSelector("table.flights tbody tr");
+      await page.locator("table.flights tbody tr").nth(2).click();
+      await page.waitForSelector(".drawer .bp-trk .rh-line");
+      const anim = await page.evaluate(() => {
+        const name = (s) => getComputedStyle(document.querySelector(`.drawer ${s}`)).animationName;
+        return { unfold: window.__unfold, track: name(".bp-trk .rh-line"), slide: getComputedStyle(document.querySelector(".drawer")).animationName, turn: getComputedStyle(document.querySelector(".drawer .bp-face")).transitionDuration };
+      });
+      (reduce ? anim.unfold === 0 && anim.track === "none" && anim.slide === "none" && parseFloat(anim.turn) < 0.01 : anim.unfold === 1 && anim.track === "bp-draw" && parseFloat(anim.turn) > 0.2)
+        ? pass(reduce ? "pass motion: reduced motion → no unfold, no track draw, no slide, the pass turns at once" : "pass motion: the panel unfolds from the picked row, the track draws")
+        : fail(`pass motion (reduce ${reduce}): ${JSON.stringify(anim)}`);
+      await ctx.close();
+    }
+
+    // favourites and recent as small tickets (airline colour on the spine), or plain rows
+    for (const tickets of [true, false]) {
+      const { ctx, page, errors } = await start({ tickets });
+      await page.goto(`${base}/?al=RYR&dep=EBBR&f=${FR658}`, { waitUntil: "networkidle" });
+      await page.locator(".drawer .fav").click();
+      await page.goto(`${base}/settings`, { waitUntil: "networkidle" });
+      await page.waitForSelector("#favourites .fl-row");
+      const t = await page.evaluate(() => {
+        const rows = [...document.querySelectorAll("#favourites .fl-row")];
+        const cs = getComputedStyle(rows[0]);
+        const stub = getComputedStyle(rows[0].querySelector(".fl-actions"));
+        return { n: rows.length, lists: document.querySelectorAll("#favourites .fl-list.tickets").length, spine: `${cs.borderLeftWidth} ${cs.borderLeftColor}`, perf: stub.borderLeftStyle };
+      });
+      (tickets ? t.lists === 2 && t.spine === "8px rgb(7, 53, 144)" && t.perf === "dashed" : t.lists === 0 && t.perf !== "dashed")
+        ? pass(tickets ? `tickets: ${t.n} saved flights as tickets, Ryanair's blue on the spine, a perforated stub` : "tickets off: plain rows")
+        : fail(`tickets ${tickets}: ${JSON.stringify(t)}`);
+      if (tickets) {
+        await page.locator("#favourites").scrollIntoViewIfNeeded();
+        await checkPage("settings with tickets 1280 light", page, errors);
+        await shot(page, "tickets-day");
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.waitForTimeout(300);
+        const sw = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+        const bad = await page.evaluate(CONTRAST);
+        sw <= 0 && bad.length === 0 ? pass("tickets 390: no sideways scroll, text contrast AA") : fail(`tickets 390: scroll ${sw}, contrast ${JSON.stringify(bad.slice(0, 3))}`);
+      }
+      await ctx.close();
+    }
   });
 
   /* ---------- journeys: multi-leg search ---------- */
@@ -924,6 +1117,8 @@ async function run() {
       const o = await open(`/brief?f=${FR}&d=2026-10-12`, { theme: week === "timeline" ? "dark" : "light" });
       await o.page.evaluate((w) => localStorage.setItem("ofp-planner:display", JSON.stringify({ week: w })), week);
       await o.page.reload({ waitUntil: "networkidle" });
+      // the day tabs go with the times table, which is the back of the pass: turn it over
+      if (week === "tabs") await o.page.locator(".bp-flip").click();
       await o.page.waitForSelector(sel);
       const n = await o.page.locator(sel).count();
       let extra = "";
@@ -2030,7 +2225,7 @@ async function run() {
     // the flight panel: SimBrief right after the route, on the first screen
     await o.page.goto(`${base}/?al=EZY&dep=EGKK`, { waitUntil: "networkidle" });
     await o.page.locator("table.flights tbody .row-btn").first().click();
-    await o.page.waitForSelector(".drawer .dispatch.is-first");
+    await o.page.waitForSelector(".drawer .bp-stub");
     const sb = await o.page.evaluate(() => {
       const a = document.querySelector(".drawer a.btn-primary").getBoundingClientRect().bottom;
       const map = document.querySelector(".drawer .map")?.getBoundingClientRect().top ?? Infinity;

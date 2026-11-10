@@ -21,6 +21,7 @@ export const KEYS = {
   display: `${NS}display`,
   logbook: `${NS}logbook`,
   range: `${NS}range`,
+  dispatched: `${NS}dispatched`,
 } as const;
 
 function get(key: string): string | null {
@@ -100,6 +101,7 @@ const SHAPES: Record<string, Shape> = {
   [KEYS.display]: anyObj,
   [KEYS.ready]: { ...anyObj, nullable: true },
   [KEYS.range]: { ...anyObj, nullable: true },
+  [KEYS.dispatched]: anyObj,
   [COLLAPSE_KEY]: { list: isStr },
 };
 

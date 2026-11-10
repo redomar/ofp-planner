@@ -1764,14 +1764,6 @@ div.empty-note p {
 .fcard:has(.fcard-body[hidden]) .fcard-head {
   border-bottom: 0;
 }
-.fcard-bar {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 6px;
-  background: var(--al);
-}
 .fcard-title {
   flex: 1;
   min-width: 0;
@@ -1968,11 +1960,6 @@ div.empty-note p {
   gap: 10px;
   padding-top: 12px;
   border-top: 1px dashed var(--rule);
-}
-/* first on a phone (right after the route): a rule under it too, before the map */
-.dispatch.is-first {
-  padding-bottom: 12px;
-  border-bottom: 1px dashed var(--rule);
 }
 .dispatch-actions {
   display: flex;
@@ -3285,17 +3272,7 @@ div.empty-note p {
   font-size: 12px;
   color: var(--ink-2);
 }
-.rh-arrow {
-  width: 100%;
-  height: 10px;
-  fill: none;
-  stroke: var(--ink-3);
-  stroke-width: 1.4;
-}
-.rh-plane {
-  fill: var(--ink);
-  transform: rotate(90deg);
-}
+
 .rh-linkrow {
   display: flex;
   justify-content: space-between;
@@ -3306,7 +3283,7 @@ div.empty-note p {
   font-size: 12.5px;
 }
 
-/* R7 timeline */
+/* both ends, and the OUT · OFF · ON · IN track */
 .rh-ends {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 76px minmax(0, 1fr);
@@ -3387,126 +3364,14 @@ div.empty-note p {
   border: 2px dashed var(--ink-3);
 }
 
-/* R2 boarding pass */
-.rh-pass {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 76px minmax(0, 1fr);
-  border: 1px solid var(--rule-strong);
-  border-radius: 6px;
-  background: var(--field);
-  overflow: hidden;
-}
-.rh-pass .stub {
-  padding: 10px 12px;
-}
-.rh-pass .ctl-label {
-  margin-bottom: 6px;
-}
-.rh-pass .perf {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  border-left: 2px dashed var(--rule-strong);
-  border-right: 2px dashed var(--rule-strong);
-  background: var(--sunk);
-}
-.rh-pass .perf .rh-mid {
-  padding-top: 0;
-  gap: 6px;
-}
-.rh-pass .strip {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 4px 12px;
-  align-items: end;
-  padding: 8px 12px;
-  border-top: 1px dashed var(--rule-strong);
-  background: var(--sunk);
-}
-.rh-pass .strip > span {
-  display: flex;
-  flex-direction: column;
-}
-.rh-pass .strip .r {
-  align-items: flex-end;
-}
-.rh-pass .strip .pass-mid {
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
-  align-self: center;
-}
-.rh-pass .strip i {
-  font-style: normal;
-  font-size: 11.5px;
-  color: var(--ink-2);
-}
-
-/* R5 departure board: themed, so a light board by day and a dark one at night */
-.rh-board {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px 14px;
-  border: 1px solid var(--rule-strong);
-  border-radius: 4px;
-  background: var(--sunk);
-}
-.rh-board .brow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  text-align: left;
-}
-.rh-board .brow .ctl-label {
-  margin: 0;
-  width: 30px;
-}
-.rh-board .flap {
-  font: 700 21px/1 var(--font-mono);
-}
-.rh-board .flap-tile {
-  background: var(--field);
-}
-.rh-board .bcity {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-  font-family: var(--font-cond);
-  font-size: 16px;
-  letter-spacing: 0.1em;
-}
-.rh-board .bcity b {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.rh-board .bcity .fcard-placelink {
-  color: inherit;
-}
-.rh-board .meta {
-  margin: 2px 0 0;
-  font-size: 11.5px;
-  color: var(--ink-2);
-}
 @media (max-width: 420px) {
-  .rh-ends,
-  .rh-pass {
+  .rh-ends {
     grid-template-columns: minmax(0, 1fr) 56px minmax(0, 1fr);
   }
   .code-flap .flap {
     font-size: 23px;
   }
-  .rh-board .flap {
-    font-size: 17px;
-  }
-  .rh-board .brow {
-    gap: 8px;
-  }
+
 }
 
 /* tooltip descriptions stay hidden whatever layout rule matches them */
@@ -3664,13 +3529,11 @@ div.empty-note p {
   white-space: nowrap;
 }
 @container (max-width: 400px) {
-  .rh-ends,
-  .rh-pass {
+  .rh-ends {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 10px;
   }
-  .rh-ends > .rh-mid,
-  .rh-pass > .perf {
+  .rh-ends > .rh-mid {
     display: none;
   }
   .rh-mid-inline {
@@ -3680,37 +3543,14 @@ div.empty-note p {
     font-size: 12px;
     color: var(--ink-2);
   }
-  .rh-pass .strip .rh-mid-inline {
-    display: inline;
-    margin: 0;
-  }
+
   .rh-city .mono {
     display: none;
   }
   .code-flap .flap {
     font-size: 23px;
   }
-  .rh-pass .strip {
-    grid-template-columns: 1fr 1fr;
-  }
-  .rh-pass .strip .pass-mid {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    flex-wrap: wrap;
-  }
-  .rh-board {
-    padding: 10px;
-  }
-  .rh-board .brow {
-    gap: 7px;
-  }
-  .rh-board .flap {
-    font-size: 15px;
-  }
-  .rh-board .bcity {
-    font-size: 14px;
-    letter-spacing: 0.06em;
-  }
+
   .rh-ticks.top {
     margin-top: 2px;
   }
@@ -5979,4 +5819,642 @@ div.empty-note p {
   width: 100%;
   color: var(--ink-2);
   font-style: italic;
+}
+
+/* ==========================================================================
+   Flight card as a boarding pass (1.8)
+   The header is the airline's band, .bp the pass under it: two faces (front: route and times,
+   back: the times table) and the tear-off stub with the actions. Three styles on .fcard:
+   .bp-track (default), .bp-side (stub at the side), .bp-city (city names first).
+   ========================================================================== */
+
+.fcard {
+  gap: 0;
+}
+.fcard-body {
+  margin: 0;
+  gap: 0;
+  container: card / inline-size;
+}
+/* everything under the pass: map, times, facts, the rest of the actions */
+.fcard-rest {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 12px 14px 0;
+}
+
+/* the band: the airline's colour with black or white on it (textOn(), always ≥ 4.5:1), edged in its second colour */
+.fcard-head {
+  background: var(--al);
+  color: var(--al-ink);
+  border-bottom: 3px solid var(--al-2);
+}
+.fcard-head .fcard-airline,
+.fcard-head .fcard-airline .muted,
+.fcard-head .fcard-no small,
+.fcard-head .fn-line .muted,
+.fcard-head .fn-prefix {
+  color: var(--al-ink);
+}
+.fcard-head .fn-add {
+  border-color: var(--al-ink);
+  color: var(--al-ink);
+}
+.fcard-head .fn-add:hover {
+  background: color-mix(in srgb, var(--al-ink) 16%, transparent);
+}
+.fcard-head .chip {
+  background: var(--field);
+  color: var(--ink);
+  border-style: solid;
+}
+.fcard-head .fn-err {
+  padding: 2px 8px;
+  border-radius: 2px;
+  background: var(--red-bg);
+}
+.fcard-head :focus-visible {
+  outline-color: var(--al-ink);
+}
+/* which weekday's times the pass shows, for a flight whose times change through the week */
+.bp-day {
+  flex: none;
+  padding: 1px 7px;
+  border: 1.5px solid currentColor;
+  border-radius: 2px;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: help;
+}
+
+.bp {
+  /* what shows through the punched notches: the page behind the card */
+  --hole: var(--paper);
+  position: relative;
+  display: grid;
+  background: var(--field);
+  border-bottom: 1px solid var(--rule-strong);
+  overflow: clip;
+}
+/* on the brief the card has no frame of its own, so the pass draws its edge */
+.sheet .fcard .bp {
+  --hole: var(--sheet);
+  border: 1px solid var(--rule-strong);
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+}
+.sheet .fcard .fcard-head {
+  border-radius: 4px 4px 0 0;
+}
+.sheet .fcard .fcard-rest {
+  margin-inline: 0;
+}
+
+/* the two faces share one cell, so the pass keeps its height when it turns over */
+.bp-faces {
+  display: grid;
+  min-width: 0;
+  perspective: 1600px;
+}
+.bp-face {
+  grid-area: 1 / 1;
+  min-width: 0;
+  padding: 12px 14px 10px;
+  backface-visibility: hidden;
+  transition:
+    transform 0.45s cubic-bezier(0.3, 0.7, 0.2, 1),
+    visibility 0s 0.2s;
+}
+.bp-face-back {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  transform: rotateY(-180deg);
+  visibility: hidden;
+}
+.bp.is-back .bp-face-front {
+  transform: rotateY(180deg);
+  visibility: hidden;
+}
+.bp.is-back .bp-face-back {
+  transform: none;
+  visibility: visible;
+}
+
+/* the stub tears off along a perforation, with a notch punched at each end */
+.bp-stub {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  padding: 10px 14px 12px;
+  background: var(--sunk);
+  border-top: 2px dashed var(--rule-strong);
+}
+.bp-stub::before,
+.bp-stub::after {
+  content: "";
+  position: absolute;
+  top: -10px;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--hole);
+  border: 1px solid var(--rule-strong);
+}
+.bp-stub::before {
+  left: -9px;
+}
+.bp-stub::after {
+  right: -9px;
+}
+.bp-stub .dispatch-type {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+.bp-stub .dispatch-type .ctl-input {
+  height: 32px;
+}
+.bp-stub .dispatch-actions {
+  flex-direction: row;
+  flex-wrap: wrap;
+}
+.bp-stub .dispatch-actions > .btn-primary {
+  flex: 1 1 150px;
+  gap: 6px;
+}
+.bp-stub .dispatch-more {
+  display: flex;
+  flex: 0 1 auto;
+}
+.bp-stub .dispatch-more .btn {
+  flex: 1 0 auto;
+  padding-inline: 10px;
+}
+.bp-flip {
+  gap: 6px;
+}
+.bp-flip[aria-pressed="true"] {
+  border-color: var(--magenta);
+  color: var(--magenta);
+}
+/* stamped once the flight has gone to SimBrief; it stays for the day */
+.bp-stamp {
+  justify-self: end;
+  margin: 0;
+  padding: 1px 8px;
+  border: 2px solid currentColor;
+  border-radius: 3px;
+  color: var(--green);
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 12.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transform: rotate(-3deg);
+}
+.bp-stamp .mono {
+  letter-spacing: 0;
+}
+
+/* stub at the side */
+.bp-side .bp {
+  grid-template-columns: minmax(0, 1fr) 164px;
+}
+.bp-side .bp-stub {
+  align-content: start;
+  padding: 12px 12px 12px 14px;
+  border-top: 0;
+  border-left: 2px dashed var(--rule-strong);
+}
+.bp-side .bp-stub::before {
+  top: -9px;
+  left: -10px;
+}
+.bp-side .bp-stub::after {
+  top: auto;
+  right: auto;
+  bottom: -9px;
+  left: -10px;
+}
+.bp-side .bp-stub .dispatch-type {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 3px;
+}
+.bp-side .bp-stub .dispatch-type .ctl-label {
+  margin: 0;
+}
+/* Brief and Log share a row; Gate screen and Times take one each */
+.bp-side .bp-stub .dispatch-more {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  flex: 1 1 100%;
+}
+.bp-side .bp-stub .dispatch-more > :nth-child(2),
+.bp-side .bp-stub .dispatch-more > .bp-flip {
+  grid-column: 1 / -1;
+  order: 1;
+}
+.bp-side .bp-stub .dispatch-more > .bp-flip {
+  order: 2;
+}
+.bp-side .bp-stub .dispatch-actions .btn {
+  height: 34px;
+  padding-inline: 6px;
+}
+.bp-side .bp-stamp {
+  justify-self: start;
+}
+/* beside the stub the front is narrow: keep the aircraft between the ends, drop the three-letter codes */
+@container card (min-width: 401px) {
+  .bp-side .rh-ends {
+    grid-template-columns: minmax(0, 1fr) 62px minmax(0, 1fr);
+    gap: 4px;
+  }
+  .bp-side .rh-ends > .rh-mid {
+    display: flex;
+    font-size: 11.5px;
+    white-space: nowrap;
+  }
+  .bp-side .rh-mid-inline {
+    display: none;
+  }
+  .bp-side .rh-city .mono {
+    display: none;
+  }
+  .bp-side .code-flap .flap {
+    font-size: 24px;
+  }
+  /* the back is as narrow: the times table drops its local-time lines (the front has them) */
+  .bp-side .bp-face-back .oooi th,
+  .bp-side .bp-face-back .oooi td {
+    padding-inline: 5px;
+  }
+  .bp-side .bp-face-back .oooi td small {
+    display: none;
+  }
+  /* "gate only" stays for screen readers; the hatching says it to the eye */
+  .bp-side .bp-face-back .oooi td.na .muted {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .bp-side .bp-face-back .oooi td .mono {
+    font-size: 12.5px;
+  }
+  .bp-side .bp-face-back .oooi-note {
+    font-size: 11.5px;
+  }
+}
+/* too narrow for a side stub (phones, ≤ 400 px of card): it tears off along the bottom like the others */
+@container card (max-width: 400px) {
+  .bp-side .bp {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bp-side .bp-stub {
+    border-left: 0;
+    border-top: 2px dashed var(--rule-strong);
+    padding: 10px 14px 12px;
+  }
+  .bp-side .bp-stub::before {
+    top: -10px;
+    left: -9px;
+  }
+  .bp-side .bp-stub::after {
+    top: -10px;
+    bottom: auto;
+    left: auto;
+    right: -9px;
+  }
+  .bp-side .bp-stub .dispatch-more {
+    display: flex;
+    flex: 0 1 auto;
+  }
+  .bp-side .bp-stub .dispatch-more > * {
+    order: 0;
+  }
+  .bp-side .bp-stub .dispatch-type {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 10px;
+  }
+  .bp-stub .dispatch-more .btn {
+    padding-inline: 8px;
+  }
+}
+
+/* the front */
+.bp-front {
+  gap: 0;
+}
+.bp-front .rh-ends .ctl-label {
+  margin-bottom: 5px;
+}
+.bp-front .rh-mid {
+  padding-top: 24px;
+  gap: 2px;
+}
+/* the dotted line between the ends, the aircraft on it */
+.bp-ln {
+  position: relative;
+  align-self: stretch;
+  height: 0;
+  margin: 10px 0 9px;
+  border-top: 2px dotted var(--rule-strong);
+}
+.bp-ln svg {
+  position: absolute;
+  left: 50%;
+  top: -10px;
+  margin-left: -11px;
+  padding: 0 2px;
+  box-sizing: content-box;
+  background: var(--field);
+  fill: var(--ink);
+  transform: rotate(90deg);
+}
+.bp-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 10px -14px 0;
+  border-top: 1px solid var(--rule);
+}
+.bp-fields > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 7px 14px 2px;
+}
+.bp-fields > .r {
+  align-items: flex-end;
+  text-align: right;
+  border-left: 1px solid var(--rule);
+}
+.bp-fields i {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+.bp-fields .rh-big {
+  font-size: 19px;
+  font-weight: 700;
+}
+.bp-k .rh-k {
+  text-transform: uppercase;
+}
+.bp-trk {
+  margin: 8px -14px 0;
+  padding: 7px 20px 0;
+  border-top: 1px solid var(--rule);
+}
+.bp-trk-cap {
+  margin: 0 -6px;
+  font-family: var(--font-cond);
+  font-weight: 600;
+  font-size: 11.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.bp-trk .rh-ticks.top {
+  margin-top: 2px;
+}
+.bp-trk .rh-dot:not(.est):not(.none) {
+  border-color: var(--field);
+}
+.bp-trk .rh-dot.est,
+.bp-trk .rh-dot.none {
+  background: var(--field);
+}
+.bp-front .rh-linkrow {
+  margin-top: 8px;
+}
+
+/* city first */
+.bp-city .bp {
+  border-left: 10px solid var(--al);
+  box-shadow: inset 3px 0 0 var(--al-2);
+}
+.bp-city .bp-face {
+  padding-left: 17px;
+}
+.bp-cities {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1fr);
+  gap: 10px;
+}
+.bp-cline {
+  margin: 0;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.fcard-end.arr .bp-cline,
+.fcard-end.arr .bp-codes {
+  justify-content: flex-end;
+}
+.bp-cname {
+  min-width: 0;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  font-size: 31px;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  overflow-wrap: anywhere;
+}
+.bp-codes {
+  margin: 4px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 7px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.bp-codes .flag {
+  width: 18px;
+  height: 13px;
+  flex: none;
+}
+.bp-lt {
+  display: flex;
+  flex-direction: column;
+  margin-top: 12px;
+}
+.fcard-end.arr .bp-lt {
+  align-items: flex-end;
+}
+.bp-ltime {
+  font-size: 25px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.bp-lt i {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--ink-2);
+}
+.bp-f-city .rh-mid {
+  padding-top: 30px;
+}
+@container (max-width: 400px) {
+  .bp-cities {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .bp-cities > .rh-mid {
+    display: none;
+  }
+  .bp-cname {
+    font-size: 24px;
+  }
+  .bp-ltime {
+    font-size: 22px;
+  }
+}
+
+/* motion: the track draws once when the pass appears, the stub nudges along its perforation when torn */
+@keyframes bp-draw {
+  from {
+    transform: scaleX(0);
+  }
+}
+@keyframes bp-tear {
+  40% {
+    transform: translateX(6px);
+  }
+}
+@keyframes bp-tear-side {
+  40% {
+    transform: translateY(6px);
+  }
+}
+@keyframes bp-stamp {
+  from {
+    opacity: 0;
+    transform: rotate(-3deg) scale(1.5);
+  }
+}
+.bp-trk .rh-line,
+.bp-trk .rh-air {
+  transform-origin: left;
+  animation: bp-draw 0.4s cubic-bezier(0.3, 0.7, 0.2, 1) both;
+}
+.bp-trk .rh-air {
+  animation-delay: 0.12s;
+}
+.bp-stub.is-torn {
+  animation: bp-tear 0.32s ease-out;
+}
+.bp-side .bp-stub.is-torn {
+  animation-name: bp-tear-side;
+}
+.bp-stub.is-torn .bp-stamp {
+  animation: bp-stamp 0.22s ease-out 0.1s both;
+}
+@container card (max-width: 400px) {
+  .bp-side .bp-stub.is-torn {
+    animation-name: bp-tear;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bp-face {
+    transition: none;
+  }
+  .bp-trk .rh-line,
+  .bp-trk .rh-air,
+  .bp-stub.is-torn,
+  .bp-stub.is-torn .bp-stamp {
+    animation: none;
+  }
+}
+
+/* ---------- favourites and recent as small tickets (Settings → Display) ----------
+   The same flight, folded to one line: the airline's colour on the spine, the actions on a
+   perforated stub. States keep their marks: shared = amber inside the spine, found from the map = magenta. */
+.fl-list.tickets {
+  display: grid;
+  gap: 6px;
+  padding: 8px 10px 10px;
+}
+.fl-list.tickets .fl-row {
+  gap: 0;
+  border: 1px solid var(--rule-strong);
+  border-left: 8px solid var(--c, var(--ink-3));
+  border-radius: 4px;
+  background: var(--field);
+  overflow: clip;
+}
+.fl-list.tickets .fl-row:hover {
+  background: var(--sheet);
+}
+.fl-list.tickets .fl-row.is-twin {
+  background: color-mix(in srgb, var(--amber) 16%, var(--field));
+}
+.fl-list.tickets .fl-row.is-mark {
+  background: var(--magenta-bg);
+}
+.fl-list.tickets .fl-grip {
+  margin-right: -8px;
+}
+.fl-list.tickets .fl-codes {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* the arrow becomes the dotted line of the pass */
+.fl-list.tickets .fl-arrow {
+  flex: 0 1 70px;
+  min-width: 18px;
+  height: 0;
+  border-top: 2px dotted var(--rule-strong);
+  font-size: 0;
+}
+.fl-list.tickets .fl-actions {
+  align-self: stretch;
+  padding: 0 10px;
+  border-left: 2px dashed var(--rule-strong);
+  background: var(--sunk);
+}
+@media (max-width: 560px) {
+  /* the stub tears off along the bottom, the grip on it */
+  .fl-list.tickets .fl-grip,
+  .fl-list.tickets .fl-actions {
+    align-self: stretch;
+    margin: 0;
+    padding: 6px 10px;
+    border-left: 0;
+    border-top: 2px dashed var(--rule-strong);
+    background: var(--sunk);
+  }
+  .fl-list.tickets .fl-grip {
+    height: auto;
+    padding-right: 0;
+  }
+  .fl-list.tickets .fl-actions {
+    flex: 1;
+    justify-content: flex-end;
+  }
+}
+
+/* Settings: the three passes as samples (front and an idle stub, at the panel's width) */
+.bp-sample {
+  --al-2: var(--al);
+  container: card / inline-size;
+  border: 1px solid var(--rule-strong);
+  border-radius: 6px;
+}
+.bp-sample .bp {
+  border-bottom: 0;
+}
+.bp-sample .bp-stub .btn {
+  height: 30px;
+  justify-content: center;
 }

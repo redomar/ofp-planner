@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+The flight card becomes a boarding pass (the first part of 1.8).
+
+- **The flight card is a boarding pass.** One object instead of four blocks: the header is the airline's band in its own colour (text in black or white, whichever reads), under it where and when, and a tear-off stub with what to do with the flight. Open in SimBrief, the aircraft choice, Brief, Gate screen and Log now sit right under the route on every screen size, above the map; Next leg, the SimBrief link and favourite groups stay at the bottom.
+- **Three passes to choose from** (Settings → Display → Flight card: boarding pass):
+  - **Pass with track** (default): split-flap codes at both ends, the headline OUT and IN, then the OUT · OFF · ON · IN track. Where a flight has a published schedule and tracked times, the headline is the schedule and the track shows how it really runs ("Typical Tue · usually +5 min off-block"); without a schedule the track only adds OFF and ON, so no time is said twice.
+  - **Pass, stub at the side**: the same pass without the track, the actions on a stub at the side (along the bottom on a phone).
+  - **Ticket, city first**: the city names large, codes on a quiet line, local time first with Z beside it, the airline's colours on a spine.
+  - They replace the three older styles. A saved choice carries over: timeline and departure board open as the pass with track, boarding pass as the pass with the stub at the side.
+- **Flip for times.** The scheduled and typical OUT · OFF · ON · IN table is the back of the pass: the Times button (or F) turns it over, and the pass keeps its height. Settings → Display → "Times always open" puts the table back under the map.
+- **Dispatched.** Opening SimBrief stamps the stub "Dispatched" with the time (UTC); the stamp stays for a day, in this browser.
+- **Which day's times.** For a flight whose times change through the week, the band names the day shown (TUE).
+- **Favourites and recent flights are small tickets**: the airline's colour on the spine, the route on a dotted line, the actions on a perforated stub (along the bottom on a phone). Settings → Display → "Plain rows" brings the list back.
+- **Motion with a reason** (none of it with reduced motion on): picking a flight in the table unfolds the panel out of that row; the codes flip when the flight changes, no longer every time the card scrolls back into view; the track draws once; the stub nudges along its perforation when you send the flight to SimBrief.
+
 ## 1.7.3 — 2026-11-09
 
 Fixes from a review of the live site, and phone pages reordered so the action comes before the detail.
