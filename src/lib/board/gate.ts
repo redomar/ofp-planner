@@ -7,6 +7,7 @@ import type { AirlineInfo } from "../data/types";
 import type { Airport, FlightRow } from "../data/load";
 import { blockTime, flightNo, gcNm } from "../data/flight";
 import { MIN, taxiOf, type PhaseKey } from "./board";
+import type { FlightStage } from "../feed/core";
 
 export interface GateState {
   /** Snapshot flight id. */
@@ -34,7 +35,38 @@ export interface GateState {
   overlay: boolean;
   /** Rotate the info strip (weather, flight facts, message). */
   rotate: boolean;
+  /** 1.9: which view of the screen (full by default; auto follows the aircraft). */
+  view: GateView;
+  /** view=auto: the view at each stage of the flight. */
+  stages: Record<FlightStage, ShownView>;
+  /** view=auto: unless the OBS scene is called this (any case), then this view. */
+  scenes: [string, ShownView][];
+  /** Hold the screen on this stage whatever the aircraft does (when the detection gets it wrong). */
+  hold: FlightStage | null;
 }
+
+export type ShownView = Exclude<GateView, "auto">;
+export const STAGES: FlightStage[] = ["ready", "taxi", "flying", "arrived"];
+/** Sheet 07: the full screen on the ground, the strip while flying. */
+export const DEFAULT_STAGES: Record<FlightStage, ShownView> = { ready: "full", taxi: "full", flying: "strip", arrived: "full" };
+/** Sheet 07: the scene names that turn the same source into the frame, the map or the card. */
+export const DEFAULT_SCENES: [string, ShownView][] = [
+  ["BRB", "frame"],
+  ["Map", "map"],
+  ["Camera", "card"],
+];
+
+/**
+ * The views of the gate screen (design sheets 02 and 05): full (G1), map (G3), frame (G3a, a
+ * window for the game capture), mapwin (G3c), corner (G3b), strip (G4), card and pill (G5).
+ * auto picks one by the stage of the flight.
+ */
+export const GATE_VIEWS = ["full", "map", "frame", "mapwin", "corner", "strip", "card", "pill", "auto"] as const;
+export type GateView = (typeof GATE_VIEWS)[number];
+/** Views drawn over the sim: everything outside their panels is transparent. */
+export const OVER_SIM: GateView[] = ["frame", "mapwin", "corner", "strip", "card", "pill"];
+const SHOWN = GATE_VIEWS.filter((v): v is ShownView => v !== "auto");
+const isShown = (v: string): v is ShownView => (SHOWN as string[]).includes(v);
 
 export const EMPTY_GATE: GateState = {
   f: null,
@@ -50,10 +82,35 @@ export const EMPTY_GATE: GateState = {
   msg: "",
   overlay: false,
   rotate: true,
+  view: "full",
+  stages: DEFAULT_STAGES,
+  scenes: DEFAULT_SCENES,
+  hold: null,
 };
 
 const PINS: PhaseKey[] = ["scheduled", "gate", "boarding", "final", "closed", "ready", "pushback", "lineup", "takeoff", "departed"];
 const text = (v: string | null, n: number) => (v ?? "").replace(/[^\p{L}\p{N} .,'!?:&()/+-]/gu, "").slice(0, n);
+
+/** st=full,full,strip,full: the view at each stage. */
+function stagesFrom(v: string | null): Record<FlightStage, ShownView> {
+  const parts = (v ?? "").split(",");
+  if (parts.length !== 4 || !parts.every(isShown)) return DEFAULT_STAGES;
+  return { ready: parts[0], taxi: parts[1], flying: parts[2], arrived: parts[3] } as Record<FlightStage, ShownView>;
+}
+/** sc=BRB:frame;Map:map ("-" = no rules): scene names and their views. */
+function scenesFrom(v: string | null): [string, ShownView][] {
+  if (v == null) return DEFAULT_SCENES;
+  if (v === "-") return [];
+  const out: [string, ShownView][] = [];
+  for (const part of v.split(";").slice(0, 8)) {
+    const i = part.lastIndexOf(":");
+    const name = text(part.slice(0, i), 40).trim();
+    const view = part.slice(i + 1);
+    if (name && isShown(view)) out.push([name, view]);
+  }
+  return out;
+}
+const scenesTo = (sc: [string, ShownView][]) => sc.map(([n, v]) => `${n.replace(/[;:]/g, "")}:${v}`).join(";");
 
 /** ?f=&d=&sb=&in=25&late=15&pin=boarding&cx=1&gate=12&was=9&reg=G-ABCD&msg=…&ov=1&rot=0 */
 export function gateFromParams(q: URLSearchParams, now: number): GateState {
@@ -74,6 +131,10 @@ export function gateFromParams(q: URLSearchParams, now: number): GateState {
     msg: text(q.get("msg"), 120),
     overlay: q.get("ov") === "1",
     rotate: q.get("rot") !== "0",
+    view: (GATE_VIEWS as readonly string[]).includes(q.get("view") ?? "") ? (q.get("view") as GateView) : "full",
+    stages: stagesFrom(q.get("st")),
+    scenes: scenesFrom(q.get("sc")),
+    hold: STAGES.includes(q.get("hold") as FlightStage) ? (q.get("hold") as FlightStage) : null,
   };
 }
 
@@ -93,6 +154,12 @@ export function gateToParams(g: GateState, now: number, extra: Record<string, st
   set("msg", g.msg);
   set("ov", g.overlay && "1");
   set("rot", !g.rotate && "0");
+  set("view", g.view !== "full" && g.view);
+  const st = STAGES.map((k) => g.stages[k]).join(",");
+  set("st", st !== STAGES.map((k) => DEFAULT_STAGES[k]).join(",") && st);
+  const sc = scenesTo(g.scenes);
+  set("sc", sc !== scenesTo(DEFAULT_SCENES) && (sc || "-"));
+  set("hold", g.hold);
   for (const [k, v] of Object.entries(extra)) set(k, v);
   return q;
 }

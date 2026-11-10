@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.9.0 — 2026-11-10
+
+The gate screen in flight: it follows the aircraft from boarding to the arrival gate, in eight views for a stream, set up once from Board → Gate screen.
+
+- **Gate screen: a live feed.** The gate screen can follow the aircraft instead of the clock: add `&feed=link` (OFP Link on the sim PC, coming later), `&feed=vatsim&who=CALLSIGN` (reads the public VATSIM data file every 15 s; nothing is sent to VATSIM) or `&feed=replay&rec=/recordings/….jsonl&rate=60` (a recorded flight). The steps and the headline follow the aircraft (Boarding, Doors closed, Pushback … Cruising, On approach, Landed, At the gate) with live figures, and OUT, OFF, ON, IN and the landing rate are stamped as they happen. Without a feed the screen runs on the clock exactly as before.
+- **Gate screen views.** The same screen URL, with `&view=`: `full` (the screen you know; in flight its steps run on from pushback to the arrival gate, with the times stamped and the live source named), `map` (a moving map in the airline's colours with the facts beside it), `frame` (a 16:9 window for the game capture, the map on a rail and the status under it), `mapwin` (the map with a small window onto the sim), `corner` (the map as a card in a corner), `strip` (a lower third), `card` and `pill` (smallest). The views over the sim are transparent everywhere but their panels. `view=auto` follows the flight: the full screen on the ground, the strip while flying, the full screen again at the gate. With a feed, the clock shows the aircraft's time.
+- **Stream panel** (Board → Gate screen): one browser source, set up once. It shows which live link is in use (OFP Link, then VATSIM with your callsign, then the clock; SayIntentions is not set up yet), what the screen shows at each stage (full screen on the ground, the strip while flying, by default), and which OBS scene names switch the same source to another view (BRB → the frame, Map → the moving map, Camera → the corner card). One URL to copy, with the three steps for OBS. Scene names are read with OBS's browser-source API and need the source's Page permissions; this hasn't been tried in OBS yet.
+- **Rehearse:** the recorded flight as a strip of stages under the panel. Play it in a minute to see every switch on the preview; click or drag along the strip to hold a stage, on the stream too, and "Follow the aircraft" to let go.
+- **Arrived: one click to the Logbook.** When the aircraft reaches the gate, Board → Gate screen offers its OUT, OFF, ON and IN (UTC, as they happened) and the landing rate, with the flight's details, to write to your Logbook. Writing it again updates the same entry. Times the feed didn't see (it joined in the air) stay empty. A rehearsal offers nothing.
+- The gate screen's top row keeps its height when the gate or live-from box comes and goes, so nothing below it moves.
+- Rehearsing a flight on another route lays the recorded flight along that route's line (by the share of the way it had flown), so the map no longer draws a line from the departure airport to the recording's own position. A recording of the same route plays as recorded.
+- One recorded flight ships for testing and rehearsing: KCLT → KJFK in the Fenix A321, from cruise to the gate.
+
 ## 1.8.1 — 2026-11-10
 
 - **Pass with track: no more impossible flight times.** When a flight had a schedule and tracked departures but no tracked arrivals (FR 5237 Brussels → Nador, for one), the track paired the typical OUT and OFF with an ON and IN taken from the schedule, which could show a three-hour flight as 39 minutes in the air. ON and IN are now estimated from the typical OUT plus the block time and carry the EST. badge.
