@@ -5,19 +5,23 @@ import { useMemo, type CSSProperties, type ReactNode } from "react";
 import { cityName } from "@/lib/data/flight";
 import { routeColor, textOn } from "@/lib/colors";
 import { MIN } from "@/lib/board/board";
-import type { GateFlight, GateState, GateView } from "@/lib/board/gate";
+import type { GateFlight, GateState, ShownView } from "@/lib/board/gate";
 import { distNm, PHASE_LABEL, type FeedSource, type FlightPhase, type FlightStage, type FlightState } from "@/lib/feed/core";
 import { useOutlines } from "@/lib/outlines";
 import { useTerrain } from "@/lib/terrain";
 import { baseLayers, mapRadius } from "../RouteMap";
 import { GateScreen, localClock, PLANE, screenNow, type GateWx } from "./GateScreen";
 
-/** view=auto: the stage of the flight sets the view (sheet 07: full on the ground, the strip while flying). */
-export const AUTO_VIEW: Record<FlightStage, Exclude<GateView, "auto">> = { ready: "full", taxi: "full", flying: "strip", arrived: "full" };
-
-export function shownView(view: GateView, live: FlightState | null): Exclude<GateView, "auto"> {
-  if (view !== "auto") return view;
-  return live ? AUTO_VIEW[live.stage] : "full";
+/**
+ * The view on screen. A fixed &view= is that view. view=auto: an OBS scene named in the rules
+ * gives its view; otherwise the stage of the flight (or the held stage) picks from the stage table.
+ */
+export function shownView(g: Pick<GateState, "view" | "stages" | "scenes" | "hold">, live: FlightState | null, scene: string | null = null): ShownView {
+  if (g.view !== "auto") return g.view;
+  const rule = scene ? g.scenes.find(([n]) => n.trim().toLowerCase() === scene.trim().toLowerCase()) : null;
+  if (rule) return rule[1];
+  const stage: FlightStage = g.hold ?? live?.stage ?? "ready";
+  return g.stages[stage];
 }
 
 /* ---------- what every view says, from the live feed (or the clock without one) ---------- */
@@ -256,6 +260,8 @@ interface ViewProps {
   wx: GateWx | null;
   live: FlightState | null;
   source: FeedSource;
+  /** The OBS scene this page is in (only inside an OBS browser source). */
+  scene?: string | null;
 }
 
 /**
@@ -263,7 +269,7 @@ interface ViewProps {
  * the views drawn over the sim leave everything outside their panels transparent.
  */
 export function GateViewScreen(p: ViewProps) {
-  const view = shownView(p.state.view, p.live);
+  const view = shownView(p.state, p.live, p.scene ?? null);
   if (view === "full") return <GateScreen flight={p.flight} state={p.state} now={p.now} wx={p.wx} live={p.live} source={SOURCE[p.source]} />;
   const f = p.flight;
   const bg = routeColor(f.brand);

@@ -6,7 +6,8 @@ import { LINK_PORT, linkSource, replaySource, vatsimSource, type FeedStatus } fr
 
 /** Which feed the gate screen follows, from its URL: &feed=link|replay|vatsim (none = the clock, as before 1.9). */
 export interface FeedConfig {
-  source: FeedSource;
+  /** auto: OFP Link when it's live, else VATSIM (with a callsign), else the clock. */
+  source: FeedSource | "auto";
   /** replay: the recording's path on this site. */
   rec: string | null;
   /** replay: times sim speed. */
@@ -30,7 +31,7 @@ export function feedFromParams(q: URLSearchParams): FeedConfig {
   const who = q.get("who");
   const at = Number(q.get("at"));
   const cfg: FeedConfig = {
-    source: f === "link" || f === "replay" || f === "vatsim" ? f : "clock",
+    source: f === "link" || f === "replay" || f === "vatsim" || f === "auto" ? f : "clock",
     rec: rec && /^\/[\w./-]{1,200}\.jsonl$/.test(rec) && !rec.includes("..") ? rec : null,
     rate: Number.isFinite(rate) && rate >= 1 ? Math.min(240, Math.round(rate)) : 1,
     who: who && /^[A-Za-z0-9_-]{2,12}$/.test(who) ? who.toUpperCase() : null,
@@ -44,6 +45,11 @@ export function feedFromParams(q: URLSearchParams): FeedConfig {
 export interface FlightFeed {
   state: FlightState | null;
   status: FeedStatus | null;
+  /** The source the readings are coming from now ("clock" before any arrive). */
+  using: FeedSource;
+  /** Each source's own status (auto runs OFP Link and VATSIM side by side). */
+  link: FeedStatus | null;
+  vatsim: FeedStatus | null;
 }
 
 /**
@@ -56,25 +62,33 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext): FlightFeed {
   const key = `${source}|${rec}|${rate}|${who}|${port}|${at}|${ctxKey}`;
   // what the running source has said, tagged with its key: a new source or flight starts over,
   // without an extra render (and nothing at all happens on the clock)
-  const [feed, setFeed] = useState<FlightFeed & { key: string }>({ key: "", state: null, status: null });
+  const [feed, setFeed] = useState<FlightFeed & { key: string }>({ key: "", ...NO_FEED });
   useEffect(() => {
     if (source === "clock") return;
     const c: FlightContext = JSON.parse(ctxKey);
     const k = `${source}|${rec}|${rate}|${who}|${port}|${at}|${ctxKey}`;
     let st = startState();
-    const h = {
-      onSample: (s: Parameters<typeof step>[1]) => {
-        st = step(st, s, c);
-        const now = st;
-        setFeed((f) => ({ key: k, status: f.key === k ? f.status : null, state: now }));
-      },
-      onStatus: (status: FeedStatus) => setFeed((f) => ({ key: k, state: f.key === k ? f.state : null, status })),
+    const put = (p: Partial<FlightFeed>) => setFeed((f) => ({ ...(f.key === k ? f : NO_FEED), ...p, key: k }));
+    // auto: OFP Link wins while it's sending; VATSIM fills in when it isn't
+    let linkAt = 0;
+    const take = (from: FeedSource) => (s: Parameters<typeof step>[1]) => {
+      if (from === "link") linkAt = Date.now();
+      else if (source === "auto" && Date.now() - linkAt < 10_000) return;
+      st = step(st, s, c);
+      const now = st;
+      put({ state: now, using: from });
     };
-    if (source === "replay" && rec) return replaySource(rec, rate, h, at * 60_000);
-    if (source === "vatsim" && who) return vatsimSource(who, h);
-    if (source === "link") return linkSource(port, h);
+    const said = (from: "link" | "vatsim" | "replay") => (status: FeedStatus) => put(from === "replay" ? { status } : { [from]: status, status });
+    if (source === "replay" && rec) return replaySource(rec, rate, { onSample: take("replay"), onStatus: said("replay") }, at * 60_000);
+    if (source === "vatsim" && who) return vatsimSource(who, { onSample: take("vatsim"), onStatus: said("vatsim") });
+    if (source === "link") return linkSource(port, { onSample: take("link"), onStatus: said("link") });
+    if (source === "auto") {
+      const stops = [linkSource(port, { onSample: take("link"), onStatus: said("link") })];
+      if (who) stops.push(vatsimSource(who, { onSample: take("vatsim"), onStatus: said("vatsim") }));
+      return () => stops.forEach((x) => x());
+    }
   }, [source, rec, rate, who, port, at, ctxKey]);
   return feed.key === key ? feed : NO_FEED;
 }
 
-const NO_FEED: FlightFeed = { state: null, status: null };
+const NO_FEED: FlightFeed = { state: null, status: null, using: "clock", link: null, vatsim: null };

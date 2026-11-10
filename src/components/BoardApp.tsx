@@ -33,8 +33,10 @@ import { PlacePicker } from "./pickers";
 import { RouteMap, type MapRoute } from "./RouteMap";
 import { FidsBoard } from "./board/FidsBoard";
 import type { FlightContext } from "@/lib/feed/core";
+import { useObsScene } from "@/lib/feed/obs";
 import { CLOCK_FEED, feedFromParams, useFlightFeed, type FeedConfig } from "@/lib/feed/useFlightFeed";
 import { GateViewScreen, shownView } from "./board/GateViews";
+import { REHEARSE_REC, RehearseStrip, StreamPanel } from "./board/StreamPanel";
 import { localClock, screenNow, zoneLabel, type GateWx } from "./board/GateScreen";
 import { cx, radioKeys, roving } from "./ui";
 
@@ -75,6 +77,8 @@ export function BoardApp() {
   const [screen, setScreen] = useState(false);
   const [ch, setCh] = useState<string | null>(null);
   const [feedCfg, setFeedCfg] = useState<FeedConfig>(CLOCK_FEED);
+  /** Rehearse: the preview plays the recorded flight (this page only, not the stream). */
+  const [rehearse, setRehearse] = useState<FeedConfig | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -104,13 +108,13 @@ export function BoardApp() {
     if (!ready || screen) return;
     const q =
       tab === "gate"
-        ? gateToParams(gate, Date.now(), { tab: "gate" })
+        ? gateToParams(gate, Date.now(), { tab: "gate", feed: feedCfg.source !== "clock" ? feedCfg.source : null, who: feedCfg.who })
         : new URLSearchParams(
             Object.entries({ ap, side: side === "arr" ? "arr" : null, h: hours !== 6 ? String(hours) : null, tz: utc ? "utc" : null }).filter((e): e is [string, string] => !!e[1]),
           );
     const next = `${window.location.pathname}${q.toString() ? `?${q}` : ""}`;
     if (next !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(null, "", next);
-  }, [ready, screen, tab, ap, side, hours, utc, gate]);
+  }, [ready, screen, tab, ap, side, hours, utc, gate, feedCfg]);
 
   /* ---------- data: only the airlines that serve the airport, or the gate flight's ---------- */
 
@@ -299,7 +303,8 @@ export function BoardApp() {
     () => (flight ? { from: { lat: flight.from.lat, lon: flight.from.lon, elev: flight.from.elevFt }, to: { lat: flight.to.lat, lon: flight.to.lon, elev: flight.to.elevFt } } : {}),
     [flight],
   );
-  const live = useFlightFeed(feedCfg, feedCtx);
+  const live = useFlightFeed(rehearse ?? feedCfg, feedCtx);
+  const obsScene = useObsScene();
   const shownGate = useMemo(() => ({ ...gate, reg: gate.reg || autoReg || "" }), [gate, autoReg]);
 
   /* ---------- live link to a screen window ---------- */
@@ -346,10 +351,16 @@ export function BoardApp() {
     return `${window.location.origin}/board?${q}`;
   };
 
+  // the Stream panel's URL: one browser source that follows the aircraft and the OBS scene
+  const streamUrl = () => {
+    const q = gateToParams({ ...gate, view: "auto" }, now, { tab: "gate", screen: "1", feed: "auto", who: feedCfg.who });
+    return `${typeof window === "undefined" ? "" : window.location.origin}/board?${q}`;
+  };
+
   /* ---------- screen only (stream source / popup) ---------- */
 
   // the views drawn over the sim are transparent outside their panels, like the overlay switch
-  const overSim = gate.overlay || OVER_SIM.includes(shownView(gate.view, live.state));
+  const overSim = gate.overlay || OVER_SIM.includes(shownView(gate, live.state, obsScene));
 
   if (screen) {
     if (!ready) return null;
@@ -358,7 +369,7 @@ export function BoardApp() {
         <ScreenModeClass overlay={overSim} />
         <div className="gs-frame">
           {flight ? (
-            <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={feedCfg.source} />
+            <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} />
           ) : (
             <p className="screen-wait">{ofp?.error ? `SimBrief: ${ofp.error}` : "Loading the flight…"}</p>
           )}
@@ -524,7 +535,7 @@ export function BoardApp() {
                 <div className="gt-preview">
                   <div className="gs-frame" id="gs-preview">
                     {flight ? (
-                      <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={feedCfg.source} />
+                      <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} />
                     ) : (
                       <div className="gs-empty">
                         <p>{gate.sb ? (ofp?.error ? `SimBrief: ${ofp.error}` : "Loading your SimBrief OFP…") : gate.f ? "Loading the flight…" : "No flight yet"}</p>
@@ -565,6 +576,24 @@ export function BoardApp() {
                   onSet={setGate}
                 />
               </div>
+            )}
+            {/* after the flight has loaded: the controls above it are their full height by then */}
+            {ready && tab === "gate" && flight && (
+              <>
+                <StreamPanel gate={gate} flight={flight} feedCfg={feedCfg} feed={live} url={streamUrl()} onPatch={patch} onFeed={setFeedCfg} />
+                <RehearseStrip
+                  gate={gate}
+                  ctx={feedCtx}
+                  rehearsing={!!rehearse}
+                  feed={live}
+                  onPlay={(rate) => {
+                    setRehearse({ ...CLOCK_FEED, source: "replay", rec: REHEARSE_REC, rate });
+                    if (gate.view === "full") patch({ view: "auto" });
+                  }}
+                  onStop={() => setRehearse(null)}
+                  onHold={(hold) => patch({ hold })}
+                />
+              </>
             )}
           </div>
         </section>

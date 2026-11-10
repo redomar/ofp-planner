@@ -1264,3 +1264,233 @@ html.screen-mode body > :not(.screen-root) {
   border-radius: calc(var(--u) * 0.4);
   overflow: hidden;
 }
+
+/* ---------- 1.9: Stream panel and rehearse strip (sheet 07) ---------- */
+.sp,
+.rs {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--sheet);
+}
+.sp-h {
+  font-family: var(--font-cond);
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0 0 10px;
+}
+.sp-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 18px;
+}
+@media (max-width: 1000px) {
+  .sp-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.sp-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.sp-col + .sp-col {
+  border-left: 1px solid var(--rule);
+  padding-left: 18px;
+}
+@media (max-width: 1000px) {
+  .sp-col + .sp-col {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid var(--rule);
+    padding-top: 14px;
+  }
+}
+.sp-srcs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sp-src {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--field);
+}
+.sp-src i {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid var(--rule-strong);
+}
+.sp-src span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.sp-src small {
+  color: var(--ink-soft, inherit);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sp-src.is-on {
+  border-color: var(--green);
+  background: var(--green-bg);
+}
+.sp-src.is-on i {
+  background: var(--green);
+  border-color: var(--green);
+}
+.sp-who {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.sp-who .jr-ctl {
+  flex: 1;
+  min-width: 0;
+}
+.sp-tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.sp-tbl th,
+.sp-tbl td {
+  text-align: left;
+  padding: 5px 6px 5px 0;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: middle;
+}
+.sp-tbl thead th {
+  font-family: var(--font-cond);
+  font-size: 0.75rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.sp-tbl tbody th {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.sp-now {
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--magenta);
+  border-radius: 2px;
+  color: var(--magenta);
+  font-family: var(--font-cond);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.sp-now.is-hold {
+  border-color: var(--amber);
+  color: var(--amber);
+}
+.sp-view {
+  max-width: 100%;
+}
+.sp-sub {
+  margin-top: 8px;
+}
+.sp-rules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sp-rules li {
+  display: grid;
+  grid-template-columns: minmax(0, 7rem) minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+}
+.sp-x {
+  min-width: 2rem;
+}
+.sp-url {
+  width: 100%;
+  font-size: 0.8rem;
+}
+.sp-steps {
+  margin: 0;
+  padding-left: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+/* room for the strip before the recording has loaded, so nothing moves when it arrives */
+.rs {
+  min-height: 11.5rem;
+}
+.rs-strip {
+  position: relative;
+  display: flex;
+  gap: 3px;
+  margin-top: 10px;
+  touch-action: none;
+}
+.rs-b {
+  flex-basis: 0;
+  min-width: 4.5rem;
+  padding: 7px 6px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--field);
+  color: var(--ink);
+  font-family: var(--font-cond);
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: grab;
+}
+.rs-b.is-flying {
+  background: var(--magenta-bg);
+  border-color: var(--magenta);
+}
+.rs-b.is-held {
+  outline: 2px solid var(--amber);
+  outline-offset: 1px;
+}
+.rs-at {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 2px;
+  background: var(--magenta);
+  pointer-events: none;
+}
+.rs-times {
+  position: relative;
+  height: 1.3rem;
+  margin-top: 4px;
+}
+.rs-times span {
+  position: absolute;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+.rs-times span:first-child {
+  left: 0;
+  transform: none;
+}
+.rs-times span:last-child:not(:first-child) {
+  transform: translateX(-100%);
+}

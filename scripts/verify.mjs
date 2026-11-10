@@ -739,6 +739,109 @@ async function run() {
     await a2.ctx.close();
   });
 
+  /* ---------- 1.9 C: the Stream panel, OBS scene names, rehearse ---------- */
+  await section("stream panel", async () => {
+    const FR = encodeURIComponent("RYR:RYR658:EBBR-EIDW:1234567");
+    const start = async ({ width = 1280, height = 900, theme = "light", obs = null, pilots = [] } = {}) => {
+      const ctx = await browser.newContext({ viewport: { width, height }, colorScheme: theme, reducedMotion: "reduce" });
+      await ctx.addInitScript(SEED);
+      await ctx.addInitScript(() => {
+        window.__cls = 0;
+        window.__shifts = [];
+        new PerformanceObserver((l) => {
+          for (const e of l.getEntries()) if (!e.hadRecentInput) (window.__cls += e.value), window.__shifts.push({ v: +e.value.toFixed(3), src: (e.sources ?? []).map((x) => x.node?.className?.baseVal ?? x.node?.className ?? x.node?.nodeName) });
+        }).observe({ type: "layout-shift", buffered: true });
+      });
+      // a stand-in for OBS's browser-source API (window.obsstudio), not OBS itself
+      if (obs) await ctx.addInitScript((name) => (window.obsstudio = { getCurrentScene: (cb) => setTimeout(() => cb({ name }), 50) }), obs);
+      await ctx.route(/vatsim\.net/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ pilots }) }));
+      const page = await ctx.newPage();
+      const errors = [];
+      page.on("console", (m) => m.type() === "error" && !/ERR_CONNECTION_REFUSED|WebSocket/.test(m.text()) && errors.push(m.text()));
+      page.on("pageerror", (e) => errors.push(String(e)));
+      return { ctx, page, errors };
+    };
+    // the panel: sources, the stage table, the scene rules, one URL
+    const a = await start();
+    await a.page.goto(`${base}/board?tab=gate&f=${FR}&in=30`, { waitUntil: "networkidle" });
+    await a.page.waitForSelector(".sp .sp-src");
+    const srcs = await a.page.locator(".sp-src b").allTextContents();
+    const stages = await a.page.locator(".sp-tbl tbody select").evaluateAll((els) => els.map((e) => e.value));
+    const rules = await a.page.locator(".sp-rules li").evaluateAll((lis) => lis.map((li) => `${li.querySelector("input").value}:${li.querySelector("select").value}`));
+    const url = await a.page.locator(".sp-url").inputValue();
+    srcs.length === 4 && /Clock only · live/.test(srcs[3]) && stages.join(",") === "full,full,strip,full" && rules.join(" ") === "BRB:frame Map:map Camera:card" && /screen=1/.test(url) && /view=auto/.test(url) && /feed=auto/.test(url)
+      ? pass("stream panel: four live links (clock in use), the stage table and scene rules from sheet 07, one stream URL (view=auto, feed=auto)")
+      : fail(`stream panel: ${JSON.stringify({ srcs, stages, rules, url })}`);
+    await checkPage("stream panel 1280 light", a.page, a.errors);
+    await shot(a.page, "stream-panel");
+    // changing the table and the rules goes into the URL
+    await a.page.getByLabel("Flying: the screen shows").selectOption("map");
+    await a.page.getByLabel("Scene name 1").fill("Be right back");
+    const url2 = await a.page.locator(".sp-url").inputValue();
+    /st=full%2Cfull%2Cmap%2Cfull|st=full,full,map,full/.test(url2) && /Be(\+|%20)right(\+|%20)back%3Aframe/.test(url2)
+      ? pass("stream panel: the stage table and scene rules travel in the stream URL")
+      : fail(`stream panel: url ${url2}`);
+    // VATSIM: a callsign, then it's the one in use when it's online (answered here)
+    await a.ctx.close();
+    const pilot = { cid: 1000000, callsign: "RYR7FE", latitude: 34.195541, longitude: -80.70894, altitude: 28404, groundspeed: 463, heading: 346, last_updated: "2026-11-10T18:48:22Z" };
+    const v = await start({ pilots: [pilot] });
+    await v.page.goto(`${base}/board?tab=gate&f=${FR}&in=30`, { waitUntil: "networkidle" });
+    await v.page.getByLabel("VATSIM callsign or CID").fill("ryr7fe");
+    await v.page.getByRole("button", { name: "Use", exact: true }).click();
+    await v.page.waitForFunction(() => document.querySelector(".sp-src.is-on b")?.textContent?.includes("VATSIM"), null, { timeout: 15_000 }).catch(() => {});
+    const on = await v.page.locator(".sp-src.is-on b").textContent().catch(() => "");
+    /VATSIM · live/.test(on) && /who=RYR7FE/.test(v.page.url()) ? pass("stream panel: with a callsign, VATSIM is used while OFP Link isn't running") : fail(`stream panel: vatsim ${on} ${v.page.url()}`);
+    await v.ctx.close();
+
+    // OBS scene names (stand-in API): a rule wins over the stage table, case aside; other scenes follow the stage
+    const scr = (obs, extra = "") => start({ width: 1920, height: 1080, obs }).then(async (o) => {
+      await o.page.goto(`${base}/board?tab=gate&f=${FR}&in=30&screen=1&view=auto&feed=replay&rec=/recordings/kclt-kjfk.jsonl&at=20${extra}`, { waitUntil: "networkidle" });
+      await o.page.waitForTimeout(1500);
+      const view = await o.page.evaluate(() => (document.querySelector(".gv-frame") ? "frame" : document.querySelector(".gv-strip") ? "strip" : document.querySelector(".gv-map") ? "map" : document.querySelector(".gs") ? "full" : "none"));
+      await o.ctx.close();
+      return view;
+    });
+    const inBrb = await scr("brb");
+    const inGame = await scr("Gameplay");
+    const noObs = await scr(null);
+    const held = await scr(null, "&hold=arrived");
+    inBrb === "frame" && inGame === "strip" && noObs === "strip" && held === "full"
+      ? pass("stream panel: OBS scene \"brb\" shows the frame, another scene the stage's view (strip while flying), hold=arrived holds the full screen (OBS API stood in)")
+      : fail(`stream panel: scenes brb ${inBrb} game ${inGame} none ${noObs} held ${held}`);
+
+    // rehearse: play the recorded flight on the preview, drag to hold a stage
+    const r = await start();
+    await r.page.goto(`${base}/board?tab=gate&f=${FR}&in=30`, { waitUntil: "networkidle" });
+    await r.page.waitForSelector(".rs-b");
+    const blocks = await r.page.locator(".rs-b").allTextContents();
+    await r.page.getByRole("button", { name: "▶ Play in 60 s" }).click();
+    await r.page.waitForFunction(() => document.querySelector("#gs-preview .gv-strip"), null, { timeout: 15_000 }).catch(() => {});
+    const playing = await r.page.locator("#gs-preview .gv-strip").count();
+    const marker = await r.page.locator(".rs-at").count();
+    await r.page.locator(".rs-b", { hasText: "Arrived" }).click();
+    await r.page.waitForTimeout(500);
+    const heldView = await r.page.locator("#gs-preview .gs").count();
+    const heldUrl = /hold=arrived/.test(r.page.url());
+    const say = await r.page.locator(".rs .gt-actions [aria-live]").textContent();
+    blocks.length >= 2 && /Flying/.test(blocks[0]) && playing === 1 && marker === 1 && heldView === 1 && heldUrl && /Holding: Arrived/.test(say)
+      ? pass(`stream panel: rehearse plays the recorded flight (${blocks.join(" | ")}), a block holds its stage (preview and URL)`)
+      : fail(`stream panel: rehearse ${JSON.stringify({ blocks, playing, marker, heldView, heldUrl, say })}`);
+    await r.ctx.close();
+
+    for (const [w, h, theme] of [
+      [1280, 900, "dark"],
+      [390, 844, "light"],
+      [390, 844, "dark"],
+    ]) {
+      const o = await start({ width: w, height: h, theme });
+      await o.page.goto(`${base}/board?tab=gate&f=${FR}&in=30`, { waitUntil: "networkidle" });
+      await o.page.waitForSelector(".rs-b");
+      await checkPage(`stream panel ${w} ${theme}`, o.page, o.errors);
+      await shot(o.page, `stream-panel-${w}-${theme}`);
+      await o.ctx.close();
+    }
+  });
+
   /* ---------- 1.8.1: the track never mixes typical OUT/OFF with a scheduled ON/IN ---------- */
   await section("track estimates", async () => {
     // FR5237 EBBR-GMMX: scheduled, tracked OUT and OFF on every day it flies, never tracked arriving
