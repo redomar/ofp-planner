@@ -961,6 +961,34 @@ html.screen-mode body > :not(.screen-root) {
   stroke: var(--gs-accent);
   stroke-linecap: round;
 }
+/* the FMS route: the missed approach faded, waypoints small (the aircraft stays the biggest thing) */
+.gm-missed {
+  fill: none;
+  stroke: color-mix(in srgb, var(--gs-ink) 45%, transparent);
+}
+.gm-wpt circle,
+.gm-wpt path {
+  fill: var(--gs-ink);
+  stroke: color-mix(in srgb, #000000 40%, var(--gs-bg));
+}
+.gm-wpt > text {
+  fill: var(--gs-ink);
+  font-family: var(--font-cond);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  paint-order: stroke;
+  stroke: color-mix(in srgb, #000000 28%, var(--gs-bg));
+  stroke-width: 3;
+}
+/* altitude constraints in Airbus magenta, white text on it (AA) */
+.gm-alt rect {
+  fill: #b0127f;
+}
+.gm-alt text {
+  fill: #ffffff;
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
 .gm-plane {
   fill: var(--gs-accent);
   stroke: color-mix(in srgb, #000000 50%, var(--gs-bg));

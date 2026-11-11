@@ -7,7 +7,7 @@ import type { AirlineInfo } from "../data/types";
 import type { Airport, FlightRow } from "../data/load";
 import { blockTime, flightNo, gcNm } from "../data/flight";
 import { MIN, taxiOf, type PhaseKey } from "./board";
-import type { FlightStage } from "../feed/core";
+import type { FlightPlan, FlightStage, PlanLeg } from "../feed/core";
 
 export interface GateState {
   /** Snapshot flight id. */
@@ -167,7 +167,8 @@ export function gateToParams(g: GateState, now: number, extra: Record<string, st
 /* ---------- what the screen shows, from a snapshot flight or a SimBrief OFP ---------- */
 
 export interface GateFlight {
-  source: "snapshot" | "simbrief";
+  /** fms: built from the route in the aircraft's FMS (OFP Link), with no schedule. */
+  source: "snapshot" | "simbrief" | "fms";
   brand: AirlineInfo | null;
   /** Wordmark text: the brand name, or the OFP's airline code. */
   airline: string;
@@ -318,6 +319,46 @@ export function fromOfp(o: SbOfp, airports: Map<string, Airport> | null, airline
     cruiseFt: o.cruiseFt,
     runway: o.runway,
     nm: o.nm ?? Math.round(gcNm(from, to)),
+    typical: null,
+  };
+}
+
+/**
+ * The flight from the aircraft's FMS (OFP Link with a Fenix) when no Finder flight or OFP is
+ * loaded: its ends, flight number and cruise level as programmed. It has no schedule, so the
+ * screen shows no scheduled or arrival times; `seenAt` (when the plan first came) stands in for
+ * the off-block time the screen's clock needs.
+ */
+export function fromPlan(p: FlightPlan, seenAt: number, airports: Map<string, Airport> | null, airlines: Map<string, AirlineInfo>): GateFlight {
+  const legs = p.legs.filter((l) => !l.missed);
+  const ap = (code: string, leg: PlanLeg | undefined): Airport =>
+    airports?.get(code) ?? { icao: code, iata: null, name: code, city: null, country: null, lat: leg?.lat ?? 0, lon: leg?.lon ?? 0, elevFt: null, tz: null };
+  const from = ap(p.origin, legs[0]);
+  const to = ap(p.destination, legs[legs.length - 1]);
+  // an airline from the flight number's letters (SWR457 → SWISS), if it's one we know
+  const prefix = p.flightNumber?.match(/^([A-Z]{3})\d/)?.[1] ?? null;
+  const brand = prefix ? ([...airlines.values()].find((a) => a.icao === prefix || a.operators.includes(prefix)) ?? null) : null;
+  let nm = 0;
+  for (let i = 1; i < legs.length; i++) nm += gcNm(legs[i - 1], legs[i]);
+  return {
+    source: "fms",
+    brand,
+    airline: brand?.name ?? "",
+    flightNo: p.flightNumber ?? `${p.origin}–${p.destination}`,
+    callsign: p.flightNumber,
+    from,
+    to,
+    stdMs: seenAt,
+    ofpDelay: 0,
+    block: null,
+    taxiOut: 12,
+    types: [],
+    typeName: null,
+    reg: null,
+    pax: null,
+    cruiseFt: p.cruiseFt,
+    runway: null,
+    nm: Math.round(nm) || Math.round(gcNm(from, to)),
     typical: null,
   };
 }

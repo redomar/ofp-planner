@@ -19,6 +19,7 @@ import {
   EMPTY_GATE,
   fetchOfp,
   fromOfp,
+  fromPlan,
   fromSnapshot,
   gateFromParams,
   OVER_SIM,
@@ -257,7 +258,7 @@ export function BoardApp() {
     return () => ctl.abort();
   }, [ready, gate.sb]);
 
-  const flight = useMemo<GateFlight | null>(() => {
+  const baseFlight = useMemo<GateFlight | null>(() => {
     if (!airports) return null;
     if (gate.sb) return ofp?.user === gate.sb && ofp.ofp ? fromOfp(ofp.ofp, airports, airlines) : null;
     if (!snapFlight || snapFlight.id !== gate.f) return null;
@@ -266,6 +267,23 @@ export function BoardApp() {
     // block, taxi and typical lateness from the times of the day it departs
     return std != null ? fromSnapshot(onDay(f, isoDay(new Date(std))), std, airports, airlines.get(f.al) ?? null) : null;
   }, [airports, airlines, gate.sb, gate.f, gate.d, ofp, snapFlight, fnOv, minute]);
+
+  // 1.9: a live feed (OFP Link, a recorded flight or VATSIM) moves the screen with the aircraft
+  const feedCtx = useMemo<FlightContext>(
+    () =>
+      baseFlight
+        ? { from: { lat: baseFlight.from.lat, lon: baseFlight.from.lon, elev: baseFlight.from.elevFt }, to: { lat: baseFlight.to.lat, lon: baseFlight.to.lon, elev: baseFlight.to.elevFt } }
+        : {},
+    [baseFlight],
+  );
+  const live = useFlightFeed(rehearse ?? feedCfg, feedCtx);
+  const obsScene = useObsScene();
+  // with no Finder flight or OFP, the flight programmed in the aircraft's FMS (OFP Link, Fenix)
+  const planFlight = useMemo(
+    () => (!baseFlight && !gate.f && !gate.sb && live.plan && live.planAt != null ? fromPlan(live.plan, live.planAt, airports, airlines) : null),
+    [baseFlight, gate.f, gate.sb, live.plan, live.planAt, airports, airlines],
+  );
+  const flight = baseFlight ?? planFlight;
 
   // destination weather at arrival, for the info strip
   const [wx, setWx] = useState<{ key: string; wx: GateWx } | null>(null);
@@ -299,13 +317,6 @@ export function BoardApp() {
     const t = flight.types[0];
     return frames.list.find((a) => a.icao === t)?.name ?? null;
   }, [flight, frames]);
-  // 1.9: a live feed (OFP Link, a recorded flight or VATSIM) moves the screen with the aircraft
-  const feedCtx = useMemo<FlightContext>(
-    () => (flight ? { from: { lat: flight.from.lat, lon: flight.from.lon, elev: flight.from.elevFt }, to: { lat: flight.to.lat, lon: flight.to.lon, elev: flight.to.elevFt } } : {}),
-    [flight],
-  );
-  const live = useFlightFeed(rehearse ?? feedCfg, feedCtx);
-  const obsScene = useObsScene();
   const shownGate = useMemo(() => ({ ...gate, reg: gate.reg || autoReg || "" }), [gate, autoReg]);
 
   /* ---------- live link to a screen window ---------- */
@@ -376,7 +387,7 @@ export function BoardApp() {
         <ScreenModeClass overlay={overSim} />
         <div className="gs-frame">
           {flight ? (
-            <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} trail={live.trail} />
+            <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} trail={live.trail} plan={live.plan} />
           ) : (
             <p className="screen-wait">{ofp?.error ? `SimBrief: ${ofp.error}` : "Loading the flight…"}</p>
           )}
@@ -542,7 +553,7 @@ export function BoardApp() {
                 <div className="gt-preview">
                   <div className="gs-frame" id="gs-preview">
                     {flight ? (
-                      <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} trail={live.trail} />
+                      <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} trail={live.trail} plan={live.plan} />
                     ) : (
                       <div className="gs-empty">
                         <p>{gate.sb ? (ofp?.error ? `SimBrief: ${ofp.error}` : "Loading your SimBrief OFP…") : gate.f ? "Loading the flight…" : "No flight yet"}</p>

@@ -179,13 +179,16 @@ export function GateScreen({
       live.phase === "gate"
         ? [at2(live.stamps.in, toTz) && `On stand ${at2(live.stamps.in, toTz)}`, live.stamps.landingRate != null && `${Math.round(live.stamps.landingRate)} fpm`].filter(Boolean).join(" · ") || null
         : live.stage === "ready"
-          ? `Off-block ${localClock(etd, fromTz)}`
+          ? f.source === "fms"
+            ? `${f.from.iata ?? f.from.icao} → ${f.to.iata ?? f.to.icao}${f.cruiseFt ? ` · cruise FL${Math.round(f.cruiseFt / 100)}` : ""}`
+            : `Off-block ${localClock(etd, fromTz)}`
           : (figures(live) ?? (live.stamps.out != null ? `Off-block ${localClock(live.stamps.out, fromTz)}` : null));
   }
   if (g.pin && !g.cancelled) next = null;
   if (g.oldGate && g.gate && !g.cancelled) next = `Gate change: ${g.oldGate} → ${g.gate}`;
 
-  const dest = cityName(f.to) ?? f.to.name;
+  // two airports in one city (London City → Heathrow): the destination airport's own name
+  const dest = cityName(f.to) != null && cityName(f.to) === cityName(f.from) ? f.to.name.replace(/ Airport$/, "") : (cityName(f.to) ?? f.to.name);
   const type = f.typeName ?? (f.types[0] ? [aircraft(f.types[0]).maker, aircraft(f.types[0]).model].filter(Boolean).join(" ") || f.types[0] : null);
   const facts = [
     f.block != null && `Flight time ${dur(f.block)}`,
@@ -308,19 +311,19 @@ export function GateScreen({
             <b className="mono">{localClock(lf.arrives, toTz)}</b>
           </div>
         )}
-        {!inFlight && (
+        {!inFlight && f.source !== "fms" && (
         <div className={delayed && !g.cancelled ? "is-struck" : undefined}>
           <small>Scheduled · {zoneLabel(f.stdMs, fromTz)}</small>
           <b className="mono">{localClock(f.stdMs, fromTz)}</b>
         </div>
         )}
-        {!inFlight && delayed && !g.cancelled && (
+        {!inFlight && f.source !== "fms" && delayed && !g.cancelled && (
           <div className="gs-new">
             <small>New time · {zoneLabel(etd, fromTz)}</small>
             <b className="mono">{localClock(etd, fromTz)}</b>
           </div>
         )}
-        {!inFlight && eta != null && !g.cancelled && (
+        {!inFlight && f.source !== "fms" && eta != null && !g.cancelled && (
           <div>
             <small>Arrives · {toZone}</small>
             <b className="mono">{localClock(eta, toTz)}</b>
@@ -355,7 +358,7 @@ export function GateScreen({
             <li key={k} className={`is-${state}`} aria-current={state === "now" ? "step" : undefined}>
               <i aria-hidden="true" />
               <b>{p.short}</b>
-              <small className="mono">{localClock(at(k), fromTz)}</small>
+              <small className="mono">{f.source === "fms" ? "" : localClock(at(k), fromTz)}</small>
             </li>
           );
         })}
