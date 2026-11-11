@@ -423,7 +423,7 @@ export function BoardApp() {
       <span>
         <b>{flight.flightNo}</b> {flight.from.iata ?? flight.from.icao} → {flight.to.iata ?? flight.to.icao} ·{" "}
         {gate.stdAt != null ? `virtual clock, STD in ${dur(Math.max(0, Math.round((gate.stdAt - now) / MIN)))}` : `real time, ${new Date(flight.stdMs).toUTCString().slice(0, 16)}`}
-        <span className="muted hide-xs"> · {flight.source === "simbrief" ? "from your SimBrief OFP" : "from the snapshot"}</span>
+        <span className="muted hide-xs"> · {flight.source === "simbrief" ? "from your SimBrief OFP" : flight.source === "fms" ? "from your FMS (OFP Link)" : "from the snapshot"}</span>
       </span>
     ) : (
       <span className="muted">Pick a flight for the gate screen</span>

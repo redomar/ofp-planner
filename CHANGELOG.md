@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.9.3 — 2026-11-11
+
+Fixes from the first live test with OFP Link and the Fenix (London City → Heathrow).
+
+- **The map fits the FMS route at the gate:** a short route is shown at least 40 nm across (it was drawn at about 260 nm across, a tiny cluster).
+- **Distance to go follows the programmed route** (78 nm, as the MCDU's 82), not the straight line (19 nm).
+- **On the ground** the tiles show GND and the ground speed (0 kt parked) instead of dashes.
+- An FMS flight shows no "std" time (it has no schedule), and the Flight box says "from your FMS (OFP Link)".
+- **Two airports in one city:** the airport big ("Heathrow") with its city small above ("London"); long names shrink to fit the line.
+
 ## 1.9.2 — 2026-11-11
 
 - **The flight from your FMS (OFP Link, Fenix).** With OFP Link running and no Finder flight or SimBrief OFP loaded, the gate screen takes the flight from the route programmed in the Fenix MCDU: origin, destination, flight number and cruise level. It shows no schedule it doesn't have.
