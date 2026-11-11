@@ -1,30 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState, type PointerEvent as RPointerEvent } from "react";
-import { allStages, PRESETS, STAGES, type GateFlight, type GateState, type ShownView } from "@/lib/board/gate";
-import { GateViewScreen, MiniScreen, sampleLive } from "./GateViews";
+import { useEffect, useMemo, useState, type PointerEvent as RPointerEvent, type ReactNode } from "react";
+import type { GateFlight, GateState } from "@/lib/board/gate";
 import type { GateWx } from "./GateScreen";
 import { detectAll, fitToRoute, parseRecording, type FlightContext, type ViewStage, type FlightState, viewStage } from "@/lib/feed/core";
 import type { FeedConfig, FlightFeed } from "@/lib/feed/useFlightFeed";
 import { inObs } from "@/lib/feed/obs";
 import { readLog, saveFlight, type LogFlight } from "@/lib/logbook";
 import Link from "next/link";
+import { STAGE_INFO, StreamStudio } from "./StreamStudio";
 
 /** The recorded flight the rehearse strip plays (the only one so far: the owner's KCLT → KJFK). */
 export const REHEARSE_REC = "/recordings/kclt-kjfk.jsonl";
 
-const VIEW_NAMES: [ShownView, string][] = [
-  ["full", "Full screen · G1"],
-  ["map", "Moving map · G3"],
-  ["frame", "Frame with sim · G3a"],
-  ["route", "Map with route · G3d"],
-  ["mapwin", "Map with window · G3c"],
-  ["corner", "Map corner · G3b"],
-  ["strip", "Strip · G4"],
-  ["card", "Corner card · G5"],
-  ["pill", "Pill · G5"],
-  ["line", "Pill with phase · G5b"],
-];
 const STAGE_NAMES: Record<ViewStage, { name: string; until: string }> = {
   ready: { name: "Getting ready", until: "the aircraft moves back" },
   taxi: { name: "Push-back and taxi", until: "wheels off" },
@@ -33,10 +21,18 @@ const STAGE_NAMES: Record<ViewStage, { name: string; until: string }> = {
   arrived: { name: "Arrived", until: "you close it" },
 };
 
+type StreamTab = "scenes" | "rehearse" | "feed" | "obs";
+const TABS: { k: StreamTab; name: string }[] = [
+  { k: "scenes", name: "Scenes" },
+  { k: "rehearse", name: "Rehearse" },
+  { k: "feed", name: "Live feed" },
+  { k: "obs", name: "OBS setup" },
+];
 
 /**
- * Board → Gate screen → Stream (sheet 07, FL1): where the live figures come from, what shows at
- * each stage and under which OBS scene names, and the one URL to give OBS.
+ * Board → Gate screen → Stream (1.12, the Stream studio): one line that says whether the stream is
+ * ready, then tabs: the scenes (what each OBS scene shows at each stage), rehearse, the live feed
+ * and the OBS setup with the one URL to give OBS.
  */
 export function StreamPanel({
   gate,
@@ -48,6 +44,7 @@ export function StreamPanel({
   now,
   wx,
   relayOpen,
+  rehearse,
   onPatch,
   onFeed,
 }: {
@@ -57,15 +54,18 @@ export function StreamPanel({
   feed: FlightFeed;
   /** The stream URL for these settings. */
   url: string;
-  /** The URL for a source that always shows one scene's column (&as=Name). */
+  /** The URL for a source that always shows one scene (&as=Name). */
   urlFor: (scene: string) => string;
   now: number;
   wx: GateWx | null;
   /** OFP Tower passes changes to the OBS source live (no new URL needed). */
   relayOpen: boolean;
+  /** The rehearse strip, shown in its tab. */
+  rehearse?: ReactNode;
   onPatch: (p: Partial<GateState>) => void;
   onFeed: (c: FeedConfig) => void;
 }) {
+  const [tab, setTab] = useState<StreamTab>("scenes");
   const [who, setWho] = useState(feedCfg.who ?? "");
   const [copied, setCopied] = useState(false);
   // the URL last copied: a change since then has to be pasted into OBS again (unless OFP Tower carries it)
@@ -74,6 +74,13 @@ export function StreamPanel({
   const using = feed.state ? feed.using : "clock";
   const link = feed.link;
   const vat = feed.vatsim;
+  const stage = gate.hold ?? (feed.state ? viewStage(feed.state, feed.plan) : null);
+  const copyUrl = () =>
+    void navigator.clipboard?.writeText(url).then(() => {
+      setCopied(true);
+      setCopiedUrl(url);
+      setTimeout(() => setCopied(false), 2000);
+    });
   const row = (key: string, name: string, sub: string, on: boolean) => (
     <li className={`sp-src${on ? " is-on" : ""}`} key={key}>
       <i aria-hidden="true" />
@@ -86,290 +93,118 @@ export function StreamPanel({
       </span>
     </li>
   );
+  const linkLive = link?.state === "live";
 
   return (
-    <section className="sp" aria-labelledby="sp-h">
-      <h3 id="sp-h" className="sp-h">
-        Stream: one source, set up once
-      </h3>
-      <div className="sp-cols">
-        <div className="sp-col">
-          <h4 className="ctl-label">1 · Live link</h4>
-          <ul className="sp-srcs">
-            {row("link", "OFP Tower", link?.state === "live" ? "MSFS 2024 · once a second" : (link?.text ?? "not running on this PC"), using === "link")}
-            {row("si", "SayIntentions", "not set up yet", false)}
-            {row("vatsim", "VATSIM", vat?.text ?? (feedCfg.who ? `looking for ${feedCfg.who}` : "add your callsign"), using === "vatsim")}
-            {row("clock", "Clock only", "always there", using === "clock" && feedCfg.source !== "replay")}
-          </ul>
-          <form
-            className="sp-who"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const w = who.trim().toUpperCase();
-              onFeed({ ...feedCfg, source: "auto", who: /^[A-Z0-9_-]{2,12}$/.test(w) ? w : null });
-            }}
-          >
-            <label className="jr-ctl">
-              <span className="ctl-label">VATSIM callsign or CID</span>
-              <input className="ctl-input" value={who} maxLength={12} onChange={(e) => setWho(e.target.value)} placeholder="e.g. RYR7FE" />
-            </label>
-            <button type="submit" className="btn">
-              Use
-            </button>
-          </form>
-          <p className="muted small">
-            Uses the first one that is live.
-            {flight && (
-              <>
-                {" "}
-                Flight: <b className="mono">{flight.flightNo}</b> {flight.from.iata ?? flight.from.icao} → {flight.to.iata ?? flight.to.icao}
-                {flight.source === "simbrief" ? " from your latest SimBrief OFP." : "."}
-              </>
-            )}{" "}
-            VATSIM is only read (the public list of who is online); nothing is sent to it.
-          </p>
-        </div>
+    <section className="sp st-panel" aria-labelledby="sp-h">
+      <header className="st-bar">
+        <h3 id="sp-h" className="sp-h">
+          Stream
+        </h3>
+        <span className={`st-chip${linkLive ? " is-on" : ""}`}>
+          <i aria-hidden="true" />
+          OFP Tower · {linkLive ? "live" : "not running"}
+        </span>
+        <span className={`st-chip${using === "vatsim" ? " is-on" : ""}`}>
+          <i aria-hidden="true" />
+          VATSIM · {using === "vatsim" ? "live" : feedCfg.who ? (vat?.state === "waiting" ? "offline" : "looking") : "not used"}
+        </span>
+        <span className={`st-chip${relayOpen ? " is-on" : ""}`} title={relayOpen ? "Changes here reach the OBS sources live through OFP Tower" : "Without OFP Tower, copy the URL again after a change"}>
+          <i aria-hidden="true" />
+          {relayOpen ? "Changes reach OBS live" : "OBS: copy after changes"}
+        </span>
+        {flight && (
+          <span className="st-chip is-flight">
+            <b className="mono">{flight.flightNo}</b> {flight.from.iata ?? flight.from.icao} → {flight.to.iata ?? flight.to.icao}
+            {stage && ` · ${STAGE_INFO[stage].name}`}
+          </span>
+        )}
+        <span className="st-grow" />
+        <button type="button" className="btn btn-primary sp-copy" disabled={!flight} onClick={copyUrl}>
+          {copied ? "Copied" : "Copy stream URL"}
+        </button>
+      </header>
+      {stale && <p className="sp-stale small">Changed since you copied it: copy the stream URL again and paste it into OBS (or run OFP Tower and changes go there by themselves).</p>}
 
-        <div className="sp-col">
-          <h4 className="ctl-label">3 · For OBS</h4>
-          <input className="ctl-input mono sp-url" readOnly value={url} aria-label="Stream URL" onFocus={(e) => e.target.select()} />
-          <button
-            type="button"
-            className="btn btn-primary sp-copy"
-            disabled={!flight}
-            onClick={() => {
-              void navigator.clipboard?.writeText(url).then(() => {
-                setCopied(true);
-                setCopiedUrl(url);
-                setTimeout(() => setCopied(false), 2000);
-              });
-            }}
-          >
-            {copied ? "Copied" : "Copy stream URL"}
+      <div className="tabs st-tabs" role="tablist" aria-label="Stream">
+        {TABS.map((t) => (
+          <button type="button" role="tab" key={t.k} id={`st-tab-${t.k}`} aria-selected={tab === t.k} aria-controls={`st-p-${t.k}`} className="tab" onClick={() => setTab(t.k)}>
+            {t.name}
+            {t.k === "scenes" && <span className="st-count">{gate.scenes.length + 1}</span>}
           </button>
-          {relayOpen ? (
-            <p className="sp-live small">Changes reach OBS live through OFP Tower: no need to copy the URL again.</p>
-          ) : stale ? (
-            <p className="sp-stale small">Changed since you copied it: copy the stream URL again and paste it into OBS (or run OFP Tower and changes go there by themselves).</p>
-          ) : null}
-          <ol className="sp-steps small">
-            <li>
-              <b>Add it</b> as a Browser source, 1920 × 1080, above the game capture, in your main scene.
-            </li>
-            <li>
-              <b>One source per scene</b> is simplest: in another scene (BRB) add a new Browser source with the same URL. With Studio Mode, a shared source only shows the scene that is live (Program).
-            </li>
-            <li>
-              In its properties set <b>Page permissions</b> to “Read access to user information”, so it can read the scene name.
-            </li>
-          </ol>
-          <p className="muted small">
-            {inObs() ? "This page is inside OBS." : "Scene names only work inside OBS."} Every view also has its own fixed URL (&amp;view=strip, &amp;view=frame…), one source per scene, if you’d rather not use scene names.
-          </p>
-        </div>
+        ))}
       </div>
-      {flight && (
-        <AudienceGrid
-          gate={gate}
-          flight={flight}
-          now={now}
-          wx={wx}
-          feed={feed}
-          urlFor={urlFor}
-          onPatch={onPatch}
-        />
-      )}
+
+      <div role="tabpanel" id="st-p-scenes" aria-labelledby="st-tab-scenes" hidden={tab !== "scenes"}>
+        {flight ? <StreamStudio gate={gate} flight={flight} now={now} wx={wx} feed={feed} urlFor={urlFor} onPatch={onPatch} /> : <p className="muted">Load a flight to set up the scenes.</p>}
+      </div>
+
+      <div role="tabpanel" id="st-p-rehearse" aria-labelledby="st-tab-rehearse" hidden={tab !== "rehearse"}>
+        {rehearse}
+      </div>
+
+      <div role="tabpanel" id="st-p-feed" aria-labelledby="st-tab-feed" hidden={tab !== "feed"} className="st-tabpanel">
+        <h4 className="ctl-label">Where the live figures come from</h4>
+        <ul className="sp-srcs">
+          {row("link", "OFP Tower", linkLive ? "MSFS 2024 · once a second" : (link?.text ?? "not running on this PC"), using === "link")}
+          {row("si", "SayIntentions", "not set up yet", false)}
+          {row("vatsim", "VATSIM", vat?.text ?? (feedCfg.who ? `looking for ${feedCfg.who}` : "add your callsign"), using === "vatsim")}
+          {row("clock", "Clock only", "always there", using === "clock" && feedCfg.source !== "replay")}
+        </ul>
+        <form
+          className="sp-who"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const w = who.trim().toUpperCase();
+            onFeed({ ...feedCfg, source: "auto", who: /^[A-Z0-9_-]{2,12}$/.test(w) ? w : null });
+          }}
+        >
+          <label className="jr-ctl">
+            <span className="ctl-label">VATSIM callsign or CID</span>
+            <input className="ctl-input" value={who} maxLength={12} onChange={(e) => setWho(e.target.value)} placeholder="e.g. RYR7FE" />
+          </label>
+          <button type="submit" className="btn">
+            Use
+          </button>
+        </form>
+        <p className="muted small">
+          Uses the first one that is live.
+          {flight && (
+            <>
+              {" "}
+              Flight: <b className="mono">{flight.flightNo}</b> {flight.from.iata ?? flight.from.icao} → {flight.to.iata ?? flight.to.icao}
+              {flight.source === "simbrief" ? " from your latest SimBrief OFP." : "."}
+            </>
+          )}{" "}
+          VATSIM is only read (the public list of who is online); nothing is sent to it.
+        </p>
+      </div>
+
+      <div role="tabpanel" id="st-p-obs" aria-labelledby="st-tab-obs" hidden={tab !== "obs"} className="st-tabpanel">
+        <h4 className="ctl-label">The stream URL</h4>
+        <div className="st-url">
+          <input className="ctl-input mono sp-url" readOnly value={url} aria-label="Stream URL" onFocus={(e) => e.target.select()} />
+          <button type="button" className="btn btn-primary" disabled={!flight} onClick={copyUrl}>
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+        {relayOpen ? <p className="sp-live small">Changes reach OBS live through OFP Tower: no need to copy the URL again.</p> : null}
+        <ol className="sp-steps small">
+          <li>
+            <b>Add it</b> as a Browser source, 1920 × 1080, above the game capture, in your main scene.
+          </li>
+          <li>
+            <b>One source per scene</b> is simplest: in each other scene add a Browser source with that scene’s own URL (“Copy URL for this scene” in Scenes). With Studio Mode, a shared source only shows the scene that is live (Program).
+          </li>
+          <li>
+            In its properties set <b>Page permissions</b> to “Read access to user information”, so it can read the scene name.
+          </li>
+        </ol>
+        <p className="muted small">
+          {inObs() ? "This page is inside OBS." : "Scene names only work inside OBS."} Every look also has its own fixed URL (&amp;view=strip, &amp;view=card.s.bl…), one source per scene, if you’d rather not use scene names.
+        </p>
+      </div>
     </section>
-  );
-}
-
-/* ---------- 2 · what your audience sees: phases × OBS scenes, each cell a thumbnail ---------- */
-
-const STAGE_ROWS: { k: ViewStage; name: string; short: string; until: string }[] = [
-  { k: "ready", name: "At the gate", short: "Gate", until: "until the aircraft moves" },
-  { k: "taxi", name: "Push-back and taxi", short: "Taxi", until: "until wheels off" },
-  { k: "flying", name: "Flying", short: "Flying", until: "until the approach" },
-  { k: "approaching", name: "Approaching", short: "Approach", until: "below FL100 on the way down, on approach, landing and taxiing in" },
-  { k: "arrived", name: "Arrived", short: "Arrived", until: "until you close it" },
-];
-
-function AudienceGrid({
-  gate,
-  flight,
-  now,
-  wx,
-  feed,
-  urlFor,
-  onPatch,
-}: {
-  gate: GateState;
-  flight: GateFlight;
-  now: number;
-  wx: GateWx | null;
-  feed: FlightFeed;
-  urlFor: (scene: string) => string;
-  onPatch: (p: Partial<GateState>) => void;
-}) {
-  const [copiedFor, setCopiedFor] = useState<string | null>(null);
-  // columns: any other scene (the stage table), then each named scene
-  const cols: { name: string | null; views: Record<ViewStage, ShownView> }[] = [{ name: null, views: gate.stages }, ...gate.scenes.map(([n, v]) => ({ name: n, views: v }))];
-  const [pick, setPick] = useState<{ col: number; stage: ViewStage } | null>(null);
-  const [pvCol, setPvCol] = useState(0);
-  const [pvStage, setPvStage] = useState<ViewStage | null>(null);
-  const liveStage = gate.hold ?? (feed.state ? viewStage(feed.state, feed.plan) : null);
-  const samples = useMemo(() => Object.fromEntries(STAGES.map((k) => [k, sampleLive(flight, k, now)])) as Record<ViewStage, FlightState>, [flight, now]);
-  const set = (col: number, stage: ViewStage | "all", v: ShownView) => {
-    const views = stage === "all" ? allStages(v) : { ...cols[col].views, [stage]: v };
-    if (col === 0) onPatch({ stages: views });
-    else onPatch({ scenes: gate.scenes.map((sc, i) => (i === col - 1 ? [sc[0], views] : sc)) });
-  };
-  const rename = (col: number, name: string) => onPatch({ scenes: gate.scenes.map((sc, i) => (i === col - 1 ? [name.replace(/[;:,]/g, "").slice(0, 40), sc[1]] : sc)) });
-  const remove = (col: number) => {
-    onPatch({ scenes: gate.scenes.filter((_, i) => i !== col - 1) });
-    setPvCol(0);
-  };
-  const mini = (view: ShownView, stage: ViewStage) => (
-    <MiniScreen view={view} flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={samples[stage]} source="link" trail={[]} plan={feed.plan} />
-  );
-  const pvScene = pvCol > 0 ? (gate.scenes[pvCol - 1]?.[0] ?? null) : null;
-  const pvStageShown = pvStage ?? liveStage ?? "ready";
-  const pvLive = pvStage ? samples[pvStage] : (feed.state ?? samples[pvStageShown]);
-
-  return (
-    <div className="sp-aud">
-      <div className="sp-aud-head">
-        <h4 className="ctl-label">2 · What your audience sees</h4>
-        <div className="sp-presets" role="group" aria-label="Start from a preset (any other scene)">
-          {PRESETS.map((p) => (
-            <button key={p.name} type="button" className="btn btn-sm" title={p.note} aria-pressed={STAGES.every((k) => gate.stages[k] === p.stages[k])} onClick={() => onPatch({ stages: p.stages })}>
-              {p.name}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="sp-aud-body">
-        <div className="sp-aud-grid" role="table" aria-label="What each OBS scene shows at each phase">
-          <div role="row" className="sp-aud-row is-head">
-            <span role="columnheader" />
-            {cols.map((c, i) => (
-              <span role="columnheader" key={i} className="sp-aud-col">
-                {i === 0 ? (
-                  <b>Any other scene</b>
-                ) : (
-                  <span className="sp-aud-scene">
-                    <input className="ctl-input" aria-label={`OBS scene name ${i}`} value={c.name ?? ""} onChange={(e) => rename(i, e.target.value)} />
-                    <button type="button" className="btn sp-x" aria-label={`Remove the scene ${c.name}`} onClick={() => remove(i)}>
-                      ×
-                    </button>
-                    <button
-                      type="button"
-                      className="linkish small sp-copy-as"
-                      title={`A source for the ${c.name} scene: shows this column whatever scene is live (one source per scene, right in Studio Mode)`}
-                      onClick={() => {
-                        void navigator.clipboard?.writeText(urlFor(c.name ?? "")).then(() => {
-                          setCopiedFor(c.name);
-                          setTimeout(() => setCopiedFor(null), 2000);
-                        });
-                      }}
-                    >
-                      {copiedFor === c.name ? "Copied" : "Copy URL for this scene"}
-                    </button>
-                  </span>
-                )}
-              </span>
-            ))}
-            {gate.scenes.length < 6 && (
-              <span role="columnheader">
-                <button type="button" className="linkish small" onClick={() => onPatch({ scenes: [...gate.scenes, ["Scene", allStages("frame")]] })}>
-                  + an OBS scene
-                </button>
-              </span>
-            )}
-          </div>
-          {STAGE_ROWS.map((r) => (
-            <div role="row" className="sp-aud-row" key={r.k}>
-              <span role="rowheader" className="sp-aud-stage">
-                <b>{r.name}</b>
-                {liveStage === r.k && <span className="sp-now">{gate.hold === r.k ? "held" : "now"}</span>}
-                <small className="muted">{r.until}</small>
-              </span>
-              {cols.map((c, i) => (
-                <span role="cell" key={i}>
-                  <button
-                    type="button"
-                    className={`sp-cell${pick?.col === i && pick.stage === r.k ? " is-open" : ""}`}
-                    aria-label={`${c.name ?? "Any other scene"}, ${r.name}: ${VIEW_NAMES.find(([v]) => v === c.views[r.k])?.[1]}. Change`}
-                    onClick={() => {
-                      setPick(pick?.col === i && pick.stage === r.k ? null : { col: i, stage: r.k });
-                      setPvCol(i);
-                      setPvStage(r.k);
-                    }}
-                  >
-                    {mini(c.views[r.k], r.k)}
-                    <small>{VIEW_NAMES.find(([v]) => v === c.views[r.k])?.[1]}</small>
-                  </button>
-                </span>
-              ))}
-            </div>
-          ))}
-          {pick && (
-            <div className="sp-pick" role="dialog" aria-label={`Choose what ${cols[pick.col]?.name ?? "any other scene"} shows: ${STAGE_ROWS.find((r) => r.k === pick.stage)?.name}`}>
-              <div className="sp-pick-head">
-                <b>
-                  {cols[pick.col]?.name ?? "Any other scene"} · {STAGE_ROWS.find((r) => r.k === pick.stage)?.name}
-                </b>
-                <button type="button" className="btn btn-sm" onClick={() => setPick(null)}>
-                  Done
-                </button>
-              </div>
-              <div className="sp-pick-list">
-                {VIEW_NAMES.map(([v, n]) => (
-                  <button key={v} type="button" className="sp-cell" aria-pressed={cols[pick.col]?.views[pick.stage] === v} onClick={() => set(pick.col, pick.stage, v)}>
-                    {mini(v, pick.stage)}
-                    <small>{n}</small>
-                  </button>
-                ))}
-              </div>
-              {pick.col > 0 && (
-                <button type="button" className="linkish small" onClick={() => set(pick.col, "all", cols[pick.col].views[pick.stage])}>
-                  Use this for the whole flight in {cols[pick.col].name}
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-        <div className="sp-aud-pv">
-          <div className="sp-aud-pv-head">
-            <label className="jr-ctl">
-              <span className="ctl-label">OBS scene</span>
-              <select className="ctl-input" value={pvCol} onChange={(e) => setPvCol(Number(e.target.value))}>
-                {cols.map((c, i) => (
-                  <option key={i} value={i}>
-                    {c.name ?? "Any other scene"}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="seg jr-seg" role="radiogroup" aria-label="Phase to preview">
-              <button type="button" role="radio" aria-checked={pvStage == null} className="seg-btn" onClick={() => setPvStage(null)}>
-                Now
-              </button>
-              {STAGE_ROWS.map((r) => (
-                <button key={r.k} type="button" role="radio" aria-checked={pvStage === r.k} className="seg-btn" onClick={() => setPvStage(r.k)}>
-                  {r.short}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="gs-frame sp-aud-screen">
-            <GateViewScreen flight={flight} state={{ ...gate, view: "auto", hold: pvStage ?? gate.hold }} now={now} wx={wx} live={pvLive} source={feed.using} scene={pvScene} trail={pvStage ? [] : feed.trail} plan={feed.plan} />
-          </div>
-          <p className="muted small">
-            What OBS shows in {pvScene ?? "any other scene"} {pvStage ? `at "${STAGE_ROWS.find((r) => r.k === pvStage)?.name}" (an example of this flight)` : "now"}. The see-through parts show your game.
-          </p>
-        </div>
-      </div>
-    </div>
   );
 }
 

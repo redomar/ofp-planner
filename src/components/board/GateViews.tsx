@@ -1,12 +1,13 @@
 "use client";
 
 import { geoAzimuthalEquidistant, geoDistance, geoInterpolate, geoPath } from "d3-geo";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { cityName } from "@/lib/data/flight";
 import { routeColor, textOn } from "@/lib/colors";
 import { MIN } from "@/lib/board/board";
-import type { GateFlight, GateState, ShownView } from "@/lib/board/gate";
-import { distNm, landingText, levelFt, PHASE_LABEL, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState } from "@/lib/feed/core";
+import type { GateFlight, GateState } from "@/lib/board/gate";
+import { BACKS, layers, layersFrom, layersTo, VIEW_INFO, type Layers, type Look, type LookBack, type ShownView } from "@/lib/board/looks";
+import { bearing, distNm, landingText, levelFt, PHASE_LABEL, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState } from "@/lib/feed/core";
 import { useOutlines } from "@/lib/outlines";
 import { useTerrain } from "@/lib/terrain";
 import { baseLayers, mapRadius } from "../RouteMap";
@@ -16,8 +17,8 @@ import { GateScreen, localClock, PLANE, screenNow, type GateWx } from "./GateScr
  * The view on screen. A fixed &view= is that view. view=auto: an OBS scene named in the rules
  * gives its view; otherwise the stage of the flight (or the held stage) picks from the stage table.
  */
-export function shownView(g: Pick<GateState, "view" | "stages" | "scenes" | "hold">, live: FlightState | null, scene: string | null = null, plan: FlightPlan | null = null): ShownView {
-  if (g.view !== "auto") return g.view;
+export function shownLooks(g: Pick<GateState, "view" | "stages" | "scenes" | "hold">, live: FlightState | null, scene: string | null = null, plan: FlightPlan | null = null): Layers {
+  if (g.view !== "auto") return layersFrom(g.view) ?? layers("full");
   const stage: ViewStage = g.hold ?? (live ? viewStage(live, plan) : "ready");
   const rule = scene ? g.scenes.find(([n]) => n.trim().toLowerCase() === scene.trim().toLowerCase()) : null;
   return rule ? rule[1][stage] : g.stages[stage];
@@ -574,19 +575,32 @@ export interface AheadFix {
   nm: number;
   /** The FMS's time over the fix, else the aircraft's ground speed's ("15:09Z"). */
   eta: string | null;
+  /** When (ms), for countdowns; null without a time. */
+  at: number | null;
+  /** The course into the fix (deg true), from the fix before it (from the aircraft for the next one). */
+  crs: number;
+  /** The FMS's altitude constraint, as the MCDU shows it ("+FL150"). */
+  alt: string | null;
+}
+
+export interface RouteAhead {
+  passed: { id: string; via: string | null } | null;
+  next: AheadFix[];
+  /** Every fix to name (no pseudo points), with whether it's behind the aircraft. */
+  all: { id: string; lat: number; lon: number; passed: boolean }[];
 }
 
 /**
- * The route panel's fixes: the one just passed and the next three, with the distance along the
+ * The route panel's fixes: the one just passed and the next ones, with the distance along the
  * route and the time over each. From the FMS (OFP Tower, Fenix: its "active" legs), else from the
  * aircraft's position on the FMS route or the SimBrief OFP's; null without a route.
  */
-export function routeAhead(f: GateFlight, plan: FlightPlan | null | undefined, s: FeedSample, count = 3): { passed: { id: string; via: string | null } | null; next: AheadFix[] } | null {
-  type Fix = { id: string; lat: number; lon: number; via: string | null; eta?: string | null; hide?: boolean };
+export function routeAhead(f: GateFlight, plan: FlightPlan | null | undefined, s: FeedSample, count = 3): RouteAhead | null {
+  type Fix = { id: string; lat: number; lon: number; via: string | null; eta?: string | null; hide?: boolean; alt?: string | null };
   let fixes: Fix[] = [];
   let to = -1;
   if (plan && plan.legs.length > 1) {
-    fixes = plan.legs.filter((l) => !l.missed).map((l) => ({ id: l.id, lat: l.lat, lon: l.lon, via: l.via, eta: l.eta, hide: l.pseudo || !l.id }));
+    fixes = plan.legs.filter((l) => !l.missed).map((l) => ({ id: l.id, lat: l.lat, lon: l.lon, via: l.via, eta: l.eta, hide: l.pseudo || !l.id, alt: l.alt?.text ?? null }));
     // the Fenix's own "flying to" (its plan keeps the last fix passed first)
     if (plan.active && plan.active.to < fixes.length && !plan.legs.slice(0, plan.active.to).some((l) => l.missed)) to = plan.active.to;
   } else if (f.route && f.route.length > 1) fixes = f.route;
@@ -607,6 +621,7 @@ export function routeAhead(f: GateFlight, plan: FlightPlan | null | undefined, s
   // times: the FMS's where it has one; past it, on from its last one at the ground speed
   let fromT = s.t;
   let fromNm = 0;
+  let last: { lat: number; lon: number } = s;
   for (let i = to; i < fixes.length && next.length < count; i++) {
     if (i > to) nm += distNm(fixes[i - 1], fixes[i]);
     const fms = fixes[i].eta ? utcAt(fixes[i].eta!, s.t) : null;
@@ -615,11 +630,312 @@ export function routeAhead(f: GateFlight, plan: FlightPlan | null | undefined, s
       fromNm = nm;
     }
     if (fixes[i].hide) continue;
-    const eta = fms != null ? zClock(fms) : s.gs > 50 ? zClock(fromT + ((nm - fromNm) / s.gs) * 3_600_000) : null;
-    next.push({ id: fixes[i].id, via: fixes[i].via, nm, eta });
+    const at = fms ?? (s.gs > 50 ? fromT + ((nm - fromNm) / s.gs) * 3_600_000 : null);
+    next.push({ id: fixes[i].id, via: fixes[i].via, nm, eta: at != null ? zClock(at) : null, at, crs: bearing(last, fixes[i]), alt: fixes[i].alt ?? null });
+    last = fixes[i];
   }
-  return { passed: prev >= 0 ? { id: fixes[prev].id, via: fixes[prev].via } : null, next };
+  const all = fixes.flatMap((x, i) => (x.hide ? [] : [{ id: x.id, lat: x.lat, lon: x.lon, passed: i < to }]));
+  return { passed: prev >= 0 ? { id: fixes[prev].id, via: fixes[prev].via } : null, next, all };
 }
+
+/** "289°" from a course (deg). */
+export const deg = (d: number) => `${String(Math.round(d) % 360 || 360).padStart(3, "0")}°`;
+
+/** The top of descent, estimated (3 nm per 1,000 ft to lose): nm and minutes to it; null when not before it. */
+export function descentAhead(f: GateFlight, live: FlightState | null, toGo: number | null): { nm: number; min: number } | null {
+  const s = live?.last;
+  if (!s || toGo == null || s.gs < 100 || !(live.phase === "cruise" || live.phase === "climb")) return null;
+  const nm = toGo - ((levelFt(s) - (f.to.elevFt ?? 0)) / 1000) * 3;
+  return nm > 1 ? { nm, min: (nm / s.gs) * 60 } : null;
+}
+
+/**
+ * Which side a flip card shows at this moment: -1 the front, else the back side's index. From the
+ * clock, so every source on the PC turns at the same moment: `every` s on the front, then `hold` s
+ * on a back side, the next back side each time round.
+ */
+export function flipSide(lk: Look, now: number): number {
+  const cyc = lk.every + lk.hold;
+  const t = Math.floor(now / 1000);
+  return t % cyc < lk.every ? -1 : Math.floor(t / cyc) % Math.max(1, lk.backs.length);
+}
+
+/** Minutes from the reading to a fix: its time over, else at the ground speed. */
+const minsTo = (x: AheadFix, s: FeedSample) => (x.at != null ? (x.at - s.t) / MIN : s.gs > 50 ? (x.nm / s.gs) * 60 : null);
+const nmText = (nm: number) => `${Math.round(nm).toLocaleString("en-GB")} nm`;
+
+/** The fix passed (struck through), the one flown to (marked) and the ones after it. */
+function LegRows({ ahead, rows = 3, passed = true, head = true, from = 0 }: { ahead: RouteAhead | null; rows?: number; passed?: boolean; head?: boolean; from?: number }) {
+  if (!ahead || !ahead.next.length) return <div className="gv-legs-none">The route ahead shows once you’re on it</div>;
+  return (
+    <div className="gv-legs mono" role="table" aria-label="Route ahead">
+      {head && (
+        <div className="gv-leg is-head" role="row">
+          <span>Fix</span>
+          <span>Via</span>
+          <span>Crs</span>
+          <span>Dist</span>
+          <span>ETA</span>
+        </div>
+      )}
+      {passed && ahead.passed && from === 0 && (
+        <div className="gv-leg is-past" role="row">
+          <b>{ahead.passed.id}</b>
+          <span>{ahead.passed.via ?? ""}</span>
+          <span />
+          <span />
+          <span />
+        </div>
+      )}
+      {ahead.next.slice(from, from + rows).map((x, i) => (
+        <div className={`gv-leg${i + from === 0 ? " is-to" : ""}`} role="row" key={`${x.id}${i}`}>
+          <b>{x.id}</b>
+          <span>{x.via ?? ""}</span>
+          <span>{deg(x.crs)}</span>
+          <span>{nmText(x.nm)}</span>
+          <span>{x.eta ?? ""}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The route as a row of arrows: passed, the one flown to (lit), the next two. */
+function Ribbon({ ahead, now }: { ahead: RouteAhead | null; now: number | null }) {
+  if (!ahead || !ahead.next.length) return <div className="gv-legs-none">The route ahead shows once you’re on it</div>;
+  const n0 = ahead.next[0];
+  const m0 = now != null && n0.at != null ? Math.max(0, Math.round((n0.at - now) / MIN)) : null;
+  return (
+    <ol className="gv-ribbon mono" aria-label="Route ahead">
+      {ahead.passed && (
+        <li className="is-past">
+          <b>{ahead.passed.id}</b>
+          <small>passed</small>
+        </li>
+      )}
+      {ahead.next.slice(0, 3).map((x, i) => (
+        <li key={`${x.id}${i}`} className={i === 0 ? "is-to" : undefined}>
+          <b>{x.id}</b>
+          <small>{i === 0 ? [nmText(x.nm), m0 != null ? `${m0} min` : x.eta].filter(Boolean).join(" · ") : (x.eta ?? deg(x.crs))}</small>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** The next fix big, then the two after it. */
+function NextBig({ ahead, now }: { ahead: RouteAhead | null; now: number | null }) {
+  const n0 = ahead?.next[0];
+  if (!ahead || !n0) return <div className="gv-legs-none">The route ahead shows once you’re on it</div>;
+  const m0 = now != null && n0.at != null ? Math.max(0, Math.round((n0.at - now) / MIN)) : null;
+  return (
+    <div className="gv-nextbig">
+      <small>Next{n0.via ? ` · ${n0.via}` : ""} · course {deg(n0.crs)}</small>
+      <div className="gv-next-main mono">
+        <b>{n0.id}</b>
+        <span>{[nmText(n0.nm), m0 != null ? `${m0} min` : null, n0.eta].filter(Boolean).join(" · ")}</span>
+      </div>
+      <LegRows ahead={ahead} head={false} passed={false} rows={2} from={1} />
+    </div>
+  );
+}
+
+/** Passed, now, next, the top of descent (estimated) and the destination, as a line of stops. */
+function Timeline({ f, ahead, td, facts, now }: { f: GateFlight; ahead: RouteAhead | null; td: { nm: number; min: number } | null; facts: LiveFacts; now: number | null }) {
+  type Row = { k: string; id: string; info: string; at: string; cls: string };
+  const rows: Row[] = [];
+  if (ahead?.passed) rows.push({ k: "p", id: ahead.passed.id, info: ahead.passed.via ?? "", at: "", cls: "is-past" });
+  for (const [i, x] of (ahead?.next.slice(0, 2) ?? []).entries()) rows.push({ k: `n${i}`, id: x.id, info: `${nmText(x.nm)} · ${deg(x.crs)}`, at: x.eta ?? "", cls: i === 0 ? "is-to" : "" });
+  if (td && now != null) {
+    const r = { k: "td", id: "T/D (est)", info: `in ${Math.round(td.min)} min`, at: zClock(now + td.min * MIN), cls: "is-td" };
+    const after = rows.findIndex((x) => x.k.startsWith("n") && (ahead?.next[+x.k.slice(1)]?.nm ?? 0) > td.nm);
+    if (after >= 0) rows.splice(after, 0, r);
+    else rows.push(r);
+  }
+  rows.push({ k: "d", id: f.to.iata ?? f.to.icao, info: facts.toGo != null ? nmText(facts.toGo) : "", at: facts.arrives != null ? zClock(facts.arrives) : "", cls: "is-dest" });
+  return (
+    <ol className="gv-timeline mono" aria-label="Journey">
+      {rows.map((r) => (
+        <li key={r.k} className={r.cls}>
+          <i aria-hidden="true" />
+          <b>{r.id}</b>
+          <span>{r.info}</span>
+          <span>{r.at}</span>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** The back side of a flip card. */
+function BackSide({ back, f, facts, live, plan, ahead, td, dest }: { back: LookBack; f: GateFlight; facts: LiveFacts; live: FlightState | null; plan: FlightPlan | null; ahead: RouteAhead | null; td: { nm: number; min: number } | null; dest: string }) {
+  const s = live?.last ?? null;
+  const n0 = ahead?.next[0];
+  const top = (title: string) => (
+    <div className="gv-card-top">
+      <span className="mono">
+        {f.flightNo} · {title}
+      </span>
+      <small>{facts.status}</small>
+    </div>
+  );
+  if (back === "plan") {
+    const rows = ahead?.next.slice(0, 7) ?? [];
+    const tdAt = td ? rows.findIndex((x) => x.nm > td.nm) : -1;
+    const v = plan?.vSpeeds;
+    const crz = plan?.cruiseFt ?? f.cruiseFt;
+    return (
+      <>
+        {top(`${f.from.icao} → ${f.to.icao}`)}
+        <div className="gv-mcdu mono" role="table" aria-label="Flight plan">
+          <div className="gv-mcdu-t">F-PLN{plan?.flightNumber ? ` · ${plan.flightNumber}` : ""}</div>
+          {ahead?.passed && (
+            <div className="gv-mcdu-r is-past" role="row">
+              <span>{ahead.passed.id}</span>
+              <span>{ahead.passed.via ?? ""}</span>
+              <span />
+              <span />
+            </div>
+          )}
+          {rows.map((x, i) => (
+            <Fragment key={`${x.id}${i}`}>
+              {i === tdAt && td && s && <McduTd td={td} t={s.t} crz={crz} />}
+              <div className={`gv-mcdu-r${i === 0 ? " is-to" : ""}`} role="row">
+                <span>{x.id}</span>
+                <span>{i === 0 ? deg(x.crs) : (x.via ?? deg(x.crs))}</span>
+                <span>{x.eta?.replace("Z", "") ?? ""}</span>
+                <span className={x.alt ? "is-alt" : undefined}>{x.alt ?? (i === 0 ? `${Math.round(x.nm)}NM` : Math.round(x.nm))}</span>
+              </div>
+            </Fragment>
+          ))}
+          {tdAt === -1 && td && s && <McduTd td={td} t={s.t} crz={crz} />}
+          {!rows.length && <div className="gv-mcdu-r is-past">No plan from the FMS yet</div>}
+          <div className="gv-mcdu-r is-dest" role="row">
+            <span>{f.to.icao}</span>
+            <span />
+            <span>{facts.arrives != null ? zClock(facts.arrives).replace("Z", "") : ""}</span>
+            <span>{facts.toGo != null ? Math.round(facts.toGo) : ""}</span>
+          </div>
+        </div>
+        <div className="gv-card-facts mono">
+          <span>{v ? [v.v1 && `V1 ${v.v1}`, v.vr && `VR ${v.vr}`, v.v2 && `V2 ${v.v2}`].filter(Boolean).join(" · ") : ""}</span>
+          <span>{crz ? `CRZ FL${Math.round(crz / 100)}` : ""}</span>
+        </div>
+      </>
+    );
+  }
+  if (back === "route") {
+    const all = ahead?.all ?? [];
+    const pts = all.length >= 2 ? all : [];
+    const along = pts.reduce<number[]>((acc, x, i) => [...acc, i ? acc[i - 1] + distNm(pts[i - 1], x) : 0], []);
+    const total = along.at(-1) || 1;
+    const W = 440;
+    const xAt = (d: number) => 14 + (d / total) * (W - 28);
+    const every = Math.max(1, Math.ceil(pts.length / 9));
+    const planeX = 14 + facts.flown * (W - 28);
+    // the top of descent is td.nm ahead; what's left of the line (1 − flown) is facts.toGo
+    const tdX = td && facts.toGo ? 14 + Math.min(1, facts.flown + (1 - facts.flown) * (td.nm / facts.toGo)) * (W - 28) : null;
+    const flownMin = live?.stamps.off != null && s ? Math.round((s.t - live.stamps.off) / MIN) : null;
+    const efob = s && inAirOf(live) ? fuelAtDest(s, facts.toGo) : null;
+    return (
+      <>
+        {top(`${f.from.icao} → ${f.to.icao}`)}
+        <svg className="gv-routeline" viewBox={`0 0 ${W} 74`} role="img" aria-label={`The route, ${Math.round(facts.flown * 100)}% flown`}>
+          <line x1={14} y1={36} x2={W - 14} y2={36} className="is-ahead" />
+          <line x1={14} y1={36} x2={planeX} y2={36} className="is-flown" />
+          {pts.map((x, i) => (
+            <g key={`${x.id}${i}`} className={x.passed ? "is-past" : undefined}>
+              <circle cx={xAt(along[i])} cy={36} r={i === 0 || i === pts.length - 1 ? 5 : 2.6} />
+              {(i % every === 0 || i === pts.length - 1) && (
+                <text x={xAt(along[i])} y={(i / every) % 2 ? 60 : 22} textAnchor="middle">
+                  {x.id}
+                </text>
+              )}
+            </g>
+          ))}
+          {tdX != null && <rect className="is-td" x={tdX - 4.5} y={31.5} width={9} height={9} />}
+          <g transform={`translate(${planeX} 36) rotate(90) translate(-11 -11)`}>
+            <svg width={22} height={22} viewBox="0 0 64 64" className="is-plane">
+              <path d={PLANE} />
+            </svg>
+          </g>
+        </svg>
+        <div className="gv-counts is-4">
+          <Tile k="Off" v={live?.stamps.off != null ? zClock(live.stamps.off) : null} />
+          <Tile k="Flown" v={flownMin != null ? mins(flownMin) : null} />
+          <Tile k="Landing" v={facts.arrives != null ? zClock(facts.arrives) : null} />
+          <Tile k={`Fuel at ${f.to.iata ?? f.to.icao}`} v={efob != null ? (efob / 1000).toFixed(1) : null} unit="t" />
+        </div>
+        <div className="gv-card-facts mono">
+          <span>{(plan?.cruiseFt ?? f.cruiseFt) ? `CRZ FL${Math.round((plan?.cruiseFt ?? f.cruiseFt)! / 100)}` : ""}</span>
+          <span>{plan?.alternate ? `Alt ${plan.alternate}` : ""}</span>
+          <span>{dest}</span>
+        </div>
+      </>
+    );
+  }
+  // by the numbers
+  const toNext = n0 && s ? minsTo(n0, s) : null;
+  const hd = s?.wind && s.hdg != null ? Math.round(s.wind[1] * Math.cos(((s.wind[0] - s.hdg) * Math.PI) / 180)) : null;
+  const drift = s?.trk != null && s.hdgMag != null ? Math.round(((s.trk - s.hdgMag + 540) % 360) - 180) : null;
+  const efob = s && inAirOf(live) ? fuelAtDest(s, facts.toGo) : null;
+  const flownNm = s ? Math.round(distNm(f.from, s)) : null;
+  const inAirMin = live?.stamps.off != null && s ? Math.round((s.t - live.stamps.off) / MIN) : null;
+  return (
+    <>
+      {top("by the numbers")}
+      <div className="gv-counts">
+        <Tile k={n0 ? `To ${n0.id}` : "Next fix"} v={n0 ? Math.round(n0.nm) : null} unit="nm" />
+        <Tile k="To descent · est" v={td ? Math.round(td.nm) : null} unit="nm" />
+        <Tile k={`To ${f.to.iata ?? f.to.icao}`} v={facts.toGo} unit="nm" />
+      </div>
+      <div className="gv-counts-sub mono">
+        <span>{toNext != null ? `${Math.max(0, Math.round(toNext))} min · ${deg(n0!.crs)}` : ""}</span>
+        <span>{td ? `${Math.round(td.min)} min` : ""}</span>
+        <span>{facts.minLeft != null ? mins(facts.minLeft) : ""}</span>
+      </div>
+      <dl className="gv-kv mono">
+        <div>
+          <dt>Fuel at {f.to.iata ?? f.to.icao} ≈</dt>
+          <dd>{efob != null ? `${efob.toLocaleString("en-GB")} kg` : "—"}</dd>
+        </div>
+        <div>
+          <dt>Burning</dt>
+          <dd>{s?.ffKgH != null ? `${(s.ffKgH / 1000).toFixed(1)} t/h` : "—"}</dd>
+        </div>
+        <div>
+          <dt>{hd != null && hd < 0 ? "Tailwind" : "Headwind"}</dt>
+          <dd>{hd != null ? `${Math.abs(hd)} kt` : "—"}</dd>
+        </div>
+        <div>
+          <dt>Drift</dt>
+          <dd>{drift != null ? `${drift > 0 ? "+" : ""}${drift}°` : "—"}</dd>
+        </div>
+        <div>
+          <dt>Flown</dt>
+          <dd>{flownNm != null ? nmText(flownNm) : "—"}</dd>
+        </div>
+        <div>
+          <dt>In the air</dt>
+          <dd>{inAirMin != null ? mins(inAirMin) : "—"}</dd>
+        </div>
+      </dl>
+    </>
+  );
+}
+
+function McduTd({ td, t, crz }: { td: { nm: number; min: number }; t: number; crz: number | null }) {
+  return (
+    <div className="gv-mcdu-r is-td" role="row">
+      <span>(T/D)</span>
+      <span>est</span>
+      <span>{zClock(t + td.min * MIN).replace("Z", "")}</span>
+      <span>{crz ? `FL${Math.round(crz / 100)}` : ""}</span>
+    </div>
+  );
+}
+
+const inAirOf = (live: FlightState | null) => !!live && live.stage === "flying" && live.phase !== "landed" && live.phase !== "taxiIn";
 
 /** Fuel at the destination (kg), estimated: on board less the flow over the time left at this speed; null on the ground or without the figures. */
 export function fuelAtDest(s: FeedSample, toGoNm: number | null): number | null {
@@ -661,9 +977,27 @@ export interface ViewProps {
  * The gate screen in one of its views. Every view sits on the same 16:9 canvas (container units);
  * the views drawn over the sim leave everything outside their panels transparent.
  */
-export function GateViewScreen(p: ViewProps) {
-  const view = shownView(p.state, p.live, p.scene ?? null, p.plan ?? null);
-  if (view === "full") return <GateScreen flight={p.flight} state={p.state} now={p.now} wx={p.wx} live={p.live} source={SOURCE[p.source]} plan={p.plan ?? null} />;
+export function GateViewScreen(p: ViewProps & { back?: number | null }) {
+  const ls = shownLooks(p.state, p.live, p.scene ?? null, p.plan ?? null);
+  if (ls.length === 1) return <LookScreen {...p} look={ls[0]} />;
+  // layers: each on the same 16:9, the first at the bottom
+  return (
+    <div className="gv-stack">
+      {ls.map((l, i) => (
+        <div className="gv-layer" key={i}>
+          <LookScreen {...p} look={l} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** One look: a view at its size and corner. `back` shows a flip card's back side (that index) instead of following its timer. */
+function LookScreen(p: ViewProps & { look: Look; back?: number | null }) {
+  const lk = p.look;
+  const view = lk.v;
+  if (view === "full") return <GateScreen flight={p.flight} state={p.state} now={p.now} wx={p.wx} live={p.live} source={SOURCE[p.source]} plan={p.plan ?? null} belt={lk.belt} />;
+  const at = { "data-size": lk.size, "data-pos": lk.pos } as Record<string, string>;
   const f = p.flight;
   const bg = routeColor(f.brand);
   const ink = textOn(bg);
@@ -682,6 +1016,92 @@ export function GateViewScreen(p: ViewProps) {
   // the end of the flight: the map closes in on the destination
   const near = !!p.live && (p.live.stage === "arrived" || (p.live.stage === "flying" && facts.toGo != null && facts.toGo < NEAR_NM));
   const final = !!p.live && p.live.stage === "flying" && facts.toGo != null && facts.toGo <= FINAL_NM;
+  const sm = p.live?.last ?? null;
+  const inAir = !!p.live && p.live.stage === "flying" && p.live.phase !== "landed" && p.live.phase !== "taxiIn";
+  const ahd = sm && p.live?.stage !== "arrived" ? routeAhead(f, p.plan, sm, 6) : null;
+  const td = descentAhead(f, p.live, facts.toGo);
+  const belt = lk.belt && <Belt live={p.live} />;
+  let v2: ShownView = view;
+
+  // the cards that flip: the front most of the time, a back side now and then (never near the ground)
+  if (VIEW_INFO[view].flip) {
+    const steady = !p.live || p.live.stage !== "flying" || ["takeoff", "approach", "landed", "taxiIn"].includes(p.live.phase);
+    const side = p.back != null ? p.back : steady || !lk.backs.length ? -1 : flipSide(lk, p.now);
+    const back = side >= 0 ? lk.backs[side % lk.backs.length] : null;
+    if (back) {
+      return (
+        <div className="gv gv-over" style={style} {...at} role="region" aria-label={`${label}: ${BACKS.find((b) => b.k === back)?.name}`}>
+          <div className={`gv-back gv-turn is-${back}`} key={`b${side}`}>
+            <BackSide back={back} f={f} facts={facts} live={p.live} plan={p.plan ?? null} ahead={ahd} td={td} dest={dest} />
+          </div>
+        </div>
+      );
+    }
+    v2 = view === "g6b" ? "corner" : "card";
+  }
+
+  // G6a: the map corner with the route
+  if (v2 === "g6a1" || v2 === "g6a2" || v2 === "g6a3") {
+    return (
+      <div className="gv gv-over" style={style} {...at} role="region" aria-label={label}>
+        <div className={`gv-corner is-${v2}`}>
+          <div className="gv-corner-top">
+            <span className="mono">{f.flightNo}</span>
+            <b>{dest}</b>
+            {belt}
+            <small>{facts.status}</small>
+          </div>
+          <div className="gv-corner-map">
+            <GateMap f={f} facts={facts} W={800} H={v2 === "g6a2" ? 520 : 440} label={mapLabel} trail={p.trail} plan={p.plan} near={near} final={final} />
+          </div>
+          {v2 === "g6a1" && <LegRows ahead={ahd} />}
+          {v2 === "g6a2" && <Ribbon ahead={ahd} now={sm?.t ?? null} />}
+          {v2 === "g6a3" && <NextBig ahead={ahd} now={sm?.t ?? null} />}
+          <div className="gv-corner-facts mono">
+            <span>{facts.alt ?? "—"}</span>
+            <span>{facts.gs != null ? `${facts.gs} kt` : "—"}</span>
+            <span>{facts.minLeft != null ? `${mins(facts.minLeft)} to landing` : (facts.line ?? "")}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // G7a: the corner card with the route
+  if (v2 === "g7a1" || v2 === "g7a2" || v2 === "g7a3") {
+    const togo7 = facts.minLeft != null ? `${mins(facts.minLeft)} to go` : facts.line;
+    const toNext = ahd?.next[0] && sm ? minsTo(ahd.next[0], sm) : null;
+    return (
+      <div className="gv gv-over" style={style} {...at} role="region" aria-label={label}>
+        <div className={`gv-card is-${v2}`}>
+          <div className="gv-card-top">
+            <span className="mono">{v2 === "g7a3" ? `${f.flightNo} · ${f.from.iata ?? f.from.icao} → ${f.to.iata ?? f.to.icao}` : f.flightNo}</span>
+            {belt}
+            <small>{facts.status}</small>
+          </div>
+          {v2 !== "g7a3" && <b className="gv-card-dest">{dest}</b>}
+          {v2 === "g7a1" && <Progress f={f} facts={facts} showToGo={false} />}
+          {v2 === "g7a1" && <LegRows ahead={ahd} passed={false} />}
+          {v2 === "g7a2" && <Timeline f={f} ahead={ahd} td={td} facts={facts} now={sm?.t ?? null} />}
+          {v2 === "g7a3" && (
+            <>
+              <div className="gv-counts">
+                <Tile k={ahd?.next[0] ? `Next · ${ahd.next[0].id}` : "Next fix"} v={toNext != null ? Math.max(0, Math.round(toNext)) : null} unit="min" />
+                <Tile k="Descent · est" v={td ? Math.round(td.min) : null} unit="min" />
+                <Tile k="Landing" v={facts.minLeft != null ? Math.round(facts.minLeft) : null} unit="min" />
+              </div>
+              <LegRows ahead={ahd} passed={false} head={false} rows={2} />
+            </>
+          )}
+          <div className="gv-card-facts mono">
+            <span>{facts.alt ?? "—"}</span>
+            <span>{facts.gs != null ? `${facts.gs} kt` : "—"}</span>
+            <span>{v2 === "g7a3" && sm && (sm.hdgMag ?? sm.hdg) != null && inAir ? `HDG ${deg((sm.hdgMag ?? sm.hdg)!)}` : (togo7 ?? "")}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (view === "route") {
     const s = p.live?.last ?? null;
@@ -690,7 +1110,7 @@ export function GateViewScreen(p: ViewProps) {
     const hdg = s ? (s.hdgMag ?? s.hdg) : null;
     const efob = s && air ? fuelAtDest(s, facts.toGo) : null;
     return (
-      <div className="gv gv-map is-route" style={style} role="region" aria-label={label}>
+      <div className="gv gv-map is-route" style={style} {...at} role="region" aria-label={label}>
         <div className="gv-map-pic">
           <GateMap f={f} facts={facts} W={1100} H={1080} label={mapLabel} trail={p.trail} plan={p.plan} near={near} final={final} />
         </div>
@@ -736,7 +1156,7 @@ export function GateViewScreen(p: ViewProps) {
 
   if (view === "map" || view === "mapwin") {
     return (
-      <div className={`gv gv-map${view === "mapwin" ? " is-win" : ""}`} style={style} role="region" aria-label={label}>
+      <div className={`gv gv-map${view === "mapwin" ? " is-win" : ""}`} style={style} {...at} role="region" aria-label={label}>
         <div className="gv-map-pic">
           <GateMap f={f} facts={facts} W={1100} H={1080} label={mapLabel} trail={p.trail} plan={p.plan} near={near} final={final} />
         </div>
@@ -766,12 +1186,12 @@ export function GateViewScreen(p: ViewProps) {
 
   if (view === "frame") {
     return (
-      <div className="gv gv-frame" style={style} role="region" aria-label={label}>
+      <div className="gv gv-frame" style={style} {...at} role="region" aria-label={label}>
         <div className="gv-window" aria-hidden="true" />
         <div className="gv-rail">
           <div className="gv-rail-top">
             <Brand f={f} />
-            <Belt live={p.live} />
+            {lk.belt && <Belt live={p.live} />}
             {clock}
           </div>
           {ident(f)}
@@ -801,14 +1221,14 @@ export function GateViewScreen(p: ViewProps) {
     );
   }
 
-  if (view === "corner") {
+  if (v2 === "corner") {
     return (
-      <div className="gv gv-over" style={style} role="region" aria-label={label}>
+      <div className="gv gv-over" style={style} {...at} role="region" aria-label={label}>
         <div className="gv-corner">
           <div className="gv-corner-top">
             <span className="mono">{f.flightNo}</span>
             <b>{dest}</b>
-            <Belt live={p.live} />
+            {lk.belt && <Belt live={p.live} />}
             <small>{facts.status}</small>
           </div>
           <div className="gv-corner-map">
@@ -824,14 +1244,14 @@ export function GateViewScreen(p: ViewProps) {
     );
   }
 
-  if (view === "strip") {
+  if (v2 === "strip") {
     return (
-      <div className="gv gv-over" style={style} role="region" aria-label={label}>
+      <div className="gv gv-over" style={style} {...at} role="region" aria-label={label}>
         <div className="gv-strip">
           <div className="gv-strip-id">
             <b className="mono">
               {f.flightNo}
-              <Belt live={p.live} />
+              {lk.belt && <Belt live={p.live} />}
             </b>
             <small>{f.airline}</small>
           </div>
@@ -849,10 +1269,10 @@ export function GateViewScreen(p: ViewProps) {
 
   // card and pill (G5)
   const togo = facts.minLeft != null ? `${mins(facts.minLeft)} to go` : facts.line;
-  if (view === "line") {
+  if (v2 === "line") {
     // G5b: one row, the phase in its own colour
     return (
-      <div className="gv gv-over" style={style} role="region" aria-label={label}>
+      <div className="gv gv-over" style={style} {...at} role="region" aria-label={label}>
         <div className="gv-pill gv-line mono" aria-live="polite">
           <svg viewBox="0 0 64 64" aria-hidden="true">
             <path d={PLANE} />
@@ -861,15 +1281,15 @@ export function GateViewScreen(p: ViewProps) {
             {f.flightNo} · {f.from.iata ?? f.from.icao} → {f.to.iata ?? f.to.icao}
             {togo ? ` · ${togo}` : ""}
           </span>
-          <Belt live={p.live} />
+          {lk.belt && <Belt live={p.live} />}
           <b className={`gv-line-phase gs-${facts.tone}`}>{facts.status}</b>
         </div>
       </div>
     );
   }
   return (
-    <div className="gv gv-over" style={style} role="region" aria-label={label}>
-      {view === "pill" ? (
+    <div className="gv gv-over" style={style} {...at} role="region" aria-label={label}>
+      {v2 === "pill" ? (
         <div className="gv-pill mono" aria-live="polite">
           <svg viewBox="0 0 64 64" aria-hidden="true">
             <path d={PLANE} />
@@ -878,13 +1298,13 @@ export function GateViewScreen(p: ViewProps) {
             {f.flightNo} · {f.from.iata ?? f.from.icao} → {f.to.iata ?? f.to.icao}
             {togo ? ` · ${togo}` : ` · ${facts.status}`}
           </span>
-          <Belt live={p.live} />
+          {lk.belt && <Belt live={p.live} />}
         </div>
       ) : (
         <div className="gv-card" aria-live="polite">
           <div className="gv-card-top">
             <span className="mono">{f.flightNo}</span>
-            <Belt live={p.live} />
+            {lk.belt && <Belt live={p.live} />}
             <small>{facts.status}</small>
           </div>
           <b className="gv-card-dest">{dest}</b>
@@ -964,9 +1384,10 @@ export function sampleLive(f: GateFlight, stage: ViewStage, now: number): Flight
 /**
  * A small 16:9 example of one view over a sample sky (the see-through parts show it). Drawn at
  * 960 px and scaled down as a picture, so it looks exactly like the screen (browsers won't shrink
- * text below a minimum size, which would break the layout at thumbnail width).
+ * text below a minimum size, which would break the layout at thumbnail width). A flip card shows
+ * its front unless `back` names a side (null: it turns with the clock, as on the stream).
  */
-export function MiniScreen({ view, ...p }: Omit<ViewProps, "state"> & { state: GateState; view: ShownView }) {
+export function MiniScreen({ view, back = -1, ...p }: Omit<ViewProps, "state"> & { state: GateState; view: string | Layers; back?: number | null }) {
   const ref = useRef<HTMLDivElement>(null);
   const [k, setK] = useState(0.15);
   useEffect(() => {
@@ -979,7 +1400,7 @@ export function MiniScreen({ view, ...p }: Omit<ViewProps, "state"> & { state: G
   return (
     <div ref={ref} className="sp-mini" aria-hidden="true">
       <div className="gs-frame sp-mini-in" style={{ transform: `scale(${k})` }}>
-        <GateViewScreen {...p} state={{ ...p.state, view }} />
+        <GateViewScreen {...p} back={back} state={{ ...p.state, view: typeof view === "string" ? view : layersTo(view) }} />
       </div>
     </div>
   );

@@ -22,7 +22,6 @@ import {
   fromPlan,
   fromSnapshot,
   gateFromParams,
-  OVER_SIM,
   gateToParams,
   streamSettingsFrom,
   streamSettingsQuery,
@@ -39,7 +38,8 @@ import type { FlightContext } from "@/lib/feed/core";
 import { useObsScene } from "@/lib/feed/obs";
 import { sendRelay, useRelay } from "@/lib/feed/relay";
 import { CLOCK_FEED, feedFromParams, useFlightFeed, type FeedConfig } from "@/lib/feed/useFlightFeed";
-import { GateViewScreen, shownView } from "./board/GateViews";
+import { GateViewScreen, shownLooks } from "./board/GateViews";
+import { overSim as overSim_ } from "@/lib/board/looks";
 import { LogArrival, REHEARSE_REC, RehearseStrip, StreamPanel } from "./board/StreamPanel";
 import { logFromFeed } from "@/lib/feed/toLog";
 import { localClock, screenNow, zoneLabel, type GateWx } from "./board/GateScreen";
@@ -427,7 +427,7 @@ export function BoardApp() {
   /* ---------- screen only (stream source / popup) ---------- */
 
   // the views drawn over the sim are transparent outside their panels, like the overlay switch
-  const overSim = gate.overlay || OVER_SIM.includes(shownView(gate, live.state, obsScene, live.plan));
+  const overSim = gate.overlay || overSim_(shownLooks(gate, live.state, obsScene, live.plan));
 
   if (screen) {
     if (!ready) return null;
@@ -650,18 +650,32 @@ export function BoardApp() {
             {/* after the flight has loaded: the controls above it are their full height by then */}
             {ready && tab === "gate" && flight && (
               <>
-                <StreamPanel gate={gate} flight={flight} feedCfg={feedCfg} feed={live} url={streamUrl()} urlFor={(as) => streamUrl(as)} now={now} wx={gateWx} relayOpen={relayOpen} onPatch={patch} onFeed={setFeedCfg} />
-                <RehearseStrip
+                <StreamPanel
                   gate={gate}
-                  ctx={feedCtx}
-                  rehearsing={!!rehearse}
+                  flight={flight}
+                  feedCfg={feedCfg}
                   feed={live}
-                  onPlay={(rate) => {
-                    setRehearse({ ...CLOCK_FEED, source: "replay", rec: REHEARSE_REC, rate, fit: true });
-                    if (gate.view === "full") patch({ view: "auto" });
-                  }}
-                  onStop={() => setRehearse(null)}
-                  onHold={(hold) => patch({ hold })}
+                  url={streamUrl()}
+                  urlFor={(as) => streamUrl(as)}
+                  now={now}
+                  wx={gateWx}
+                  relayOpen={relayOpen}
+                  onPatch={patch}
+                  onFeed={setFeedCfg}
+                  rehearse={
+                    <RehearseStrip
+                      gate={gate}
+                      ctx={feedCtx}
+                      rehearsing={!!rehearse}
+                      feed={live}
+                      onPlay={(rate) => {
+                        setRehearse({ ...CLOCK_FEED, source: "replay", rec: REHEARSE_REC, rate, fit: true });
+                        if (gate.view === "full") patch({ view: "auto" });
+                      }}
+                      onStop={() => setRehearse(null)}
+                      onHold={(hold) => patch({ hold })}
+                    />
+                  }
                 />
                 {/* last on the page: it appears when the aircraft reaches the gate and moves nothing */}
                 {arrivedLog && <LogArrival entry={arrivedLog} />}

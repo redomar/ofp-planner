@@ -757,7 +757,7 @@ async function run() {
         ],
       },
     };
-    const views = ["full", "map", "route", "frame", "mapwin", "corner", "strip", "card", "pill", "line"];
+    const views = ["full", "map", "route", "frame", "mapwin", "corner", "strip", "card", "pill", "line", "g6a1", "g6a2", "g6a3", "g6b", "g7a1", "g7a2", "g7a3", "g7b"];
     const open1 = async (view, { at = 20, width = 1920, height = 1080, until = "CRUIS" } = {}) => {
       const ctx = await browser.newContext({ viewport: { width, height }, reducedMotion: "reduce" });
       await ctx.addInitScript(SEED);
@@ -791,7 +791,7 @@ async function run() {
         await checkPage(`gate view ${view} ${w}`, o.page, o.errors);
         if (view !== "full") {
           const clear = await o.page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-          const over = ["frame", "mapwin", "corner", "strip", "card", "pill", "line"].includes(view);
+          const over = !["map", "route"].includes(view);
           over === (clear === "rgba(0, 0, 0, 0)") ? pass(`gate view ${view} ${w}: ${over ? "transparent around its panels" : "a full screen"}`) : fail(`gate view ${view} ${w}: body ${clear}`);
         }
         if (view === "route" && w === 1920) {
@@ -805,6 +805,27 @@ async function run() {
         await shot(o.page, `gate-${view}-${w}`);
         await o.ctx.close();
       }
+    }
+    // 1.12 looks: a token per look (size, corner, flip back sides, timings), layers with ~
+    {
+      const lk = await import(join(process.cwd(), "src/lib/board/looks.ts"));
+      const g = lk.lookFrom("g6b.l.tl.bnr.e240.h30");
+      const two = lk.layersFrom("strip~g6a1.s");
+      g && g.size === "l" && g.pos === "tl" && g.backs.join() === "numbers,route" && g.every === 240 && g.hold === 30 && lk.lookTo(g) === "g6b.l.tl.bnr.e240.h30" && lk.lookTo(lk.lookFrom("card")) === "card" && two?.length === 2 && two[1].size === "s" && lk.lookFrom("nope") === null && lk.layersTo(two) === "strip~g6a1.s"
+        ? pass("gate views: looks read and write as tokens (G6b large top left, back sides, timings; layers)")
+        : fail(`gate views: looks ${JSON.stringify({ g, two })}`);
+    }
+    // size and corner: a small corner card at the bottom left
+    {
+      const m = await open1("card");
+      const sm = await open1("card.s.bl");
+      const rm = await m.page.locator(".gv-card").boundingBox();
+      const rs = await sm.page.locator(".gv-card").boundingBox();
+      rm && rs && rs.width < rm.width * 0.8 && rs.x < 100 && rs.y + rs.height > 1080 - 100 && rm.x > 1000 && rm.y < 100
+        ? pass(`gate views: a look's size and corner (card ${Math.round(rm.width)} px top right; small ${Math.round(rs.width)} px bottom left)`)
+        : fail(`gate views: size/corner ${JSON.stringify({ rm, rs })}`);
+      await m.ctx.close();
+      await sm.ctx.close();
     }
     // full screen in flight: the steps run on to the arrival gate, the live source is named
     const f = await open1("full");
@@ -850,37 +871,55 @@ async function run() {
       page.on("pageerror", (e) => errors.push(String(e)));
       return { ctx, page, errors };
     };
-    // the panel: sources, the audience grid (phases × OBS scenes, a thumbnail each), one URL
+    // the panel (1.12, the Stream studio): status, tabs, the scenes with each one's flight, the URL
     const a = await start();
     await a.page.goto(`${base}/board?tab=gate&f=${FR}&in=30`, { waitUntil: "networkidle" });
-    await a.page.waitForSelector(".sp .sp-src");
-    await a.page.waitForSelector(".sp-aud .sp-cell");
+    await a.page.waitForSelector(".st-timeline .st-look");
     const srcs = await a.page.locator(".sp-src b").allTextContents();
-    const cells = await a.page.locator(".sp-aud-grid > .sp-aud-row:not(.is-head) .sp-cell > small").allTextContents();
-    const scenes = await a.page.locator(".sp-aud-scene input").evaluateAll((els) => els.map((e) => e.value));
+    const tabs = await a.page.locator(".st-tabs [role=tab]").allTextContents();
+    const sceneList = await a.page.locator(".st-scene b").allTextContents();
+    const stageCards = await a.page.locator(".st-timeline .st-look").count();
+    const ovOther = await a.page.locator(".st-ov-row:not(.is-head)").first().locator(".st-ov-cell .mono").allTextContents();
     const url = await a.page.locator(".sp-url").inputValue();
-    // rows: gate, taxi, flying, arrived; columns: any other scene, BRB, Map, Camera
-    const col0 = [0, 4, 8, 12, 16].map((i) => cells[i]);
-    srcs.length === 4 && /Clock only · live/.test(srcs[3]) && cells.length === 20 && col0.join("|") === "Full screen · G1|Full screen · G1|Strip · G4|Strip · G4|Full screen · G1" && scenes.join(" ") === "BRB Map Camera" && /screen=1/.test(url) && /view=auto/.test(url) && /feed=auto/.test(url)
-      ? pass("stream panel: four live links (clock in use), a grid of 4 phases × 4 scenes with a thumbnail each, one stream URL (view=auto, feed=auto)")
-      : fail(`stream panel: ${JSON.stringify({ srcs, n: cells.length, col0, scenes, url })}`);
+    srcs.length === 4 && /Clock only · live/.test(srcs[3]) && tabs.join("|").startsWith("Scenes") && /Rehearse\|Live feed\|OBS setup/.test(tabs.join("|")) && sceneList.join("|") === "Any other scene|BRB|Map|Camera" && stageCards === 5 && ovOther.join("|") === "G1|G1|G4 M|G4 M|G1" && /screen=1/.test(url) && /view=auto/.test(url) && /feed=auto/.test(url)
+      ? pass("stream panel: the studio: tabs, the OBS scenes, a scene's five stages, every scene at a glance (any other: G1 G1 G4 G4 G1), one stream URL (view=auto, feed=auto)")
+      : fail(`stream panel: ${JSON.stringify({ srcs, tabs, sceneList, stageCards, ovOther, url })}`);
     await checkPage("stream panel 1280 light", a.page, a.errors);
     await shot(a.page, "stream-panel");
-    // a preset, a picked thumbnail and a renamed scene go into the URL
-    await a.page.getByRole("button", { name: "Minimal", exact: true }).click();
-    await a.page.locator(".sp-aud-grid > .sp-aud-row:not(.is-head)").nth(2).locator(".sp-cell").nth(1).click();
-    await a.page.locator(".sp-pick .sp-cell", { hasText: "Moving map" }).click();
-    await a.page.getByRole("button", { name: "Done", exact: true }).click();
-    await a.page.getByLabel("OBS scene name 1").fill("Be right back");
-    const url2 = await a.page.locator(".sp-url").inputValue();
-    /st=pill%2Cpill%2Cpill%2Cpill|st=pill,pill,pill,pill/.test(url2) && /Be(\+|%20)right(\+|%20)back%3Aframe%2Cframe%2Cmap%2Cframe%2Cframe/.test(url2)
-      ? pass("stream panel: a preset, a thumbnail picked for one phase and a renamed scene travel in the stream URL")
+    // a preset, a look picked in the editor (a map corner that flips, large, top left), a layer and a renamed scene go into the URL
+    await a.page.locator(".st-scene", { hasText: "Any other scene" }).click();
+    await a.page.locator(".st-from select").selectOption("Minimal");
+    await a.page.locator(".st-look").nth(3).click();
+    await a.page.getByRole("button", { name: "+ Add a layer" }).click();
+    await a.page.locator(".st-group", { hasText: "Map corners" }).click();
+    await a.page.locator(".st-opt", { hasText: "Map corner" }).first().click();
+    await a.page.getByRole("radio", { name: "Small" }).click();
+    await a.page.getByRole("button", { name: "Use this look" }).click();
+    await a.page.locator(".st-scene", { hasText: "BRB" }).click();
+    await a.page.locator(".st-look").nth(2).click();
+    await a.page.locator(".st-group", { hasText: "Full screens" }).click();
+    await a.page.locator(".st-opt", { hasText: "Moving map" }).click();
+    await a.page.getByRole("button", { name: "Use this look" }).click();
+    await a.page.getByLabel("OBS scene name").fill("Be right back");
+    await a.page.locator(".st-scene", { hasText: "Camera" }).click();
+    await a.page.locator(".st-look").nth(2).click();
+    await a.page.locator(".st-group", { hasText: "Map corners" }).click();
+    await a.page.locator(".st-opt", { hasText: "Corner that flips" }).click();
+    await a.page.getByRole("radio", { name: "Large" }).click();
+    await a.page.getByRole("radio", { name: "top left" }).click();
+    const dlgShot = await a.page.locator(".st-dlg").count();
+    await shot(a.page, "stream-studio-editor");
+    await a.page.getByRole("button", { name: "Use this look" }).click();
+    const url2 = decodeURIComponent((await a.page.locator(".sp-url").inputValue()).replace(/\+/g, " "));
+    /st=pill,pill,pill,pill~corner\.s,pill(&|$)/.test(url2) && /Be right back:frame,frame,map,frame,frame/.test(url2) && /Camera:card,card,g6b\.l\.tl,card,card/.test(url2) && dlgShot === 1
+      ? pass("stream panel: a preset, a layer (pill + small map corner on approach), a look picked in the editor (G6b large, top left) and a renamed scene travel in the stream URL")
       : fail(`stream panel: url ${url2}`);
     // VATSIM: a callsign, then it's the one in use when it's online (answered here)
     await a.ctx.close();
     const pilot = { cid: 1000000, callsign: "RYR7FE", latitude: 34.195541, longitude: -80.70894, altitude: 28404, groundspeed: 463, heading: 346, last_updated: "2026-11-10T18:48:22Z" };
     const v = await start({ pilots: [pilot] });
     await v.page.goto(`${base}/board?tab=gate&f=${FR}&in=30`, { waitUntil: "networkidle" });
+    await v.page.getByRole("tab", { name: "Live feed" }).click();
     await v.page.getByLabel("VATSIM callsign or CID").fill("ryr7fe");
     await v.page.getByRole("button", { name: "Use", exact: true }).click();
     await v.page.waitForFunction(() => document.querySelector(".sp-src.is-on b")?.textContent?.includes("VATSIM"), null, { timeout: 15_000 }).catch(() => {});
@@ -908,6 +947,7 @@ async function run() {
     // rehearse: play the recorded flight on the preview, drag to hold a stage
     const r = await start();
     await r.page.goto(`${base}/board?tab=gate&f=${FR}&in=30`, { waitUntil: "networkidle" });
+    await r.page.getByRole("tab", { name: "Rehearse" }).click();
     await r.page.waitForSelector(".rs-b");
     const blocks = await r.page.locator(".rs-b").allTextContents();
     await r.page.getByRole("button", { name: "▶ Play in 60 s" }).click();
@@ -928,6 +968,7 @@ async function run() {
     // aircraft stays on the VKO → IST line instead of the recording's own US position
     const t = await start();
     await t.page.goto(`${base}/board?f=${encodeURIComponent("THY:THYTHY2MH:UUWW-LTFM:123456")}&d=2026-11-11&view=auto&st=map%2Cfull%2Cmap%2Cfull&tab=gate`, { waitUntil: "networkidle" });
+    await t.page.getByRole("tab", { name: "Rehearse" }).click();
     await t.page.waitForSelector(".rs-b");
     await t.page.getByRole("button", { name: "▶ Play in 60 s" }).click();
     await t.page.waitForFunction(() => /CLIMBING|CRUISING|DESCENDING/i.test(document.querySelector("#gs-preview .gv-status")?.textContent ?? ""), null, { timeout: 15_000 }).catch(() => {});
@@ -943,7 +984,7 @@ async function run() {
     ]) {
       const o = await start({ width: w, height: h, theme });
       await o.page.goto(`${base}/board?tab=gate&f=${FR}&in=30`, { waitUntil: "networkidle" });
-      await o.page.waitForSelector(".rs-b");
+      await o.page.waitForSelector(".st-timeline .st-look");
       await checkPage(`stream panel ${w} ${theme}`, o.page, o.errors);
       await shot(o.page, `stream-panel-${w}-${theme}`);
       await o.ctx.close();

@@ -17,6 +17,8 @@ The live site is <https://plans.massorbit.co.uk>. The latest release is **1.10.1
 | 1.9.5 | No "On approach" right after take-off; short route stays fitted in flight | #33 |
 | 1.10.0 | Stream panel made visual (phases × scenes thumbnail grid, presets, preview), settings to OBS live through OFP Tower, `&as=Scene` sources, approach zoom within 10 nm | #34 |
 | 1.10.1 | The companion is called **OFP Tower** (was OFP Link) on the site | #35 |
+| 1.10.2–1.11.2 | Relay sends complete settings; pressure altitude; route panel G3d, Approaching stage, seatbelt sign, G5b; landing = first contact; 0,0 guard | #37–#40, #42 |
+| 1.12.0 | **Stream studio**: looks (size, corner, flip, layers) per scene and stage, the look editor, G6a/G6b/G7a/G7b | this release |
 
 **Naming:** "OFP Tower" is the user-facing name, the owner's choice on 2026-11-11. In code and protocol the old name stays: `feed=link`, `linkSource`, `"app":"ofp-link"`, port 47800, `docs/OFP-LINK.md`, and the PC folder `ofp-link-recorder`. Rename both sides together or not at all.
 
@@ -43,10 +45,12 @@ MSFS 2024 (Fenix A320 family) ──SimConnect──▶ OFP Tower (Python, sim P
 | `src/lib/feed/relay.ts` | Settings relay through OFP Tower (`sendRelay`, `useRelay`). |
 | `src/lib/feed/obs.ts` | OBS scene name (`window.obsstudio`). |
 | `src/lib/feed/toLog.ts` | Arrived flight to a Logbook entry. |
-| `src/lib/board/gate.ts` | `GateState` and URL params: `view`, `st` (stages), `sc` (scenes: `Name:view` or `Name:a,b,c,d`), `hold`, `GATE_VIEWS`, `PRESETS`, `fromSnapshot`, `fromOfp`, `fromPlan` (FMS flight, `timing:"none"`). |
+| `src/lib/board/looks.ts` | 1.12 looks: a view + size, corner, flip back sides and timings, seatbelt; tokens (`card.s.bl`, `g6b.l.tl.bnp.e240`), layers joined by `~`; `VIEW_INFO`, `VIEW_GROUPS`, `BACKS`. |
+| `src/lib/board/gate.ts` | `GateState` and URL params: `view` ("auto" or a look token), `st` (5 stages of look tokens; 4 still read), `sc` (`Name:look` or `Name:a,b,c,d,e`), `hold`, `PRESETS`, `fromSnapshot`, `fromOfp`, `fromPlan` (FMS flight, `timing:"none"`). |
 | `src/components/board/GateScreen.tsx` | Full view G1 (clock or live; flight steps to the arrival gate). |
-| `src/components/board/GateViews.tsx` | `shownView` (view=auto: hold, then scene rule, then stage table), `liveFacts`, `routeToGo`, `GateMap` (map, legs, symbols, constraints, turns, runways, near/final zoom), every other view, `sampleLive`, `MiniScreen`. |
-| `src/components/board/StreamPanel.tsx` | Stream panel: live link list, audience grid (thumbnails, picker, presets, preview), copy URLs, rehearse strip, `LogArrival`. |
+| `src/components/board/GateViews.tsx` | `shownLooks` (view=auto: hold, then scene rule, then stage table), `liveFacts`, `routeToGo`, `routeAhead`, `descentAhead`, `flipSide`, `GateMap`, every view incl. G6/G7 and the flip back sides, layers, `sampleLive`, `MiniScreen`. |
+| `src/components/board/StreamPanel.tsx` | Stream panel shell: status bar, tabs (Scenes, Rehearse, Live feed, OBS setup), rehearse strip, `LogArrival`. |
+| `src/components/board/StreamStudio.tsx` | 1.12 studio: scenes rail, a scene's stage timeline, overview, preview, the look editor (`<dialog>`), My looks (localStorage `ofp:my-looks`). |
 | `src/components/BoardApp.tsx` | Wires the flight (snapshot, OFP or FMS plan), feed, relay, `as=`, screen mode. |
 | `scripts/verify.mjs` | Sections: `gate feed`, `gate views`, `stream panel`, `log arrival`, `track estimates`. Run one with `VERIFY_ONLY="<name>"`. |
 
