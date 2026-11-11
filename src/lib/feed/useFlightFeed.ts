@@ -18,7 +18,7 @@ export interface FeedConfig {
   port: number;
   /** replay: start this many minutes of sim time into the recording. */
   at: number;
-  /** replay (rehearse): lay a recording from another route along this flight's line. */
+  /** replay: lay a recording from another route along this flight's line (on its own route it plays as recorded). */
   fit?: boolean;
 }
 
@@ -39,6 +39,8 @@ export function feedFromParams(q: URLSearchParams): FeedConfig {
     who: who && /^[A-Za-z0-9_-]{2,12}$/.test(who) ? who.toUpperCase() : null,
     port: Number.isInteger(port) && port >= 1024 && port <= 65535 ? port : LINK_PORT,
     at: Number.isFinite(at) && at > 0 ? Math.min(1440, at) : 0,
+    // a recording from another route is laid along this flight's line (it plays as recorded on its own route)
+    fit: true,
   };
   if ((cfg.source === "replay" && !cfg.rec) || (cfg.source === "vatsim" && !cfg.who)) return CLOCK_FEED;
   return cfg;
@@ -52,6 +54,8 @@ export interface FlightFeed {
   /** Each source's own status (auto runs OFP Link and VATSIM side by side). */
   link: FeedStatus | null;
   vatsim: FeedStatus | null;
+  /** Where the aircraft has been, [lon, lat], a point every 30 s or 2 nm (for the flown line on the map). */
+  trail: [number, number][];
 }
 
 /**
@@ -70,6 +74,8 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext): FlightFeed {
     const c: FlightContext = JSON.parse(ctxKey);
     const k = `${source}|${rec}|${rate}|${who}|${port}|${at}|${fit}|${ctxKey}`;
     let st = startState();
+    let trail: [number, number][] = [];
+    let trailAt = 0;
     const put = (p: Partial<FlightFeed>) => setFeed((f) => ({ ...(f.key === k ? f : NO_FEED), ...p, key: k }));
     // auto: OFP Link wins while it's sending; VATSIM fills in when it isn't
     let linkAt = 0;
@@ -78,7 +84,13 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext): FlightFeed {
       else if (source === "auto" && Date.now() - linkAt < 10_000) return;
       st = step(st, s, c);
       const now = st;
-      put({ state: now, using: from });
+      const last = trail[trail.length - 1];
+      if (!last || s.t - trailAt >= 30_000 || Math.hypot(s.lon - last[0], s.lat - last[1]) > 0.033) {
+        trail = [...trail, [s.lon, s.lat]];
+        trailAt = s.t;
+      }
+      const path = trail;
+      put({ state: now, using: from, trail: path });
     };
     const said = (from: "link" | "vatsim" | "replay") => (status: FeedStatus) => put(from === "replay" ? { status } : { [from]: status, status });
     const fitTo = fit && c.from && c.to ? (x: FeedSample[]) => fitToRoute(x, c.from!, c.to!) : undefined;
@@ -94,4 +106,4 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext): FlightFeed {
   return feed.key === key ? feed : NO_FEED;
 }
 
-const NO_FEED: FlightFeed = { state: null, status: null, using: "clock", link: null, vatsim: null };
+const NO_FEED: FlightFeed = { state: null, status: null, using: "clock", link: null, vatsim: null, trail: [] };

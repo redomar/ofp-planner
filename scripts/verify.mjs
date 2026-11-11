@@ -665,6 +665,18 @@ async function run() {
         : fail(`gate feed: replay ${first} … ${last}`);
       await ctx.close();
     }
+    // a replay URL on another route (THY2MH VKO → IST, as in the owner's OBS test): the aircraft flies that route
+    {
+      const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
+      await ctx.addInitScript(SEED);
+      const page = await ctx.newPage();
+      await page.goto(`${base}/board?tab=gate&f=${encodeURIComponent("THY:THYTHY2MH:UUWW-LTFM:123456")}&screen=1&view=map&feed=replay&rec=/recordings/kclt-kjfk.jsonl&at=20`, { waitUntil: "networkidle" });
+      await page.waitForFunction(() => /CRUIS|CLIMB|DESCEND/i.test(document.querySelector(".gv-status")?.textContent ?? ""), null, { timeout: 15_000 }).catch(() => {});
+      const toGo = Number(((await page.locator(".gv-tile", { hasText: "To go" }).innerText().catch(() => "")).match(/[\d,]+/)?.[0] ?? "NaN").replace(/,/g, ""));
+      const plane = await page.locator(".gm-plane").count();
+      toGo > 0 && toGo < 950 && plane === 1 ? pass(`gate feed: a replay URL on another route flies that route (${toGo} nm to go, aircraft on the map)`) : fail(`gate feed: replay on another route ${toGo} nm, plane ${plane}`);
+      await ctx.close();
+    }
     // a pilot online: the first reading of the recorded flight, as VATSIM would list it
     const pilot = { cid: 1000000, callsign: "RYR7FE", latitude: 34.195541, longitude: -80.70894, altitude: 28404, groundspeed: 463, heading: 346, last_updated: "2026-11-10T18:48:22Z" };
     const online = await screen("&feed=vatsim&who=RYR7FE", [pilot], "CLIMBING");

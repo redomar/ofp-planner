@@ -124,7 +124,7 @@ const SOURCE: Record<FeedSource, string | null> = { link: "MSFS", replay: "Repla
 
 /* ---------- the moving map, in the airline's colours ---------- */
 
-export function GateMap({ f, facts, W, H, label }: { f: GateFlight; facts: LiveFacts; W: number; H: number; label: string }) {
+export function GateMap({ f, facts, W, H, label, trail = [] }: { f: GateFlight; facts: LiveFacts; W: number; H: number; label: string; trail?: [number, number][] }) {
   const outlines = useOutlines();
   const terrain = useTerrain();
   const from: [number, number] = [f.from.lon, f.from.lat];
@@ -153,6 +153,10 @@ export function GateMap({ f, facts, W, H, label }: { f: GateFlight; facts: LiveF
   const base = useMemo(() => baseLayers(geo.proj, geo.path, W, H, outlines, terrain), [geo, W, H, outlines, terrain]);
   const pos: [number, number] | null = facts.pos ? [facts.pos.lon, facts.pos.lat] : null;
   const line = (a: [number, number], b: [number, number]) => geo.path({ type: "LineString", coordinates: [0, 0.2, 0.4, 0.6, 0.8, 1].map((k) => geoInterpolate(a, b)(k)) }) ?? "";
+  // stroke widths as on the design sheet's 1120-wide map, scaled to this one
+  const k = W / 1120;
+  // the line flown: from the departure through where the aircraft has been to where it is
+  const flownPath = pos ? (geo.path({ type: "LineString", coordinates: [from, ...trail, pos] }) ?? "") : "";
   const pf = geo.proj(from);
   const pt = geo.proj(to);
   const pp = pos ? geo.proj(pos) : null;
@@ -171,13 +175,14 @@ export function GateMap({ f, facts, W, H, label }: { f: GateFlight; facts: LiveF
   return (
     <svg className="gm" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label} preserveAspectRatio="xMidYMid slice">
       <rect className="gm-sea" width={W} height={H} />
+      <path className="gm-grid" d={base.minor} strokeWidth={1.5 * k} />
       <path className="gm-land" d={base.land} />
-      <path className="gm-coast" d={base.coast} />
-      <path className="gm-borders" d={base.borders} />
+      <path className="gm-coast" d={base.coast} strokeWidth={3 * k} />
+      <path className="gm-borders" d={base.borders} strokeWidth={3.4 * k} strokeDasharray={`${7 * k} ${6 * k}`} />
       {pos ? (
         <>
           <path className="gm-togo" d={line(pos, to)} strokeWidth={W * 0.004} strokeDasharray={`${W * 0.002} ${W * 0.012}`} />
-          <path className="gm-flown" d={line(from, pos)} strokeWidth={W * 0.006} />
+          <path className="gm-flown" d={flownPath} strokeWidth={W * 0.006} />
         </>
       ) : (
         <path className="gm-togo" d={line(from, to)} strokeWidth={W * 0.004} strokeDasharray={`${W * 0.002} ${W * 0.012}`} />
@@ -262,6 +267,8 @@ interface ViewProps {
   source: FeedSource;
   /** The OBS scene this page is in (only inside an OBS browser source). */
   scene?: string | null;
+  /** Where the aircraft has been, for the flown line. */
+  trail?: [number, number][];
 }
 
 /**
@@ -289,7 +296,7 @@ export function GateViewScreen(p: ViewProps) {
     return (
       <div className={`gv gv-map${view === "mapwin" ? " is-win" : ""}`} style={style} role="region" aria-label={label}>
         <div className="gv-map-pic">
-          <GateMap f={f} facts={facts} W={1100} H={1080} label={mapLabel} />
+          <GateMap f={f} facts={facts} W={1100} H={1080} label={mapLabel} trail={p.trail} />
         </div>
         <div className="gv-rail">
           <div className="gv-rail-top">
@@ -324,7 +331,7 @@ export function GateViewScreen(p: ViewProps) {
           {ident(f)}
           <div className="gv-dest">{dest}</div>
           <div className="gv-frame-map">
-            <GateMap f={f} facts={facts} W={600} H={560} label={mapLabel} />
+            <GateMap f={f} facts={facts} W={600} H={560} label={mapLabel} trail={p.trail} />
           </div>
           <div className="gv-tiles">
             <Tile k="Altitude" v={facts.alt} />
@@ -355,7 +362,7 @@ export function GateViewScreen(p: ViewProps) {
             <small>{facts.status}</small>
           </div>
           <div className="gv-corner-map">
-            <GateMap f={f} facts={facts} W={800} H={520} label={mapLabel} />
+            <GateMap f={f} facts={facts} W={800} H={520} label={mapLabel} trail={p.trail} />
           </div>
           <div className="gv-corner-facts mono">
             <span>{facts.alt ?? "—"}</span>

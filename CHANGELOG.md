@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.9.1 — 2026-11-11
+
+- **A replayed recording follows the screen's flight.** A `&feed=replay` URL for a flight on another route (as in a test in OBS) played the recording at its own positions, so the screen showed thousands of miles to go and the aircraft off the map. Every replay now lays a recording from another route along the flight's line, as rehearse already did; on its own route it plays as recorded.
+- **The map shows where you've been.** The flown line on the gate screen's maps runs from the departure through where the aircraft has actually flown (a point every 30 s or 2 nm), no longer a straight line to where it is.
+- **The map as designed:** country borders dashed and visible, the coastline in light ink so islands stand out, a faint 5° grid of latitude and longitude, and the land a touch lighter against the sea.
+
 ## 1.9.0 — 2026-11-10
 
 The gate screen in flight: it follows the aircraft from boarding to the arrival gate, in eight views for a stream, set up once from Board → Gate screen.
