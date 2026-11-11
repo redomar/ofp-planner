@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.10.3 — 2026-11-11
+
+From the same live stream: the board said FL331 while the aircraft was level at FL340.
+
+- **Flight levels from pressure altitude.** The sim's altitude is the true height, which reads low in cold air (FL331 at FL340 on a −56 °C day). With OFP Tower's new `pressAlt` the board shows the flight level the crew sees; below FL100 it shows the altimeter (`indAlt`). An older OFP Tower falls back to the altitude as before.
+- **The cruise level from the aircraft.** With OFP Tower and a Fenix, "Passing FL300 for FL340" uses the level in the MCDU over the flight plan's.
+- **Cruising sooner.** Level at that cruise level, the board says cruising after 20 seconds instead of two minutes.
+
 ## 1.10.2 — 2026-11-11
 
 From the first live stream with the grid.

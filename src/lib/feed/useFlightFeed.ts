@@ -84,8 +84,12 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext): FlightFeed {
     const c0: FlightContext = replayCtx ? JSON.parse(replayCtx) : ctxRef.current;
     const k = `${source}|${rec}|${rate}|${who}|${port}|${at}|${fit}|${replayCtx}`;
     let planCtx: FlightContext = {};
-    // the flight on screen, else the FMS plan's ends
-    const ctxNow = (): FlightContext => (replayCtx ? c0 : ctxRef.current.to ? ctxRef.current : planCtx);
+    let planCruise: number | null = null;
+    // the flight on screen, else the FMS plan's ends; the FMS's cruise level over the flight's
+    const ctxNow = (): FlightContext => {
+      const c = replayCtx ? c0 : ctxRef.current.to ? ctxRef.current : planCtx;
+      return planCruise != null ? { ...c, cruiseFt: planCruise } : c;
+    };
     let st = startState();
     let trail: [number, number][] = [];
     let trailAt = 0;
@@ -110,6 +114,7 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext): FlightFeed {
     const onPlan = (p: FlightPlan) => {
       const first = p.legs.find((l) => !l.missed);
       const last = [...p.legs].reverse().find((l) => !l.missed);
+      planCruise = p.cruiseFt;
       planCtx = first && last ? { from: { lat: first.lat, lon: first.lon }, to: { lat: last.lat, lon: last.lon } } : {};
       setFeed((f) => {
         const base = f.key === k ? f : { ...NO_FEED, key: k };

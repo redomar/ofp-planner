@@ -6,7 +6,7 @@ import { cityName } from "@/lib/data/flight";
 import { routeColor, textOn } from "@/lib/colors";
 import { MIN } from "@/lib/board/board";
 import type { GateFlight, GateState, ShownView } from "@/lib/board/gate";
-import { distNm, PHASE_LABEL, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightStage, type FlightState } from "@/lib/feed/core";
+import { distNm, levelFt, PHASE_LABEL, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightStage, type FlightState } from "@/lib/feed/core";
 import { useOutlines } from "@/lib/outlines";
 import { useTerrain } from "@/lib/terrain";
 import { baseLayers, mapRadius } from "../RouteMap";
@@ -65,8 +65,10 @@ export interface LiveFacts {
 }
 
 const fmsLine = (f: GateFlight) => [`${f.from.iata ?? f.from.icao} → ${f.to.iata ?? f.to.icao}`, f.cruiseFt ? `cruise ${fl(f.cruiseFt)}` : null].filter(Boolean).join(" · ");
-export const fl = (ft: number) =>
-  ft >= 10_000 ? `FL${String(Math.round(ft / 100)).padStart(3, "0")}` : ft < 1000 ? `${Math.max(0, Math.round(ft / 10) * 10)} ft` : `${(Math.round(ft / 100) * 100).toLocaleString("en-GB")} ft`;
+const feet = (ft: number) => (ft < 1000 ? `${Math.max(0, Math.round(ft / 10) * 10)} ft` : `${(Math.round(ft / 100) * 100).toLocaleString("en-GB")} ft`);
+export const fl = (ft: number) => (ft >= 10_000 ? `FL${String(Math.round(ft / 100)).padStart(3, "0")}` : feet(ft));
+/** The aircraft's level as the crew reads it: a flight level from pressure altitude at FL100 and above, the altimeter's feet below. */
+export const altText = (s: FeedSample) => (levelFt(s) >= 10_000 ? fl(levelFt(s)) : feet(s.indAlt ?? s.alt));
 const mins = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, "0")}m` : `${Math.max(1, Math.round(m))} min`);
 
 /**
@@ -121,6 +123,8 @@ export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null,
   const flown = live.stage === "arrived" || !air ? (live.stamps.on != null ? 1 : 0) : Math.min(1, Math.max(0, 1 - toGo / Math.max(1, byRoute?.total ?? total)));
   const rate = live.stamps.landingRate != null ? `${Math.round(live.stamps.landingRate)} fpm` : null;
   const z = (ms: number | null) => (ms == null ? null : localClock(ms, f.to.tz));
+  // the level programmed in the aircraft (OFP Tower, Fenix) over the planned one
+  const cruiseFt = plan?.cruiseFt ?? f.cruiseFt;
   const line: Record<FlightPhase, string | null> = {
     // an FMS flight has no schedule: its plan instead
     boarding: f.source === "fms" ? fmsLine(f) : `Off-block ${localClock(etd, f.from.tz)}`,
@@ -128,7 +132,7 @@ export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null,
     pushback: live.stamps.out != null ? `Off-block ${localClock(live.stamps.out, f.from.tz)}` : null,
     taxi: f.runway ? `Runway ${f.runway}` : live.stamps.out != null ? `Off-block ${localClock(live.stamps.out, f.from.tz)}` : null,
     takeoff: f.runway ? `Runway ${f.runway}` : null,
-    climb: `Passing ${fl(s.alt)}${f.cruiseFt ? ` for ${fl(f.cruiseFt)}` : ""}`,
+    climb: `Passing ${altText(s)}${cruiseFt ? ` for ${fl(cruiseFt)}` : ""}`,
     cruise: minLeft != null ? `Landing in ${mins(minLeft)}` : null,
     descent: minLeft != null ? `Landing in ${mins(minLeft)}` : null,
     approach: minLeft != null ? `${mins(minLeft)} to landing` : null,
@@ -141,7 +145,7 @@ export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null,
     tone: TONE[live.phase],
     line: line[live.phase],
     // on the ground: GND and the ground speed (0 kt parked), rather than dashes
-    alt: air ? fl(s.alt) : "GND",
+    alt: air ? altText(s) : "GND",
     gs: Math.round(s.gs),
     toGo: live.stage === "arrived" ? null : toGo,
     minLeft,
@@ -750,6 +754,8 @@ export function sampleLive(f: GateFlight, stage: FlightStage, now: number): Flig
     lat: at.lat,
     lon: at.lon,
     alt: stage === "flying" ? cruise : ((stage === "arrived" ? f.to.elevFt : f.from.elevFt) ?? 0),
+    pressAlt: null,
+    indAlt: null,
     gs: stage === "flying" ? 450 : stage === "taxi" ? 15 : 0,
     hdg: (brg + 360) % 360,
     vs: 0,

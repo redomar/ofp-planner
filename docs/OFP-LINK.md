@@ -56,7 +56,9 @@ The page ignores it today. It is for the Stream panel to show the aircraft and t
 | `zulu` | number, s | sim UTC time of day | `ZULU TIME` |
 | `t` | number, ms | wall clock, only used when `zulu` is missing | |
 | `lat`, `lon` | number, deg | position | `PLANE LATITUDE`, `PLANE LONGITUDE` (degrees) |
-| `alt` | number, ft | above sea level | `PLANE ALTITUDE` |
+| `alt` | number, ft | true altitude above sea level (map, heights; not flight levels) | `PLANE ALTITUDE` |
+| `pressAlt` | number, ft | pressure altitude on 1013 hPa: flight levels (optional; the site reads it from 1.10.3) | `PRESSURE ALTITUDE` |
+| `indAlt` | number, ft | what the altimeter shows on the baro set: below FL100 (optional) | `INDICATED ALTITUDE` |
 | `agl` | number, ft | above ground (reference point, reads about 9–12 ft parked) | `PLANE ALT ABOVE GROUND` |
 | `gs` | number, kt | ground speed | `GROUND VELOCITY` |
 | `hdg` | number, deg | heading, true | `PLANE HEADING DEGREES TRUE` (degrees) |

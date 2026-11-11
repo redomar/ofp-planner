@@ -14,8 +14,12 @@ export interface FeedSample {
   t: number;
   lat: number;
   lon: number;
-  /** Altitude (ft, above sea level). */
+  /** True altitude (ft above sea level): for the map and heights above an airport, not for flight levels. */
   alt: number;
+  /** Pressure altitude (ft, on 1013 hPa / 29.92): flight levels. OFP Tower from the sim; null elsewhere. */
+  pressAlt: number | null;
+  /** What the altimeter shows on the baro set (ft): altitudes below the transition. */
+  indAlt: number | null;
   /** Ground speed (kt). */
   gs: number;
   /** Heading (deg true). */
@@ -66,6 +70,8 @@ export function toSample(r: Record<string, unknown>, t: number, version = 2): Fe
     lat,
     lon,
     alt: num(r.alt) ?? 0,
+    pressAlt: num(r.pressAlt),
+    indAlt: num(r.indAlt),
     gs: num(r.gs) ?? 0,
     hdg: num(r.hdg),
     vs: num(r.vs),
@@ -255,7 +261,12 @@ export interface Place {
 export interface FlightContext {
   from?: Place | null;
   to?: Place | null;
+  /** The cruise level (ft): the FMS's when OFP Tower sends the plan, else the flight's. */
+  cruiseFt?: number | null;
 }
+
+/** The level for flight levels and the cruise: pressure altitude when the source has it, else the altitude. */
+export const levelFt = (s: FeedSample) => s.pressAlt ?? s.alt;
 
 export interface Stamps {
   out: number | null;
@@ -373,6 +384,8 @@ export const RULE = {
   holdFor: 20_000,
   /** Ft from the cruise level before a climb or descent counts: a step climb (2,000 ft) does, a bump in turbulence doesn't. */
   leaveCruise: 1500,
+  /** Ft from the planned cruise level that counts as at it. */
+  atCruise: 500,
   cruiseAbove: 10_000,
   /** On approach: below this height above the destination (ft) and within this distance (nm). */
   approachFt: 3000,
@@ -436,17 +449,20 @@ export function step(prev: FlightState, s: FeedSample, ctx: FlightContext = {}):
     const toGo = to ? distNm(s, to) : null;
     const total = ctx.from && to ? distNm(ctx.from, to) : null;
     const height = to ? s.alt - (to.elev ?? 0) : s.alt;
+    const lv = levelFt(s);
+    // level at the planned cruise level: cruising after a short hold, not the full two minutes
+    const atCruise = ctx.cruiseFt != null && Math.abs(lv - ctx.cruiseFt) <= RULE.atCruise;
     // on approach: near and low, but not while still climbing out, and only after some flying
     // (a short hop, London City to Heathrow, starts 20 nm from its destination)
     const settled = ["cruise", "descent", "approach"].includes(prev.phase) || (st.stamps.off != null && s.t - st.stamps.off > RULE.approachAfter);
     if (toGo != null && toGo < RULE.approachNm && height < RULE.approachFt && st.trend !== "up" && (settled || prev.last == null)) phase = "approach";
-    else if (prev.phase === "cruise" && st.cruiseAlt != null && Math.abs(s.alt - st.cruiseAlt) <= RULE.leaveCruise) phase = "cruise";
+    else if (prev.phase === "cruise" && st.cruiseAlt != null && Math.abs(lv - st.cruiseAlt) <= RULE.leaveCruise) phase = "cruise";
     else if (st.trend === "up" && held(RULE.holdFor)) phase = "climb";
     else if (st.trend === "down" && held(RULE.holdFor) && (toGo == null || total == null || toGo < total / 2)) phase = "descent";
-    else if (st.trend === "level" && s.alt > RULE.cruiseAbove && held(RULE.levelFor)) phase = "cruise";
+    else if (st.trend === "level" && lv > RULE.cruiseAbove && (held(RULE.levelFor) || (atCruise && held(RULE.holdFor)))) phase = "cruise";
     else if (["boarding", "doorsClosed", "pushback", "taxi", "takeoff", "landed", "taxiIn", "gate"].includes(phase))
       // just airborne, or joined in the air before any rule above applies: by the trend
-      phase = st.trend === "down" && prev.last == null ? "descent" : st.trend === "level" && s.alt > RULE.cruiseAbove ? "cruise" : "climb";
+      phase = st.trend === "down" && prev.last == null ? "descent" : st.trend === "level" && lv > RULE.cruiseAbove ? "cruise" : "climb";
   } else if (st.airborne && prev.last && !grounded(prev.last, ctx)) {
     // wheels down
     // (a bounce touches more than once: the first contact is ON and its rate is the landing rate)
@@ -498,7 +514,7 @@ export function step(prev: FlightState, s: FeedSample, ctx: FlightContext = {}):
   }
 
   // the cruise level, kept until the aircraft settles at another (a step climb) or lands
-  if (phase === "cruise" && st.trend === "level" && (st.cruiseAlt == null || Math.abs(s.alt - st.cruiseAlt) > RULE.leaveCruise)) st.cruiseAlt = s.alt;
+  if (phase === "cruise" && st.trend === "level" && (st.cruiseAlt == null || Math.abs(levelFt(s) - st.cruiseAlt) > RULE.leaveCruise)) st.cruiseAlt = levelFt(s);
   if (ground) st.cruiseAlt = null;
   if (phase !== prev.phase || prev.last == null) st.entered = { ...prev.entered, [phase]: prev.entered[phase] ?? s.t };
   st.phase = phase;

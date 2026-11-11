@@ -275,7 +275,7 @@ export function BoardApp() {
   const feedCtx = useMemo<FlightContext>(
     () =>
       baseFlight
-        ? { from: { lat: baseFlight.from.lat, lon: baseFlight.from.lon, elev: baseFlight.from.elevFt }, to: { lat: baseFlight.to.lat, lon: baseFlight.to.lon, elev: baseFlight.to.elevFt } }
+        ? { from: { lat: baseFlight.from.lat, lon: baseFlight.from.lon, elev: baseFlight.from.elevFt }, to: { lat: baseFlight.to.lat, lon: baseFlight.to.lon, elev: baseFlight.to.elevFt }, cruiseFt: baseFlight.cruiseFt }
         : {},
     [baseFlight],
   );
