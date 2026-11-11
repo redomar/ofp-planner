@@ -8,7 +8,7 @@ import { MIN, phaseAt, phases, type PhaseKey } from "@/lib/board/board";
 import type { GateFlight, GateState } from "@/lib/board/gate";
 import { aircraft } from "@/lib/aircraft";
 import { PHASE_LABEL, type FlightPhase, type FlightPlan, type FlightState } from "@/lib/feed/core";
-import { liveFacts } from "./GateViews";
+import { altText, liveFacts } from "./GateViews";
 
 /** Destination weather for the info strip. */
 export interface GateWx {
@@ -89,7 +89,7 @@ function figures(st: FlightState): string | null {
   if (st.stage === "ready" || st.phase === "gate") return null;
   const kt = `${Math.round(s.gs)} kt`;
   if (s.onGround ?? s.gs < 40) return st.phase === "pushback" ? null : kt;
-  const alt = s.alt >= 10_000 ? `FL${String(Math.round(s.alt / 100)).padStart(3, "0")}` : `${(Math.round(s.alt / 100) * 100).toLocaleString("en-GB")} ft`;
+  const alt = altText(s);
   return `${alt} · ${kt}`;
 }
 
