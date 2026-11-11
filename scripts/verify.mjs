@@ -926,6 +926,19 @@ async function run() {
     const on = await v.page.locator(".sp-src.is-on b").textContent().catch(() => "");
     /VATSIM · live/.test(on) && /who=RYR7FE/.test(v.page.url()) ? pass("stream panel: with a callsign, VATSIM is used while OFP Tower isn't running") : fail(`stream panel: vatsim ${on} ${v.page.url()}`);
     await v.ctx.close();
+    // 1.12.1: another pilot on VATSIM with no Finder flight or OFP: the flight is what they filed
+    const ewg = { cid: 1000001, callsign: "EWG50T", latitude: 50.3, longitude: 6.1, altitude: 34000, groundspeed: 452, heading: 289, last_updated: new Date().toISOString(), flight_plan: { departure: "EDDM", arrival: "EGBB", altitude: "FL340", aircraft_short: "A320" } };
+    const w = await start({ pilots: [ewg] });
+    await w.page.goto(`${base}/board?tab=gate`, { waitUntil: "networkidle" });
+    await w.page.getByLabel("A pilot on VATSIM").fill("ewg50t");
+    await w.page.getByRole("button", { name: "Watch", exact: true }).click();
+    await w.page.waitForFunction(() => /Birmingham/.test(document.querySelector("#gs-preview")?.textContent ?? ""), null, { timeout: 20_000 }).catch(() => {});
+    const watched = (await w.page.locator("#gs-preview").innerText().catch(() => "")).replace(/\s+/g, " ");
+    /Birmingham/.test(watched) && /EWG50T/.test(watched) && /who=EWG50T/.test(w.page.url()) && !/[?&]f=/.test(w.page.url())
+      ? pass("stream panel: a VATSIM callsign with no flight loaded: the board shows what they filed (EDDM → EGBB), live from VATSIM")
+      : fail(`stream panel: watch VATSIM ${watched.slice(0, 160)} ${w.page.url()}`);
+    await checkPage("watch vatsim", w.page, w.errors);
+    await w.ctx.close();
 
     // OBS scene names (stand-in API): a rule wins over the stage table, case aside; other scenes follow the stage
     const scr = (obs, extra = "") => start({ width: 1920, height: 1080, obs }).then(async (o) => {

@@ -279,7 +279,7 @@ export function BoardApp() {
         : {},
     [baseFlight],
   );
-  const live = useFlightFeed(rehearse ?? feedCfg, feedCtx);
+  const live = useFlightFeed(rehearse ?? feedCfg, feedCtx, airports);
   // &as=BRB: this source shows the grid's BRB column whatever scene is live (one source per scene, Studio Mode)
   const [asScene, setAsScene] = useState<string | null>(null);
   useEffect(() => {
@@ -605,7 +605,7 @@ export function BoardApp() {
                       <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} trail={live.trail} plan={live.plan} />
                     ) : (
                       <div className="gs-empty">
-                        <p>{gate.sb ? (ofp?.error ? `SimBrief: ${ofp.error}` : "Loading your SimBrief OFP…") : gate.f ? "Loading the flight…" : "No flight yet"}</p>
+                        <p>{gate.sb ? (ofp?.error ? `SimBrief: ${ofp.error}` : "Loading your SimBrief OFP…") : gate.f ? "Loading the flight…" : feedCfg.who ? (live.vatsim?.state === "live" ? `${feedCfg.who} is on VATSIM but hasn’t filed a flight plan` : (live.vatsim?.text ?? `Looking for ${feedCfg.who} on VATSIM…`)) : "No flight yet"}</p>
                         {!gate.sb && !gate.f && live.link && (
                           <p className="gs-empty-link">{live.link.state === "live" ? "OFP Tower connected · waiting for a route in the MCDU" : live.link.text}</p>
                         )}
@@ -644,6 +644,12 @@ export function BoardApp() {
                   ofpError={gate.sb && ofp?.user === gate.sb ? ofp.error : null}
                   onPatch={patch}
                   onSet={setGate}
+                  watching={!gate.f && !gate.sb && feedCfg.who ? feedCfg.who : null}
+                  onWatch={(who) => {
+                    // another pilot on VATSIM: the flight comes from what they filed, the position from the feed
+                    setGate({ ...EMPTY_GATE, rotate: gate.rotate, overlay: gate.overlay, view: gate.view, stages: gate.stages, scenes: gate.scenes });
+                    setFeedCfg({ ...feedCfg, source: "auto", who });
+                  }}
                 />
               </div>
             )}
@@ -758,6 +764,8 @@ function GateControls({
   ofpError,
   onPatch,
   onSet,
+  watching,
+  onWatch,
 }: {
   gate: GateState;
   flight: GateFlight | null;
@@ -767,7 +775,11 @@ function GateControls({
   ofpError: string | null;
   onPatch: (p: Partial<GateState>) => void;
   onSet: (g: GateState) => void;
+  /** The VATSIM callsign whose flight is on screen (no Finder flight or OFP). */
+  watching: string | null;
+  onWatch: (callsign: string | null) => void;
 }) {
+  const [vatsim, setVatsim] = useState(watching ?? "");
   const [user, setUser] = useState(() => (typeof window === "undefined" ? "" : readSbUser()));
   const [vin, setVin] = useState(25);
   const [newGate, setNewGate] = useState("");
@@ -848,6 +860,28 @@ function GateControls({
           )}
         </form>
         {ofpError && <p className="st-err">SimBrief: {ofpError}</p>}
+        <form
+          className="gt-sb"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const c = vatsim.trim().toUpperCase();
+            if (/^[A-Z0-9_-]{2,12}$/.test(c)) onWatch(c);
+          }}
+        >
+          <label className="jr-ctl">
+            <span className="ctl-label">A pilot on VATSIM</span>
+            <input className="ctl-input mono" value={vatsim} maxLength={12} onChange={(e) => setVatsim(e.target.value)} placeholder="Callsign, e.g. EWG50T" autoComplete="off" spellCheck={false} />
+          </label>
+          <button type="submit" className="btn" disabled={!/^[A-Za-z0-9_-]{2,12}$/.test(vatsim.trim())}>
+            {watching ? "Watch another" : "Watch"}
+          </button>
+          {watching && (
+            <button type="button" className="btn" onClick={() => onWatch(null)}>
+              Stop
+            </button>
+          )}
+        </form>
+        {watching && <p className="muted small">The flight is what {watching} filed on VATSIM, its position from the VATSIM feed (every 15 s). Only read; nothing is sent to VATSIM.</p>}
         {!flight && !gate.sb && (
           <p className="muted small">
             Or pick a flight on the <b>Airport board</b>, or <b>Gate screen</b> on a flight in the <Link href="/">Finder</Link> or a leg in <Link href="/journeys">Journeys</Link>.

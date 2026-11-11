@@ -65,7 +65,12 @@ export interface FlightFeed {
  * Runs the chosen source and the phase detector. With the clock (no feed) it does nothing and
  * returns nulls, so the screen behaves exactly as before.
  */
-export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext): FlightFeed {
+export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<string, { lat: number; lon: number; elevFt: number | null }> | null = null): FlightFeed {
+  // airports by ICAO, for a VATSIM flight plan's two ends (it has no positions of its own)
+  const placesRef = useRef(places);
+  useEffect(() => {
+    placesRef.current = places;
+  }, [places]);
   const { source, rec, rate, who, port, at, fit = false } = cfg;
   const ctxKey = JSON.stringify(ctx);
   // a replay starts over for another flight (it's laid along its route); a live source keeps
@@ -111,7 +116,27 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext): FlightFeed {
     };
     const said = (from: "link" | "vatsim" | "replay") => (status: FeedStatus) => put(from === "replay" ? { status } : { [from]: status, status });
     const fitTo = fit && c0.from && c0.to ? (x: FeedSample[]) => fitToRoute(x, c0.from!, c0.to!) : undefined;
+    // a VATSIM flight plan: the two airports as its legs; OFP Tower's FMS plan wins when it has sent one
+    let linkPlan = false;
+    let vatsimKey = "";
+    const onVatsimPlan = (p: FlightPlan) => {
+      if (linkPlan) return;
+      const a = placesRef.current?.get(p.origin);
+      const b = placesRef.current?.get(p.destination);
+      const key = `${p.origin}-${p.destination}-${p.cruiseFt}-${!!(a && b)}`;
+      if (key === vatsimKey) return;
+      vatsimKey = key;
+      const leg = (id: string, x: { lat: number; lon: number }) => ({ id, lat: x.lat, lon: x.lon, via: null, kind: null, flags: [], alt: null, pseudo: false, missed: false, turn: null, eta: null, wind: null, passed: false });
+      setPlan({ ...p, legs: a && b ? [leg(p.origin, a), leg(p.destination, b)] : [] });
+      if (a && b) planCtx = { from: { lat: a.lat, lon: a.lon, elev: a.elevFt }, to: { lat: b.lat, lon: b.lon, elev: b.elevFt }, cruiseFt: p.cruiseFt };
+    };
+    const setPlan = (p: FlightPlan) =>
+      setFeed((f) => {
+        const base = f.key === k ? f : { ...NO_FEED, key: k };
+        return { ...base, key: k, plan: p, planAt: base.planAt ?? Date.now() };
+      });
     const onPlan = (p: FlightPlan) => {
+      linkPlan = true;
       const first = p.legs.find((l) => !l.missed);
       const last = [...p.legs].reverse().find((l) => !l.missed);
       planCruise = p.cruiseFt;
@@ -122,11 +147,11 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext): FlightFeed {
       });
     };
     if (source === "replay" && rec) return replaySource(rec, rate, { onSample: take("replay"), onStatus: said("replay") }, at * 60_000, fitTo);
-    if (source === "vatsim" && who) return vatsimSource(who, { onSample: take("vatsim"), onStatus: said("vatsim") });
+    if (source === "vatsim" && who) return vatsimSource(who, { onSample: take("vatsim"), onStatus: said("vatsim"), onPlan: onVatsimPlan });
     if (source === "link") return linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan });
     if (source === "auto") {
       const stops = [linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan })];
-      if (who) stops.push(vatsimSource(who, { onSample: take("vatsim"), onStatus: said("vatsim") }));
+      if (who) stops.push(vatsimSource(who, { onSample: take("vatsim"), onStatus: said("vatsim"), onPlan: onVatsimPlan }));
       return () => stops.forEach((x) => x());
     }
   }, [source, rec, rate, who, port, at, fit, replayCtx]);
