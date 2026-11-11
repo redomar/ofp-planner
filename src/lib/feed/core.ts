@@ -285,7 +285,8 @@ export function parseRecording(text: string): Recording {
   const version = num(head.v) ?? 1;
   const started = num(head.started) ?? 0;
   const day = started - (started % 86_400_000);
-  const rows = lines.slice(1).map((l) => JSON.parse(l));
+  // samples only: OFP Tower also writes other lines ({"type":"plan",…}, the MCDU's plan as it changes)
+  const rows = lines.slice(1).map((l) => JSON.parse(l)).filter((r) => r.type == null);
   const raw = version === 1 ? rows.slice(1).map((r, i) => ({ ...r, t: rows[i].t, zulu: rows[i].zulu })) : rows;
   let lastZ = -1;
   let wraps = 0;
@@ -319,6 +320,8 @@ export function viewStage(st: FlightState, plan: FlightPlan | null = null): View
   if (st.phase === "approach" || st.phase === "landed" || st.phase === "taxiIn") return "approaching";
   // on the way down: below FL100 with the seatbelt sign on (both; unknown sign counts as on), or the FMS in its approach phase
   const belts = s?.seatbelts !== false;
+  // a go-around and the vectors after it stay approaching while low (the look doesn't swap mid-approach)
+  if (wentAround(st) && s && levelFt(s) < 10_000 && belts) return "approaching";
   if (st.phase === "descent" && s && levelFt(s) < 10_000 && belts) return "approaching";
   if (plan && /approach/i.test(plan.phase ?? "") && (st.phase === "descent" || st.phase === "cruise") && belts) return "approaching";
   return "flying";
@@ -338,6 +341,19 @@ export const STAGE_OF: Record<FlightPhase, FlightStage> = {
   taxiIn: "flying",
   gate: "arrived",
 };
+
+/**
+ * After a go-around: it has been on approach, isn't now, and hasn't landed. The detector climbs out
+ * of approach (approach needs the aircraft not climbing) and comes back to it on the next approach.
+ */
+export function wentAround(st: FlightState): boolean {
+  return st.stage === "flying" && st.phase !== "approach" && st.entered.approach != null && st.stamps.on == null;
+}
+
+/** The phase's name for the screen: "Go-around" while climbing out of one. */
+export function phaseLabel(st: FlightState): string {
+  return st.phase === "climb" && wentAround(st) ? "Go-around" : PHASE_LABEL[st.phase];
+}
 
 export const PHASE_LABEL: Record<FlightPhase, string> = {
   boarding: "Boarding",
@@ -588,7 +604,11 @@ export function step(prev: FlightState, s: FeedSample, ctx: FlightContext = {}):
     // on approach: near and low, but not while still climbing out, and only after some flying
     // (a short hop, London City to Heathrow, starts 20 nm from its destination)
     const settled = ["cruise", "descent", "approach"].includes(prev.phase) || (st.stamps.off != null && s.t - st.stamps.off > RULE.approachAfter);
-    if (toGo != null && toGo < RULE.approachNm && height < RULE.approachFt && st.trend !== "up" && (settled || prev.last == null)) phase = "approach";
+    // after a go-around, levelling off near the field isn't an approach: only heading for it on the way down
+    const course = s.trk ?? s.hdg;
+    const inbound =
+      !to || !wentAround(prev) || ((st.trend === "down" || prev.phase === "descent") && (course == null || Math.abs(((bearing(s, to) - course + 540) % 360) - 180) < 90));
+    if (toGo != null && toGo < RULE.approachNm && height < RULE.approachFt && st.trend !== "up" && (settled || prev.last == null) && inbound) phase = "approach";
     else if (prev.phase === "cruise" && st.cruiseAlt != null && Math.abs(lv - st.cruiseAlt) <= RULE.leaveCruise) phase = "cruise";
     else if (st.trend === "up" && held(RULE.holdFor)) phase = "climb";
     else if (st.trend === "down" && held(RULE.holdFor) && (toGo == null || total == null || toGo < total / 2)) phase = "descent";
@@ -673,18 +693,23 @@ export function utcAt(hhmm: string, t: number): number {
 
 /** How near the destination (nm) the plan's last leg must be for its time to be the landing time. */
 const ARRIVAL_LEG_NM = 30;
+/** An FMS landing time this far in the past is stale (the MCDU shows whole minutes). */
+const STALE_ARRIVAL_MS = 60_000;
 
 /**
  * The FMS's landing time (ms): the time over the plan's last leg before the missed approach (the
  * runway, else the airport), as the MCDU's F-PLN shows it on the DEST line. It knows the descent
  * and the approach, where the distance at the ground speed takes the cruise speed all the way down.
- * Null without a time there, or when the plan doesn't end at the destination (a route not finished).
+ * Null without a time there, when the plan doesn't end at the destination (a route not finished),
+ * or when that time has gone by (after a go-around).
  */
 export function fmsArrival(plan: FlightPlan | null | undefined, to: { lat: number; lon: number }, t: number): number | null {
   const legs = plan?.legs.filter((l) => !l.missed) ?? [];
   const end = legs[legs.length - 1];
   if (!end?.eta || distNm(end, to) > ARRIVAL_LEG_NM) return null;
-  return utcAt(end.eta, t);
+  // a time already gone (a go-around: the runway was passed and the FMS hasn't a new one) isn't one
+  const at = utcAt(end.eta, t);
+  return at < t - STALE_ARRIVAL_MS ? null : at;
 }
 
 /**

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.12.3 — 2026-11-11
+
+- **Go-arounds.** Climbing out of an approach shows "Go-around", and after it the board says it's going round for another approach rather than "Climbing … for FL260" or a stale "Landing in 0 min". There's no landing time until the next approach. Below FL100 the stage stays Approaching, so OBS doesn't swap looks mid-approach. Levelling off near the airport after one, or climbing on vectors, is no longer read as an approach or another go-around; heading back in on the way down is the next approach. Checked on BAW772 to Cork: two go-arounds and three approaches, as flown, landing 22:35:04 at −134 fpm.
+- **An FMS landing time that has gone by is dropped** (the runway passed in a go-around); the ground speed's estimate takes over.
+- Recordings with OFP Tower's MCDU plan lines in them replay as before.
+
 ## 1.12.2 — 2026-11-11
 
 - **The landing time is the FMS's.** With OFP Tower and a route in the MCDU, "eta", "Landing in", "min to go" and every countdown to landing come from the FMS's time at the destination runway, the DEST line of the F-PLN page. Until now they were the distance at the current ground speed, which takes the cruise speed all the way down: on a flight to Cork the board said 21:54 while the MCDU said 22:02. Without a time there (no route entered, a route that stops short of the destination, a VATSIM pilot) it's the ground speed as before.

@@ -7,7 +7,7 @@ import { routeColor, textOn } from "@/lib/colors";
 import { MIN } from "@/lib/board/board";
 import type { GateFlight, GateState } from "@/lib/board/gate";
 import { BACKS, layers, layersFrom, layersTo, VIEW_INFO, type Layers, type Look, type LookBack, type ShownView } from "@/lib/board/looks";
-import { bearing, distNm, fmsArrival, routeBefore, landingText, levelFt, PHASE_LABEL, utcAt, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState } from "@/lib/feed/core";
+import { bearing, distNm, fmsArrival, routeBefore, landingText, levelFt, phaseLabel, utcAt, wentAround, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState } from "@/lib/feed/core";
 import { useOutlines } from "@/lib/outlines";
 import { useTerrain } from "@/lib/terrain";
 import { baseLayers, mapRadius } from "../RouteMap";
@@ -126,8 +126,10 @@ export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null,
   const toGo = Math.round(byRoute?.toGo ?? distNm(s, f.to));
   // the FMS's time at the runway (OFP Tower, Fenix) knows the descent and the approach; else the
   // distance at the ground speed, which takes the cruise speed all the way down
-  const fmsOn = air ? fmsArrival(plan, f.to, s.t) : null;
-  const minLeft = fmsOn != null ? Math.max(0, (fmsOn - s.t) / MIN) : air && s.gs > 60 ? (toGo / s.gs) * 60 : null;
+  // after a go-around: no landing time until the next approach (vectors, a hold: nobody knows yet)
+  const around = wentAround(live);
+  const fmsOn = air && !around ? fmsArrival(plan, f.to, s.t) : null;
+  const minLeft = around ? null : fmsOn != null ? Math.max(0, (fmsOn - s.t) / MIN) : air && s.gs > 60 ? (toGo / s.gs) * 60 : null;
   const arrives = live.stamps.on ?? (minLeft != null ? s.t + minLeft * MIN : plannedEta);
   const flown = live.stage === "arrived" || !air ? (live.stamps.on != null ? 1 : 0) : Math.min(1, Math.max(0, 1 - toGo / Math.max(1, byRoute?.total ?? total)));
   const rate = landingText(live.stamps);
@@ -141,16 +143,16 @@ export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null,
     pushback: live.stamps.out != null ? `Off-block ${localClock(live.stamps.out, f.from.tz)}` : null,
     taxi: f.runway ? `Runway ${f.runway}` : live.stamps.out != null ? `Off-block ${localClock(live.stamps.out, f.from.tz)}` : null,
     takeoff: f.runway ? `Runway ${f.runway}` : null,
-    climb: `Passing ${altText(s)}${cruiseFt ? ` for ${fl(cruiseFt)}` : ""}`,
-    cruise: minLeft != null ? `Landing in ${mins(minLeft)}` : null,
-    descent: minLeft != null ? `Landing in ${mins(minLeft)}` : null,
+    climb: around ? (live.trend === "up" ? `Passing ${altText(s)}` : `${altText(s)} · for another approach`) : `Passing ${altText(s)}${cruiseFt ? ` for ${fl(cruiseFt)}` : ""}`,
+    cruise: around ? `${altText(s)} · for another approach` : minLeft != null ? `Landing in ${mins(minLeft)}` : null,
+    descent: around ? `${altText(s)} · for another approach` : minLeft != null ? `Landing in ${mins(minLeft)}` : null,
     approach: minLeft != null ? `${mins(minLeft)} to landing` : null,
     landed: [z(live.stamps.on), rate].filter(Boolean).join(" · ") || null,
     taxiIn: [z(live.stamps.on) && `Landed ${z(live.stamps.on)}`, rate].filter(Boolean).join(" · ") || null,
     gate: [z(live.stamps.in) && `On stand ${z(live.stamps.in)}`, rate].filter(Boolean).join(" · ") || null,
   };
   return {
-    status: PHASE_LABEL[live.phase],
+    status: phaseLabel(live),
     tone: TONE[live.phase],
     line: line[live.phase],
     // on the ground: GND and the ground speed (0 kt parked), rather than dashes

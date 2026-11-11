@@ -603,6 +603,36 @@ async function run() {
           ? pass("gate feed: the line flown before the trail follows the route's fixes behind the aircraft")
           : fail(`gate feed: routeBefore ${n([-6.3, 50.6])} ${n([-5.0, 50.3])} ${n([-0.19, 51.15])} ${n([-0.5, 51.1])}`);
       }
+      // 1.12.3: a go-around (BAW772 EICK, 11 Nov: three approaches). Climbing out of approach is a go-around,
+      // the look stays approaching, level-off on the way out isn't an approach, back inbound it is; an FMS
+      // landing time gone by is dropped
+      {
+        const eick = { lat: 51.8413, lon: -8.4911, elev: 502 };
+        let st = { ...core.startState(), phase: "approach", stage: "flying", airborne: true, entered: { approach: 1 } };
+        st.stamps = { ...st.stamps, off: 1e12 - 3_600_000 };
+        const t0 = 1e12;
+        let i = 0;
+        const run = (n, r) => { for (let k = 0; k < n; k++, i++) st = core.step(st, core.toSample({ alt: 3000, gs: 150, onGround: false, seatbelts: true, engines: [true, true], ...r(k) }, t0 + i * 1000), { from: { lat: 51.15, lon: -0.19 }, to: eick, cruiseFt: 26000 }); };
+        st.last = core.toSample({ lat: 51.80, lon: -8.47, alt: 1400, gs: 140, vs: -700, onGround: false, seatbelts: true }, t0 - 1000);
+        run(40, (k) => ({ lat: 51.81 + k * 0.001, lon: -8.48, alt: 1400 + k * 40, vs: 2400, trk: 340, hdg: 340 }));
+        const ga = { phase: st.phase, label: core.phaseLabel(st), stage: core.viewStage(st) };
+        run(60, (k) => ({ lat: 51.9 + k * 0.002, lon: -8.5, alt: 2960, vs: 0, trk: 344, hdg: 344 }));
+        const out = st.phase;
+        run(30, (k) => ({ lat: 52.02 - k * 0.002, lon: -8.5, alt: 2960, vs: 0, trk: 175, hdg: 175 }));
+        const levelIn = st.phase;
+        run(40, (k) => ({ lat: 51.96 - k * 0.002, lon: -8.5, alt: 2960 - k * 12, vs: -700, trk: 175, hdg: 175 }));
+        const back = st.phase;
+        const t = Date.UTC(2026, 10, 11, 22, 2, 30);
+        const pl = core.toPlan({ origin: "EGKK", destination: "EICK", legs: [{ id: "DECEL", lat: 51.7, lon: -8.25, eta: "21:54" }, { id: "EICK34", lat: 51.83, lon: -8.49, eta: "22:02" }, { id: "CRK", lat: 51.84, lon: -8.6, missed: true }] });
+        const stale = core.fmsArrival(pl, eick, t + 10 * 60000);
+        ga.phase === "climb" && ga.label === "Go-around" && ga.stage === "approaching" && out === "climb" && levelIn === "climb" && back === "approach" && core.fmsArrival(pl, eick, t) != null && stale === null && !core.wentAround(st)
+          ? pass("gate feed: a go-around climbs out as Go-around (still approaching), not an approach while level (out or in), back on approach inbound on the way down; a past FMS landing time is dropped")
+          : fail(`gate feed: go-around ${JSON.stringify(ga)} out ${out} level in ${levelIn} back ${back} stale ${stale}`);
+      }
+      {
+        const txt = [JSON.stringify({ v: 2, kind: "ofp-recording", started: 1e12 }), JSON.stringify({ t: 1e12, zulu: 100, lat: 51, lon: 0, alt: 3000 }), JSON.stringify({ type: "plan", t: 1e12 + 500, zulu: 101, origin: "EGKK", destination: "EICK", legs: [{ id: "X", lat: 52, lon: 1 }] }), JSON.stringify({ t: 1e12 + 1000, zulu: 101, lat: 51.01, lon: 0, alt: 3000 })].join("\n");
+        core.parseRecording(txt).samples.length === 2 ? pass("gate feed: a recording's plan lines aren't read as readings") : fail(`gate feed: plan lines ${core.parseRecording(txt).samples.length}`);
+      }
       // 1.11.1: the landing is the first contact, even when a bounce has the aircraft back in the air on
       // that reading (EDDM → EGBB: −776 fpm, then a 2 s bounce, on the ground at −117)
       {
