@@ -163,7 +163,7 @@ function Runway({ a, b, number, width }: { a: [number, number]; b: [number, numb
         return <line key={k} className="gm-rwy-mark" x1={s0[0]} y1={s0[1]} x2={s1[0]} y2={s1[1]} strokeWidth={width * 0.08} />;
       })}
       {number && (
-        <text className="gm-rwy-num" x={num[0]} y={num[1]} fontSize={width * 0.42} textAnchor="middle" dominantBaseline="central" transform={`rotate(${ang + 90} ${num[0]} ${num[1]})`}>
+        <text className="gm-rwy-num" x={num[0]} y={num[1]} fontSize={width * 0.62} textAnchor="middle" dominantBaseline="central" transform={`rotate(${ang + 90} ${num[0]} ${num[1]})`}>
           {number}
         </text>
       )}
@@ -422,7 +422,7 @@ export function GateMap({
       {codeBy(f.to.icao, pt, f.to.iata ?? f.to.icao, right)}
       {/* runways on top of everything: stylised 5 km bars from the threshold (OFP Link), pure white, no text on them */}
       {rwys.map((r) => (
-        <Runway key={`${r.role}-${r.runway}`} a={r.a} b={r.b} number={r.runway} width={W * 0.02} />
+        <Runway key={`${r.role}-${r.runway}`} a={r.a} b={r.b} number={r.runway} width={W * 0.011} />
       ))}
       {pp && (
         <g transform={`translate(${pp[0]} ${pp[1]}) rotate(${hdg}) scale(${(W * 0.055) / 64}) translate(-32 -32)`}>
