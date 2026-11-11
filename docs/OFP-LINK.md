@@ -154,8 +154,8 @@ The page side is built (1.10, `src/lib/feed/relay.ts`). The Stream panel on Boar
 - **A page sends** `{"type":"relay","channel":"stream","msg":{…}}`.
 - **OFP Tower forwards it, unchanged, to every OTHER connected page** (not back to the sender). It doesn't read `msg`. Same origin checks as for samples.
 - **Messages in `msg`:**
-  - `{"kind":"settings","q":"st=strip%2Cpill%2Cpill%2Cfull&sc=BRB%3Aframe&late=10&…"}` comes from the panel whenever a setting changes. `q` is the screen's own URL query (stage table `st`, scene rules `sc`, `hold`, delay, gate, message, …). A screen applies only those display settings, checked as if they came from its URL, and keeps its flight and feed.
-  - `{"kind":"hello"}` comes from a screen when it connects. The panel answers with the current settings.
+  - `{"kind":"settings","q":"st=strip%2Cpill%2Cpill%2Cfull&sc=BRB%3Aframe&late=10&…"}` comes from the panel when the owner changes a setting (never just for opening a tab or loading a flight). `q` is the screen's own URL query (stage table `st`, scene rules `sc`, `hold`, delay, gate, message, …), and since 1.10.2 always complete: `st` and `sc` are written out even at their defaults (`sc=-` for no scenes). A screen (and another open panel) applies only those display settings, checked as if they came from its URL, and keeps its flight and feed. A `q` without `st` and `sc` (empty, or from before 1.10.2) is ignored, so the screen keeps its URL settings.
+  - `{"kind":"hello"}` comes from a screen when it connects. A panel answers with the current settings only if the owner changed them in that tab; otherwise the last settings OFP Tower kept are the answer.
 
 Without OFP Tower, nothing is sent. The panel then says "copy the stream URL again" after a change.
 

@@ -24,6 +24,8 @@ import {
   gateFromParams,
   OVER_SIM,
   gateToParams,
+  streamSettingsFrom,
+  streamSettingsQuery,
   type GateFlight,
   type GateMessage,
   type GateState,
@@ -359,14 +361,21 @@ export function BoardApp() {
   useEffect(() => {
     latestGate.current = gate;
   }, [gate]);
+  // What the stream settings were when last sent, received or first seen. A panel sends only when the
+  // owner changes them (never just for opening or loading a flight), so a fresh tab can't put its
+  // defaults over OBS; screens and panels apply only complete settings (streamSettingsFrom).
+  const relayKnown = useRef<string | null>(null);
+  const relayChanged = useRef(false);
   const onRelay = useCallback(
     (m: Record<string, unknown>) => {
-      if (screen && m.kind === "settings" && typeof m.q === "string") {
-        const s = gateFromParams(new URLSearchParams(m.q), Date.now());
-        setGate((g) => ({ ...g, stages: s.stages, scenes: s.scenes, hold: s.hold, delay: s.delay, cancelled: s.cancelled, gate: s.gate, oldGate: s.oldGate, reg: s.reg, msg: s.msg, rotate: s.rotate }));
+      if (m.kind === "settings" && typeof m.q === "string") {
+        const s = streamSettingsFrom(m.q, Date.now());
+        if (!s) return;
+        relayKnown.current = streamSettingsQuery({ ...latestGate.current, ...s });
+        setGate((g) => ({ ...g, ...s }));
       }
-      // a screen that just connected asks for the current settings
-      if (!screen && m.kind === "hello") sendRelay({ kind: "settings", q: gateToParams(latestGate.current, Date.now()).toString() });
+      // a screen that just connected asks for the current settings (OFP Tower also sends the last ones)
+      if (!screen && m.kind === "hello" && relayChanged.current) sendRelay({ kind: "settings", q: streamSettingsQuery(latestGate.current) });
     },
     [screen],
   );
@@ -375,7 +384,13 @@ export function BoardApp() {
     if (relayOpen && screen) sendRelay({ kind: "hello" });
   }, [relayOpen, screen]);
   useEffect(() => {
-    if (relayOpen && !screen) sendRelay({ kind: "settings", q: gateToParams(gate, Date.now()).toString() });
+    if (!relayOpen || screen) return;
+    const q = streamSettingsQuery(gate);
+    if (relayKnown.current === null) relayKnown.current = q;
+    else if (q !== relayKnown.current && sendRelay({ kind: "settings", q })) {
+      relayKnown.current = q;
+      relayChanged.current = true;
+    }
   }, [relayOpen, screen, gate]);
 
   // keyboard on the screen itself (OBS "Interact", or the popup): ↑/↓ delay, 0 resets, C cancels, F full screen
@@ -591,6 +606,9 @@ export function BoardApp() {
                     ) : (
                       <div className="gs-empty">
                         <p>{gate.sb ? (ofp?.error ? `SimBrief: ${ofp.error}` : "Loading your SimBrief OFP…") : gate.f ? "Loading the flight…" : "No flight yet"}</p>
+                        {!gate.sb && !gate.f && live.link && (
+                          <p className="gs-empty-link">{live.link.state === "live" ? "OFP Tower connected · waiting for a route in the MCDU" : live.link.text}</p>
+                        )}
                       </div>
                     )}
                   </div>

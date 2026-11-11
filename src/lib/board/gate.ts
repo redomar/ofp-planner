@@ -187,6 +187,36 @@ export function gateToParams(g: GateState, now: number, extra: Record<string, st
   return q;
 }
 
+/**
+ * The Stream settings a panel relays to the screens (OBS) through OFP Tower: always complete, with
+ * the stage table and the scenes written out even at their defaults, so a screen can tell a real
+ * message from an empty or partial one (those keep the screen's own URL settings).
+ */
+export function streamSettingsQuery(g: GateState): string {
+  const q = new URLSearchParams();
+  q.set("st", STAGES.map((k) => g.stages[k]).join(","));
+  q.set("sc", scenesTo(g.scenes) || "-");
+  if (g.hold) q.set("hold", g.hold);
+  if (g.delay) q.set("late", String(g.delay));
+  if (g.cancelled) q.set("cx", "1");
+  if (g.gate) q.set("gate", g.gate);
+  if (g.oldGate) q.set("was", g.oldGate);
+  if (g.reg) q.set("reg", g.reg);
+  if (g.msg) q.set("msg", g.msg);
+  if (!g.rotate) q.set("rot", "0");
+  return q.toString();
+}
+
+export type StreamSettings = Pick<GateState, "stages" | "scenes" | "hold" | "delay" | "cancelled" | "gate" | "oldGate" | "reg" | "msg" | "rotate">;
+
+/** A relayed settings query, or null when it isn't complete (no stage table: an old, empty or partial message). */
+export function streamSettingsFrom(q: string, now: number): StreamSettings | null {
+  const p = new URLSearchParams(q);
+  if (!p.get("st") || !p.get("sc")) return null;
+  const s = gateFromParams(p, now);
+  return { stages: s.stages, scenes: s.scenes, hold: s.hold, delay: s.delay, cancelled: s.cancelled, gate: s.gate, oldGate: s.oldGate, reg: s.reg, msg: s.msg, rotate: s.rotate };
+}
+
 /* ---------- what the screen shows, from a snapshot flight or a SimBrief OFP ---------- */
 
 export interface GateFlight {
