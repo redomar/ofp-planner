@@ -10,7 +10,7 @@ def gc(a, b, c, d):
 def hm(t_ms):
     return datetime.fromtimestamp(t_ms / 1000, timezone.utc).strftime("%H:%M:%SZ")
 
-rows, headers, bad = [], [], 0
+rows, headers, plans, bad = [], [], [], 0
 for path in sys.argv[1:]:
     with open(path, encoding="utf-8") as f:
         for line in f:
@@ -21,6 +21,8 @@ for path in sys.argv[1:]:
                 continue
             if o.get("kind") == "ofp-recording":
                 headers.append((path.split("\\")[-1], o)); continue
+            if o.get("type") == "plan":          # MCDU plan written when it changed
+                plans.append(o); continue
             if "t" in o:
                 o["_file"] = path.split("\\")[-1]
                 rows.append(o)
@@ -130,3 +132,18 @@ for i in range(1, len(rows)):
         frozen += 1
 print(f"  airborne samples identical to the previous one (stale reads): {frozen}")
 print(f"  seatbelt / signs readings missing: {sum(1 for r in rows if r.get('seatbelts') is None)}")
+
+# MCDU plan changes (recordings from 2026-11-12 on)
+print("\nMCDU PLAN")
+if not plans:
+    print("  no plan lines in this recording (older recording, or OFP Tower ran without the live link)")
+plans.sort(key=lambda p: p["t"])
+for p in plans:
+    legs = p.get("legs") or []
+    act = p.get("active") or {}
+    to = legs[act["to"]]["id"] if act.get("to") is not None and act["to"] < len(legs) else "-"
+    live = [l for l in legs if not l.get("missed") and not l.get("passed")]
+    end = [l for l in legs if not l.get("missed")]
+    eta = end[-1].get("eta") if end else None
+    print(f"  {hm(p['t'])}  {p.get('origin')}->{p.get('destination')} {p.get('phase') or '':8}"
+          f" legs {len(legs):3} (ahead {len(live):2})  to {to:8} last {end[-1]['id'] if end else '-':8} eta {eta}")
