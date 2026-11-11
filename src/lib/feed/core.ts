@@ -50,6 +50,12 @@ export interface FeedSample {
   /** Fuel on board (kg) and the total fuel flow (kg/h). */
   fobKg?: number | null;
   ffKgH?: number | null;
+  /** G load (OFP Tower). */
+  g?: number | null;
+  /** Each wheel contact OFP Tower saw since this reading's last (n = 1 the landing, 2+ bounces; resets above 200 ft). */
+  touchdowns?: { n: number; bounce: boolean; landingRate: number | null }[] | null;
+  /** The peak G of the landing (contact n), sent a couple of seconds after it. */
+  tdPeakG?: { n: number; peakG: number } | null;
 }
 
 /** [deg, kt] from a two-number array, else null. */
@@ -110,6 +116,19 @@ export function toSample(r: Record<string, unknown>, t: number, version = 2): Fe
     wind: windOf(r.wind),
     fobKg: num(r.fobKg),
     ffKgH: num(r.ffKgH),
+    g: num(r.g),
+    touchdowns: Array.isArray(r.touchdowns)
+      ? r.touchdowns.slice(0, 10).flatMap((x: Record<string, unknown>) => {
+          const n = num(x?.n);
+          return n != null && n >= 1 ? [{ n, bounce: x.bounce === true || n > 1, landingRate: num(x.landingRate) }] : [];
+        })
+      : null,
+    tdPeakG: (() => {
+      const p = r.tdPeakG as Record<string, unknown> | undefined;
+      const n = p ? num(p.n) : null;
+      const g = p ? num(p.peakG) : null;
+      return n != null && g != null && g > 0 && g < 10 ? { n, peakG: g } : null;
+    })(),
   };
 }
 
@@ -290,8 +309,10 @@ export function viewStage(st: FlightState, plan: FlightPlan | null = null): View
   if (st.stage !== "flying") return st.stage;
   const s = st.last;
   if (st.phase === "approach" || st.phase === "landed" || st.phase === "taxiIn") return "approaching";
-  if (st.phase === "descent" && s && levelFt(s) < 10_000) return "approaching";
-  if (plan && /approach/i.test(plan.phase ?? "") && (st.phase === "descent" || st.phase === "cruise")) return "approaching";
+  // on the way down: below FL100 with the seatbelt sign on (both; unknown sign counts as on), or the FMS in its approach phase
+  const belts = s?.seatbelts !== false;
+  if (st.phase === "descent" && s && levelFt(s) < 10_000 && belts) return "approaching";
+  if (plan && /approach/i.test(plan.phase ?? "") && (st.phase === "descent" || st.phase === "cruise") && belts) return "approaching";
   return "flying";
 }
 
@@ -351,6 +372,10 @@ export interface Stamps {
   landingRate: number | null;
   /** The sim's latched touchdown velocity, for the record. */
   tdSim: number | null;
+  /** Contacts after the landing within RULE.bounceFor (a bounce or two); null before the landing. */
+  bounces?: number | null;
+  /** The landing's peak G (OFP Tower). */
+  peakG?: number | null;
 }
 
 export interface FlightState {
@@ -372,6 +397,13 @@ export interface FlightState {
   entered: Partial<Record<FlightPhase, number>>;
   /** Seconds parked with engines off after landing (feeds without engine state need a wait). */
   parkedSince: number | null;
+}
+
+/** "-776 fpm · 1 bounce": the landing as the screens show it; null before one. */
+export function landingText(st: Stamps): string | null {
+  if (st.landingRate == null) return null;
+  const b = st.bounces ?? 0;
+  return `${Math.round(st.landingRate)} fpm${b ? ` · ${b} bounce${b > 1 ? "s" : ""}` : ""}`;
 }
 
 export const EMPTY_STAMPS: Stamps = { out: null, off: null, on: null, in: null, landingRate: null, tdSim: null };
@@ -466,6 +498,8 @@ export const RULE = {
   approachNm: 25,
   /** On approach no sooner than this after take-off (ms), unless it has cruised or descended. */
   approachAfter: 180_000,
+  /** Contacts this soon after the landing are bounces (ms). */
+  bounceFor: 30_000,
   /** Without engine state (VATSIM), parked this long after landing = at the gate (ms). */
   parkedFor: 60_000,
 } as const;
@@ -502,6 +536,23 @@ export function step(prev: FlightState, s: FeedSample, ctx: FlightContext = {}):
   const enginesOff = enginesKnown && s.engines!.every((e) => !e);
   const moving = s.gs >= RULE.moving;
   let phase = prev.phase;
+
+  // The landing is the FIRST contact: a bounce can put the aircraft back in the air on the reading
+  // that has the touchdown rate, so the change to on-ground may only come with the second contact.
+  // Contacts within RULE.bounceFor after it are bounces.
+  const contact = s.landingRate != null || (s.touchdowns != null && s.touchdowns.length > 0);
+  if (prev.airborne && contact) {
+    if (st.stamps.on == null) {
+      const first = s.touchdowns?.find((x) => x.n === 1);
+      st.stamps.on = s.t;
+      st.stamps.landingRate = first?.landingRate ?? s.landingRate ?? s.tdSim;
+      st.stamps.tdSim = s.tdSim;
+      st.stamps.bounces = s.touchdowns ? Math.max(0, ...s.touchdowns.map((x) => x.n - 1)) : 0;
+    } else if (s.t - st.stamps.on <= RULE.bounceFor) {
+      st.stamps.bounces = s.touchdowns?.length ? Math.max(st.stamps.bounces ?? 0, ...s.touchdowns.map((x) => x.n - 1)) : (st.stamps.bounces ?? 0) + 1;
+    }
+  }
+  if (s.tdPeakG && st.stamps.on != null && s.tdPeakG.n === 1) st.stamps.peakG = s.tdPeakG.peakG;
 
   if (!ground) {
     // airborne

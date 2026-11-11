@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.11.1 — 2026-11-11
+
+From the EDDM → EGBB flight, run back through the board.
+
+- **The landing rate is the landing, not the bounce.** The first touchdown can come on a reading where a bounce already has the aircraft back in the air, so the board waited for the second contact and showed its rate (−117 fpm, where Volanta, TechLog and Newsky had about −770). The landing is now the first contact: its time is ON and its rate is the one shown. Later contacts within 30 s count as bounces: "-776 fpm · 1 bounce".
+  - From OFP Tower's next version, each contact (`touchdowns`), the G load (`g`) and the landing's peak G (`tdPeakG`) are read in. Peak G is kept, not shown yet.
+- **Approaching** on the way down now needs both: below FL100 and the seatbelt sign on (as the owner asked). Without a seatbelt reading (VATSIM) FL100 alone still counts. On approach, landing and taxiing in are Approaching as before.
+
 ## 1.11.0 — 2026-11-11
 
 Four things the owner asked for mid-flight (EDDM → EGBB), with the new OFP Tower readings.
