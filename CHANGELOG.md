@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.11.2 — 2026-11-11
+
+- **No more point in the Atlantic.** While the MCDU was being set up (before a departure runway, or with an entry it hadn't resolved yet), the FMS route could carry a fix at 0°N 0°E, and the map stretched to fit it. Fixes, runway ends and readings at exactly 0,0 are now ignored, from OFP Tower, SimBrief and the sim alike. Real points on the equator or the Greenwich meridian still count.
+
 ## 1.11.1 — 2026-11-11
 
 From the EDDM → EGBB flight, run back through the board.

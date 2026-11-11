@@ -594,6 +594,14 @@ async function run() {
           ? pass("gate feed: approaching below FL100 on the way down only with the seatbelt sign on (unknown counts as on)")
           : fail(`gate feed: approaching with belts ${desc(true)} ${desc(false)} ${desc(null)}`);
       }
+      // 1.11.2: no 0,0 points (the sim loading, an FMS entry not resolved yet); the equator and the prime meridian stay
+      {
+        const pl = core.toPlan({ origin: "EDDM", destination: "EGBB", legs: [{ id: "EDDM", lat: 0, lon: 0 }, { id: "LIM", lat: 0.00001, lon: -0.00002 }, { id: "GRW", lat: 51.48, lon: 0 }, { id: "EQ", lat: 0, lon: 30 }] });
+        const s0 = core.toSample({ lat: 0, lon: 0, alt: 0 }, 1);
+        pl?.legs.map((l) => l.id).join(",") === "GRW,EQ" && s0 === null && core.toSample({ lat: 51.48, lon: 0, alt: 0 }, 1) !== null
+          ? pass("gate feed: plan legs and readings at 0,0 are dropped (real points on 0° kept)")
+          : fail(`gate feed: null island ${JSON.stringify(pl?.legs.map((l) => l.id))} ${JSON.stringify(s0)}`);
+      }
       const changes = states.filter((x, i) => i && x.phase !== states[i - 1].phase).length;
       changes === seen.length - 1 ? pass(`gate feed: each phase entered once, no flicker in the turbulence (${changes} changes)`) : fail(`gate feed: ${changes} phase changes for ${seen.length} phases`);
       const tdLine = rec.samples.findIndex((x) => x.tdSim != null);

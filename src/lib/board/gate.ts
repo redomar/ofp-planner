@@ -342,7 +342,7 @@ function navlogOf(v: unknown): RouteFix[] {
     const lat = numOr(x.pos_lat);
     const lon = numOr(x.pos_long);
     const id = typeof x.ident === "string" ? x.ident.trim().slice(0, 12) : "";
-    if (lat == null || lon == null || !id || x.type === "ltlg" || x.type === "apt" || /^(TOC|TOD)$/.test(id)) return [];
+    if (lat == null || lon == null || (Math.abs(lat) < 1e-4 && Math.abs(lon) < 1e-4) || !id || x.type === "ltlg" || x.type === "apt" || /^(TOC|TOD)$/.test(id)) return [];
     const via = typeof x.via_airway === "string" && x.via_airway && x.via_airway !== "DCT" ? x.via_airway.slice(0, 12) : null;
     return [{ id, lat, lon, via }];
   });
