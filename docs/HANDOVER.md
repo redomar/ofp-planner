@@ -363,6 +363,7 @@ server_latch_container_alternative: |
 ## 10. Open items / ideas
 
   - BRANCHES IN FLIGHT (keep current):
+    · THE LIVE FLIGHT STACK (1.9–1.10.1, OFP Tower on the sim PC, OBS): docs/HANDOVER-LIVE.md, written by the Mac and PC sessions together. Read it first for anything gate-screen, OFP Tower or OBS.
     · 1.9.0 RELEASED 2026-11-10 via release/1.9.0 (stack #22 A feed, #23 B views, #24 C stream panel, #25 D logbook, #26 E OFP Link spec,
       #27 rehearse fix; closed into the release). Code: src/lib/feed/ (core.ts detector + recordings, sources.ts replay/VATSIM/link,
       useFlightFeed.ts, obs.ts scene name, toLog.ts), src/components/board/GateViews.tsx, StreamPanel.tsx. Recordings in public/recordings/.
