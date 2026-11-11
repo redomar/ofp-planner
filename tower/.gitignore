@@ -1,0 +1,6 @@
+# The owner's flight data and local state never go to git
+recordings/
+last-settings.json
+*.tmp
+__pycache__/
+*.pyc
