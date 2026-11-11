@@ -5,9 +5,9 @@ import { LINK_PORT } from "./sources";
 
 /**
  * The Stream panel's settings to every open gate screen (the OBS browser source too) through OFP
- * Link on this PC: the panel sends {"type":"relay","channel":"stream","msg":…}, OFP Link passes it
+ * Link on this PC: the panel sends {"type":"relay","channel":"stream","msg":…}, OFP Tower passes it
  * to its other pages, and they apply it. So a change in the panel shows in OBS with no new URL.
- * Without OFP Link running nothing is sent and the panel says to copy the stream URL again.
+ * Without OFP Tower running nothing is sent and the panel says to copy the stream URL again.
  * Spec: docs/OFP-LINK.md, "Relay".
  */
 export const RELAY_CHANNEL = "stream";
@@ -63,7 +63,7 @@ function retry() {
   wait = Math.min(15_000, wait * 1.5);
 }
 
-/** Sends a message to the other pages on OFP Link; false when OFP Link isn't connected. */
+/** Sends a message to the other pages on OFP Tower; false when OFP Tower isn't connected. */
 export function sendRelay(msg: Record<string, unknown>): boolean {
   if (!ws || !open) return false;
   ws.send(JSON.stringify({ type: "relay", channel: RELAY_CHANNEL, msg }));

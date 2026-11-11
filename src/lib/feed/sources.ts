@@ -1,5 +1,5 @@
 /**
- * Where the gate screen's live readings come from, best first: OFP Link on the sim PC (a WebSocket
+ * Where the gate screen's live readings come from, best first: OFP Tower on the sim PC (a WebSocket
  * on localhost), a recorded flight (replayed in sim time, for testing and rehearsing), and the
  * public VATSIM data feed (read only: it lists who is online, nothing is ever sent to VATSIM).
  * Each source calls onSample with the shared FeedSample shape and onStatus with how it's going,
@@ -11,7 +11,7 @@ export type FeedStatus = { state: "connecting" | "live" | "waiting" | "ended" | 
 export interface SourceHandlers {
   onSample: (s: FeedSample) => void;
   onStatus: (s: FeedStatus) => void;
-  /** OFP Link with a Fenix: the route programmed in the FMS. */
+  /** OFP Tower with a Fenix: the route programmed in the FMS. */
   onPlan?: (p: FlightPlan) => void;
 }
 
@@ -119,12 +119,12 @@ export function vatsimSource(who: string, h: SourceHandlers): () => void {
   };
 }
 
-/* ---------- OFP Link on the sim PC ---------- */
+/* ---------- OFP Tower on the sim PC ---------- */
 
 export const LINK_PORT = 47800;
 
 /**
- * Connects to OFP Link on this PC (ws://localhost:port) and takes its readings: one JSON message per
+ * Connects to OFP Tower on this PC (ws://localhost:port) and takes its readings: one JSON message per
  * reading, {"type":"sample", …FeedSample fields, "zulu": seconds}. Reconnects on its own (2 s,
  * growing to 15 s) so the screen can be opened before the sim. Spec: docs/OFP-LINK.md.
  */
@@ -135,7 +135,7 @@ export function linkSource(port: number, h: SourceHandlers): () => void {
   let wait = 2000;
   const open = () => {
     if (stopped) return;
-    h.onStatus({ state: "connecting", text: "Looking for OFP Link on this PC" });
+    h.onStatus({ state: "connecting", text: "Looking for OFP Tower on this PC" });
     try {
       ws = new WebSocket(`ws://localhost:${port}`);
     } catch {
@@ -143,7 +143,7 @@ export function linkSource(port: number, h: SourceHandlers): () => void {
     }
     ws.onopen = () => {
       wait = 2000;
-      h.onStatus({ state: "live", text: "OFP Link" });
+      h.onStatus({ state: "live", text: "OFP Tower" });
     };
     ws.onmessage = (e) => {
       let m: Record<string, unknown>;
@@ -170,7 +170,7 @@ export function linkSource(port: number, h: SourceHandlers): () => void {
   };
   const retry = () => {
     if (stopped) return;
-    h.onStatus({ state: "waiting", text: "OFP Link isn't running" });
+    h.onStatus({ state: "waiting", text: "OFP Tower isn't running" });
     timer = setTimeout(open, wait);
     wait = Math.min(15_000, wait * 1.5);
   };

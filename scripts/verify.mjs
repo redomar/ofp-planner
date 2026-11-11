@@ -645,7 +645,7 @@ async function run() {
     // (minutes ignored: a minute can tick over between the four pages)
     const same = (x) => x.st.replace(/\d+/g, "#") === clock.st.replace(/\d+/g, "#");
     /BOARDING/i.test(clock.st) && same(junk) && same(noLink) && same(offline)
-      ? pass("gate feed: no feed, a bad feed, OFP Link not running and a pilot not online all leave the clock screen as it was")
+      ? pass("gate feed: no feed, a bad feed, OFP Tower not running and a pilot not online all leave the clock screen as it was")
       : fail(`gate feed: clock ${clock.st} | junk ${junk.st} | link ${noLink.st} | offline ${offline.st}`);
     clock.asked.length === 0 && offline.asked.every((u) => u === "https://data.vatsim.net/v3/vatsim-data.json") && offline.asked.length >= 1
       ? pass("gate feed: VATSIM is only read (the public data file), and only when asked for")
@@ -819,7 +819,7 @@ async function run() {
     await v.page.getByRole("button", { name: "Use", exact: true }).click();
     await v.page.waitForFunction(() => document.querySelector(".sp-src.is-on b")?.textContent?.includes("VATSIM"), null, { timeout: 15_000 }).catch(() => {});
     const on = await v.page.locator(".sp-src.is-on b").textContent().catch(() => "");
-    /VATSIM · live/.test(on) && /who=RYR7FE/.test(v.page.url()) ? pass("stream panel: with a callsign, VATSIM is used while OFP Link isn't running") : fail(`stream panel: vatsim ${on} ${v.page.url()}`);
+    /VATSIM · live/.test(on) && /who=RYR7FE/.test(v.page.url()) ? pass("stream panel: with a callsign, VATSIM is used while OFP Tower isn't running") : fail(`stream panel: vatsim ${on} ${v.page.url()}`);
     await v.ctx.close();
 
     // OBS scene names (stand-in API): a rule wins over the stage table, case aside; other scenes follow the stage

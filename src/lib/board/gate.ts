@@ -190,7 +190,7 @@ export function gateToParams(g: GateState, now: number, extra: Record<string, st
 /* ---------- what the screen shows, from a snapshot flight or a SimBrief OFP ---------- */
 
 export interface GateFlight {
-  /** fms: built from the route in the aircraft's FMS (OFP Link), with no schedule. */
+  /** fms: built from the route in the aircraft's FMS (OFP Tower), with no schedule. */
   source: "snapshot" | "simbrief" | "fms";
   brand: AirlineInfo | null;
   /** Wordmark text: the brand name, or the OFP's airline code. */
@@ -347,7 +347,7 @@ export function fromOfp(o: SbOfp, airports: Map<string, Airport> | null, airline
 }
 
 /**
- * The flight from the aircraft's FMS (OFP Link with a Fenix) when no Finder flight or OFP is
+ * The flight from the aircraft's FMS (OFP Tower with a Fenix) when no Finder flight or OFP is
  * loaded: its ends, flight number and cruise level as programmed. It has no schedule, so the
  * screen shows no scheduled or arrival times; `seenAt` (when the plan first came) stands in for
  * the off-block time the screen's clock needs.

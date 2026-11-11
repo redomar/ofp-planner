@@ -58,14 +58,14 @@ export function StreamPanel({
   urlFor: (scene: string) => string;
   now: number;
   wx: GateWx | null;
-  /** OFP Link passes changes to the OBS source live (no new URL needed). */
+  /** OFP Tower passes changes to the OBS source live (no new URL needed). */
   relayOpen: boolean;
   onPatch: (p: Partial<GateState>) => void;
   onFeed: (c: FeedConfig) => void;
 }) {
   const [who, setWho] = useState(feedCfg.who ?? "");
   const [copied, setCopied] = useState(false);
-  // the URL last copied: a change since then has to be pasted into OBS again (unless OFP Link carries it)
+  // the URL last copied: a change since then has to be pasted into OBS again (unless OFP Tower carries it)
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const stale = copiedUrl != null && copiedUrl !== url && !relayOpen;
   const using = feed.state ? feed.using : "clock";
@@ -93,7 +93,7 @@ export function StreamPanel({
         <div className="sp-col">
           <h4 className="ctl-label">1 · Live link</h4>
           <ul className="sp-srcs">
-            {row("link", "OFP Link", link?.state === "live" ? "MSFS 2024 · once a second" : (link?.text ?? "not running on this PC"), using === "link")}
+            {row("link", "OFP Tower", link?.state === "live" ? "MSFS 2024 · once a second" : (link?.text ?? "not running on this PC"), using === "link")}
             {row("si", "SayIntentions", "not set up yet", false)}
             {row("vatsim", "VATSIM", vat?.text ?? (feedCfg.who ? `looking for ${feedCfg.who}` : "add your callsign"), using === "vatsim")}
             {row("clock", "Clock only", "always there", using === "clock" && feedCfg.source !== "replay")}
@@ -145,9 +145,9 @@ export function StreamPanel({
             {copied ? "Copied" : "Copy stream URL"}
           </button>
           {relayOpen ? (
-            <p className="sp-live small">Changes reach OBS live through OFP Link: no need to copy the URL again.</p>
+            <p className="sp-live small">Changes reach OBS live through OFP Tower: no need to copy the URL again.</p>
           ) : stale ? (
-            <p className="sp-stale small">Changed since you copied it: copy the stream URL again and paste it into OBS (or run OFP Link and changes go there by themselves).</p>
+            <p className="sp-stale small">Changed since you copied it: copy the stream URL again and paste it into OBS (or run OFP Tower and changes go there by themselves).</p>
           ) : null}
           <ol className="sp-steps small">
             <li>

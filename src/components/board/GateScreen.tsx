@@ -124,7 +124,7 @@ export function GateScreen({
   live?: FlightState | null;
   /** Where the live figures come from ("MSFS", "VATSIM", "Replay"), shown beside the clock. */
   source?: string | null;
-  /** The FMS route (OFP Link, Fenix): distance to go follows it. */
+  /** The FMS route (OFP Tower, Fenix): distance to go follows it. */
   plan?: FlightPlan | null;
 }) {
   const bg = routeColor(f.brand);

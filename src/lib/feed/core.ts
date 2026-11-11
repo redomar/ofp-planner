@@ -1,6 +1,6 @@
 /**
  * The gate screen's live feed, the part without React or the network: one message shape for every
- * source (OFP Link, a recorded flight, VATSIM), the reader for recorded flights, and the phase
+ * source (OFP Tower, a recorded flight, VATSIM), the reader for recorded flights, and the phase
  * detector that turns samples into what the screen says (the rules table on the 1.9 design sheet
  * 05, to be tuned on the sim PC).
  *
@@ -39,7 +39,7 @@ export interface FeedSample {
 
 export type FeedSource = "link" | "replay" | "vatsim" | "clock";
 
-/* ---------- recorded flights (OFP Link recorder, .jsonl) ---------- */
+/* ---------- recorded flights (OFP Tower recorder, .jsonl) ---------- */
 
 export interface Recording {
   version: number;
@@ -54,7 +54,7 @@ const tri = (v: unknown): FeedSample["noSmoking"] => (v === "off" || v === "on" 
 const down = (v: number | null) => (v == null ? null : -Math.abs(v));
 
 /**
- * One reading in the shared shape from a recorder line or an OFP Link message (same field names).
+ * One reading in the shared shape from a recorder line or an OFP Tower message (same field names).
  * Version 1 recordings: parking brake unknown, "td" is the sim's touchdown velocity.
  */
 export function toSample(r: Record<string, unknown>, t: number, version = 2): FeedSample | null {
@@ -81,7 +81,7 @@ export function toSample(r: Record<string, unknown>, t: number, version = 2): Fe
   };
 }
 
-/* ---------- the flight plan from the aircraft's FMS (OFP Link, Fenix only for now) ---------- */
+/* ---------- the flight plan from the aircraft's FMS (OFP Tower, Fenix only for now) ---------- */
 
 export interface PlanLeg {
   id: string;
@@ -97,7 +97,7 @@ export interface PlanLeg {
   pseudo: boolean;
   /** After the destination runway: the missed approach. */
   missed: boolean;
-  /** The turn at this fix as OFP Link works it out (about 25° bank): fly-by turns start leadNm early, fly-overs swing outside. */
+  /** The turn at this fix as OFP Tower works it out (about 25° bank): fly-by turns start leadNm early, fly-overs swing outside. */
   turn: { style: "flyby" | "flyover"; radiusNm: number; leadNm: number | null } | null;
 }
 
@@ -110,7 +110,7 @@ export interface FlightPlan {
   cruiseFt: number | null;
   phase: string | null;
   legs: PlanLeg[];
-  /** Departure and arrival runways as display lines (OFP Link: threshold + 5 km along the course, stylised, not true length). */
+  /** Departure and arrival runways as display lines (OFP Tower: threshold + 5 km along the course, stylised, not true length). */
   runways: { role: "departure" | "arrival"; airport: string; runway: string; start: [number, number]; end: [number, number] }[];
 }
 
@@ -125,7 +125,7 @@ function turnOf(v: unknown): PlanLeg["turn"] {
   return { style: t.style === "flyover" ? "flyover" : "flyby", radiusNm: r, leadNm: lead != null && lead >= 0 && lead < 20 ? lead : null };
 }
 
-/** A "plan" message from OFP Link, checked field by field; null when it has no origin or destination. */
+/** A "plan" message from OFP Tower, checked field by field; null when it has no origin or destination. */
 export function toPlan(m: Record<string, unknown>): FlightPlan | null {
   const origin = icao(m.origin);
   const destination = icao(m.destination);

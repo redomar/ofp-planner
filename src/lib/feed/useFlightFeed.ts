@@ -6,7 +6,7 @@ import { LINK_PORT, linkSource, replaySource, vatsimSource, type FeedStatus } fr
 
 /** Which feed the gate screen follows, from its URL: &feed=link|replay|vatsim (none = the clock, as before 1.9). */
 export interface FeedConfig {
-  /** auto: OFP Link when it's live, else VATSIM (with a callsign), else the clock. */
+  /** auto: OFP Tower when it's live, else VATSIM (with a callsign), else the clock. */
   source: FeedSource | "auto";
   /** replay: the recording's path on this site. */
   rec: string | null;
@@ -14,7 +14,7 @@ export interface FeedConfig {
   rate: number;
   /** vatsim: callsign or CID. */
   who: string | null;
-  /** link: OFP Link's port. */
+  /** link: OFP Tower's port. */
   port: number;
   /** replay: start this many minutes of sim time into the recording. */
   at: number;
@@ -51,12 +51,12 @@ export interface FlightFeed {
   status: FeedStatus | null;
   /** The source the readings are coming from now ("clock" before any arrive). */
   using: FeedSource;
-  /** Each source's own status (auto runs OFP Link and VATSIM side by side). */
+  /** Each source's own status (auto runs OFP Tower and VATSIM side by side). */
   link: FeedStatus | null;
   vatsim: FeedStatus | null;
   /** Where the aircraft has been, [lon, lat], a point every 30 s or 2 nm (for the flown line on the map). */
   trail: [number, number][];
-  /** The route programmed in the aircraft's FMS (OFP Link with a Fenix), and when it first came. */
+  /** The route programmed in the aircraft's FMS (OFP Tower with a Fenix), and when it first came. */
   plan: FlightPlan | null;
   planAt: number | null;
 }
@@ -90,7 +90,7 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext): FlightFeed {
     let trail: [number, number][] = [];
     let trailAt = 0;
     const put = (p: Partial<FlightFeed>) => setFeed((f) => ({ ...(f.key === k ? f : NO_FEED), ...p, key: k }));
-    // auto: OFP Link wins while it's sending; VATSIM fills in when it isn't
+    // auto: OFP Tower wins while it's sending; VATSIM fills in when it isn't
     let linkAt = 0;
     const take = (from: FeedSource) => (s: Parameters<typeof step>[1]) => {
       if (from === "link") linkAt = Date.now();
