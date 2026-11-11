@@ -1,0 +1,15 @@
+{
+  "_comment": "Per-aircraft overrides. First profile whose 'match' is a case-insensitive substring of the sim TITLE wins; no match = standard SimVars only. Only entries with confirmed=true replace the field; unconfirmed ones are recorded in 'raw' only. Confirm an L:var by flipping the switch both ways and seeing the value change.",
+  "profiles": [
+    {
+      "name": "Fenix",
+      "match": "fenix",
+      "vars": {
+        "parkBrake":  { "var": "L:S_MIP_PARKING_BRAKE", "unit": "number", "type": "bool", "confirmed": true },
+        "seatbelts":  { "var": "L:S_OH_SIGNS",          "unit": "number", "type": "bool", "confirmed": true },
+        "noSmoking":  { "var": "L:S_OH_SIGNS_SMOKING",  "unit": "number", "type": "enum", "values": { "0": "off", "1": "auto", "2": "on" }, "confirmed": true },
+        "emerExitLt": { "var": "L:S_OH_INT_LT_EMER",    "unit": "number", "type": "enum", "values": { "0": "off", "1": "arm",  "2": "on" }, "confirmed": true }
+      }
+    }
+  ]
+}
