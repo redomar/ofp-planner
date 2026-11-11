@@ -377,6 +377,8 @@ export const RULE = {
   /** On approach: below this height above the destination (ft) and within this distance (nm). */
   approachFt: 3000,
   approachNm: 25,
+  /** On approach no sooner than this after take-off (ms), unless it has cruised or descended. */
+  approachAfter: 180_000,
   /** Without engine state (VATSIM), parked this long after landing = at the gate (ms). */
   parkedFor: 60_000,
 } as const;
@@ -434,7 +436,10 @@ export function step(prev: FlightState, s: FeedSample, ctx: FlightContext = {}):
     const toGo = to ? distNm(s, to) : null;
     const total = ctx.from && to ? distNm(ctx.from, to) : null;
     const height = to ? s.alt - (to.elev ?? 0) : s.alt;
-    if (toGo != null && toGo < RULE.approachNm && height < RULE.approachFt) phase = "approach";
+    // on approach: near and low, but not while still climbing out, and only after some flying
+    // (a short hop, London City to Heathrow, starts 20 nm from its destination)
+    const settled = ["cruise", "descent", "approach"].includes(prev.phase) || (st.stamps.off != null && s.t - st.stamps.off > RULE.approachAfter);
+    if (toGo != null && toGo < RULE.approachNm && height < RULE.approachFt && st.trend !== "up" && (settled || prev.last == null)) phase = "approach";
     else if (prev.phase === "cruise" && st.cruiseAlt != null && Math.abs(s.alt - st.cruiseAlt) <= RULE.leaveCruise) phase = "cruise";
     else if (st.trend === "up" && held(RULE.holdFor)) phase = "climb";
     else if (st.trend === "down" && held(RULE.holdFor) && (toGo == null || total == null || toGo < total / 2)) phase = "descent";

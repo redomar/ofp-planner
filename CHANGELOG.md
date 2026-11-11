@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.9.5 — 2026-11-11
+
+From the first live flight with OFP Link and the Fenix (London City → Heathrow):
+
+- **No more "On approach" right after take-off** on a short hop: the destination was already within 25 nm and below 3,000 ft. Approach now also needs the aircraft not to be climbing, and to have cruised or descended (or been flying for 3 minutes).
+- **A short FMS route stays fitted on the map in flight** (it zoomed out once airborne), with the aircraft in the frame.
+- Altitudes below 1,000 ft show to the nearest 10 ft (50 ft, not 0 ft).
+
 ## 1.9.4 — 2026-11-11
 
 From the second live test with OFP Link and the Fenix (London City → Heathrow):
