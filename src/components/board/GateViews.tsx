@@ -358,12 +358,14 @@ export function GateMap({
       </text>
     );
   };
+  const routeFits = !!routeLegs && routeLegs.length <= 24 && (f.nm ?? 999) < 400;
   // the fixes to name: the next few ahead (all ahead when near), not the airports themselves
   const named =
     routeLegs?.filter((l, i) => {
       if (l.pseudo || l.id.startsWith(f.from.icao) || l.id.startsWith(f.to.icao)) return false;
       if (nearest < 0) return i > 0 && i < routeLegs.length - 1;
-      return i > nearest && i <= nearest + (near ? 12 : 5);
+      // the whole route fits on screen (near the end, or a short FMS route): every fix ahead; else the next 5
+      return i > nearest && i <= nearest + (near || routeFits ? 24 : 5);
     }) ?? [];
   // the route with its turns (OFP Link's turn geometry): fly-by fixes as rounded corners that start
   // leadNm early, fly-overs through the fix and then a swing outside it; straight lines otherwise
@@ -425,6 +427,10 @@ export function GateMap({
       ) : (
         <path className="gm-togo" d={line(from, to)} strokeWidth={W * 0.004} strokeDasharray={`${W * 0.002} ${W * 0.012}`} />
       )}
+      {/* runways above the map and the route, under the fixes, codes and aircraft: stylised 5 km bars from the threshold (OFP Link), pure white, no text on them */}
+      {rwys.map((r) => (
+        <Runway key={`${r.role}-${r.runway}`} a={r.a} b={r.b} number={r.runway} width={W * 0.011} />
+      ))}
       {named.map((l, i) => {
         const p = geo.proj([l.lon, l.lat]);
         if (!inView(p)) return null;
@@ -453,10 +459,6 @@ export function GateMap({
       })}
       {inView(pf) || !near ? codeBy(f.from.icao, pf, f.from.iata ?? f.from.icao, !right) : null}
       {codeBy(f.to.icao, pt, f.to.iata ?? f.to.icao, right)}
-      {/* runways on top of everything: stylised 5 km bars from the threshold (OFP Link), pure white, no text on them */}
-      {rwys.map((r) => (
-        <Runway key={`${r.role}-${r.runway}`} a={r.a} b={r.b} number={r.runway} width={W * 0.011} />
-      ))}
       {pp && (
         <g transform={`translate(${pp[0]} ${pp[1]}) rotate(${hdg}) scale(${(W * 0.055) / 64}) translate(-32 -32)`}>
           <path className="gm-plane" d={PLANE} />
