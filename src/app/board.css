@@ -1655,7 +1655,12 @@ html.screen-mode body > :not(.screen-root) {
 }
 .sp-aud-scene {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
+}
+.sp-copy-as {
+  flex-basis: 100%;
+  text-align: left;
 }
 .sp-aud-scene .ctl-input {
   min-width: 0;

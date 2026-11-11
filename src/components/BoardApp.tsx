@@ -278,7 +278,15 @@ export function BoardApp() {
     [baseFlight],
   );
   const live = useFlightFeed(rehearse ?? feedCfg, feedCtx);
-  const obsScene = useObsScene();
+  // &as=BRB: this source shows the grid's BRB column whatever scene is live (one source per scene, Studio Mode)
+  const [asScene, setAsScene] = useState<string | null>(null);
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get("as");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of the URL after hydration
+    if (v && v.trim()) setAsScene(v.trim().slice(0, 40));
+  }, []);
+  const obsLive = useObsScene();
+  const obsScene = asScene ?? obsLive;
   // with no Finder flight or OFP, the flight programmed in the aircraft's FMS (OFP Link, Fenix)
   const planFlight = useMemo(
     () => (!baseFlight && !gate.f && !gate.sb && live.plan && live.planAt != null ? fromPlan(live.plan, live.planAt, airports, airlines) : null),
@@ -396,8 +404,8 @@ export function BoardApp() {
   );
 
   // the Stream panel's URL: one browser source that follows the aircraft and the OBS scene
-  const streamUrl = () => {
-    const q = gateToParams({ ...gate, view: "auto" }, now, { tab: "gate", screen: "1", feed: "auto", who: feedCfg.who });
+  const streamUrl = (as: string | null = null) => {
+    const q = gateToParams({ ...gate, view: "auto" }, now, { tab: "gate", screen: "1", feed: "auto", who: feedCfg.who, as });
     return `${typeof window === "undefined" ? "" : window.location.origin}/board?${q}`;
   };
 
@@ -624,7 +632,7 @@ export function BoardApp() {
             {/* after the flight has loaded: the controls above it are their full height by then */}
             {ready && tab === "gate" && flight && (
               <>
-                <StreamPanel gate={gate} flight={flight} feedCfg={feedCfg} feed={live} url={streamUrl()} now={now} wx={gateWx} relayOpen={relayOpen} onPatch={patch} onFeed={setFeedCfg} />
+                <StreamPanel gate={gate} flight={flight} feedCfg={feedCfg} feed={live} url={streamUrl()} urlFor={(as) => streamUrl(as)} now={now} wx={gateWx} relayOpen={relayOpen} onPatch={patch} onFeed={setFeedCfg} />
                 <RehearseStrip
                   gate={gate}
                   ctx={feedCtx}

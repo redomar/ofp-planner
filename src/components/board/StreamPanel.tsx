@@ -41,6 +41,7 @@ export function StreamPanel({
   feedCfg,
   feed,
   url,
+  urlFor,
   now,
   wx,
   relayOpen,
@@ -53,6 +54,8 @@ export function StreamPanel({
   feed: FlightFeed;
   /** The stream URL for these settings. */
   url: string;
+  /** The URL for a source that always shows one scene's column (&as=Name). */
+  urlFor: (scene: string) => string;
   now: number;
   wx: GateWx | null;
   /** OFP Link passes changes to the OBS source live (no new URL needed). */
@@ -169,6 +172,7 @@ export function StreamPanel({
           now={now}
           wx={wx}
           feed={feed}
+          urlFor={urlFor}
           onPatch={onPatch}
         />
       )}
@@ -191,6 +195,7 @@ function AudienceGrid({
   now,
   wx,
   feed,
+  urlFor,
   onPatch,
 }: {
   gate: GateState;
@@ -198,8 +203,10 @@ function AudienceGrid({
   now: number;
   wx: GateWx | null;
   feed: FlightFeed;
+  urlFor: (scene: string) => string;
   onPatch: (p: Partial<GateState>) => void;
 }) {
+  const [copiedFor, setCopiedFor] = useState<string | null>(null);
   // columns: any other scene (the stage table), then each named scene
   const cols: { name: string | null; views: Record<FlightStage, ShownView> }[] = [{ name: null, views: gate.stages }, ...gate.scenes.map(([n, v]) => ({ name: n, views: v }))];
   const [pick, setPick] = useState<{ col: number; stage: FlightStage } | null>(null);
@@ -249,6 +256,19 @@ function AudienceGrid({
                     <input className="ctl-input" aria-label={`OBS scene name ${i}`} value={c.name ?? ""} onChange={(e) => rename(i, e.target.value)} />
                     <button type="button" className="btn sp-x" aria-label={`Remove the scene ${c.name}`} onClick={() => remove(i)}>
                       ×
+                    </button>
+                    <button
+                      type="button"
+                      className="linkish small sp-copy-as"
+                      title={`A source for the ${c.name} scene: shows this column whatever scene is live (one source per scene, right in Studio Mode)`}
+                      onClick={() => {
+                        void navigator.clipboard?.writeText(urlFor(c.name ?? "")).then(() => {
+                          setCopiedFor(c.name);
+                          setTimeout(() => setCopiedFor(null), 2000);
+                        });
+                      }}
+                    >
+                      {copiedFor === c.name ? "Copied" : "Copy URL for this scene"}
                     </button>
                   </span>
                 )}

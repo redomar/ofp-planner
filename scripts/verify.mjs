@@ -834,9 +834,10 @@ async function run() {
     const inGame = await scr("Gameplay");
     const noObs = await scr(null);
     const held = await scr(null, "&hold=arrived");
-    inBrb === "frame" && inGame === "strip" && noObs === "strip" && held === "full"
-      ? pass("stream panel: OBS scene \"brb\" shows the frame, another scene the stage's view (strip while flying), hold=arrived holds the full screen (OBS API stood in)")
-      : fail(`stream panel: scenes brb ${inBrb} game ${inGame} none ${noObs} held ${held}`);
+    const asBrb = await scr(null, "&as=BRB");
+    inBrb === "frame" && inGame === "strip" && noObs === "strip" && held === "full" && asBrb === "frame"
+      ? pass("stream panel: OBS scene \"brb\" shows the frame, another scene the stage's view (strip while flying), hold=arrived holds the full screen, a source with as=BRB is the BRB column without OBS (OBS API stood in)")
+      : fail(`stream panel: scenes brb ${inBrb} game ${inGame} none ${noObs} held ${held} as=BRB ${asBrb}`);
 
     // rehearse: play the recorded flight on the preview, drag to hold a stage
     const r = await start();

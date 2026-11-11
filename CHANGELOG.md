@@ -8,6 +8,7 @@ Setting up the stream, made visual (from the owner's first live flights).
 - **Presets** to start from: Classic, Mostly sim, Minimal, Map.
 - **A preview that matches OBS:** beside the grid, the screen as OBS shows it in the scene you choose, now or at any phase (an example of this flight), following the grid.
 - **Changes reach OBS live** through OFP Link: no new URL to paste. Without OFP Link the panel says when the stream URL needs copying again.
+- **A source per scene:** each scene in the grid has "Copy URL for this scene" (`&as=BRB`), a source that always shows that scene's column, right in OBS Studio Mode too, and still follows the grid and live changes.
 - **Setup steps** recommend one browser source per scene (with OBS Studio Mode, a shared source only shows the live scene).
 - **Closer still on approach:** within 10 nm of the destination the map closes in to about 40 nm across, on the runway, the aircraft and the last fixes.
 - A map thumbnail with everything at one point no longer fails to draw.
