@@ -81,6 +81,103 @@ export function toSample(r: Record<string, unknown>, t: number, version = 2): Fe
   };
 }
 
+/* ---------- the flight plan from the aircraft's FMS (OFP Link, Fenix only for now) ---------- */
+
+export interface PlanLeg {
+  id: string;
+  lat: number;
+  lon: number;
+  via: string | null;
+  kind: string | null;
+  /** overfly (Δ), turnLeft (←), turnRight (→) */
+  flags: string[];
+  /** The altitude constraint as the MCDU shows it ("+6000" at or above, "-" at or below, else at). */
+  alt: { ft: number; type: "at" | "atOrAbove" | "atOrBelow"; text: string } | null;
+  /** An altitude-terminated leg ("3000"): a point on the line, not a fix to name. */
+  pseudo: boolean;
+  /** After the destination runway: the missed approach. */
+  missed: boolean;
+  /** The turn at this fix as OFP Link works it out (about 25° bank): fly-by turns start leadNm early, fly-overs swing outside. */
+  turn: { style: "flyby" | "flyover"; radiusNm: number; leadNm: number | null } | null;
+}
+
+export interface FlightPlan {
+  source: string;
+  origin: string;
+  destination: string;
+  alternate: string | null;
+  flightNumber: string | null;
+  cruiseFt: number | null;
+  phase: string | null;
+  legs: PlanLeg[];
+  /** Departure and arrival runways as display lines (OFP Link: threshold + 5 km along the course, stylised, not true length). */
+  runways: { role: "departure" | "arrival"; airport: string; runway: string; start: [number, number]; end: [number, number] }[];
+}
+
+const icao = (v: unknown) => (typeof v === "string" && /^[A-Z0-9]{4}$/.test(v) ? v : null);
+const txt = (v: unknown, n: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, n) : null);
+
+function turnOf(v: unknown): PlanLeg["turn"] {
+  const t = v as Record<string, unknown> | null | undefined;
+  const r = t ? num(t.radiusNm) : null;
+  if (!t || r == null || r <= 0 || r > 10) return null;
+  const lead = num(t.leadNm);
+  return { style: t.style === "flyover" ? "flyover" : "flyby", radiusNm: r, leadNm: lead != null && lead >= 0 && lead < 20 ? lead : null };
+}
+
+/** A "plan" message from OFP Link, checked field by field; null when it has no origin or destination. */
+export function toPlan(m: Record<string, unknown>): FlightPlan | null {
+  const origin = icao(m.origin);
+  const destination = icao(m.destination);
+  if (!origin || !destination) return null;
+  const legs: PlanLeg[] = [];
+  for (const raw of Array.isArray(m.legs) ? m.legs.slice(0, 200) : []) {
+    const l = raw as Record<string, unknown>;
+    const lat = num(l.lat);
+    const lon = num(l.lon);
+    if (lat == null || lon == null || Math.abs(lat) > 90 || Math.abs(lon) > 180) continue;
+    const a = l.altConstraint as Record<string, unknown> | undefined;
+    const ft = a ? num(a.alt) : null;
+    const type = a?.type === "atOrAbove" || a?.type === "atOrBelow" ? a.type : "at";
+    legs.push({
+      id: txt(l.id, 12) ?? "",
+      lat,
+      lon,
+      via: txt(l.via, 12),
+      kind: txt(l.kind, 24),
+      flags: Array.isArray(l.flags) ? l.flags.filter((x): x is string => x === "overfly" || x === "turnLeft" || x === "turnRight") : [],
+      alt: ft != null ? { ft, type, text: txt(a?.text, 10) ?? String(ft) } : null,
+      pseudo: l.pseudo === true,
+      missed: l.missed === true,
+      turn: turnOf(l.turn),
+    });
+  }
+  return {
+    source: txt(m.source, 24) ?? "fms",
+    origin,
+    destination,
+    alternate: icao(m.alternate),
+    flightNumber: txt(m.flightNumber, 10)?.toUpperCase() ?? null,
+    cruiseFt: num(m.cruiseLevel),
+    phase: txt(m.phase, 24),
+    legs,
+    runways: (Array.isArray(m.runways) ? m.runways.slice(0, 4) : []).flatMap((raw) => {
+      const r = raw as Record<string, Record<string, unknown> | unknown>;
+      const a = r.start as Record<string, unknown> | undefined;
+      const b = r.end as Record<string, unknown> | undefined;
+      const pt = (p?: Record<string, unknown>): [number, number] | null => {
+        const lat = p ? num(p.lat) : null;
+        const lon = p ? num(p.lon) : null;
+        return lat != null && lon != null && Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? [lon, lat] : null;
+      };
+      const s0 = pt(a);
+      const e0 = pt(b);
+      if (!s0 || !e0) return [];
+      return [{ role: r.role === "departure" ? ("departure" as const) : ("arrival" as const), airport: icao(r.airport) ?? "", runway: txt(r.runway, 4) ?? "", start: s0, end: e0 }];
+    }),
+  };
+}
+
 /**
  * A recording as text, one JSON object per line: a header ({"v":1|2,"kind":"ofp-recording",
  * "started":ms,…}), then one reading per second. Times come from the sim clock (zulu, seconds of
@@ -323,7 +420,12 @@ export function step(prev: FlightState, s: FeedSample, ctx: FlightContext = {}):
     st.airborne = true;
     st.parkedSince = null;
     const trend = s.vs == null ? prev.trend ?? "level" : s.vs > RULE.vertical ? "up" : s.vs < -RULE.vertical ? "down" : "level";
-    if (trend !== prev.trend || st.trendSince == null) {
+    if (!prev.last) {
+      // joining a flight already in the air (a page opened in cruise, VATSIM without a vertical
+      // speed yet): no history, so the first reading counts as held, cruise straight away when level
+      st.trend = trend;
+      st.trendSince = s.t - RULE.levelFor;
+    } else if (trend !== prev.trend || st.trendSince == null) {
       st.trend = trend;
       st.trendSince = s.t;
     }
@@ -337,7 +439,9 @@ export function step(prev: FlightState, s: FeedSample, ctx: FlightContext = {}):
     else if (st.trend === "up" && held(RULE.holdFor)) phase = "climb";
     else if (st.trend === "down" && held(RULE.holdFor) && (toGo == null || total == null || toGo < total / 2)) phase = "descent";
     else if (st.trend === "level" && s.alt > RULE.cruiseAbove && held(RULE.levelFor)) phase = "cruise";
-    else if (["boarding", "doorsClosed", "pushback", "taxi", "takeoff", "landed", "taxiIn", "gate"].includes(phase)) phase = "climb";
+    else if (["boarding", "doorsClosed", "pushback", "taxi", "takeoff", "landed", "taxiIn", "gate"].includes(phase))
+      // just airborne, or joined in the air before any rule above applies: by the trend
+      phase = st.trend === "down" && prev.last == null ? "descent" : st.trend === "level" && s.alt > RULE.cruiseAbove ? "cruise" : "climb";
   } else if (st.airborne && prev.last && !grounded(prev.last, ctx)) {
     // wheels down
     // (a bounce touches more than once: the first contact is ON and its rate is the landing rate)

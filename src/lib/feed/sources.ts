@@ -5,12 +5,14 @@
  * Each source calls onSample with the shared FeedSample shape and onStatus with how it's going,
  * and returns a function that stops it.
  */
-import { parseRecording, toSample, type FeedSample } from "./core";
+import { parseRecording, toPlan, toSample, type FeedSample, type FlightPlan } from "./core";
 
 export type FeedStatus = { state: "connecting" | "live" | "waiting" | "ended" | "error"; text: string };
 export interface SourceHandlers {
   onSample: (s: FeedSample) => void;
   onStatus: (s: FeedStatus) => void;
+  /** OFP Link with a Fenix: the route programmed in the FMS. */
+  onPlan?: (p: FlightPlan) => void;
 }
 
 /* ---------- a recorded flight ---------- */
@@ -148,6 +150,11 @@ export function linkSource(port: number, h: SourceHandlers): () => void {
       try {
         m = JSON.parse(String(e.data));
       } catch {
+        return;
+      }
+      if (m.type === "plan") {
+        const plan = toPlan(m);
+        if (plan) h.onPlan?.(plan);
         return;
       }
       if (m.type !== "sample") return;

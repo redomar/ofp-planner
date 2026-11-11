@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.9.2 — 2026-11-11
+
+- **The flight from your FMS (OFP Link, Fenix).** With OFP Link running and no Finder flight or SimBrief OFP loaded, the gate screen takes the flight from the route programmed in the Fenix MCDU: origin, destination, flight number and cruise level. It shows no schedule it doesn't have.
+- **The programmed route on the map:** the legs as flown in the FMS, each waypoint a small dot (Δ for an overfly), ← / → for a required turn, altitude constraints in Airbus magenta (+6000, FL070, 3000), the missed approach faded; the next fixes ahead are named.
+- **Turns and runways:** fly-by fixes drawn as rounded corners and fly-overs swinging past the fix (turn geometry from OFP Link), and the departure and arrival runways drawn as runways (asphalt, edges, threshold markings, the runway number), 7 km long so they read on the map.
+- **Closer in for the end of the flight:** within 150 nm of the destination, and after landing, the map closes in on the destination, the aircraft and the fixes ahead (at least 60 nm across), so the approach and the runway show.
+- **Joining a flight in the air** (a page opened in cruise, VATSIM's first reading) no longer opens on "Climbing": it says Cruising, Climbing or Descending from what the aircraft is doing.
+- Two airports in one city (London City → Heathrow) show their own names.
+
 ## 1.9.1 — 2026-11-11
 
 - **A replayed recording follows the screen's flight.** A `&feed=replay` URL for a flight on another route (as in a test in OBS) played the recording at its own positions, so the screen showed thousands of miles to go and the aircraft off the map. Every replay now lays a recording from another route along the flight's line, as rehearse already did; on its own route it plays as recorded.

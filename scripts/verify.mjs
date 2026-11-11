@@ -679,9 +679,9 @@ async function run() {
     }
     // a pilot online: the first reading of the recorded flight, as VATSIM would list it
     const pilot = { cid: 1000000, callsign: "RYR7FE", latitude: 34.195541, longitude: -80.70894, altitude: 28404, groundspeed: 463, heading: 346, last_updated: "2026-11-10T18:48:22Z" };
-    const online = await screen("&feed=vatsim&who=RYR7FE", [pilot], "CLIMBING");
-    /CLIMBING/i.test(online.st) && /Passing FL284/.test(online.st) && online.errors.length === 0
-      ? pass(`gate feed: VATSIM pilot online drives the screen (${online.st})`)
+    const online = await screen("&feed=vatsim&who=RYR7FE", [pilot], "CRUISING");
+    /CRUISING/i.test(online.st) && online.errors.length === 0
+      ? pass(`gate feed: VATSIM pilot online drives the screen, joined at cruise it says cruising (${online.st})`)
       : fail(`gate feed: online ${online.st} ${online.errors.join(" ")}`);
   });
 

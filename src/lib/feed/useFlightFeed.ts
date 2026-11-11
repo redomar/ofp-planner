@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { fitToRoute, startState, step, type FeedSample, type FeedSource, type FlightContext, type FlightState } from "./core";
+import { useEffect, useRef, useState } from "react";
+import { fitToRoute, startState, step, type FeedSample, type FeedSource, type FlightContext, type FlightPlan, type FlightState } from "./core";
 import { LINK_PORT, linkSource, replaySource, vatsimSource, type FeedStatus } from "./sources";
 
 /** Which feed the gate screen follows, from its URL: &feed=link|replay|vatsim (none = the clock, as before 1.9). */
@@ -56,6 +56,9 @@ export interface FlightFeed {
   vatsim: FeedStatus | null;
   /** Where the aircraft has been, [lon, lat], a point every 30 s or 2 nm (for the flown line on the map). */
   trail: [number, number][];
+  /** The route programmed in the aircraft's FMS (OFP Link with a Fenix), and when it first came. */
+  plan: FlightPlan | null;
+  planAt: number | null;
 }
 
 /**
@@ -65,14 +68,24 @@ export interface FlightFeed {
 export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext): FlightFeed {
   const { source, rec, rate, who, port, at, fit = false } = cfg;
   const ctxKey = JSON.stringify(ctx);
-  const key = `${source}|${rec}|${rate}|${who}|${port}|${at}|${fit}|${ctxKey}`;
+  // a replay starts over for another flight (it's laid along its route); a live source keeps
+  // running and simply uses the newest flight (it may itself bring the flight: the FMS plan)
+  const replayCtx = source === "replay" ? ctxKey : "";
+  const key = `${source}|${rec}|${rate}|${who}|${port}|${at}|${fit}|${replayCtx}`;
+  const ctxRef = useRef<FlightContext>(ctx);
+  useEffect(() => {
+    ctxRef.current = JSON.parse(ctxKey);
+  }, [ctxKey]);
   // what the running source has said, tagged with its key: a new source or flight starts over,
   // without an extra render (and nothing at all happens on the clock)
   const [feed, setFeed] = useState<FlightFeed & { key: string }>({ key: "", ...NO_FEED });
   useEffect(() => {
     if (source === "clock") return;
-    const c: FlightContext = JSON.parse(ctxKey);
-    const k = `${source}|${rec}|${rate}|${who}|${port}|${at}|${fit}|${ctxKey}`;
+    const c0: FlightContext = replayCtx ? JSON.parse(replayCtx) : ctxRef.current;
+    const k = `${source}|${rec}|${rate}|${who}|${port}|${at}|${fit}|${replayCtx}`;
+    let planCtx: FlightContext = {};
+    // the flight on screen, else the FMS plan's ends
+    const ctxNow = (): FlightContext => (replayCtx ? c0 : ctxRef.current.to ? ctxRef.current : planCtx);
     let st = startState();
     let trail: [number, number][] = [];
     let trailAt = 0;
@@ -82,7 +95,7 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext): FlightFeed {
     const take = (from: FeedSource) => (s: Parameters<typeof step>[1]) => {
       if (from === "link") linkAt = Date.now();
       else if (source === "auto" && Date.now() - linkAt < 10_000) return;
-      st = step(st, s, c);
+      st = step(st, s, ctxNow());
       const now = st;
       const last = trail[trail.length - 1];
       if (!last || s.t - trailAt >= 30_000 || Math.hypot(s.lon - last[0], s.lat - last[1]) > 0.033) {
@@ -93,17 +106,26 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext): FlightFeed {
       put({ state: now, using: from, trail: path });
     };
     const said = (from: "link" | "vatsim" | "replay") => (status: FeedStatus) => put(from === "replay" ? { status } : { [from]: status, status });
-    const fitTo = fit && c.from && c.to ? (x: FeedSample[]) => fitToRoute(x, c.from!, c.to!) : undefined;
+    const fitTo = fit && c0.from && c0.to ? (x: FeedSample[]) => fitToRoute(x, c0.from!, c0.to!) : undefined;
+    const onPlan = (p: FlightPlan) => {
+      const first = p.legs.find((l) => !l.missed);
+      const last = [...p.legs].reverse().find((l) => !l.missed);
+      planCtx = first && last ? { from: { lat: first.lat, lon: first.lon }, to: { lat: last.lat, lon: last.lon } } : {};
+      setFeed((f) => {
+        const base = f.key === k ? f : { ...NO_FEED, key: k };
+        return { ...base, key: k, plan: p, planAt: base.planAt ?? Date.now() };
+      });
+    };
     if (source === "replay" && rec) return replaySource(rec, rate, { onSample: take("replay"), onStatus: said("replay") }, at * 60_000, fitTo);
     if (source === "vatsim" && who) return vatsimSource(who, { onSample: take("vatsim"), onStatus: said("vatsim") });
-    if (source === "link") return linkSource(port, { onSample: take("link"), onStatus: said("link") });
+    if (source === "link") return linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan });
     if (source === "auto") {
-      const stops = [linkSource(port, { onSample: take("link"), onStatus: said("link") })];
+      const stops = [linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan })];
       if (who) stops.push(vatsimSource(who, { onSample: take("vatsim"), onStatus: said("vatsim") }));
       return () => stops.forEach((x) => x());
     }
-  }, [source, rec, rate, who, port, at, fit, ctxKey]);
+  }, [source, rec, rate, who, port, at, fit, replayCtx]);
   return feed.key === key ? feed : NO_FEED;
 }
 
-const NO_FEED: FlightFeed = { state: null, status: null, using: "clock", link: null, vatsim: null, trail: [] };
+const NO_FEED: FlightFeed = { state: null, status: null, using: "clock", link: null, vatsim: null, trail: [], plan: null, planAt: null };
