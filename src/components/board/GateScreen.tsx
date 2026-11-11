@@ -7,7 +7,7 @@ import { countryName } from "@/lib/places";
 import { MIN, phaseAt, phases, type PhaseKey } from "@/lib/board/board";
 import type { GateFlight, GateState } from "@/lib/board/gate";
 import { aircraft } from "@/lib/aircraft";
-import { PHASE_LABEL, type FlightPhase, type FlightState } from "@/lib/feed/core";
+import { PHASE_LABEL, type FlightPhase, type FlightPlan, type FlightState } from "@/lib/feed/core";
 import { liveFacts } from "./GateViews";
 
 /** Destination weather for the info strip. */
@@ -93,6 +93,12 @@ function figures(st: FlightState): string | null {
   return `${alt} · ${kt}`;
 }
 
+/** An airport's own name, short: no "Airport", no city in front (London Heathrow Airport → Heathrow). */
+export function shortName(name: string, city: string | null): string {
+  const n = name.replace(/ (International )?Airport$/, "");
+  return city && n.startsWith(`${city} `) ? n.slice(city.length + 1) : n;
+}
+
 /** The screen's own clock: real time, or shifted so STD comes round at state.stdAt. */
 export const screenNow = (now: number, f: GateFlight, g: GateState) => (g.stdAt != null ? now + (f.stdMs - g.stdAt) : now);
 
@@ -109,6 +115,7 @@ export function GateScreen({
   wx,
   live = null,
   source = null,
+  plan = null,
 }: {
   flight: GateFlight;
   state: GateState;
@@ -117,6 +124,8 @@ export function GateScreen({
   live?: FlightState | null;
   /** Where the live figures come from ("MSFS", "VATSIM", "Replay"), shown beside the clock. */
   source?: string | null;
+  /** The FMS route (OFP Link, Fenix): distance to go follows it. */
+  plan?: FlightPlan | null;
 }) {
   const bg = routeColor(f.brand);
   const ink = textOn(bg);
@@ -188,7 +197,9 @@ export function GateScreen({
   if (g.oldGate && g.gate && !g.cancelled) next = `Gate change: ${g.oldGate} → ${g.gate}`;
 
   // two airports in one city (London City → Heathrow): the destination airport's own name
-  const dest = cityName(f.to) != null && cityName(f.to) === cityName(f.from) ? f.to.name.replace(/ Airport$/, "") : (cityName(f.to) ?? f.to.name);
+  // two airports in one city (London City → Heathrow): the airport big, its city small above
+  const sameCity = cityName(f.to) != null && cityName(f.to) === cityName(f.from);
+  const dest = sameCity ? shortName(f.to.name, cityName(f.to)) : (cityName(f.to) ?? f.to.name);
   const type = f.typeName ?? (f.types[0] ? [aircraft(f.types[0]).maker, aircraft(f.types[0]).model].filter(Boolean).join(" ") || f.types[0] : null);
   const facts = [
     f.block != null && `Flight time ${dur(f.block)}`,
@@ -216,7 +227,7 @@ export function GateScreen({
   // with a live feed past the gate, the steps run on to the arrival gate and the times are the
   // ones stamped (est. for what's still to come)
   const inFlight = !!live && live.stage !== "ready" && !g.pin && !g.cancelled;
-  const lf = live ? liveFacts(f, g, live, now) : null;
+  const lf = live ? liveFacts(f, g, live, now, plan) : null;
   const fIdx = inFlight ? FLIGHT_STEPS.findIndex((x) => x.of.includes(live!.phase)) : -1;
   const fTime = (k: string): string => {
     if (!live) return "";
@@ -284,7 +295,11 @@ export function GateScreen({
           {f.flightNo}
           {f.callsign && f.callsign.replace(/\s/g, "") !== f.flightNo.replace(/\s/g, "") && <span> · {f.callsign}</span>}
         </div>
-        <div className="gs-dest">{dest}</div>
+        {sameCity && <div className="gs-dest-city">{cityName(f.to)}</div>}
+        {/* a long name shrinks to fit the line rather than being cut off */}
+        <div className="gs-dest" style={{ "--fit": Math.min(1, 13 / dest.length) } as CSSProperties}>
+          {dest}
+        </div>
         <div className="gs-dest-sub">
           {[f.to.iata, f.to.icao, f.to.country ? countryName(f.to.country) : null].filter(Boolean).join(" · ")}
           {type && <span> · {type}</span>}

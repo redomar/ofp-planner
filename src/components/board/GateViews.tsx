@@ -24,6 +24,12 @@ export function shownView(g: Pick<GateState, "view" | "stages" | "scenes" | "hol
   return g.stages[stage];
 }
 
+/** An airport's own name, short: no "Airport", no city in front (London Heathrow Airport → Heathrow). */
+export function shortName(name: string, city: string | null): string {
+  const n = name.replace(/ (International )?Airport$/, "");
+  return city && n.startsWith(`${city} `) ? n.slice(city.length + 1) : n;
+}
+
 /* ---------- what every view says, from the live feed (or the clock without one) ---------- */
 
 type Tone = "go" | "warn" | "stop" | "plain" | "done";
@@ -63,7 +69,28 @@ const fmsLine = (f: GateFlight) => [`${f.from.iata ?? f.from.icao} → ${f.to.ia
 export const fl = (ft: number) => (ft >= 10_000 ? `FL${String(Math.round(ft / 100)).padStart(3, "0")}` : `${(Math.round(ft / 100) * 100).toLocaleString("en-GB")} ft`);
 const mins = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, "0")}m` : `${Math.max(1, Math.round(m))} min`);
 
-export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null, now: number): LiveFacts {
+/**
+ * Distance left along the FMS route (OFP Link, Fenix): to the next fix ahead, then leg by leg to
+ * the destination runway; null when there's no plan for this flight. Also the route's length.
+ */
+export function routeToGo(f: GateFlight, plan: FlightPlan | null | undefined, pos: { lat: number; lon: number }): { toGo: number; total: number } | null {
+  if (!plan || plan.origin !== f.from.icao || plan.destination !== f.to.icao) return null;
+  const legs = plan.legs.filter((l) => !l.missed && !l.pseudo);
+  if (legs.length < 2) return null;
+  const seg = legs.map((l, i) => (i ? distNm(legs[i - 1], l) : 0));
+  const total = seg.reduce((a, b) => a + b, 0);
+  // the next fix: after the nearest one, unless the aircraft hasn't reached the nearest yet
+  let near = 0;
+  legs.forEach((l, i) => {
+    if (distNm(pos, l) < distNm(pos, legs[near])) near = i;
+  });
+  const next = near < legs.length - 1 && distNm(pos, legs[near + 1]) < seg[near + 1] ? near + 1 : near;
+  let toGo = distNm(pos, legs[next]);
+  for (let i = next + 1; i < legs.length; i++) toGo += seg[i];
+  return { toGo, total };
+}
+
+export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null, now: number, plan: FlightPlan | null = null): LiveFacts {
   const t = screenNow(now, f, g);
   const etd = f.stdMs + g.delay * MIN;
   const plannedEta = f.block != null ? etd + f.block * MIN : null;
@@ -86,10 +113,12 @@ export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null,
     };
   }
   const air = live.stage === "flying" && live.phase !== "landed" && live.phase !== "taxiIn";
-  const toGo = Math.round(distNm(s, f.to));
+  // along the programmed route when there is one (OFP Link, Fenix), else straight to the airport
+  const byRoute = routeToGo(f, plan, s);
+  const toGo = Math.round(byRoute?.toGo ?? distNm(s, f.to));
   const minLeft = air && s.gs > 60 ? (toGo / s.gs) * 60 : null;
   const arrives = live.stamps.on ?? (minLeft != null ? s.t + minLeft * MIN : plannedEta);
-  const flown = live.stage === "arrived" || !air ? (live.stamps.on != null ? 1 : 0) : Math.min(1, Math.max(0, 1 - toGo / Math.max(1, total)));
+  const flown = live.stage === "arrived" || !air ? (live.stamps.on != null ? 1 : 0) : Math.min(1, Math.max(0, 1 - toGo / Math.max(1, byRoute?.total ?? total)));
   const rate = live.stamps.landingRate != null ? `${Math.round(live.stamps.landingRate)} fpm` : null;
   const z = (ms: number | null) => (ms == null ? null : localClock(ms, f.to.tz));
   const line: Record<FlightPhase, string | null> = {
@@ -111,8 +140,9 @@ export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null,
     status: PHASE_LABEL[live.phase],
     tone: TONE[live.phase],
     line: line[live.phase],
-    alt: air ? fl(s.alt) : null,
-    gs: live.stage === "ready" ? null : Math.round(s.gs),
+    // on the ground: GND and the ground speed (0 kt parked), rather than dashes
+    alt: air ? fl(s.alt) : "GND",
+    gs: Math.round(s.gs),
     toGo: live.stage === "arrived" ? null : toGo,
     minLeft,
     arrives,
@@ -129,6 +159,8 @@ const SOURCE: Record<FeedSource, string | null> = { link: "MSFS", replay: "Repla
 /** Near the end the map closes in on the destination: this far out (nm), and at least this wide. */
 const NEAR_NM = 150;
 const NEAR_MIN_ACROSS_NM = 60;
+/** A short FMS route (London City → Heathrow) is still shown at least this wide (nm). */
+const ROUTE_MIN_ACROSS_NM = 40;
 /** Runways are drawn this long (m): longer than most, so they read on the map. */
 const RUNWAY_M = 7000;
 
@@ -261,7 +293,8 @@ export function GateMap({
     } else {
       const span = geoDistance(from, to);
       const pts: [number, number][] = routeLegs ? routeLegs.map((l) => [l.lon, l.lat]) : [0, 0.25, 0.5, 0.75, 1].map((k) => geoInterpolate(from, to)(k));
-      proj = view(pts, geoInterpolate(from, to)(0.5), 0.075);
+      // a whole FMS route is fitted as it is (at least ROUTE_MIN_ACROSS_NM); a plain line at least ~260 nm across
+      proj = view(pts, geoInterpolate(from, to)(0.5), routeLegs ? ROUTE_MIN_ACROSS_NM / 3440.065 : 0.075);
       reach = span / 2;
     }
     proj.clipAngle(mapRadius(reach)).clipExtent([
@@ -514,16 +547,16 @@ interface ViewProps {
  */
 export function GateViewScreen(p: ViewProps) {
   const view = shownView(p.state, p.live, p.scene ?? null);
-  if (view === "full") return <GateScreen flight={p.flight} state={p.state} now={p.now} wx={p.wx} live={p.live} source={SOURCE[p.source]} />;
+  if (view === "full") return <GateScreen flight={p.flight} state={p.state} now={p.now} wx={p.wx} live={p.live} source={SOURCE[p.source]} plan={p.plan ?? null} />;
   const f = p.flight;
   const bg = routeColor(f.brand);
   const ink = textOn(bg);
   const accent = f.brand?.colors.secondary && /^#[0-9a-f]{6}$/i.test(f.brand.colors.secondary) && f.brand.colors.secondary.toLowerCase() !== bg.toLowerCase() ? f.brand.colors.secondary : ink;
-  const facts = liveFacts(f, p.state, p.live, p.now);
+  const facts = liveFacts(f, p.state, p.live, p.now, p.plan ?? null);
   const t = screenNow(p.now, f, p.state);
   // two airports in one city (London City → Heathrow): their own names
   const sameCity = cityName(f.to) != null && cityName(f.to) === cityName(f.from);
-  const dest = sameCity ? f.to.name.replace(/ Airport$/, "") : (cityName(f.to) ?? f.to.name);
+  const dest = sameCity ? shortName(f.to.name, cityName(f.to)) : (cityName(f.to) ?? f.to.name);
   const style = { "--gs-bg": bg, "--gs-ink": ink, "--gs-accent": accent } as CSSProperties;
   const label = `Gate screen: ${f.flightNo} to ${dest}`;
   // with a feed, the aircraft's own time (a replay runs in the recording's sim time)
@@ -545,7 +578,10 @@ export function GateViewScreen(p: ViewProps) {
             {clock}
           </div>
           {ident(f)}
-          <div className="gv-dest">{dest}</div>
+          {sameCity && <div className="gv-dest-city">{cityName(f.to)}</div>}
+          <div className="gv-dest" style={{ "--fit": Math.min(1, 10 / dest.length) } as CSSProperties}>
+            {dest}
+          </div>
           {view === "map" && <div className="gv-sub">from {sameCity ? f.from.name.replace(/ Airport$/, "") : (cityName(f.from) ?? f.from.name)}{f.typeName ? ` · ${f.typeName}` : ""}</div>}
           {view === "mapwin" && <div className="gv-window" aria-hidden="true" />}
           <div className="gv-tiles">
@@ -570,7 +606,10 @@ export function GateViewScreen(p: ViewProps) {
             {clock}
           </div>
           {ident(f)}
-          <div className="gv-dest">{dest}</div>
+          {sameCity && <div className="gv-dest-city">{cityName(f.to)}</div>}
+          <div className="gv-dest" style={{ "--fit": Math.min(1, 10 / dest.length) } as CSSProperties}>
+            {dest}
+          </div>
           <div className="gv-frame-map">
             <GateMap f={f} facts={facts} W={600} H={560} label={mapLabel} trail={p.trail} plan={p.plan} near={near} />
           </div>
@@ -584,7 +623,7 @@ export function GateViewScreen(p: ViewProps) {
           <div className="gv-under-prog">
             <Progress f={f} facts={facts} />
             <div className="gv-under-times mono">
-              <span>{p.live?.stamps.off != null ? `off ${localClock(p.live.stamps.off, f.from.tz)}` : `std ${localClock(f.stdMs, f.from.tz)}`}</span>
+              <span>{p.live?.stamps.off != null ? `off ${localClock(p.live.stamps.off, f.from.tz)}` : f.source === "fms" ? "" : `std ${localClock(f.stdMs, f.from.tz)}`}</span>
               <span>{arrives ? `${p.live?.stamps.on != null ? "on" : "eta"} ${arrives}` : ""}</span>
             </div>
           </div>
