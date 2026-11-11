@@ -269,7 +269,7 @@ export function BoardApp() {
     return std != null ? fromSnapshot(onDay(f, isoDay(new Date(std))), std, airports, airlines.get(f.al) ?? null) : null;
   }, [airports, airlines, gate.sb, gate.f, gate.d, ofp, snapFlight, fnOv, minute]);
 
-  // 1.9: a live feed (OFP Link, a recorded flight or VATSIM) moves the screen with the aircraft
+  // 1.9: a live feed (OFP Tower, a recorded flight or VATSIM) moves the screen with the aircraft
   const feedCtx = useMemo<FlightContext>(
     () =>
       baseFlight
@@ -287,7 +287,7 @@ export function BoardApp() {
   }, []);
   const obsLive = useObsScene();
   const obsScene = asScene ?? obsLive;
-  // with no Finder flight or OFP, the flight programmed in the aircraft's FMS (OFP Link, Fenix)
+  // with no Finder flight or OFP, the flight programmed in the aircraft's FMS (OFP Tower, Fenix)
   const planFlight = useMemo(
     () => (!baseFlight && !gate.f && !gate.sb && live.plan && live.planAt != null ? fromPlan(live.plan, live.planAt, airports, airlines) : null),
     [baseFlight, gate.f, gate.sb, live.plan, live.planAt, airports, airlines],
@@ -353,7 +353,7 @@ export function BoardApp() {
 
   const patch = (p: Partial<GateState>) => setGate((g) => ({ ...g, ...p }));
 
-  // 1.10: the Stream panel's settings reach every open screen (OBS too) live through OFP Link
+  // 1.10: the Stream panel's settings reach every open screen (OBS too) live through OFP Tower
   const relayOn = ready && (screen ? feedCfg.source === "link" || feedCfg.source === "auto" : tab === "gate");
   const latestGate = useRef(gate);
   useEffect(() => {
@@ -457,7 +457,7 @@ export function BoardApp() {
       <span>
         <b>{flight.flightNo}</b> {flight.from.iata ?? flight.from.icao} → {flight.to.iata ?? flight.to.icao} ·{" "}
         {gate.stdAt != null ? `virtual clock, STD in ${dur(Math.max(0, Math.round((gate.stdAt - now) / MIN)))}` : `real time, ${new Date(flight.stdMs).toUTCString().slice(0, 16)}`}
-        <span className="muted hide-xs"> · {flight.source === "simbrief" ? "from your SimBrief OFP" : flight.source === "fms" ? "from your FMS (OFP Link)" : "from the snapshot"}</span>
+        <span className="muted hide-xs"> · {flight.source === "simbrief" ? "from your SimBrief OFP" : flight.source === "fms" ? "from your FMS (OFP Tower)" : "from the snapshot"}</span>
       </span>
     ) : (
       <span className="muted">Pick a flight for the gate screen</span>

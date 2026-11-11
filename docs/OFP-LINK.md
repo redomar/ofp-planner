@@ -1,8 +1,10 @@
-# OFP Link: spec
+# OFP Tower: spec
 
-OFP Link is a small Windows program for the sim PC. It reads MSFS 2024 through SimConnect and hands the readings to the gate screen in the browser (an OBS browser source, the popup or Board → Gate screen) over a WebSocket on the same PC. It also records every flight to a file that OFP Planner can replay.
+*OFP Tower is the name of the sim-PC companion, chosen by the owner on 2026-11-11; it was called OFP Link until then. The protocol id ("app":"ofp-link"), the port (47800) and `feed=link` keep the old name, so nothing breaks.*
 
-**Status: spec only.** OFP Link is not built yet, and nothing here has been tested as a program. It cannot be built or tested on the Mac; it gets built and tried on the owner's sim PC, in its own repository, not this one.
+OFP Tower is a small Windows program for the sim PC. It reads MSFS 2024 through SimConnect and hands the readings to the gate screen in the browser (an OBS browser source, the popup or Board → Gate screen) over a WebSocket on the same PC. It also records every flight to a file that OFP Planner can replay.
+
+**Status: spec only.** OFP Tower is not built yet, and nothing here has been tested as a program. It cannot be built or tested on the Mac; it gets built and tried on the owner's sim PC, in its own repository, not this one.
 
 What exists today:
 
@@ -21,22 +23,22 @@ It sends facts, not opinions: position, level, speed, ground, brake, engines, li
 ## Connection
 
 - **Address:** `ws://127.0.0.1:47800`, also answering on `localhost`. The page tries `ws://localhost:47800` (`LINK_PORT`); `&port=` on the URL picks another (1024–65535).
-- **Bound to the loopback only.** It never listens on the network. (The Fenix data server listens on `0.0.0.0:8083`; OFP Link must not do that.)
+- **Bound to the loopback only.** It never listens on the network. (The Fenix data server listens on `0.0.0.0:8083`; OFP Tower must not do that.)
 - **Origin check:** it accepts a WebSocket upgrade only when the `Origin` header is one of:
   - `https://plans.massorbit.co.uk` (the live site)
   - `http://localhost:3000` and `http://localhost:8765` (development and the local preview of `out/`)
 
   It refuses everything else with HTTP 403. An OBS browser source sends the page's own origin, so the live site's origin covers OBS.
 - **No account, nothing sent anywhere.** It talks only to pages on this PC.
-- **Reconnects are the page's job.** The page retries every 2 s, backing off to 15 s, so OFP Link and the sim can start in any order.
+- **Reconnects are the page's job.** The page retries every 2 s, backing off to 15 s, so OFP Tower and the sim can start in any order.
 
-To test in the owner's browser and in OBS: whether an `https://` page may open `ws://localhost`. Chromium treats `localhost` as secure and has allowed this, but its newer "local network access" checks may ask the user for permission, and OBS's built-in Chromium is an older version. If either blocks it, a fallback is to serve the screen page from OFP Link itself (`http://localhost:47800/…`).
+To test in the owner's browser and in OBS: whether an `https://` page may open `ws://localhost`. Chromium treats `localhost` as secure and has allowed this, but its newer "local network access" checks may ask the user for permission, and OBS's built-in Chromium is an older version. If either blocks it, a fallback is to serve the screen page from OFP Tower itself (`http://localhost:47800/…`).
 
 ## Messages
 
 JSON text frames, one object each. Every message has a `type`.
 
-### OFP Link → page
+### OFP Tower → page
 
 **`hello`**, once on connect:
 
@@ -74,7 +76,7 @@ Request every value with an explicit unit, as the recorder does, so nothing need
 
 The page reads `sample` messages only. Others are ignored, so new types can be added without breaking older pages.
 
-### Page → OFP Link
+### Page → OFP Tower
 
 None needed for the readings. Reserved for the relay (below) and for the Stream panel to ask for `hello` again (`{"type":"hello?"}`).
 
@@ -133,7 +135,7 @@ Correct on the Fenix with the defaults: position, altitudes, speeds, heading, ve
 
 ## Recording
 
-Every flight is written to `%USERPROFILE%\Documents\OFP Link\recordings\<UTC yyyymmdd-hhmmss>.jsonl`. It starts when SimConnect connects, or when the aircraft changes, and ends when the sim closes or the aircraft has been at the gate with the engines off for 10 minutes.
+Every flight is written to `%USERPROFILE%\Documents\OFP Tower\recordings\<UTC yyyymmdd-hhmmss>.jsonl`. It starts when SimConnect connects, or when the aircraft changes, and ends when the sim closes or the aircraft has been at the gate with the engines off for 10 minutes.
 
 - **Line 1, the header:**
 
@@ -147,15 +149,15 @@ Every flight is written to `%USERPROFILE%\Documents\OFP Link\recordings\<UTC yyy
 
 ## Relay: the Stream panel's settings to OBS (1.10)
 
-The page side is built (1.10, `src/lib/feed/relay.ts`). The Stream panel on Board → Gate screen and every open gate screen (the OBS browser source too) keep a WebSocket to OFP Link. OFP Link must pass relay messages on:
+The page side is built (1.10, `src/lib/feed/relay.ts`). The Stream panel on Board → Gate screen and every open gate screen (the OBS browser source too) keep a WebSocket to OFP Tower. OFP Tower must pass relay messages on:
 
 - **A page sends** `{"type":"relay","channel":"stream","msg":{…}}`.
-- **OFP Link forwards it, unchanged, to every OTHER connected page** (not back to the sender). It doesn't read `msg`. Same origin checks as for samples.
+- **OFP Tower forwards it, unchanged, to every OTHER connected page** (not back to the sender). It doesn't read `msg`. Same origin checks as for samples.
 - **Messages in `msg`:**
   - `{"kind":"settings","q":"st=strip%2Cpill%2Cpill%2Cfull&sc=BRB%3Aframe&late=10&…"}` comes from the panel whenever a setting changes. `q` is the screen's own URL query (stage table `st`, scene rules `sc`, `hold`, delay, gate, message, …). A screen applies only those display settings, checked as if they came from its URL, and keeps its flight and feed.
   - `{"kind":"hello"}` comes from a screen when it connects. The panel answers with the current settings.
 
-Without OFP Link, nothing is sent. The panel then says "copy the stream URL again" after a change.
+Without OFP Tower, nothing is sent. The panel then says "copy the stream URL again" after a change.
 
 ## The program
 
@@ -170,7 +172,7 @@ As sheet 07, FL4, sketched it:
 
 Nothing below is done:
 
-1. With the page open on `&feed=link`, the screen follows the aircraft at the gate. Check the Stream panel shows "OFP Link · live".
+1. With the page open on `&feed=link`, the screen follows the aircraft at the gate. Check the Stream panel shows "OFP Tower · live".
 2. A full flight, gate to gate, while recording. Then check:
    - every phase in order;
    - OUT at pushback, OFF at wheels-up, ON at touchdown, IN at the gate;
@@ -187,5 +189,5 @@ Nothing below is done:
 
 ## Parked
 
-- **SayIntentions:** the owner will provide its API. It slots in between OFP Link and VATSIM in `feed=auto`, mapped to the same message shape.
+- **SayIntentions:** the owner will provide its API. It slots in between OFP Tower and VATSIM in `feed=auto`, mapped to the same message shape.
 - **Other aircraft profiles:** add them as they're flown, each switch confirmed by flipping it.

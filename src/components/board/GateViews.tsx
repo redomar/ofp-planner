@@ -70,7 +70,7 @@ export const fl = (ft: number) =>
 const mins = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, "0")}m` : `${Math.max(1, Math.round(m))} min`);
 
 /**
- * Distance left along the FMS route (OFP Link, Fenix): to the next fix ahead, then leg by leg to
+ * Distance left along the FMS route (OFP Tower, Fenix): to the next fix ahead, then leg by leg to
  * the destination runway; null when there's no plan for this flight. Also the route's length.
  */
 export function routeToGo(f: GateFlight, plan: FlightPlan | null | undefined, pos: { lat: number; lon: number }): { toGo: number; total: number } | null {
@@ -113,7 +113,7 @@ export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null,
     };
   }
   const air = live.stage === "flying" && live.phase !== "landed" && live.phase !== "taxiIn";
-  // along the programmed route when there is one (OFP Link, Fenix), else straight to the airport
+  // along the programmed route when there is one (OFP Tower, Fenix), else straight to the airport
   const byRoute = routeToGo(f, plan, s);
   const toGo = Math.round(byRoute?.toGo ?? distNm(s, f.to));
   const minLeft = air && s.gs > 60 ? (toGo / s.gs) * 60 : null;
@@ -209,7 +209,7 @@ function Runway({ a, b, number, width }: { a: [number, number]; b: [number, numb
 /**
  * The moving map in the airline's colours: sea, land, coastline, dashed borders and a 5° grid
  * (as the design sheet), the route, the line flown and the aircraft at its heading. With the
- * FMS plan (OFP Link, Fenix) the route is the one programmed: waypoints as small dots (Δ for an
+ * FMS plan (OFP Tower, Fenix) the route is the one programmed: waypoints as small dots (Δ for an
  * overfly), ← / → for a required turn, altitude constraints in Airbus magenta, the missed
  * approach faded. Within NEAR_NM of the destination it closes in on the destination, the
  * aircraft and the fixes still ahead, so the runway and the approach show.
@@ -347,7 +347,7 @@ export function GateMap({
       </g>
     );
   const right = (pt?.[0] ?? 0) >= (pf?.[0] ?? 0);
-  // runways drawn RUNWAY_M long from the threshold along the course OFP Link gives (stylised, not true length)
+  // runways drawn RUNWAY_M long from the threshold along the course OFP Tower gives (stylised, not true length)
   const rwys = legs
     ? (plan?.runways ?? []).flatMap((r) => {
         const a = geo.proj(r.start);
@@ -387,7 +387,7 @@ export function GateMap({
       // the whole route fits on screen (near the end, or a short FMS route): every fix ahead; else the next 5
       return i > nearest && i <= nearest + (near || routeFits ? 24 : 5);
     }) ?? [];
-  // the route with its turns (OFP Link's turn geometry): fly-by fixes as rounded corners that start
+  // the route with its turns (OFP Tower's turn geometry): fly-by fixes as rounded corners that start
   // leadNm early, fly-overs through the fix and then a swing outside it; straight lines otherwise
   const turnedRoute = useMemo(() => {
     if (!routeLegs) return "";
@@ -447,7 +447,7 @@ export function GateMap({
       ) : (
         <path className="gm-togo" d={line(from, to)} strokeWidth={W * 0.004} strokeDasharray={`${W * 0.002} ${W * 0.012}`} />
       )}
-      {/* runways above the map and the route, under the fixes, codes and aircraft: stylised 5 km bars from the threshold (OFP Link), pure white, no text on them */}
+      {/* runways above the map and the route, under the fixes, codes and aircraft: stylised 5 km bars from the threshold (OFP Tower), pure white, no text on them */}
       {rwys.map((r) => (
         <Runway key={`${r.role}-${r.runway}`} a={r.a} b={r.b} number={r.runway} width={W * 0.011} />
       ))}
@@ -559,7 +559,7 @@ export interface ViewProps {
   scene?: string | null;
   /** Where the aircraft has been, for the flown line. */
   trail?: [number, number][];
-  /** The route programmed in the aircraft's FMS (OFP Link, Fenix). */
+  /** The route programmed in the aircraft's FMS (OFP Tower, Fenix). */
   plan?: FlightPlan | null;
 }
 

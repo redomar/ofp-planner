@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.10.1 — 2026-11-11
+
+- The sim-PC companion is now called **OFP Tower** (was OFP Link) everywhere on the site: the Stream panel, the setup text, the live status and the docs. Nothing else changes: the same port, the same `feed=link` address.
+
 ## 1.10.0 — 2026-11-11
 
 Setting up the stream, made visual (from the owner's first live flights).
