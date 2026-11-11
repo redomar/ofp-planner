@@ -1309,6 +1309,128 @@ html.screen-mode body > :not(.screen-root) {
   fill: var(--gs-bg);
   transform: rotate(45deg);
 }
+/* 1.11: the seatbelt sign, lit while it's on (OFP Tower) */
+.gv-belt {
+  flex: none;
+  width: calc(var(--u) * 2);
+  height: calc(var(--u) * 2);
+  padding: calc(var(--u) * 0.25);
+  border-radius: calc(var(--u) * 0.4);
+  background: #111111;
+  fill: #ffcf33;
+  vertical-align: middle;
+}
+.gv-belt .gv-belt-strap,
+.gv-belt .gv-belt-buckle {
+  fill: #ffcf33;
+  stroke: #111111;
+  stroke-width: 0.8;
+}
+/* in the pills, not their round plane badge */
+.gv-pill .gv-belt {
+  width: calc(var(--u) * 2.2);
+  height: calc(var(--u) * 2.2);
+  padding: calc(var(--u) * 0.3);
+  border-radius: calc(var(--u) * 0.45);
+  background: #111111;
+  fill: #ffcf33;
+  transform: none;
+}
+.gv-card-top .gv-belt,
+.gv-corner-top .gv-belt {
+  margin-left: auto;
+}
+.gv-strip-id .gv-belt {
+  margin-left: calc(var(--u) * 0.8);
+  width: calc(var(--u) * 1.8);
+  height: calc(var(--u) * 1.8);
+}
+.gs-top .gv-belt {
+  --u: 1cqw;
+  width: calc(var(--u) * 2.6);
+  height: calc(var(--u) * 2.6);
+  margin-left: auto;
+  margin-right: calc(var(--u) * 1.2);
+}
+/* G5b: the pill in one row, the phase in its own colour at the end */
+.gv-line {
+  padding-right: calc(var(--u) * 0.45);
+}
+.gv-line-phase {
+  margin-left: calc(var(--u) * 0.2);
+  padding: calc(var(--u) * 0.35) calc(var(--u) * 1.2);
+  border-radius: 999px;
+  border-left: none;
+  background: #e8ecf1;
+  color: #111111;
+  font-family: var(--font-cond);
+  font-size: calc(var(--u) * 1.2);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.gv-line-phase.gs-go {
+  color: #0a5c27;
+}
+.gv-line-phase.gs-warn {
+  color: #6b4300;
+}
+.gv-line-phase.gs-stop {
+  color: #8c1d18;
+}
+.gv-line-phase.gs-done {
+  color: #2e3846;
+}
+/* G3d: the map with the route ahead */
+.gv-dest.is-small {
+  font-size: calc(var(--u) * 3.4 * var(--fit, 1));
+}
+.gv-route {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 0.3);
+  font-size: calc(var(--u) * 1.45);
+}
+.gv-route li {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1fr 0.9fr;
+  align-items: baseline;
+  gap: calc(var(--u) * 0.6);
+  padding: calc(var(--u) * 0.45) calc(var(--u) * 0.8);
+  border-radius: calc(var(--u) * 0.4);
+  white-space: nowrap;
+}
+.gv-route li > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gv-route li > :nth-child(3),
+.gv-route li > :nth-child(4) {
+  text-align: right;
+}
+.gv-route b {
+  font-size: 1.2em;
+}
+.gv-route .is-passed {
+  opacity: 0.45;
+  text-decoration: line-through;
+  text-decoration-thickness: calc(var(--u) * 0.08);
+}
+.gv-route .is-next {
+  box-shadow: inset calc(var(--u) * 0.4) 0 0 var(--gs-accent);
+  font-weight: 700;
+}
+.gv-route .is-none {
+  display: block;
+  white-space: normal;
+  opacity: 0.7;
+}
+.gv-map.is-route .gv-rail {
+  gap: calc(var(--u) * 0.8);
+}
 .gv-corner {
   right: calc(var(--u) * 2);
   bottom: calc(var(--u) * 2.4);
@@ -1530,6 +1652,10 @@ html.screen-mode body > :not(.screen-root) {
 .rs-b.is-flying {
   background: var(--magenta-bg);
   border-color: var(--magenta);
+}
+.rs-b.is-approaching {
+  background: var(--amber-bg, var(--magenta-bg));
+  border-color: var(--amber);
 }
 .rs-b.is-held {
   outline: 2px solid var(--amber);

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, type PointerEvent as RPointerEvent } from
 import { allStages, PRESETS, STAGES, type GateFlight, type GateState, type ShownView } from "@/lib/board/gate";
 import { GateViewScreen, MiniScreen, sampleLive } from "./GateViews";
 import type { GateWx } from "./GateScreen";
-import { detectAll, fitToRoute, parseRecording, type FlightContext, type FlightStage, type FlightState } from "@/lib/feed/core";
+import { detectAll, fitToRoute, parseRecording, type FlightContext, type ViewStage, type FlightState, viewStage } from "@/lib/feed/core";
 import type { FeedConfig, FlightFeed } from "@/lib/feed/useFlightFeed";
 import { inObs } from "@/lib/feed/obs";
 import { readLog, saveFlight, type LogFlight } from "@/lib/logbook";
@@ -17,16 +17,19 @@ const VIEW_NAMES: [ShownView, string][] = [
   ["full", "Full screen · G1"],
   ["map", "Moving map · G3"],
   ["frame", "Frame with sim · G3a"],
+  ["route", "Map with route · G3d"],
   ["mapwin", "Map with window · G3c"],
   ["corner", "Map corner · G3b"],
   ["strip", "Strip · G4"],
   ["card", "Corner card · G5"],
   ["pill", "Pill · G5"],
+  ["line", "Pill with phase · G5b"],
 ];
-const STAGE_NAMES: Record<FlightStage, { name: string; until: string }> = {
+const STAGE_NAMES: Record<ViewStage, { name: string; until: string }> = {
   ready: { name: "Getting ready", until: "the aircraft moves back" },
   taxi: { name: "Push-back and taxi", until: "wheels off" },
-  flying: { name: "Flying", until: "parked, engines off" },
+  flying: { name: "Flying", until: "the approach" },
+  approaching: { name: "Approach and landing", until: "parked, engines off" },
   arrived: { name: "Arrived", until: "you close it" },
 };
 
@@ -182,10 +185,11 @@ export function StreamPanel({
 
 /* ---------- 2 · what your audience sees: phases × OBS scenes, each cell a thumbnail ---------- */
 
-const STAGE_ROWS: { k: FlightStage; name: string; short: string; until: string }[] = [
+const STAGE_ROWS: { k: ViewStage; name: string; short: string; until: string }[] = [
   { k: "ready", name: "At the gate", short: "Gate", until: "until the aircraft moves" },
   { k: "taxi", name: "Push-back and taxi", short: "Taxi", until: "until wheels off" },
-  { k: "flying", name: "Flying", short: "Flying", until: "until parked, engines off" },
+  { k: "flying", name: "Flying", short: "Flying", until: "until the approach" },
+  { k: "approaching", name: "Approaching", short: "Approach", until: "below FL100 on the way down, on approach, landing and taxiing in" },
   { k: "arrived", name: "Arrived", short: "Arrived", until: "until you close it" },
 ];
 
@@ -208,13 +212,13 @@ function AudienceGrid({
 }) {
   const [copiedFor, setCopiedFor] = useState<string | null>(null);
   // columns: any other scene (the stage table), then each named scene
-  const cols: { name: string | null; views: Record<FlightStage, ShownView> }[] = [{ name: null, views: gate.stages }, ...gate.scenes.map(([n, v]) => ({ name: n, views: v }))];
-  const [pick, setPick] = useState<{ col: number; stage: FlightStage } | null>(null);
+  const cols: { name: string | null; views: Record<ViewStage, ShownView> }[] = [{ name: null, views: gate.stages }, ...gate.scenes.map(([n, v]) => ({ name: n, views: v }))];
+  const [pick, setPick] = useState<{ col: number; stage: ViewStage } | null>(null);
   const [pvCol, setPvCol] = useState(0);
-  const [pvStage, setPvStage] = useState<FlightStage | null>(null);
-  const liveStage = gate.hold ?? feed.state?.stage ?? null;
-  const samples = useMemo(() => Object.fromEntries(STAGES.map((k) => [k, sampleLive(flight, k, now)])) as Record<FlightStage, FlightState>, [flight, now]);
-  const set = (col: number, stage: FlightStage | "all", v: ShownView) => {
+  const [pvStage, setPvStage] = useState<ViewStage | null>(null);
+  const liveStage = gate.hold ?? (feed.state ? viewStage(feed.state, feed.plan) : null);
+  const samples = useMemo(() => Object.fromEntries(STAGES.map((k) => [k, sampleLive(flight, k, now)])) as Record<ViewStage, FlightState>, [flight, now]);
+  const set = (col: number, stage: ViewStage | "all", v: ShownView) => {
     const views = stage === "all" ? allStages(v) : { ...cols[col].views, [stage]: v };
     if (col === 0) onPatch({ stages: views });
     else onPatch({ scenes: gate.scenes.map((sc, i) => (i === col - 1 ? [sc[0], views] : sc)) });
@@ -224,7 +228,7 @@ function AudienceGrid({
     onPatch({ scenes: gate.scenes.filter((_, i) => i !== col - 1) });
     setPvCol(0);
   };
-  const mini = (view: ShownView, stage: FlightStage) => (
+  const mini = (view: ShownView, stage: ViewStage) => (
     <MiniScreen view={view} flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={samples[stage]} source="link" trail={[]} plan={feed.plan} />
   );
   const pvScene = pvCol > 0 ? (gate.scenes[pvCol - 1]?.[0] ?? null) : null;
@@ -372,7 +376,7 @@ function AudienceGrid({
 /* ---------- rehearse: the recorded flight as a strip of stages (sheet 07, FL2) ---------- */
 
 interface Block {
-  stage: FlightStage;
+  stage: ViewStage;
   from: number;
   to: number;
 }
@@ -394,7 +398,7 @@ export function RehearseStrip({
   feed: FlightFeed;
   onPlay: (rate: number) => void;
   onStop: () => void;
-  onHold: (s: FlightStage | null) => void;
+  onHold: (s: ViewStage | null) => void;
 }) {
   const [rec, setRec] = useState<{ blocks: Block[]; end: FlightState; t0: number; t1: number } | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -413,8 +417,9 @@ export function RehearseStrip({
         states.forEach((s, i) => {
           const t = samples[i].t;
           const last = blocks.at(-1);
-          if (last && last.stage === s.stage) last.to = t;
-          else blocks.push({ stage: s.stage, from: t, to: t });
+          const vs = viewStage(s);
+          if (last && last.stage === vs) last.to = t;
+          else blocks.push({ stage: vs, from: t, to: t });
         });
         if (live) setRec({ blocks, end: states.at(-1)!, t0: samples[0].t, t1: samples.at(-1)!.t });
       })
@@ -426,7 +431,7 @@ export function RehearseStrip({
   const span = rec ? Math.max(1, rec.t1 - rec.t0) : 1;
   const at = rehearsing && feed.state?.last && rec ? Math.min(1, Math.max(0, (feed.state.last.t - rec.t0) / span)) : null;
   const holdAt = (e: RPointerEvent<HTMLDivElement>) => {
-    const s = (e.target as HTMLElement).closest<HTMLElement>("[data-stage]")?.dataset.stage as FlightStage | undefined;
+    const s = (e.target as HTMLElement).closest<HTMLElement>("[data-stage]")?.dataset.stage as ViewStage | undefined;
     if (s && s !== gate.hold) onHold(s);
   };
   const stamps = rec?.end.stamps;
@@ -497,7 +502,7 @@ export function RehearseStrip({
                 ▶ Play in 60 s
               </button>
             )}
-            <button type="button" className="btn" disabled={!gate.hold && !feed.state} onClick={() => onHold(gate.hold ? null : (feed.state?.stage ?? null))}>
+            <button type="button" className="btn" disabled={!gate.hold && !feed.state} onClick={() => onHold(gate.hold ? null : feed.state ? viewStage(feed.state, feed.plan) : null)}>
               {gate.hold ? "Follow the aircraft" : "Hold this stage"}
             </button>
             <span className="muted small" aria-live="polite">

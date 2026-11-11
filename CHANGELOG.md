@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.11.0 — 2026-11-11
+
+Four things the owner asked for mid-flight (EDDM → EGBB), with the new OFP Tower readings.
+
+- **Map with route (G3d):** the moving map, with a route panel beside it.
+  - The fix just passed (greyed), then the next three: airway, distance along the route, and the time over each.
+  - The times are the FMS's own where it has one, then carried on at the ground speed.
+  - Your magnetic heading, and an **estimate of the fuel left at the destination**: on board, less the fuel flow over the time still to fly at this speed. It's hidden on the ground.
+  - The fixes come from the Fenix's FMS through OFP Tower (it says which leg you're flying), else from your SimBrief OFP's route and your position.
+- **An Approaching stage** in the Stream grid, between Flying and Arrived. It starts below FL100 on the way down, on approach, or with the FMS in its approach phase, and lasts until you park. It has its own row of views, starting the same as Flying.
+  - Stream settings and URLs from before carry on (Approaching as Flying). A setting that differs between the two is written as five views.
+  - Rehearse shows the stage, and the panel can hold it.
+- **The seatbelt sign:** a small lit sign while it's on, on every view except the moving map (G3, G3d) and the map with window (G3c).
+- **Pill with phase (G5b):** the pill in one row, `LH 2510 · MUC → BHX · 37 min to go`, with the phase at the end in its own colour.
+- **The progress line follows the trip, not the FMS.** On the strip, card and other views, the plane sat at the departure end late into the flight: the Fenix drops fixes as you pass them, so the plan only covered what was left. Progress is now the distance flown from the departure airport against that plus what's left along the route.
+- From OFP Tower (each optional, so an older OFP Tower still works):
+  - magnetic heading and track, IAS and Mach, wind, fuel on board and fuel flow;
+  - from the FMS plan: the active leg, the time and wind at each fix, and the V-speeds.
+
 ## 1.10.3 — 2026-11-11
 
 From the same live stream: the board said FL331 while the aircraft was level at FL340.

@@ -552,6 +552,33 @@ async function run() {
       order.every((p, i) => seen.includes(p) && (i === 0 || seen.indexOf(order[i - 1]) < seen.indexOf(p)))
         ? pass(`gate feed: phases in order (${seen.join(" → ")})`)
         : fail(`gate feed: phases ${seen.join(" → ")}`);
+      // 1.11: the grid's stages, approaching cut out of flying (below FL100 on the way down, on approach, landing)
+      const vstages = [...new Set(states.map((x) => core.viewStage(x)))];
+      vstages.join(" → ") === "flying → approaching → arrived"
+        ? pass(`gate feed: grid stages ${vstages.join(" → ")}`)
+        : fail(`gate feed: grid stages ${vstages.join(" → ")}`);
+      // 1.10.3: flight levels from pressure altitude; level at the FMS's cruise level = cruising after 20 s
+      const lvl = (ctx, press) => {
+        let st = core.startState();
+        for (let i = 0; i <= 200; i++) {
+          const climbing = i < 160;
+          const p = climbing ? 30000 + i * 25 : 34000;
+          const r = { lat: 52, lon: i * 0.002, alt: p - 921, gs: 460, hdg: 90, vs: climbing ? 1500 : -80, onGround: false, ...(press ? { pressAlt: p, indAlt: p } : {}) };
+          st = core.step(st, core.toSample(r, 1e12 + i * 1000), ctx);
+        }
+        return st.phase;
+      };
+      lvl({ cruiseFt: 34000 }, true) === "cruise" && lvl({ cruiseFt: 32000 }, true) === "climb" && lvl({}, false) === "climb"
+        ? pass("gate feed: level at the FMS cruise level is cruising after 20 s (else the 2-minute hold)")
+        : fail(`gate feed: level-off ${lvl({ cruiseFt: 34000 }, true)} ${lvl({ cruiseFt: 32000 }, true)} ${lvl({}, false)}`);
+      const sm = core.toSample({ lat: 50, lon: 6, alt: 33079, pressAlt: 34000, wind: [254, 15], fobKg: 5138, ffKgH: 2102, hdgMag: 287.1 }, 1);
+      core.levelFt(sm) === 34000 && sm.wind?.[1] === 15 && sm.fobKg === 5138 && core.levelFt(core.toSample({ lat: 50, lon: 6, alt: 33079 }, 1)) === 33079
+        ? pass("gate feed: OFP Tower's pressure altitude, wind and fuel read in; alt without them")
+        : fail(`gate feed: sample ${JSON.stringify(sm)}`);
+      const pl = core.toPlan({ origin: "EDDM", destination: "EGBB", active: { from: 0, to: 1 }, vSpeeds: { v1: 152, vr: 156, v2: 156 }, legs: [{ id: "LENDO", lat: 50.1, lon: 6.6 }, { id: "DENUT", lat: 50.48, lon: 5.6, eta: "15:09", wind: [250, 40] }] });
+      pl?.active?.to === 1 && pl.legs[1].eta === "15:09" && pl.legs[1].wind?.[0] === 250 && pl.vSpeeds?.v1 === 152 && core.toPlan({ origin: "EDDM", destination: "EGBB", active: { from: 0, to: 5 }, legs: [] })?.active === null
+        ? pass("gate feed: the FMS plan's active legs, times over the fixes and V-speeds read in (an impossible active is dropped)")
+        : fail(`gate feed: plan ${JSON.stringify(pl)}`);
       const changes = states.filter((x, i) => i && x.phase !== states[i - 1].phase).length;
       changes === seen.length - 1 ? pass(`gate feed: each phase entered once, no flicker in the turbulence (${changes} changes)`) : fail(`gate feed: ${changes} phase changes for ${seen.length} phases`);
       const tdLine = rec.samples.findIndex((x) => x.tdSim != null);
@@ -698,8 +725,16 @@ async function run() {
       times: { sched_out: "2026-11-10T18:15:00Z", est_out: "2026-11-10T18:15:00Z", sched_block: "01:50:00", taxi_out: "00:15:00" },
       aircraft: { icaocode: "A321", name: "A321-211", reg: "HB-IOO" },
       params: { time_generated: "2026-11-10T17:30:00Z" },
+      // the route, fix by fix (illustrative points on the line), for the route panel (G3d)
+      navlog: {
+        fix: [
+          { ident: "TOC", type: "ltlg", pos_lat: "36.0", pos_long: "-79.9" },
+          ...[0.15, 0.3, 0.45, 0.6, 0.75, 0.9].map((k, i) => ({ ident: `FIX${i + 1}`, type: "wpt", via_airway: i < 3 ? "J75" : "DCT", pos_lat: String(35.214 + (40.64 - 35.214) * k), pos_long: String(-80.943 + (-73.779 + 80.943) * k) })),
+          { ident: "KJFK", type: "apt", pos_lat: "40.640", pos_long: "-73.779" },
+        ],
+      },
     };
-    const views = ["full", "map", "frame", "mapwin", "corner", "strip", "card", "pill"];
+    const views = ["full", "map", "route", "frame", "mapwin", "corner", "strip", "card", "pill", "line"];
     const open1 = async (view, { at = 20, width = 1920, height = 1080, until = "CRUIS" } = {}) => {
       const ctx = await browser.newContext({ viewport: { width, height }, reducedMotion: "reduce" });
       await ctx.addInitScript(SEED);
@@ -729,12 +764,20 @@ async function run() {
       ]) {
         const o = await open1(view, { width: w, height: h });
         const txt = (await o.page.locator(".gs-frame").innerText()).replace(/\s+/g, " ");
-        (view === "pill" ? /KCLT → KJFK · \d+ min to go/ : /CRUIS/i).test(txt) ? pass(`gate view ${view} ${w}: shows the recorded flight cruising`) : fail(`gate view ${view} ${w}: ${txt.slice(0, 160)}`);
+        (view === "pill" ? /KCLT → KJFK · \d+ min to go/ : view === "line" ? /KCLT → KJFK · \d+ min to go Cruising/i : /CRUIS/i).test(txt) ? pass(`gate view ${view} ${w}: shows the recorded flight cruising`) : fail(`gate view ${view} ${w}: ${txt.slice(0, 160)}`);
         await checkPage(`gate view ${view} ${w}`, o.page, o.errors);
         if (view !== "full") {
           const clear = await o.page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-          const over = ["frame", "mapwin", "corner", "strip", "card", "pill"].includes(view);
+          const over = ["frame", "mapwin", "corner", "strip", "card", "pill", "line"].includes(view);
           over === (clear === "rgba(0, 0, 0, 0)") ? pass(`gate view ${view} ${w}: ${over ? "transparent around its panels" : "a full screen"}`) : fail(`gate view ${view} ${w}: body ${clear}`);
+        }
+        if (view === "route" && w === 1920) {
+          // the SimBrief route: the fix just passed (no TOC, no airport) and the next three, with distances and times
+          const rows = await o.page.locator(".gv-route li").allTextContents();
+          const next = rows.filter((r) => /nm/.test(r));
+          rows.length === 4 && /^FIX\d/.test(rows[0]) && next.length === 3 && next.every((r) => /^FIX\d.*\d+ nm\d{2}:\d{2}Z$/.test(r)) && !rows.some((r) => /TOC|KJFK/.test(r))
+            ? pass(`gate view route: the fix passed and the next three from the OFP (${rows.join(" / ")})`)
+            : fail(`gate view route: ${JSON.stringify(rows)}`);
         }
         await shot(o.page, `gate-${view}-${w}`);
         await o.ctx.close();
@@ -794,8 +837,8 @@ async function run() {
     const scenes = await a.page.locator(".sp-aud-scene input").evaluateAll((els) => els.map((e) => e.value));
     const url = await a.page.locator(".sp-url").inputValue();
     // rows: gate, taxi, flying, arrived; columns: any other scene, BRB, Map, Camera
-    const col0 = [0, 4, 8, 12].map((i) => cells[i]);
-    srcs.length === 4 && /Clock only · live/.test(srcs[3]) && cells.length === 16 && col0.join("|") === "Full screen · G1|Full screen · G1|Strip · G4|Full screen · G1" && scenes.join(" ") === "BRB Map Camera" && /screen=1/.test(url) && /view=auto/.test(url) && /feed=auto/.test(url)
+    const col0 = [0, 4, 8, 12, 16].map((i) => cells[i]);
+    srcs.length === 4 && /Clock only · live/.test(srcs[3]) && cells.length === 20 && col0.join("|") === "Full screen · G1|Full screen · G1|Strip · G4|Strip · G4|Full screen · G1" && scenes.join(" ") === "BRB Map Camera" && /screen=1/.test(url) && /view=auto/.test(url) && /feed=auto/.test(url)
       ? pass("stream panel: four live links (clock in use), a grid of 4 phases × 4 scenes with a thumbnail each, one stream URL (view=auto, feed=auto)")
       : fail(`stream panel: ${JSON.stringify({ srcs, n: cells.length, col0, scenes, url })}`);
     await checkPage("stream panel 1280 light", a.page, a.errors);
@@ -807,7 +850,7 @@ async function run() {
     await a.page.getByRole("button", { name: "Done", exact: true }).click();
     await a.page.getByLabel("OBS scene name 1").fill("Be right back");
     const url2 = await a.page.locator(".sp-url").inputValue();
-    /st=pill%2Cpill%2Cpill%2Cpill|st=pill,pill,pill,pill/.test(url2) && /Be(\+|%20)right(\+|%20)back%3Aframe%2Cframe%2Cmap%2Cframe/.test(url2)
+    /st=pill%2Cpill%2Cpill%2Cpill|st=pill,pill,pill,pill/.test(url2) && /Be(\+|%20)right(\+|%20)back%3Aframe%2Cframe%2Cmap%2Cframe%2Cframe/.test(url2)
       ? pass("stream panel: a preset, a thumbnail picked for one phase and a renamed scene travel in the stream URL")
       : fail(`stream panel: url ${url2}`);
     // VATSIM: a callsign, then it's the one in use when it's online (answered here)

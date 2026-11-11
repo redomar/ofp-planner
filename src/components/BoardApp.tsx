@@ -427,7 +427,7 @@ export function BoardApp() {
   /* ---------- screen only (stream source / popup) ---------- */
 
   // the views drawn over the sim are transparent outside their panels, like the overlay switch
-  const overSim = gate.overlay || OVER_SIM.includes(shownView(gate, live.state, obsScene));
+  const overSim = gate.overlay || OVER_SIM.includes(shownView(gate, live.state, obsScene, live.plan));
 
   if (screen) {
     if (!ready) return null;
