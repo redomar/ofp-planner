@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.9.4 — 2026-11-11
+
+From the second live test with OFP Link and the Fenix (London City → Heathrow):
+
+- **Every fix on a short FMS route is named,** with its altitude constraint: at the gate the map named only the next five, so the approach fixes (D177E to FF09R) and their constraints were missing.
+- **The aircraft is drawn above the runways:** parked at the runway 09 threshold, the runway covered its nose and the icon looked as if it pointed west.
+
 ## 1.9.3 — 2026-11-11
 
 Fixes from the first live test with OFP Link and the Fenix (London City → Heathrow).
