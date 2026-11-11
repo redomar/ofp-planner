@@ -7,7 +7,7 @@ import { countryName } from "@/lib/places";
 import { MIN, phaseAt, phases, type PhaseKey } from "@/lib/board/board";
 import type { GateFlight, GateState } from "@/lib/board/gate";
 import { aircraft } from "@/lib/aircraft";
-import { PHASE_LABEL, type FlightPhase, type FlightPlan, type FlightState } from "@/lib/feed/core";
+import { landingText, PHASE_LABEL, type FlightPhase, type FlightPlan, type FlightState } from "@/lib/feed/core";
 import { altText, Belt, liveFacts } from "./GateViews";
 
 /** Destination weather for the info strip. */
@@ -186,7 +186,7 @@ export function GateScreen({
     const at2 = (ms: number | null, tz: string | null) => (ms == null ? null : localClock(ms, tz));
     next =
       live.phase === "gate"
-        ? [at2(live.stamps.in, toTz) && `On stand ${at2(live.stamps.in, toTz)}`, live.stamps.landingRate != null && `${Math.round(live.stamps.landingRate)} fpm`].filter(Boolean).join(" · ") || null
+        ? [at2(live.stamps.in, toTz) && `On stand ${at2(live.stamps.in, toTz)}`, landingText(live.stamps)].filter(Boolean).join(" · ") || null
         : live.stage === "ready"
           ? f.source === "fms"
             ? `${f.from.iata ?? f.from.icao} → ${f.to.iata ?? f.to.icao}${f.cruiseFt ? ` · cruise FL${Math.round(f.cruiseFt / 100)}` : ""}`

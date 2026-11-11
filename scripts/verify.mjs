@@ -579,6 +579,21 @@ async function run() {
       pl?.active?.to === 1 && pl.legs[1].eta === "15:09" && pl.legs[1].wind?.[0] === 250 && pl.vSpeeds?.v1 === 152 && core.toPlan({ origin: "EDDM", destination: "EGBB", active: { from: 0, to: 5 }, legs: [] })?.active === null
         ? pass("gate feed: the FMS plan's active legs, times over the fixes and V-speeds read in (an impossible active is dropped)")
         : fail(`gate feed: plan ${JSON.stringify(pl)}`);
+      // 1.11.1: the landing is the first contact, even when a bounce has the aircraft back in the air on
+      // that reading (EDDM → EGBB: −776 fpm, then a 2 s bounce, on the ground at −117)
+      {
+        const egbb = { lat: 52.4539, lon: -1.748, elev: 325 };
+        const at = (i, r) => core.toSample({ lat: 52.45, lon: -1.70 + i * 0.0006, alt: 340, gs: 115, hdg: 330, vs: -200, onGround: false, engines: [true, true], seatbelts: true, ...r }, 1e12 + i * 1000);
+        const seq = [at(0, { alt: 900, vs: -700 }), at(1, { alt: 345 }), at(2, { landingRate: -776, tdSim: -1156 }), at(3, { vs: -77 }), at(4, { onGround: true, landingRate: -117, tdSim: -220 }), at(5, { onGround: true, gs: 100 })];
+        const end = core.detectAll(seq, { to: egbb }).at(-1).stamps;
+        end.on === seq[2].t && end.landingRate === -776 && end.bounces === 1 && core.landingText(end) === "-776 fpm · 1 bounce"
+          ? pass("gate feed: the landing is the first contact (-776 fpm), the second contact a bounce")
+          : fail(`gate feed: landing ${JSON.stringify(end)}`);
+        const desc = (belts) => core.viewStage({ ...core.startState(), phase: "descent", stage: "flying", airborne: true, last: at(0, { alt: 8000, vs: -1500, seatbelts: belts }) });
+        desc(true) === "approaching" && desc(false) === "flying" && desc(null) === "approaching"
+          ? pass("gate feed: approaching below FL100 on the way down only with the seatbelt sign on (unknown counts as on)")
+          : fail(`gate feed: approaching with belts ${desc(true)} ${desc(false)} ${desc(null)}`);
+      }
       const changes = states.filter((x, i) => i && x.phase !== states[i - 1].phase).length;
       changes === seen.length - 1 ? pass(`gate feed: each phase entered once, no flicker in the turbulence (${changes} changes)`) : fail(`gate feed: ${changes} phase changes for ${seen.length} phases`);
       const tdLine = rec.samples.findIndex((x) => x.tdSim != null);

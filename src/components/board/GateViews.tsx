@@ -6,7 +6,7 @@ import { cityName } from "@/lib/data/flight";
 import { routeColor, textOn } from "@/lib/colors";
 import { MIN } from "@/lib/board/board";
 import type { GateFlight, GateState, ShownView } from "@/lib/board/gate";
-import { distNm, levelFt, PHASE_LABEL, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState } from "@/lib/feed/core";
+import { distNm, landingText, levelFt, PHASE_LABEL, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState } from "@/lib/feed/core";
 import { useOutlines } from "@/lib/outlines";
 import { useTerrain } from "@/lib/terrain";
 import { baseLayers, mapRadius } from "../RouteMap";
@@ -126,7 +126,7 @@ export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null,
   const minLeft = air && s.gs > 60 ? (toGo / s.gs) * 60 : null;
   const arrives = live.stamps.on ?? (minLeft != null ? s.t + minLeft * MIN : plannedEta);
   const flown = live.stage === "arrived" || !air ? (live.stamps.on != null ? 1 : 0) : Math.min(1, Math.max(0, 1 - toGo / Math.max(1, byRoute?.total ?? total)));
-  const rate = live.stamps.landingRate != null ? `${Math.round(live.stamps.landingRate)} fpm` : null;
+  const rate = landingText(live.stamps);
   const z = (ms: number | null) => (ms == null ? null : localClock(ms, f.to.tz));
   // the level programmed in the aircraft (OFP Tower, Fenix) over the planned one
   const cruiseFt = plan?.cruiseFt ?? f.cruiseFt;
