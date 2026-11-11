@@ -39,6 +39,25 @@ export interface FeedSample {
   landingRate: number | null;
   /** The sim's own latched touchdown velocity (ft/min, negative), kept for the record. */
   tdSim: number | null;
+  /** 1.11, OFP Tower only (null elsewhere): magnetic heading and ground track (deg). */
+  hdgMag?: number | null;
+  trk?: number | null;
+  /** Indicated airspeed (kt) and Mach. */
+  ias?: number | null;
+  mach?: number | null;
+  /** The wind where the aircraft is: [from deg, kt]. */
+  wind?: [number, number] | null;
+  /** Fuel on board (kg) and the total fuel flow (kg/h). */
+  fobKg?: number | null;
+  ffKgH?: number | null;
+}
+
+/** [deg, kt] from a two-number array, else null. */
+function windOf(v: unknown): [number, number] | null {
+  if (!Array.isArray(v) || v.length < 2) return null;
+  const d = num(v[0]);
+  const k = num(v[1]);
+  return d != null && k != null && k >= 0 && k < 400 ? [((d % 360) + 360) % 360, k] : null;
 }
 
 export type FeedSource = "link" | "replay" | "vatsim" | "clock";
@@ -84,6 +103,13 @@ export function toSample(r: Record<string, unknown>, t: number, version = 2): Fe
     noSmoking: tri(r.noSmoking),
     landingRate: version === 1 ? null : num(r.landingRate),
     tdSim: version === 1 ? down(num(r.td)) : num(r.tdSim),
+    hdgMag: num(r.hdgMag),
+    trk: num(r.trk),
+    ias: num(r.ias),
+    mach: num(r.mach),
+    wind: windOf(r.wind),
+    fobKg: num(r.fobKg),
+    ffKgH: num(r.ffKgH),
   };
 }
 
@@ -105,6 +131,12 @@ export interface PlanLeg {
   missed: boolean;
   /** The turn at this fix as OFP Tower works it out (about 25° bank): fly-by turns start leadNm early, fly-overs swing outside. */
   turn: { style: "flyby" | "flyover"; radiusNm: number; leadNm: number | null } | null;
+  /** The FMS's predicted time over the fix, "hh:mm" UTC (1.11). */
+  eta: string | null;
+  /** The FMS's wind at the fix, [from deg, kt], where it has one. */
+  wind: [number, number] | null;
+  /** Already flown: OFP Tower keeps the fixes the Fenix drops as it passes them. */
+  passed: boolean;
 }
 
 export interface FlightPlan {
@@ -118,6 +150,9 @@ export interface FlightPlan {
   legs: PlanLeg[];
   /** Departure and arrival runways as display lines (OFP Tower: threshold + 5 km along the course, stylised, not true length). */
   runways: { role: "departure" | "arrival"; airport: string; runway: string; start: [number, number]; end: [number, number] }[];
+  /** Which legs are the last fix passed and the one flown to (1.11; the Fenix drops passed fixes, so from 0, to 1). */
+  active: { from: number; to: number } | null;
+  vSpeeds: { v1: number | null; vr: number | null; v2: number | null; vapp: number | null } | null;
 }
 
 const icao = (v: unknown) => (typeof v === "string" && /^[A-Z0-9]{4}$/.test(v) ? v : null);
@@ -129,6 +164,24 @@ function turnOf(v: unknown): PlanLeg["turn"] {
   if (!t || r == null || r <= 0 || r > 10) return null;
   const lead = num(t.leadNm);
   return { style: t.style === "flyover" ? "flyover" : "flyby", radiusNm: r, leadNm: lead != null && lead >= 0 && lead < 20 ? lead : null };
+}
+
+function activeOf(v: unknown, n: number): FlightPlan["active"] {
+  const a = v as Record<string, unknown> | null | undefined;
+  const from = a ? num(a.from) : null;
+  const to = a ? num(a.to) : null;
+  return from != null && to != null && Number.isInteger(from) && Number.isInteger(to) && from >= 0 && to > from && to < n ? { from, to } : null;
+}
+
+function vSpeedsOf(v: unknown): FlightPlan["vSpeeds"] {
+  const a = v as Record<string, unknown> | null | undefined;
+  if (!a) return null;
+  const k = (x: unknown) => {
+    const n = num(x);
+    return n != null && n > 60 && n < 250 ? Math.round(n) : null;
+  };
+  const out = { v1: k(a.v1), vr: k(a.vr), v2: k(a.v2), vapp: k(a.vapp) };
+  return Object.values(out).some((x) => x != null) ? out : null;
 }
 
 /** A "plan" message from OFP Tower, checked field by field; null when it has no origin or destination. */
@@ -156,6 +209,9 @@ export function toPlan(m: Record<string, unknown>): FlightPlan | null {
       pseudo: l.pseudo === true,
       missed: l.missed === true,
       turn: turnOf(l.turn),
+      eta: typeof l.eta === "string" && /^\d{2}:\d{2}$/.test(l.eta) ? l.eta : null,
+      wind: windOf(l.wind),
+      passed: l.passed === true,
     });
   }
   return {
@@ -167,6 +223,8 @@ export function toPlan(m: Record<string, unknown>): FlightPlan | null {
     cruiseFt: num(m.cruiseLevel),
     phase: txt(m.phase, 24),
     legs,
+    active: activeOf(m.active, legs.length),
+    vSpeeds: vSpeedsOf(m.vSpeeds),
     runways: (Array.isArray(m.runways) ? m.runways.slice(0, 4) : []).flatMap((raw) => {
       const r = raw as Record<string, Record<string, unknown> | unknown>;
       const a = r.start as Record<string, unknown> | undefined;
@@ -220,6 +278,22 @@ export function parseRecording(text: string): Recording {
 export type FlightPhase = "boarding" | "doorsClosed" | "pushback" | "taxi" | "takeoff" | "climb" | "cruise" | "descent" | "approach" | "landed" | "taxiIn" | "gate";
 /** What view=auto follows: getting ready → push-back and taxi → flying → arrived. */
 export type FlightStage = "ready" | "taxi" | "flying" | "arrived";
+
+/**
+ * What the Stream grid has a row for (1.11): the detector's stages, with "approaching" cut out of
+ * flying: on approach, descending below FL100, the FMS in its approach phase, and the landing roll
+ * and taxi in until the gate.
+ */
+export type ViewStage = "ready" | "taxi" | "flying" | "approaching" | "arrived";
+
+export function viewStage(st: FlightState, plan: FlightPlan | null = null): ViewStage {
+  if (st.stage !== "flying") return st.stage;
+  const s = st.last;
+  if (st.phase === "approach" || st.phase === "landed" || st.phase === "taxiIn") return "approaching";
+  if (st.phase === "descent" && s && levelFt(s) < 10_000) return "approaching";
+  if (plan && /approach/i.test(plan.phase ?? "") && (st.phase === "descent" || st.phase === "cruise")) return "approaching";
+  return "flying";
+}
 
 export const STAGE_OF: Record<FlightPhase, FlightStage> = {
   boarding: "ready",

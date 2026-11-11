@@ -7,7 +7,7 @@ import type { AirlineInfo } from "../data/types";
 import type { Airport, FlightRow } from "../data/load";
 import { blockTime, flightNo, gcNm } from "../data/flight";
 import { MIN, taxiOf, type PhaseKey } from "./board";
-import type { FlightPlan, FlightStage, PlanLeg } from "../feed/core";
+import type { FlightPlan, PlanLeg, ViewStage } from "../feed/core";
 
 export interface GateState {
   /** Snapshot flight id. */
@@ -38,22 +38,22 @@ export interface GateState {
   /** 1.9: which view of the screen (full by default; auto follows the aircraft). */
   view: GateView;
   /** view=auto: the view at each stage of the flight. */
-  stages: Record<FlightStage, ShownView>;
+  stages: Record<ViewStage, ShownView>;
   /**
    * view=auto in a named OBS scene (any case): that scene's own view at each stage, e.g. BRB is the
    * frame whatever the aircraft does. Any other scene uses `stages`.
    */
   scenes: SceneRule[];
   /** Hold the screen on this stage whatever the aircraft does (when the detection gets it wrong). */
-  hold: FlightStage | null;
+  hold: ViewStage | null;
 }
 
 export type ShownView = Exclude<GateView, "auto">;
-export type SceneRule = [string, Record<FlightStage, ShownView>];
-export const allStages = (v: ShownView): Record<FlightStage, ShownView> => ({ ready: v, taxi: v, flying: v, arrived: v });
-export const STAGES: FlightStage[] = ["ready", "taxi", "flying", "arrived"];
+export type SceneRule = [string, Record<ViewStage, ShownView>];
+export const allStages = (v: ShownView): Record<ViewStage, ShownView> => ({ ready: v, taxi: v, flying: v, approaching: v, arrived: v });
+export const STAGES: ViewStage[] = ["ready", "taxi", "flying", "approaching", "arrived"];
 /** Sheet 07: the full screen on the ground, the strip while flying. */
-export const DEFAULT_STAGES: Record<FlightStage, ShownView> = { ready: "full", taxi: "full", flying: "strip", arrived: "full" };
+export const DEFAULT_STAGES: Record<ViewStage, ShownView> = { ready: "full", taxi: "full", flying: "strip", approaching: "strip", arrived: "full" };
 /** Sheet 07: the scene names that turn the same source into the frame, the map or the card. */
 export const DEFAULT_SCENES: SceneRule[] = [
   ["BRB", allStages("frame")],
@@ -61,22 +61,23 @@ export const DEFAULT_SCENES: SceneRule[] = [
   ["Camera", allStages("card")],
 ];
 /** Starting points for the stage table (Stream panel presets). */
-export const PRESETS: { name: string; note: string; stages: Record<FlightStage, ShownView> }[] = [
+export const PRESETS: { name: string; note: string; stages: Record<ViewStage, ShownView> }[] = [
   { name: "Classic", note: "the gate screen on the ground, the strip while flying", stages: DEFAULT_STAGES },
-  { name: "Mostly sim", note: "the strip at the gate, the pill from push-back, the strip at the gate again", stages: { ready: "strip", taxi: "pill", flying: "pill", arrived: "strip" } },
+  { name: "Mostly sim", note: "the strip at the gate, the pill from push-back, the strip at the gate again", stages: { ready: "strip", taxi: "pill", flying: "pill", approaching: "pill", arrived: "strip" } },
   { name: "Minimal", note: "just the pill, all flight", stages: allStages("pill") },
-  { name: "Map", note: "the moving map all flight, full screen at the gates", stages: { ready: "full", taxi: "corner", flying: "map", arrived: "full" } },
+  { name: "Map", note: "the moving map all flight, full screen at the gates", stages: { ready: "full", taxi: "corner", flying: "map", approaching: "map", arrived: "full" } },
 ];
 
 /**
  * The views of the gate screen (design sheets 02 and 05): full (G1), map (G3), frame (G3a, a
- * window for the game capture), mapwin (G3c), corner (G3b), strip (G4), card and pill (G5).
+ * window for the game capture), mapwin (G3c), corner (G3b), strip (G4), card and pill (G5);
+ * 1.11: route (G3d, the map with the route ahead) and line (G5b, the pill in one row with the phase).
  * auto picks one by the stage of the flight.
  */
-export const GATE_VIEWS = ["full", "map", "frame", "mapwin", "corner", "strip", "card", "pill", "auto"] as const;
+export const GATE_VIEWS = ["full", "map", "route", "frame", "mapwin", "corner", "strip", "card", "pill", "line", "auto"] as const;
 export type GateView = (typeof GATE_VIEWS)[number];
 /** Views drawn over the sim: everything outside their panels is transparent. */
-export const OVER_SIM: GateView[] = ["frame", "mapwin", "corner", "strip", "card", "pill"];
+export const OVER_SIM: GateView[] = ["frame", "mapwin", "corner", "strip", "card", "pill", "line"];
 const SHOWN = GATE_VIEWS.filter((v): v is ShownView => v !== "auto");
 const isShown = (v: string): v is ShownView => (SHOWN as string[]).includes(v);
 
@@ -103,11 +104,22 @@ export const EMPTY_GATE: GateState = {
 const PINS: PhaseKey[] = ["scheduled", "gate", "boarding", "final", "closed", "ready", "pushback", "lineup", "takeoff", "departed"];
 const text = (v: string | null, n: number) => (v ?? "").replace(/[^\p{L}\p{N} .,'!?:&()/+-]/gu, "").slice(0, n);
 
-/** st=full,full,strip,full: the view at each stage. */
-function stagesFrom(v: string | null): Record<FlightStage, ShownView> {
-  const parts = (v ?? "").split(",");
-  if (parts.length !== 4 || !parts.every(isShown)) return DEFAULT_STAGES;
-  return { ready: parts[0], taxi: parts[1], flying: parts[2], arrived: parts[3] } as Record<FlightStage, ShownView>;
+/**
+ * A view per stage from "a,b,c,d,e" (ready, taxi, flying, approaching, arrived), or the four of
+ * before 1.11 ("a,b,c,d", approaching as flying); null when it isn't one of those.
+ */
+function stagesOf(parts: string[]): Record<ViewStage, ShownView> | null {
+  if (!parts.every(isShown)) return null;
+  if (parts.length === 4) return { ready: parts[0], taxi: parts[1], flying: parts[2], approaching: parts[2], arrived: parts[3] };
+  if (parts.length === 5) return { ready: parts[0], taxi: parts[1], flying: parts[2], approaching: parts[3], arrived: parts[4] };
+  return null;
+}
+/** The other way: four values while approaching is the same as flying (so older screens still read it), else five. */
+const stagesText = (v: Record<ViewStage, ShownView>) => STAGES.filter((k) => k !== "approaching" || v.approaching !== v.flying).map((k) => v[k]).join(",");
+
+/** st=full,full,strip,strip,full: the view at each stage. */
+function stagesFrom(v: string | null): Record<ViewStage, ShownView> {
+  return stagesOf((v ?? "").split(",")) ?? DEFAULT_STAGES;
 }
 /**
  * sc=BRB:frame;Map:map;Flying:strip,pill,pill,full ("-" or empty = no rules): scene names and their
@@ -123,7 +135,10 @@ function scenesFrom(v: string | null): SceneRule[] {
     const views = part.slice(i + 1).split(",");
     if (!name) continue;
     if (views.length === 1 && isShown(views[0])) out.push([name, allStages(views[0])]);
-    else if (views.length === 4 && views.every(isShown)) out.push([name, { ready: views[0], taxi: views[1], flying: views[2], arrived: views[3] } as Record<FlightStage, ShownView>]);
+    else {
+      const v4 = stagesOf(views);
+      if (v4) out.push([name, v4]);
+    }
   }
   return out;
 }
@@ -131,7 +146,7 @@ const scenesTo = (sc: SceneRule[]) =>
   sc
     .map(([n, v]) => {
       const vs = STAGES.map((k) => v[k]);
-      return `${n.replace(/[;:,]/g, "")}:${vs.every((x) => x === vs[0]) ? vs[0] : vs.join(",")}`;
+      return `${n.replace(/[;:,]/g, "")}:${vs.every((x) => x === vs[0]) ? vs[0] : stagesText(v)}`;
     })
     .join(";");
 
@@ -157,7 +172,7 @@ export function gateFromParams(q: URLSearchParams, now: number): GateState {
     view: (GATE_VIEWS as readonly string[]).includes(q.get("view") ?? "") ? (q.get("view") as GateView) : "full",
     stages: stagesFrom(q.get("st")),
     scenes: scenesFrom(q.get("sc")),
-    hold: STAGES.includes(q.get("hold") as FlightStage) ? (q.get("hold") as FlightStage) : null,
+    hold: STAGES.includes(q.get("hold") as ViewStage) ? (q.get("hold") as ViewStage) : null,
   };
 }
 
@@ -178,8 +193,8 @@ export function gateToParams(g: GateState, now: number, extra: Record<string, st
   set("ov", g.overlay && "1");
   set("rot", !g.rotate && "0");
   set("view", g.view !== "full" && g.view);
-  const st = STAGES.map((k) => g.stages[k]).join(",");
-  set("st", st !== STAGES.map((k) => DEFAULT_STAGES[k]).join(",") && st);
+  const st = stagesText(g.stages);
+  set("st", st !== stagesText(DEFAULT_STAGES) && st);
   const sc = scenesTo(g.scenes);
   set("sc", sc !== scenesTo(DEFAULT_SCENES) && (sc || "-"));
   set("hold", g.hold);
@@ -194,7 +209,7 @@ export function gateToParams(g: GateState, now: number, extra: Record<string, st
  */
 export function streamSettingsQuery(g: GateState): string {
   const q = new URLSearchParams();
-  q.set("st", STAGES.map((k) => g.stages[k]).join(","));
+  q.set("st", stagesText(g.stages));
   q.set("sc", scenesTo(g.scenes) || "-");
   if (g.hold) q.set("hold", g.hold);
   if (g.delay) q.set("late", String(g.delay));
@@ -246,6 +261,15 @@ export interface GateFlight {
   nm: number | null;
   /** How late the flight usually runs (min), from tracking; null without a schedule. */
   typical: number | null;
+  /** The OFP's route, fix by fix (SimBrief only): the route panel's fixes without an FMS plan. */
+  route?: RouteFix[];
+}
+
+export interface RouteFix {
+  id: string;
+  lat: number;
+  lon: number;
+  via: string | null;
 }
 
 export function fromSnapshot(f: FlightRow, stdMs: number, airports: Map<string, Airport>, brand: AirlineInfo | null): GateFlight | null {
@@ -301,6 +325,7 @@ export interface SbOfp {
   runway: string | null;
   nm: number | null;
   generated: string | null;
+  route: RouteFix[];
 }
 
 const hms = (v: unknown) => {
@@ -308,6 +333,20 @@ const hms = (v: unknown) => {
   return m ? +m[1] * 60 + +m[2] : null;
 };
 const numOr = (v: unknown) => (v == null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
+
+/** The OFP's navlog as fixes: no TOC/TOD and other calculated points, no airports. */
+function navlogOf(v: unknown): RouteFix[] {
+  const list = Array.isArray(v) ? v : v ? [v] : [];
+  return list.slice(0, 400).flatMap((raw) => {
+    const x = raw as Record<string, unknown>;
+    const lat = numOr(x.pos_lat);
+    const lon = numOr(x.pos_long);
+    const id = typeof x.ident === "string" ? x.ident.trim().slice(0, 12) : "";
+    if (lat == null || lon == null || !id || x.type === "ltlg" || x.type === "apt" || /^(TOC|TOD)$/.test(id)) return [];
+    const via = typeof x.via_airway === "string" && x.via_airway && x.via_airway !== "DCT" ? x.via_airway.slice(0, 12) : null;
+    return [{ id, lat, lon, via }];
+  });
+}
 
 export async function fetchOfp(username: string, signal?: AbortSignal): Promise<SbOfp> {
   const r = await fetch(`https://www.simbrief.com/api/xml.fetcher.php?username=${encodeURIComponent(username)}&json=v2`, { signal });
@@ -343,6 +382,7 @@ export async function fetchOfp(username: string, signal?: AbortSignal): Promise<
     runway: o.plan_rwy || null,
     nm: numOr(g.gc_distance),
     generated: j.params?.time_generated ?? null,
+    route: navlogOf(j.navlog?.fix),
   };
 }
 
@@ -373,6 +413,7 @@ export function fromOfp(o: SbOfp, airports: Map<string, Airport> | null, airline
     runway: o.runway,
     nm: o.nm ?? Math.round(gcNm(from, to)),
     typical: null,
+    route: o.route ?? [],
   };
 }
 

@@ -8,7 +8,7 @@ import { MIN, phaseAt, phases, type PhaseKey } from "@/lib/board/board";
 import type { GateFlight, GateState } from "@/lib/board/gate";
 import { aircraft } from "@/lib/aircraft";
 import { PHASE_LABEL, type FlightPhase, type FlightPlan, type FlightState } from "@/lib/feed/core";
-import { altText, liveFacts } from "./GateViews";
+import { altText, Belt, liveFacts } from "./GateViews";
 
 /** Destination weather for the info strip. */
 export interface GateWx {
@@ -282,6 +282,7 @@ export function GateScreen({
             <b>{source}</b>
           </span>
         )}
+        <Belt live={live} />
         <span className="gs-clock">
           <b className="mono">{localClock(clockAt, fromTz)}</b>
           <small>

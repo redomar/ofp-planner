@@ -59,6 +59,10 @@ The page ignores it today. It is for the Stream panel to show the aircraft and t
 | `alt` | number, ft | true altitude above sea level (map, heights; not flight levels) | `PLANE ALTITUDE` |
 | `pressAlt` | number, ft | pressure altitude on 1013 hPa: flight levels (optional; the site reads it from 1.10.3) | `PRESSURE ALTITUDE` |
 | `indAlt` | number, ft | what the altimeter shows on the baro set: below FL100 (optional) | `INDICATED ALTITUDE` |
+| `hdgMag`, `trk` | number, deg | magnetic heading, magnetic ground track (1.11, optional) | `PLANE HEADING DEGREES MAGNETIC`, `GPS GROUND MAGNETIC TRACK` |
+| `ias`, `mach` | number | indicated airspeed (kt), Mach (1.11, optional) | `AIRSPEED INDICATED`, `AIRSPEED MACH` |
+| `wind` | [deg, kt] | the wind where the aircraft is, from (1.11, optional) | `AMBIENT WIND DIRECTION`, `AMBIENT WIND VELOCITY` |
+| `fobKg`, `ffKgH` | number | fuel on board (kg), total fuel flow (kg/h) (1.11, optional) | |
 | `agl` | number, ft | above ground (reference point, reads about 9–12 ft parked) | `PLANE ALT ABOVE GROUND` |
 | `gs` | number, kt | ground speed | `GROUND VELOCITY` |
 | `hdg` | number, deg | heading, true | `PLANE HEADING DEGREES TRUE` (degrees) |
@@ -98,6 +102,14 @@ Owner's decision: keep both.
 - `tdSim` is the sim's figure, kept for the record.
 
 The fast-polling path is built in the recorder prototype but **not yet tried on a real landing**: compare it with Volanta and TechLog on the next flight. A bounce gives one touchdown reading per contact; the page keeps the first.
+
+## The FMS plan (Fenix)
+
+`{"type":"plan","source":…,"origin","destination","alternate","flightNumber","cruiseLevel","phase","legs":[…],"runways":[…]}`, sent when it changes. The site reads it in `toPlan` (`src/lib/feed/core.ts`).
+
+- Each leg: `id`, `lat`, `lon`, `via`, `kind`, `flags`, `altConstraint`, `pseudo`, `missed`, `turn`. From 1.11 also `eta` ("hh:mm" UTC, the FMS's prediction) and `wind` ([deg, kt], where the FMS has one).
+- 1.11: `active: {"from":0,"to":1}`. The Fenix drops passed fixes from its plan, so `legs[0]` is the last fix passed and `legs[1]` the one flown to. The route panel (G3d) uses it. Without it, the site works out the next fix from the position.
+- 1.11: `vSpeeds: {v1, vr, v2, vapp}` (kt), read in but not shown yet.
 
 ## Aircraft profiles
 

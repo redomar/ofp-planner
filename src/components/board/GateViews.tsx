@@ -6,7 +6,7 @@ import { cityName } from "@/lib/data/flight";
 import { routeColor, textOn } from "@/lib/colors";
 import { MIN } from "@/lib/board/board";
 import type { GateFlight, GateState, ShownView } from "@/lib/board/gate";
-import { distNm, levelFt, PHASE_LABEL, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightStage, type FlightState } from "@/lib/feed/core";
+import { distNm, levelFt, PHASE_LABEL, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState } from "@/lib/feed/core";
 import { useOutlines } from "@/lib/outlines";
 import { useTerrain } from "@/lib/terrain";
 import { baseLayers, mapRadius } from "../RouteMap";
@@ -16,9 +16,9 @@ import { GateScreen, localClock, PLANE, screenNow, type GateWx } from "./GateScr
  * The view on screen. A fixed &view= is that view. view=auto: an OBS scene named in the rules
  * gives its view; otherwise the stage of the flight (or the held stage) picks from the stage table.
  */
-export function shownView(g: Pick<GateState, "view" | "stages" | "scenes" | "hold">, live: FlightState | null, scene: string | null = null): ShownView {
+export function shownView(g: Pick<GateState, "view" | "stages" | "scenes" | "hold">, live: FlightState | null, scene: string | null = null, plan: FlightPlan | null = null): ShownView {
   if (g.view !== "auto") return g.view;
-  const stage: FlightStage = g.hold ?? live?.stage ?? "ready";
+  const stage: ViewStage = g.hold ?? (live ? viewStage(live, plan) : "ready");
   const rule = scene ? g.scenes.find(([n]) => n.trim().toLowerCase() === scene.trim().toLowerCase()) : null;
   return rule ? rule[1][stage] : g.stages[stage];
 }
@@ -72,24 +72,29 @@ export const altText = (s: FeedSample) => (levelFt(s) >= 10_000 ? fl(levelFt(s))
 const mins = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, "0")}m` : `${Math.max(1, Math.round(m))} min`);
 
 /**
- * Distance left along the FMS route (OFP Tower, Fenix): to the next fix ahead, then leg by leg to
- * the destination runway; null when there's no plan for this flight. Also the route's length.
+ * Distance left along the FMS route (OFP Tower, Fenix): to the fix flown to, then leg by leg to
+ * the destination runway; null when there's no plan for this flight. The fix flown to is the FMS's
+ * own (plan.active) when it says, else worked out from the position. `total` is what's been flown
+ * (great circle from the departure airport) plus what's left: the Fenix drops fixes as they're
+ * passed, so the plan alone can't say how long the trip was.
  */
 export function routeToGo(f: GateFlight, plan: FlightPlan | null | undefined, pos: { lat: number; lon: number }): { toGo: number; total: number } | null {
   if (!plan || plan.origin !== f.from.icao || plan.destination !== f.to.icao) return null;
-  const legs = plan.legs.filter((l) => !l.missed && !l.pseudo);
-  if (legs.length < 2) return null;
-  const seg = legs.map((l, i) => (i ? distNm(legs[i - 1], l) : 0));
-  const total = seg.reduce((a, b) => a + b, 0);
-  // the next fix: after the nearest one, unless the aircraft hasn't reached the nearest yet
-  let near = 0;
-  legs.forEach((l, i) => {
-    if (distNm(pos, l) < distNm(pos, legs[near])) near = i;
-  });
-  const next = near < legs.length - 1 && distNm(pos, legs[near + 1]) < seg[near + 1] ? near + 1 : near;
-  let toGo = distNm(pos, legs[next]);
-  for (let i = next + 1; i < legs.length; i++) toGo += seg[i];
-  return { toGo, total };
+  const all = plan.legs.filter((l) => !l.missed);
+  if (all.length < 2) return null;
+  let next: number;
+  if (plan.active && plan.active.to < all.length && !plan.legs.slice(0, plan.active.to).some((l) => l.missed)) next = plan.active.to;
+  else {
+    // the fix after the nearest, unless the aircraft hasn't reached the nearest yet
+    let near = 0;
+    all.forEach((l, i) => {
+      if (distNm(pos, l) < distNm(pos, all[near])) near = i;
+    });
+    next = near < all.length - 1 && distNm(pos, all[near + 1]) < distNm(all[near], all[near + 1]) ? near + 1 : near;
+  }
+  let toGo = distNm(pos, all[next]);
+  for (let i = next + 1; i < all.length; i++) toGo += distNm(all[i - 1], all[i]);
+  return { toGo, total: distNm(f.from, pos) + toGo };
 }
 
 export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null, now: number, plan: FlightPlan | null = null): LiveFacts {
@@ -550,6 +555,91 @@ const ident = (f: GateFlight) => (
   </span>
 );
 
+
+/** "hh:mm" UTC as a time (ms) near `t` (the next day when it reads more than 12 hours earlier). */
+function utcAt(hhmm: string, t: number): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  const day = t - (t % 86_400_000);
+  const at = day + (h * 60 + m) * 60_000;
+  return at < t - 43_200_000 ? at + 86_400_000 : at;
+}
+
+/** "15:09Z" from a time (ms). */
+const zClock = (ms: number) => `${new Date(ms).toISOString().slice(11, 16)}Z`;
+
+export interface AheadFix {
+  id: string;
+  via: string | null;
+  /** Along the route from the aircraft (nm). */
+  nm: number;
+  /** The FMS's time over the fix, else the aircraft's ground speed's ("15:09Z"). */
+  eta: string | null;
+}
+
+/**
+ * The route panel's fixes: the one just passed and the next three, with the distance along the
+ * route and the time over each. From the FMS (OFP Tower, Fenix: its "active" legs), else from the
+ * aircraft's position on the FMS route or the SimBrief OFP's; null without a route.
+ */
+export function routeAhead(f: GateFlight, plan: FlightPlan | null | undefined, s: FeedSample, count = 3): { passed: { id: string; via: string | null } | null; next: AheadFix[] } | null {
+  type Fix = { id: string; lat: number; lon: number; via: string | null; eta?: string | null; hide?: boolean };
+  let fixes: Fix[] = [];
+  let to = -1;
+  if (plan && plan.legs.length > 1) {
+    fixes = plan.legs.filter((l) => !l.missed).map((l) => ({ id: l.id, lat: l.lat, lon: l.lon, via: l.via, eta: l.eta, hide: l.pseudo || !l.id }));
+    // the Fenix's own "flying to" (its plan keeps the last fix passed first)
+    if (plan.active && plan.active.to < fixes.length && !plan.legs.slice(0, plan.active.to).some((l) => l.missed)) to = plan.active.to;
+  } else if (f.route && f.route.length > 1) fixes = f.route;
+  if (fixes.length < 2) return null;
+  if (to < 0) {
+    // by position: the fix after the nearest, unless the aircraft hasn't reached the nearest yet
+    let near = 0;
+    fixes.forEach((x, i) => {
+      if (distNm(s, x) < distNm(s, fixes[near])) near = i;
+    });
+    to = near < fixes.length - 1 && distNm(s, fixes[near + 1]) < distNm(fixes[near], fixes[near + 1]) ? near + 1 : near;
+    if (to === 0) to = 1;
+  }
+  let prev = to - 1;
+  while (prev >= 0 && fixes[prev].hide) prev--;
+  const next: AheadFix[] = [];
+  let nm = distNm(s, fixes[to]);
+  // times: the FMS's where it has one; past it, on from its last one at the ground speed
+  let fromT = s.t;
+  let fromNm = 0;
+  for (let i = to; i < fixes.length && next.length < count; i++) {
+    if (i > to) nm += distNm(fixes[i - 1], fixes[i]);
+    const fms = fixes[i].eta ? utcAt(fixes[i].eta!, s.t) : null;
+    if (fms != null) {
+      fromT = fms;
+      fromNm = nm;
+    }
+    if (fixes[i].hide) continue;
+    const eta = fms != null ? zClock(fms) : s.gs > 50 ? zClock(fromT + ((nm - fromNm) / s.gs) * 3_600_000) : null;
+    next.push({ id: fixes[i].id, via: fixes[i].via, nm, eta });
+  }
+  return { passed: prev >= 0 ? { id: fixes[prev].id, via: fixes[prev].via } : null, next };
+}
+
+/** Fuel at the destination (kg), estimated: on board less the flow over the time left at this speed; null on the ground or without the figures. */
+export function fuelAtDest(s: FeedSample, toGoNm: number | null): number | null {
+  if (s.fobKg == null || s.ffKgH == null || toGoNm == null || s.gs < 50 || s.onGround) return null;
+  return Math.max(0, Math.round((s.fobKg - s.ffKgH * (toGoNm / s.gs)) / 10) * 10);
+}
+
+/** The seatbelt sign while it's on (OFP Tower): a small lit sign in the view's corner. */
+export function Belt({ live }: { live: FlightState | null }) {
+  if (live?.last?.seatbelts !== true) return null;
+  return (
+    <svg className="gv-belt" viewBox="0 0 24 24" role="img" aria-label="Seatbelt sign on">
+      <circle cx="12" cy="4.2" r="2.3" />
+      <path d="M8.4 8.2h7.2a1.6 1.6 0 0 1 1.6 1.6v5.4h-2.4v6.6h-5.6v-6.6H6.8V9.8a1.6 1.6 0 0 1 1.6-1.6z" />
+      <rect x="4" y="12" width="16" height="2.2" rx="1.1" className="gv-belt-strap" />
+      <rect x="10.2" y="11.2" width="3.6" height="3.8" rx="0.6" className="gv-belt-buckle" />
+    </svg>
+  );
+}
+
 /* ---------- the views ---------- */
 
 export interface ViewProps {
@@ -572,7 +662,7 @@ export interface ViewProps {
  * the views drawn over the sim leave everything outside their panels transparent.
  */
 export function GateViewScreen(p: ViewProps) {
-  const view = shownView(p.state, p.live, p.scene ?? null);
+  const view = shownView(p.state, p.live, p.scene ?? null, p.plan ?? null);
   if (view === "full") return <GateScreen flight={p.flight} state={p.state} now={p.now} wx={p.wx} live={p.live} source={SOURCE[p.source]} plan={p.plan ?? null} />;
   const f = p.flight;
   const bg = routeColor(f.brand);
@@ -592,6 +682,57 @@ export function GateViewScreen(p: ViewProps) {
   // the end of the flight: the map closes in on the destination
   const near = !!p.live && (p.live.stage === "arrived" || (p.live.stage === "flying" && facts.toGo != null && facts.toGo < NEAR_NM));
   const final = !!p.live && p.live.stage === "flying" && facts.toGo != null && facts.toGo <= FINAL_NM;
+
+  if (view === "route") {
+    const s = p.live?.last ?? null;
+    const air = !!p.live && p.live.stage === "flying" && p.live.phase !== "landed" && p.live.phase !== "taxiIn";
+    const ahead = s && p.live?.stage !== "arrived" ? routeAhead(f, p.plan, s) : null;
+    const hdg = s ? (s.hdgMag ?? s.hdg) : null;
+    const efob = s && air ? fuelAtDest(s, facts.toGo) : null;
+    return (
+      <div className="gv gv-map is-route" style={style} role="region" aria-label={label}>
+        <div className="gv-map-pic">
+          <GateMap f={f} facts={facts} W={1100} H={1080} label={mapLabel} trail={p.trail} plan={p.plan} near={near} final={final} />
+        </div>
+        <div className="gv-rail">
+          <div className="gv-rail-top">
+            <Brand f={f} />
+            {clock}
+          </div>
+          {ident(f)}
+          <div className="gv-dest is-small" style={{ "--fit": Math.min(1, 12 / dest.length) } as CSSProperties}>
+            {dest}
+          </div>
+          <ol className="gv-route mono" aria-label="Route ahead">
+            {ahead?.passed && (
+              <li className="is-passed">
+                <b>{ahead.passed.id}</b>
+                <span>{ahead.passed.via ?? ""}</span>
+                <span />
+                <span />
+              </li>
+            )}
+            {ahead?.next.map((x, i) => (
+              <li key={`${x.id}${i}`} className={i === 0 ? "is-next" : undefined}>
+                <b>{x.id}</b>
+                <span>{x.via ?? ""}</span>
+                <span>{Math.round(x.nm).toLocaleString("en-GB")} nm</span>
+                <span>{x.eta ?? ""}</span>
+              </li>
+            ))}
+            {!ahead && <li className="is-none">{f.source === "simbrief" || p.plan ? "Route ahead after take-off" : "No route: a SimBrief OFP or the FMS plan gives one"}</li>}
+          </ol>
+          <div className="gv-tiles">
+            <Tile k="Level" v={facts.alt} />
+            <Tile k="Speed" v={facts.gs} unit="kt" />
+            <Tile k="Heading" v={hdg != null && air ? `${String(Math.round(hdg) % 360 || 360).padStart(3, "0")}°` : null} />
+            <Tile k="Fuel at dest · est" v={efob != null ? efob.toLocaleString("en-GB") : null} unit="kg" />
+          </div>
+          <Status facts={facts} />
+        </div>
+      </div>
+    );
+  }
 
   if (view === "map" || view === "mapwin") {
     return (
@@ -630,6 +771,7 @@ export function GateViewScreen(p: ViewProps) {
         <div className="gv-rail">
           <div className="gv-rail-top">
             <Brand f={f} />
+            <Belt live={p.live} />
             {clock}
           </div>
           {ident(f)}
@@ -666,6 +808,7 @@ export function GateViewScreen(p: ViewProps) {
           <div className="gv-corner-top">
             <span className="mono">{f.flightNo}</span>
             <b>{dest}</b>
+            <Belt live={p.live} />
             <small>{facts.status}</small>
           </div>
           <div className="gv-corner-map">
@@ -686,7 +829,10 @@ export function GateViewScreen(p: ViewProps) {
       <div className="gv gv-over" style={style} role="region" aria-label={label}>
         <div className="gv-strip">
           <div className="gv-strip-id">
-            <b className="mono">{f.flightNo}</b>
+            <b className="mono">
+              {f.flightNo}
+              <Belt live={p.live} />
+            </b>
             <small>{f.airline}</small>
           </div>
           <Progress f={f} facts={facts} showToGo={false} />
@@ -703,6 +849,24 @@ export function GateViewScreen(p: ViewProps) {
 
   // card and pill (G5)
   const togo = facts.minLeft != null ? `${mins(facts.minLeft)} to go` : facts.line;
+  if (view === "line") {
+    // G5b: one row, the phase in its own colour
+    return (
+      <div className="gv gv-over" style={style} role="region" aria-label={label}>
+        <div className="gv-pill gv-line mono" aria-live="polite">
+          <svg viewBox="0 0 64 64" aria-hidden="true">
+            <path d={PLANE} />
+          </svg>
+          <span>
+            {f.flightNo} · {f.from.iata ?? f.from.icao} → {f.to.iata ?? f.to.icao}
+            {togo ? ` · ${togo}` : ""}
+          </span>
+          <Belt live={p.live} />
+          <b className={`gv-line-phase gs-${facts.tone}`}>{facts.status}</b>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="gv gv-over" style={style} role="region" aria-label={label}>
       {view === "pill" ? (
@@ -714,11 +878,13 @@ export function GateViewScreen(p: ViewProps) {
             {f.flightNo} · {f.from.iata ?? f.from.icao} → {f.to.iata ?? f.to.icao}
             {togo ? ` · ${togo}` : ` · ${facts.status}`}
           </span>
+          <Belt live={p.live} />
         </div>
       ) : (
         <div className="gv-card" aria-live="polite">
           <div className="gv-card-top">
             <span className="mono">{f.flightNo}</span>
+            <Belt live={p.live} />
             <small>{facts.status}</small>
           </div>
           <b className="gv-card-dest">{dest}</b>
@@ -741,45 +907,52 @@ export function GateViewScreen(p: ViewProps) {
  * phase preview: at the gate, taxiing out, half-way at the cruise level, at the arrival gate.
  * Illustrative only (the panel labels it so); the stream itself follows the live feed.
  */
-export function sampleLive(f: GateFlight, stage: FlightStage, now: number): FlightState {
-  const mid = { lat: (f.from.lat + f.to.lat) / 2, lon: (f.from.lon + f.to.lon) / 2 };
-  const at = stage === "flying" ? mid : stage === "arrived" ? f.to : f.from;
+export function sampleLive(f: GateFlight, stage: ViewStage, now: number): FlightState {
+  const air = stage === "flying" || stage === "approaching";
+  // approaching: about 20 nm out on the way in (half-way on a hop shorter than 40 nm)
+  const total = distNm(f.from, f.to);
+  const k = stage === "flying" ? 0.5 : stage === "approaching" ? Math.max(0.5, 1 - 20 / Math.max(1, total)) : 0;
+  const at = air ? { lat: f.from.lat + (f.to.lat - f.from.lat) * k, lon: f.from.lon + (f.to.lon - f.from.lon) * k } : stage === "arrived" ? f.to : f.from;
   const cruise = f.cruiseFt ?? 36_000;
   const brg = (Math.atan2(f.to.lon - f.from.lon, f.to.lat - f.from.lat) * 180) / Math.PI;
   const base = startState();
   const t = now;
   const block = (f.block ?? 90) * MIN;
+  const alt = stage === "flying" ? cruise : stage === "approaching" ? (f.to.elevFt ?? 0) + 4000 : ((stage === "arrived" ? f.to.elevFt : f.from.elevFt) ?? 0);
   const last: FeedSample = {
     t,
     lat: at.lat,
     lon: at.lon,
-    alt: stage === "flying" ? cruise : ((stage === "arrived" ? f.to.elevFt : f.from.elevFt) ?? 0),
+    alt,
     pressAlt: null,
     indAlt: null,
-    gs: stage === "flying" ? 450 : stage === "taxi" ? 15 : 0,
+    gs: stage === "flying" ? 450 : stage === "approaching" ? 190 : stage === "taxi" ? 15 : 0,
     hdg: (brg + 360) % 360,
-    vs: 0,
-    onGround: stage !== "flying",
+    vs: stage === "approaching" ? -800 : 0,
+    onGround: !air,
     parkBrake: stage === "ready" || stage === "arrived",
     engines: stage === "ready" ? [false, false] : [stage !== "arrived", stage !== "arrived"],
     beacon: stage !== "arrived",
     doors: [0, 0, 0, 0],
-    seatbelts: stage !== "arrived",
+    seatbelts: stage !== "arrived" && stage !== "flying",
     noSmoking: "auto",
     landingRate: null,
     tdSim: null,
+    hdgMag: (brg + 360) % 360,
+    fobKg: stage === "flying" ? 5200 : stage === "approaching" ? 3100 : null,
+    ffKgH: stage === "flying" ? 2100 : stage === "approaching" ? 900 : null,
   };
-  const phase: FlightPhase = stage === "ready" ? "doorsClosed" : stage === "taxi" ? "taxi" : stage === "flying" ? "cruise" : "gate";
-  const out = stage === "ready" ? null : t - (stage === "taxi" ? 5 * MIN : stage === "flying" ? block / 2 : block);
+  const phase: FlightPhase = stage === "ready" ? "doorsClosed" : stage === "taxi" ? "taxi" : stage === "flying" ? "cruise" : stage === "approaching" ? "approach" : "gate";
+  const out = stage === "ready" ? null : t - (stage === "taxi" ? 5 * MIN : stage === "flying" ? block / 2 : stage === "approaching" ? block - 12 * MIN : block);
   return {
     ...base,
     phase,
-    stage,
+    stage: stage === "approaching" ? "flying" : stage,
     last,
     airborne: stage !== "ready" && stage !== "taxi",
     stamps: {
       out,
-      off: stage === "flying" || stage === "arrived" ? (out ?? t) + 15 * MIN : null,
+      off: air || stage === "arrived" ? (out ?? t) + 15 * MIN : null,
       on: stage === "arrived" ? t - 8 * MIN : null,
       in: stage === "arrived" ? t - 2 * MIN : null,
       landingRate: stage === "arrived" ? -180 : null,
