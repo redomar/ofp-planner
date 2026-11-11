@@ -8,6 +8,7 @@ Fixes from the first live test with OFP Link and the Fenix (London City → Heat
 - **Distance to go follows the programmed route** (78 nm, as the MCDU's 82), not the straight line (19 nm).
 - **On the ground** the tiles show GND and the ground speed (0 kt parked) instead of dashes.
 - An FMS flight shows no "std" time (it has no schedule), and the Flight box says "from your FMS (OFP Link)".
+- The destination on the map views no longer clips letters that hang below the line (the g in Perugia).
 - **Two airports in one city:** the airport big ("Heathrow") with its city small above ("London"); long names shrink to fit the line.
 
 ## 1.9.2 — 2026-11-11
