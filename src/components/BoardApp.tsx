@@ -376,7 +376,7 @@ export function BoardApp() {
         <ScreenModeClass overlay={overSim} />
         <div className="gs-frame">
           {flight ? (
-            <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} />
+            <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} trail={live.trail} />
           ) : (
             <p className="screen-wait">{ofp?.error ? `SimBrief: ${ofp.error}` : "Loading the flight…"}</p>
           )}
@@ -542,7 +542,7 @@ export function BoardApp() {
                 <div className="gt-preview">
                   <div className="gs-frame" id="gs-preview">
                     {flight ? (
-                      <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} />
+                      <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} trail={live.trail} />
                     ) : (
                       <div className="gs-empty">
                         <p>{gate.sb ? (ofp?.error ? `SimBrief: ${ofp.error}` : "Loading your SimBrief OFP…") : gate.f ? "Loading the flight…" : "No flight yet"}</p>
