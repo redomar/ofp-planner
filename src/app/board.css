@@ -980,10 +980,23 @@ html.screen-mode body > :not(.screen-root) {
   stroke: color-mix(in srgb, #000000 28%, var(--gs-bg));
   stroke-width: 3;
 }
-/* runways: pure white bars on top of everything (stylised length, see OFP Link) */
-.gm-rwy {
-  stroke: #ffffff;
+/* runways as on a chart: asphalt, white edges, centre line, threshold markings and number */
+.gm-rwy line {
   stroke-linecap: butt;
+}
+.gm-rwy-edge {
+  stroke: #ffffff;
+}
+.gm-rwy-body {
+  stroke: #33373d;
+}
+.gm-rwy-mark {
+  stroke: #ffffff;
+}
+.gm-rwy-num {
+  fill: #ffffff;
+  font-family: var(--font-cond);
+  font-weight: 700;
 }
 /* altitude constraints in Airbus magenta, white text on it (AA) */
 .gm-alt rect {

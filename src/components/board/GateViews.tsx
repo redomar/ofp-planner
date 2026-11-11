@@ -129,6 +129,47 @@ const SOURCE: Record<FeedSource, string | null> = { link: "MSFS", replay: "Repla
 /** Near the end the map closes in on the destination: this far out (nm), and at least this wide. */
 const NEAR_NM = 150;
 const NEAR_MIN_ACROSS_NM = 60;
+/** Runways are drawn this long (m): longer than most, so they read on the map. */
+const RUNWAY_M = 7000;
+
+/**
+ * A runway as on a chart: asphalt with white edges, a dashed centre line, the threshold markings
+ * across it at the threshold end and the runway number just past them, small. a = threshold.
+ */
+function Runway({ a, b, number, width }: { a: [number, number]; b: [number, number]; number: string; width: number }) {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len;
+  const uy = dy / len;
+  // across the runway
+  const px = -uy;
+  const py = ux;
+  const at = (along: number, across = 0): [number, number] => [a[0] + ux * along + px * across, a[1] + uy * along + py * across];
+  const ang = (Math.atan2(dy, dx) * 180) / Math.PI;
+  const keys = [-2.5, -1.5, -0.5, 0.5, 1.5, 2.5].map((k) => k * width * 0.14);
+  const keyLen = Math.min(width * 1.2, len * 0.12);
+  const num = at(keyLen + width * 0.75);
+  const c0 = at(keyLen + width * 1.5);
+  const c1 = at(len - width * 0.6);
+  return (
+    <g className="gm-rwy">
+      <line className="gm-rwy-edge" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} strokeWidth={width} />
+      <line className="gm-rwy-body" x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} strokeWidth={width * 0.82} />
+      {c1 && len > keyLen + width * 3 && <line className="gm-rwy-mark" x1={c0[0]} y1={c0[1]} x2={c1[0]} y2={c1[1]} strokeWidth={width * 0.07} strokeDasharray={`${width * 0.5} ${width * 0.35}`} />}
+      {keys.map((k) => {
+        const s0 = at(width * 0.12, k);
+        const s1 = at(keyLen, k);
+        return <line key={k} className="gm-rwy-mark" x1={s0[0]} y1={s0[1]} x2={s1[0]} y2={s1[1]} strokeWidth={width * 0.08} />;
+      })}
+      {number && (
+        <text className="gm-rwy-num" x={num[0]} y={num[1]} fontSize={width * 0.42} textAnchor="middle" dominantBaseline="central" transform={`rotate(${ang + 90} ${num[0]} ${num[1]})`}>
+          {number}
+        </text>
+      )}
+    </g>
+  );
+}
 
 /**
  * The moving map in the airline's colours: sea, land, coastline, dashed borders and a 5° grid
@@ -253,11 +294,16 @@ export function GateMap({
       </g>
     );
   const right = (pt?.[0] ?? 0) >= (pf?.[0] ?? 0);
+  // runways drawn RUNWAY_M long from the threshold along the course OFP Link gives (stylised, not true length)
   const rwys = legs
     ? (plan?.runways ?? []).flatMap((r) => {
         const a = geo.proj(r.start);
-        const b = geo.proj(r.end);
-        return a && b ? [{ ...r, a, b }] : [];
+        const b0 = geo.proj(r.end);
+        if (!a || !b0) return [];
+        const d = Math.hypot(b0[0] - a[0], b0[1] - a[1]) || 1;
+        const len = (RUNWAY_M / 6371000) * geo.proj.scale();
+        const b: [number, number] = [a[0] + ((b0[0] - a[0]) / d) * len, a[1] + ((b0[1] - a[1]) / d) * len];
+        return [{ ...r, a, b }];
       })
     : [];
   // an airport with its runway drawn: no dot, and its code set off to the side, never on the bar
@@ -376,7 +422,7 @@ export function GateMap({
       {codeBy(f.to.icao, pt, f.to.iata ?? f.to.icao, right)}
       {/* runways on top of everything: stylised 5 km bars from the threshold (OFP Link), pure white, no text on them */}
       {rwys.map((r) => (
-        <line key={`${r.role}-${r.runway}`} className="gm-rwy" x1={r.a[0]} y1={r.a[1]} x2={r.b[0]} y2={r.b[1]} strokeWidth={W * 0.016} />
+        <Runway key={`${r.role}-${r.runway}`} a={r.a} b={r.b} number={r.runway} width={W * 0.02} />
       ))}
       {pp && (
         <g transform={`translate(${pp[0]} ${pp[1]}) rotate(${hdg}) scale(${(W * 0.055) / 64}) translate(-32 -32)`}>
