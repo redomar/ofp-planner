@@ -116,6 +116,7 @@ export function GateScreen({
   live = null,
   source = null,
   plan = null,
+  belt = true,
 }: {
   flight: GateFlight;
   state: GateState;
@@ -126,6 +127,8 @@ export function GateScreen({
   source?: string | null;
   /** The FMS route (OFP Tower, Fenix): distance to go follows it. */
   plan?: FlightPlan | null;
+  /** The seatbelt sign while it's on (a look's setting). */
+  belt?: boolean;
 }) {
   const bg = routeColor(f.brand);
   const ink = textOn(bg);
@@ -282,7 +285,7 @@ export function GateScreen({
             <b>{source}</b>
           </span>
         )}
-        <Belt live={live} />
+        {belt && <Belt live={live} />}
         <span className="gs-clock">
           <b className="mono">{localClock(clockAt, fromTz)}</b>
           <small>

@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.12.0 — 2026-11-11
+
+**The Stream studio.** Setting up what your audience sees, redone around your OBS scenes (Board → Gate screen → Stream).
+
+- **One line says whether the stream is ready:** OFP Tower, VATSIM, whether changes reach OBS live, the flight and its stage, and "Copy stream URL".
+- **Tabs** keep the rest apart: Scenes, Rehearse, Live feed, OBS setup.
+- **Scenes:**
+  - your OBS scenes in a list, like OBS's own Scenes dock, each with a small strip of its five stages;
+  - the chosen scene's flight as a timeline: at the gate, taxi, flying, approaching, arrived, each with a picture of what shows, when the stage starts, and "now" on the live one;
+  - quick changes: one stage's look all flight, Arrived = At the gate, Approaching = Flying;
+  - "Start from" a preset, for any scene;
+  - every scene × stage at a glance;
+  - beside it, what OBS shows now or at any stage, the front or back of a flip card.
+- **The look editor** opens over the page when you click a stage:
+  - every view, by kind: full screens, map corners, cards, strips and pills, and your saved looks;
+  - **size** (small, medium, large) and **position** (eight places) for every view drawn over the sim;
+  - for the cards that flip, the back sides and how long each side shows;
+  - the seatbelt sign on or off;
+  - **up to three layers** on one screen, e.g. a strip with a small map corner above it (a corner moves clear of a strip on the same edge);
+  - "Also use for" other stages, and "Save to My looks" (kept in this browser).
+- **New views (the G6/G7 designs):**
+  - **G6a** map corners: with the fix passed and the next three (course, distance, time); with the route as a row of arrows; with the next fix big.
+  - **G7a** cards: with a leg table; a timeline (passed, next, the top of descent, the destination); minutes to the next fix, the descent and landing.
+  - **G6b and G7b** turn over now and then (3 min front, 45 s back by default, never on the ground, at take-off, on approach or landing) to a back side: **by the numbers** (distances and times, fuel at the destination, headwind, drift), **the FMS plan** in the MCDU's colours with constraints and V-speeds, or **the whole route** on one line. Aircraft status and flight deck come once OFP Tower reads them.
+  - The top of descent is an estimate (3 nm per 1,000 ft) until the FMS gives its own.
+- **URLs:** a look is a short code, so any look or layers can be a fixed source too (`&view=card.s.bl`, `&view=strip~g6a1.s`). Every stream URL from before still reads the same.
+
 ## 1.11.2 — 2026-11-11
 
 - **No more point in the Atlantic.** While the MCDU was being set up (before a departure runway, or with an entry it hadn't resolved yet), the FMS route could carry a fix at 0°N 0°E, and the map stretched to fit it. Fixes, runway ends and readings at exactly 0,0 are now ignored, from OFP Tower, SimBrief and the sim alike. Real points on the equator or the Greenwich meridian still count.

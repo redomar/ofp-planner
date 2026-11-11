@@ -8,6 +8,7 @@ import type { Airport, FlightRow } from "../data/load";
 import { blockTime, flightNo, gcNm } from "../data/flight";
 import { MIN, taxiOf, type PhaseKey } from "./board";
 import type { FlightPlan, PlanLeg, ViewStage } from "../feed/core";
+import { layers, layersFrom, layersTo, type Layers, type ShownView } from "./looks";
 
 export interface GateState {
   /** Snapshot flight id. */
@@ -35,12 +36,15 @@ export interface GateState {
   overlay: boolean;
   /** Rotate the info strip (weather, flight facts, message). */
   rotate: boolean;
-  /** 1.9: which view of the screen (full by default; auto follows the aircraft). */
-  view: GateView;
-  /** view=auto: the view at each stage of the flight. */
-  stages: Record<ViewStage, ShownView>;
   /**
-   * view=auto in a named OBS scene (any case): that scene's own view at each stage, e.g. BRB is the
+   * 1.9: which view of the screen: "auto" follows the aircraft (stages, scenes); anything else is
+   * one look (or layers) as a token, "full" by default. 1.12: any look token ("card.s.bl").
+   */
+  view: string;
+  /** view=auto: what shows at each stage of the flight (up to three looks stacked). */
+  stages: Record<ViewStage, Layers>;
+  /**
+   * view=auto in a named OBS scene (any case): that scene's own looks at each stage, e.g. BRB is the
    * frame whatever the aircraft does. Any other scene uses `stages`.
    */
   scenes: SceneRule[];
@@ -48,38 +52,33 @@ export interface GateState {
   hold: ViewStage | null;
 }
 
-export type ShownView = Exclude<GateView, "auto">;
-export type SceneRule = [string, Record<ViewStage, ShownView>];
-export const allStages = (v: ShownView): Record<ViewStage, ShownView> => ({ ready: v, taxi: v, flying: v, approaching: v, arrived: v });
+export type { ShownView } from "./looks";
+export type SceneRule = [string, Record<ViewStage, Layers>];
+export const allStages = (v: ShownView | Layers): Record<ViewStage, Layers> => {
+  const ls = typeof v === "string" ? layers(v) : v;
+  return { ready: ls, taxi: ls, flying: ls, approaching: ls, arrived: ls };
+};
 export const STAGES: ViewStage[] = ["ready", "taxi", "flying", "approaching", "arrived"];
+const byStage = (r: ShownView, t: ShownView, f: ShownView, a: ShownView, d: ShownView): Record<ViewStage, Layers> => ({ ready: layers(r), taxi: layers(t), flying: layers(f), approaching: layers(a), arrived: layers(d) });
 /** Sheet 07: the full screen on the ground, the strip while flying. */
-export const DEFAULT_STAGES: Record<ViewStage, ShownView> = { ready: "full", taxi: "full", flying: "strip", approaching: "strip", arrived: "full" };
+export const DEFAULT_STAGES: Record<ViewStage, Layers> = byStage("full", "full", "strip", "strip", "full");
 /** Sheet 07: the scene names that turn the same source into the frame, the map or the card. */
 export const DEFAULT_SCENES: SceneRule[] = [
   ["BRB", allStages("frame")],
   ["Map", allStages("map")],
   ["Camera", allStages("card")],
 ];
-/** Starting points for the stage table (Stream panel presets). */
-export const PRESETS: { name: string; note: string; stages: Record<ViewStage, ShownView> }[] = [
+/** Starting points for a scene (the Stream studio's "Start from"). */
+export const PRESETS: { name: string; note: string; stages: Record<ViewStage, Layers> }[] = [
   { name: "Classic", note: "the gate screen on the ground, the strip while flying", stages: DEFAULT_STAGES },
-  { name: "Mostly sim", note: "the strip at the gate, the pill from push-back, the strip at the gate again", stages: { ready: "strip", taxi: "pill", flying: "pill", approaching: "pill", arrived: "strip" } },
+  { name: "Mostly sim", note: "the strip at the gate, the pill from push-back, the strip at the gate again", stages: byStage("strip", "pill", "pill", "pill", "strip") },
   { name: "Minimal", note: "just the pill, all flight", stages: allStages("pill") },
-  { name: "Map", note: "the moving map all flight, full screen at the gates", stages: { ready: "full", taxi: "corner", flying: "map", approaching: "map", arrived: "full" } },
+  { name: "Map", note: "the moving map all flight, full screen at the gates", stages: byStage("full", "corner", "map", "map", "full") },
+  { name: "Route", note: "the map corner with legs, flipping in cruise", stages: byStage("frame", "g6a1", "g6b", "g6a1", "frame") },
 ];
 
-/**
- * The views of the gate screen (design sheets 02 and 05): full (G1), map (G3), frame (G3a, a
- * window for the game capture), mapwin (G3c), corner (G3b), strip (G4), card and pill (G5);
- * 1.11: route (G3d, the map with the route ahead) and line (G5b, the pill in one row with the phase).
- * auto picks one by the stage of the flight.
- */
-export const GATE_VIEWS = ["full", "map", "route", "frame", "mapwin", "corner", "strip", "card", "pill", "line", "auto"] as const;
-export type GateView = (typeof GATE_VIEWS)[number];
-/** Views drawn over the sim: everything outside their panels is transparent. */
-export const OVER_SIM: GateView[] = ["frame", "mapwin", "corner", "strip", "card", "pill", "line"];
-const SHOWN = GATE_VIEWS.filter((v): v is ShownView => v !== "auto");
-const isShown = (v: string): v is ShownView => (SHOWN as string[]).includes(v);
+/** The view param: "auto", or a look token (layers too); anything else is the full screen. */
+export const viewFrom = (v: string | null) => (v === "auto" ? "auto" : v && layersFrom(v) ? v : "full");
 
 export const EMPTY_GATE: GateState = {
   f: null,
@@ -105,25 +104,31 @@ const PINS: PhaseKey[] = ["scheduled", "gate", "boarding", "final", "closed", "r
 const text = (v: string | null, n: number) => (v ?? "").replace(/[^\p{L}\p{N} .,'!?:&()/+-]/gu, "").slice(0, n);
 
 /**
- * A view per stage from "a,b,c,d,e" (ready, taxi, flying, approaching, arrived), or the four of
- * before 1.11 ("a,b,c,d", approaching as flying); null when it isn't one of those.
+ * Looks per stage from "a,b,c,d,e" (ready, taxi, flying, approaching, arrived; each a look token,
+ * layers joined by ~), or the four of before 1.11 ("a,b,c,d", approaching as flying); null when it
+ * isn't one of those.
  */
-function stagesOf(parts: string[]): Record<ViewStage, ShownView> | null {
-  if (!parts.every(isShown)) return null;
-  if (parts.length === 4) return { ready: parts[0], taxi: parts[1], flying: parts[2], approaching: parts[2], arrived: parts[3] };
-  if (parts.length === 5) return { ready: parts[0], taxi: parts[1], flying: parts[2], approaching: parts[3], arrived: parts[4] };
+function stagesOf(parts: string[]): Record<ViewStage, Layers> | null {
+  const ls = parts.map(layersFrom);
+  if (ls.some((x) => x == null)) return null;
+  const [a, b, c, d, e] = ls as Layers[];
+  if (parts.length === 4) return { ready: a, taxi: b, flying: c, approaching: c, arrived: d };
+  if (parts.length === 5) return { ready: a, taxi: b, flying: c, approaching: d, arrived: e };
   return null;
 }
-/** The other way: four values while approaching is the same as flying (so older screens still read it), else five. */
-const stagesText = (v: Record<ViewStage, ShownView>) => STAGES.filter((k) => k !== "approaching" || v.approaching !== v.flying).map((k) => v[k]).join(",");
+/** The other way: four while approaching is the same as flying (so older screens still read it), else five. */
+const stagesText = (v: Record<ViewStage, Layers>) =>
+  STAGES.filter((k) => k !== "approaching" || layersTo(v.approaching) !== layersTo(v.flying))
+    .map((k) => layersTo(v[k]))
+    .join(",");
 
-/** st=full,full,strip,strip,full: the view at each stage. */
-function stagesFrom(v: string | null): Record<ViewStage, ShownView> {
+/** st=full,full,strip,strip,full: the looks at each stage. */
+function stagesFrom(v: string | null): Record<ViewStage, Layers> {
   return stagesOf((v ?? "").split(",")) ?? DEFAULT_STAGES;
 }
 /**
  * sc=BRB:frame;Map:map;Flying:strip,pill,pill,full ("-" or empty = no rules): scene names and their
- * view, one for the whole flight or one per stage (ready, taxi, flying, arrived).
+ * looks, one for the whole flight or one per stage.
  */
 function scenesFrom(v: string | null): SceneRule[] {
   if (v == null) return DEFAULT_SCENES;
@@ -134,10 +139,12 @@ function scenesFrom(v: string | null): SceneRule[] {
     const name = text(part.slice(0, i), 40).trim();
     const views = part.slice(i + 1).split(",");
     if (!name) continue;
-    if (views.length === 1 && isShown(views[0])) out.push([name, allStages(views[0])]);
-    else {
-      const v4 = stagesOf(views);
-      if (v4) out.push([name, v4]);
+    if (views.length === 1) {
+      const one = layersFrom(views[0]);
+      if (one) out.push([name, allStages(one)]);
+    } else {
+      const st = stagesOf(views);
+      if (st) out.push([name, st]);
     }
   }
   return out;
@@ -145,7 +152,7 @@ function scenesFrom(v: string | null): SceneRule[] {
 const scenesTo = (sc: SceneRule[]) =>
   sc
     .map(([n, v]) => {
-      const vs = STAGES.map((k) => v[k]);
+      const vs = STAGES.map((k) => layersTo(v[k]));
       return `${n.replace(/[;:,]/g, "")}:${vs.every((x) => x === vs[0]) ? vs[0] : stagesText(v)}`;
     })
     .join(";");
@@ -169,7 +176,7 @@ export function gateFromParams(q: URLSearchParams, now: number): GateState {
     msg: text(q.get("msg"), 120),
     overlay: q.get("ov") === "1",
     rotate: q.get("rot") !== "0",
-    view: (GATE_VIEWS as readonly string[]).includes(q.get("view") ?? "") ? (q.get("view") as GateView) : "full",
+    view: viewFrom(q.get("view")),
     stages: stagesFrom(q.get("st")),
     scenes: scenesFrom(q.get("sc")),
     hold: STAGES.includes(q.get("hold") as ViewStage) ? (q.get("hold") as ViewStage) : null,
