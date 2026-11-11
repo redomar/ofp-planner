@@ -179,8 +179,12 @@ def std_convert(kind, raw):
     return ("on" if b else "off") if kind == "onoff" else b
 
 
-def start_fenix_plan_thread(link, every=10.0):
-    """Read the Fenix MCDU flight plan (read-only) and push it to the link when it changes."""
+def start_fenix_plan_thread(link, every=10.0, plan_q=None):
+    """Read the Fenix MCDU flight plan (read-only) and push it to the link when it changes.
+
+    Each changed plan is also put on plan_q (with the time it was read) so the main loop can
+    write it into the recording between sample lines; the file is only ever written by one thread.
+    """
     import threading
     from fenix_fms import read_plan
 
@@ -193,6 +197,11 @@ def start_fenix_plan_thread(link, every=10.0):
                     time.sleep(every)
                     continue        # aircraft unloaded / FMS empty: keep the last good plan
                 if link.set_plan(plan):
+                    if plan_q is not None:
+                        try:
+                            plan_q.put_nowait({**plan, "type": "plan", "t": int(time.time() * 1000)})
+                        except Exception:
+                            pass            # queue full (main loop stalled): skip, never block
                     print(f"OFP Tower: Fenix MCDU plan {plan['origin']}->{plan['destination']} "
                           f"{plan['flightNumber']}, {len(plan['legs'])} waypoints", file=sys.stderr)
                 warned = False
@@ -242,6 +251,8 @@ def main():
     print(f"Aircraft: {title} | profile: {profile['name'] if profile else 'none'}", file=sys.stderr)
 
     link = None
+    import queue
+    plan_q = queue.Queue(maxsize=100)   # changed MCDU plans, written into the recording as "plan" lines
     if args.serve:
         from link_server import LinkServer
         link = LinkServer(args.port, {"title": title, "atcId": atc_id,
@@ -249,7 +260,7 @@ def main():
                                       "recording": os.path.basename(path)})
         link.start()
         if profile and profile.get("name") == "Fenix":
-            start_fenix_plan_thread(link)
+            start_fenix_plan_thread(link, plan_q=plan_q)
 
     # pendingTd: touchdowns not yet written (a short bounce can put two between 1 Hz lines).
     # tdCount numbers the contacts of one landing: 1 = the landing, 2+ = bounces.
@@ -358,6 +369,15 @@ def main():
                 if raw:
                     rec["raw"] = raw
 
+                # Plan lines: {"type":"plan","t":<ms when read>,"zulu":<sim zulu of the next sample>, ...plan}
+                # Readers tell them apart from samples by "type" (samples have none).
+                while True:
+                    try:
+                        p = plan_q.get_nowait()
+                    except queue.Empty:
+                        break
+                    p["zulu"] = rec["zulu"]
+                    f.write(json.dumps(p) + "\n")
                 f.write(json.dumps(rec) + "\n")
                 f.flush()
                 if link:

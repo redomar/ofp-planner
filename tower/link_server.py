@@ -25,6 +25,91 @@ import os
 SETTINGS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "last-settings.json")
 RELAY_MAX = 16 * 1024          # relay messages larger than this are ignored
 FRAME_MAX = 64 * 1024          # hard cap per incoming frame (connection closes above it)
+TRACK_EVERY_S = 30.0           # flown-path backlog: keep a point every 30 s ...
+TRACK_EVERY_NM = 2.0           # ... or every 2 nm ...
+TRACK_TURN_DEG = 10.0          # ... or after a 10 degree change of track (keeps turns round)
+TRACK_MAX = 3000               # thin to every other point above this (very long flights)
+
+
+def _nm(a, b):
+    """Great-circle distance in nm between (lat, lon) pairs."""
+    import math
+    la1, lo1, la2, lo2 = map(math.radians, (a[0], a[1], b[0], b[1]))
+    h = math.sin((la2 - la1) / 2) ** 2 + math.cos(la1) * math.cos(la2) * math.sin((lo2 - lo1) / 2) ** 2
+    return 3440.065 * 2 * math.asin(min(1.0, math.sqrt(h)))
+
+
+def _bearing(a, b):
+    import math
+    la1, lo1, la2, lo2 = map(math.radians, (a[0], a[1], b[0], b[1]))
+    y = math.sin(lo2 - lo1) * math.cos(la2)
+    x = math.cos(la1) * math.sin(la2) - math.sin(la1) * math.cos(la2) * math.cos(lo2 - lo1)
+    return math.degrees(math.atan2(y, x)) % 360
+
+
+class TrackLog:
+    """Decimated flown path for this flight, sent to boards that connect late (or reload).
+
+    Points are [zuluSec, lat, lon, altFt]. A new flight starts when the plan's origin or
+    destination changes, or when the aircraft takes off again after a landing.
+    """
+
+    def __init__(self):
+        self.points = []
+        self._last = None          # last raw fix (lat, lon)
+        self._course = None        # course of the last kept segment
+        self._on_ground = None
+        self._landed = False
+        self._route = None
+
+    def reset(self):
+        self.points, self._last, self._course, self._landed = [], None, None, False
+
+    def note_route(self, origin, destination):
+        route = (origin or None, destination or None)
+        if self._route is not None and route != self._route and any(route):
+            self.reset()
+        if any(route):
+            self._route = route
+
+    def add(self, rec):
+        lat, lon, zulu = rec.get("lat"), rec.get("lon"), rec.get("zulu")
+        if lat is None or lon is None or zulu is None:
+            return
+        if abs(lat) < 1e-4 and abs(lon) < 1e-4:     # sim still loading: no real position
+            return
+        on_ground = rec.get("onGround")
+        if self._on_ground is False and on_ground is True:
+            self._landed = True
+        elif self._on_ground is True and on_ground is False and self._landed:
+            self.reset()                             # next flight's take-off
+        self._on_ground = on_ground
+        moving = (rec.get("gs") or 0) >= 3 or on_ground is False
+        if not moving and self.points:
+            return                                   # parked: one point is enough
+        here = (lat, lon)
+        pt = [zulu, round(lat, 5), round(lon, 5), round(rec.get("alt") or 0)]
+        if not self.points:
+            self.points.append(pt)
+            self._last = here
+            return
+        prev = self.points[-1]
+        dist = _nm((prev[1], prev[2]), here)
+        if dist < 0.05:
+            return
+        course = _bearing((prev[1], prev[2]), here)
+        turned = self._course is not None and dist >= 0.5 and \
+            abs((course - self._course + 180) % 360 - 180) >= TRACK_TURN_DEG
+        dt = (zulu - prev[0]) % 86400                # zulu wraps at midnight
+        if dt >= TRACK_EVERY_S or dist >= TRACK_EVERY_NM or turned:
+            self.points.append(pt)
+            self._course = course
+            if len(self.points) > TRACK_MAX:
+                self.points = self.points[:-1:2] + [self.points[-1]]
+        self._last = here
+
+    def message(self):
+        return json.dumps({"type": "track", "points": self.points}) if self.points else None
 
 
 class LinkServer:
@@ -40,6 +125,8 @@ class LinkServer:
         self._settings_msg = None
         self._save_lock = threading.Lock()
         self._saved = False
+        self._track = TrackLog()
+        self._track_lock = threading.Lock()
         try:   # the last Stream-panel settings survive a restart
             with open(self._settings_file, encoding="utf-8") as f:
                 txt = f.read()
@@ -75,14 +162,18 @@ class LinkServer:
             ws.send(json.dumps(hello))
         except Exception:
             return
-        for extra in (self._plan_msg, self._settings_msg):
-            if extra:
-                try:
-                    ws.send(extra)
-                except Exception:
-                    return
-        with self._lock:
-            self._clients.add(ws)
+        # The track backlog is built and the client joins broadcasts under the same lock that
+        # publish() takes, so no sample can arrive before the backlog or fall between them.
+        with self._track_lock:
+            track_msg = self._track.message()
+            for extra in (self._plan_msg, track_msg, self._settings_msg):
+                if extra:
+                    try:
+                        ws.send(extra)
+                    except Exception:
+                        return
+            with self._lock:
+                self._clients.add(ws)
         try:
             for raw in ws:
                 if isinstance(raw, str) and len(raw) <= RELAY_MAX:
@@ -132,12 +223,16 @@ class LinkServer:
         msg = json.dumps(plan)
         if msg == self._plan_msg:
             return False
+        with self._track_lock:
+            self._track.note_route(plan.get("origin"), plan.get("destination"))
         self._plan_msg = msg
         self._enqueue(msg)
         return True
 
     def publish(self, rec):
-        self._enqueue(json.dumps({"type": "sample", **rec}))
+        with self._track_lock:
+            self._track.add(rec)
+            self._enqueue(json.dumps({"type": "sample", **rec}))
 
     def _enqueue(self, msg, exclude=None):
         item = (msg, exclude)
