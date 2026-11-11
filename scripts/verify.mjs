@@ -183,6 +183,8 @@ async function run() {
     let weatherFails = errors.filter((e) => e.startsWith("__weather_")).length;
     const errs = errors.filter((e) => {
       if (e.startsWith("__weather_")) return false;
+      // the board looking for OFP Tower on this machine; none runs here
+      if (/WebSocket connection to 'ws:\/\/localhost:47800\/' failed/.test(e)) return false;
       if (weatherFails > 0 && /^Failed to load resource/.test(e)) return (weatherFails--, false);
       return true;
     });
@@ -1508,7 +1510,7 @@ async function run() {
       }),
     );
     await page.goto(base + "/board?tab=gate", { waitUntil: "networkidle" });
-    await page.locator(".gt-sb input").fill("example-pilot");
+    await page.getByPlaceholder("Your SimBrief username").fill("example-pilot");
     await page.getByRole("button", { name: "Use my latest OFP" }).click();
     await page.waitForSelector(".gs-dest");
     const sb = { dest: await page.locator(".gs-dest").textContent(), sub: await page.locator(".gs-dest-sub").textContent(), brand: await page.locator(".gs-wordmark").textContent(), st: await page.locator(".gs-status").innerText() };
@@ -1523,7 +1525,7 @@ async function run() {
     await page.waitForURL(/\/board\?.*tab=gate/);
     await page.waitForSelector(".gs-dest");
     pass("finder: the flight card opens its gate screen");
-    errors.filter((e) => !e.startsWith("__weather_") && !/Failed to load resource/.test(e)).length ? fail(`board: console errors ${JSON.stringify(errors.slice(0, 3))}`) : pass("board: 0 console errors");
+    errors.filter((e) => !e.startsWith("__weather_") && !/Failed to load resource|ws:\/\/localhost:47800/.test(e)).length ? fail(`board: console errors ${JSON.stringify(errors.slice(0, 3))}`) : pass("board: 0 console errors");
     await ctx.close();
     for (const [width, theme] of [[1280, "dark"], [390, "light"], [390, "dark"]]) {
       const o = await open(gateUrl.pathname + gateUrl.search, { width, height: width < 500 ? 844 : 900, theme });
