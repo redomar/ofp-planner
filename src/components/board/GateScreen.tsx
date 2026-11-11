@@ -7,7 +7,7 @@ import { countryName } from "@/lib/places";
 import { MIN, phaseAt, phases, type PhaseKey } from "@/lib/board/board";
 import type { GateFlight, GateState } from "@/lib/board/gate";
 import { aircraft } from "@/lib/aircraft";
-import { landingText, PHASE_LABEL, type FlightPhase, type FlightPlan, type FlightState } from "@/lib/feed/core";
+import { landingText, phaseLabel, type FlightPhase, type FlightPlan, type FlightState } from "@/lib/feed/core";
 import { altText, Belt, liveFacts } from "./GateViews";
 
 /** Destination weather for the info strip. */
@@ -184,7 +184,7 @@ export function GateScreen({
     next = phase.key === "takeoff" ? `Climbing out${f.runway ? ` from runway ${f.runway}` : ""}` : `Off-block ${localClock(etd, fromTz)}${f.runway ? ` · runway ${f.runway}` : ""}`;
   }
   if (live && !g.pin && !g.cancelled) {
-    status = PHASE_LABEL[live.phase];
+    status = phaseLabel(live);
     tone = live.stage === "ready" ? (live.phase === "boarding" ? "go" : "stop") : "done";
     const at2 = (ms: number | null, tz: string | null) => (ms == null ? null : localClock(ms, tz));
     next =
