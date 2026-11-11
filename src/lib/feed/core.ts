@@ -58,6 +58,14 @@ export interface FeedSample {
   tdPeakG?: { n: number; peakG: number } | null;
 }
 
+/**
+ * A real position: in range, and not 0,0 ("null island"), which the sim reports while loading and
+ * the FMS gives an entry it hasn't resolved yet (the origin before a runway, a typed ident).
+ */
+export function realPos(lat: number, lon: number): boolean {
+  return Math.abs(lat) <= 90 && Math.abs(lon) <= 180 && !(Math.abs(lat) < 1e-4 && Math.abs(lon) < 1e-4);
+}
+
 /** [deg, kt] from a two-number array, else null. */
 function windOf(v: unknown): [number, number] | null {
   if (!Array.isArray(v) || v.length < 2) return null;
@@ -89,7 +97,7 @@ const down = (v: number | null) => (v == null ? null : -Math.abs(v));
 export function toSample(r: Record<string, unknown>, t: number, version = 2): FeedSample | null {
   const lat = num(r.lat);
   const lon = num(r.lon);
-  if (lat == null || lon == null || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+  if (lat == null || lon == null || !realPos(lat, lon)) return null;
   return {
     t,
     lat,
@@ -213,7 +221,7 @@ export function toPlan(m: Record<string, unknown>): FlightPlan | null {
     const l = raw as Record<string, unknown>;
     const lat = num(l.lat);
     const lon = num(l.lon);
-    if (lat == null || lon == null || Math.abs(lat) > 90 || Math.abs(lon) > 180) continue;
+    if (lat == null || lon == null || !realPos(lat, lon)) continue;
     const a = l.altConstraint as Record<string, unknown> | undefined;
     const ft = a ? num(a.alt) : null;
     const type = a?.type === "atOrAbove" || a?.type === "atOrBelow" ? a.type : "at";
@@ -251,7 +259,7 @@ export function toPlan(m: Record<string, unknown>): FlightPlan | null {
       const pt = (p?: Record<string, unknown>): [number, number] | null => {
         const lat = p ? num(p.lat) : null;
         const lon = p ? num(p.lon) : null;
-        return lat != null && lon != null && Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? [lon, lat] : null;
+        return lat != null && lon != null && realPos(lat, lon) ? [lon, lat] : null;
       };
       const s0 = pt(a);
       const e0 = pt(b);
