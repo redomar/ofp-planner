@@ -72,6 +72,36 @@ interface VatsimPilot {
   groundspeed: number;
   heading: number;
   last_updated: string;
+  /** What the pilot filed (absent for a flight without a plan). */
+  flight_plan?: { departure?: string; arrival?: string; alternate?: string; altitude?: string; aircraft_short?: string } | null;
+}
+
+/**
+ * A pilot's filed VATSIM flight plan as a FlightPlan: its ends, cruise level and callsign. No legs:
+ * VATSIM gives the route as text, so the feed puts in the two airports' positions.
+ */
+export function vatsimPlan(p: VatsimPilot): FlightPlan | null {
+  const fp = p.flight_plan;
+  const dep = fp?.departure?.trim().toUpperCase();
+  const arr = fp?.arrival?.trim().toUpperCase();
+  if (!dep || !arr || !/^[A-Z0-9]{4}$/.test(dep) || !/^[A-Z0-9]{4}$/.test(arr)) return null;
+  const alt = (fp?.altitude ?? "").trim().toUpperCase();
+  const n = Number(alt.replace(/^F(L)?/, ""));
+  const cruiseFt = Number.isFinite(n) && n > 0 ? (alt.startsWith("F") || n < 1000 ? n * 100 : n) : null;
+  const alternate = fp?.alternate?.trim().toUpperCase();
+  return {
+    source: "vatsim",
+    origin: dep,
+    destination: arr,
+    alternate: alternate && /^[A-Z0-9]{4}$/.test(alternate) ? alternate : null,
+    flightNumber: p.callsign.toUpperCase().slice(0, 10),
+    cruiseFt: cruiseFt && cruiseFt <= 60_000 ? cruiseFt : null,
+    phase: null,
+    legs: [],
+    runways: [],
+    active: null,
+    vSpeeds: null,
+  };
 }
 
 /**
@@ -104,6 +134,8 @@ export function vatsimSource(who: string, h: SourceHandlers): () => void {
           const s = toSample({ lat: p.latitude, lon: p.longitude, alt: p.altitude, gs: p.groundspeed, hdg: p.heading, vs }, t);
           if (s) h.onSample(s);
         }
+        const plan = vatsimPlan(p);
+        if (plan) h.onPlan?.(plan);
         h.onStatus({ state: "live", text: `VATSIM · ${p.callsign}` });
       }
     } catch (e) {

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.12.1 — 2026-11-11
+
+- **Watch any pilot on VATSIM.** The gate screen's Flight box takes a VATSIM callsign ("A pilot on VATSIM", e.g. EWG50T) as well as a Finder flight or your SimBrief OFP. The flight is what they filed (departure, arrival, cruise level; the airline from the callsign) and their position comes from the VATSIM feed every 15 s, so every view and the Stream studio work as for your own flight. There are no schedule times, the route is drawn straight (VATSIM gives it as text only), and the seatbelt sign stays off. The address keeps it: `/board?tab=gate&feed=auto&who=EWG50T`. Only read; nothing is sent to VATSIM.
+
 ## 1.12.0 — 2026-11-11
 
 **The Stream studio.** Setting up what your audience sees, redone around your OBS scenes (Board → Gate screen → Stream).
