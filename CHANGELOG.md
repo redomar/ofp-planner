@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.10.2 — 2026-11-11
+
+From the first live stream with the grid.
+
+- **OBS keeps its layout.** Opening the board in a new tab (a flight from the Finder, your SimBrief OFP) no longer sends that tab's default settings to OBS through OFP Tower. A panel now sends settings only when you change them, and always sends all of them; a screen ignores empty or partial settings (like the ones OFP Tower kept from before) and keeps its own URL. An open panel also picks up the settings OBS is using.
+- **With no flight yet**, the gate tab says when OFP Tower is connected and waiting for a route in the MCDU, or what's wrong with the link.
+
 ## 1.10.1 — 2026-11-11
 
 - The sim-PC companion is now called **OFP Tower** (was OFP Link) everywhere on the site: the Stream panel, the setup text, the live status and the docs. Nothing else changes: the same port, the same `feed=link` address.
