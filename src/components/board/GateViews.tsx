@@ -66,7 +66,8 @@ export interface LiveFacts {
 }
 
 const fmsLine = (f: GateFlight) => [`${f.from.iata ?? f.from.icao} → ${f.to.iata ?? f.to.icao}`, f.cruiseFt ? `cruise ${fl(f.cruiseFt)}` : null].filter(Boolean).join(" · ");
-export const fl = (ft: number) => (ft >= 10_000 ? `FL${String(Math.round(ft / 100)).padStart(3, "0")}` : `${(Math.round(ft / 100) * 100).toLocaleString("en-GB")} ft`);
+export const fl = (ft: number) =>
+  ft >= 10_000 ? `FL${String(Math.round(ft / 100)).padStart(3, "0")}` : ft < 1000 ? `${Math.max(0, Math.round(ft / 10) * 10)} ft` : `${(Math.round(ft / 100) * 100).toLocaleString("en-GB")} ft`;
 const mins = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, "0")}m` : `${Math.max(1, Math.round(m))} min`);
 
 /**
@@ -257,7 +258,7 @@ export function GateMap({
     return best;
   }, [routeLegs, pos]);
   // when near, the view follows the aircraft in steps of about 15 nm (so the chart isn't redrawn every second)
-  const posKey = near && pos ? `${Math.round(pos[0] * 4)},${Math.round(pos[1] * 4)}` : "";
+  const posKey = (near || (routeLegs && (f.nm ?? 999) < 400)) && pos ? `${Math.round(pos[0] * 4)},${Math.round(pos[1] * 4)}` : "";
   const geo = useMemo(() => {
     const view = (pts: [number, number][], centre: [number, number], minAcrossRad: number | null) => {
       const proj = geoAzimuthalEquidistant()
@@ -283,7 +284,9 @@ export function GateMap({
     };
     let proj;
     let reach;
-    if (near) {
+    // a short FMS route stays fitted to the whole route (and the aircraft) all the way, as at the gate
+    const short = !!routeLegs && routeLegs.length <= 24 && (f.nm ?? 999) < 400;
+    if (near && !short) {
       const R = 3440.065;
       const ahead = (routeLegs ?? []).slice(Math.max(0, nearest)).map((l): [number, number] => [l.lon, l.lat]);
       const rw = (plan?.runways ?? []).filter((r) => r.airport === f.to.icao).flatMap((r) => [r.start, r.end]);
@@ -292,7 +295,7 @@ export function GateMap({
       reach = 0.06;
     } else {
       const span = geoDistance(from, to);
-      const pts: [number, number][] = routeLegs ? routeLegs.map((l) => [l.lon, l.lat]) : [0, 0.25, 0.5, 0.75, 1].map((k) => geoInterpolate(from, to)(k));
+      const pts: [number, number][] = routeLegs ? [...routeLegs.map((l): [number, number] => [l.lon, l.lat]), ...(pos ? [pos] : [])] : [0, 0.25, 0.5, 0.75, 1].map((k) => geoInterpolate(from, to)(k));
       // a whole FMS route is fitted as it is (at least ROUTE_MIN_ACROSS_NM); a plain line at least ~260 nm across
       proj = view(pts, geoInterpolate(from, to)(0.5), routeLegs ? ROUTE_MIN_ACROSS_NM / 3440.065 : 0.075);
       reach = span / 2;
@@ -303,7 +306,7 @@ export function GateMap({
     ]);
     return { proj, path: geoPath(proj) };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on what moves the view, not array identity
-  }, [from[0], from[1], to[0], to[1], W, H, near, posKey, routeLegs, nearest, plan]);
+  }, [from[0], from[1], to[0], to[1], W, H, near, posKey, routeLegs, nearest, plan, f.nm]);
   const base = useMemo(() => baseLayers(geo.proj, geo.path, W, H, outlines, terrain), [geo, W, H, outlines, terrain]);
   const line = (a: [number, number], b: [number, number]) => geo.path({ type: "LineString", coordinates: [0, 0.2, 0.4, 0.6, 0.8, 1].map((k) => geoInterpolate(a, b)(k)) }) ?? "";
   const lineThrough = (pts: [number, number][]) => (pts.length > 1 ? (geo.path({ type: "LineString", coordinates: pts }) ?? "") : "");
