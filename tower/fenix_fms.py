@@ -8,6 +8,7 @@ Nothing is ever written to the Fenix.
 import json
 import math
 import re
+import sys
 import time
 import xml.etree.ElementTree as ET
 
@@ -66,6 +67,24 @@ def _num(s):
         return None
 
 
+_dropped_seen = set()
+
+
+def _real_position(lat, lon):
+    """False for 0,0 ('Null Island': unresolved MCDU entries) and out-of-range values."""
+    if abs(lat) > 90 or abs(lon) > 180:
+        return False
+    return not (abs(lat) < 1e-4 and abs(lon) < 1e-4)
+
+
+def _note_dropped(ident, lat, lon):
+    key = (ident, round(lat, 4), round(lon, 4))
+    if key not in _dropped_seen:                # say it once per waypoint, not every 10 s
+        _dropped_seen.add(key)
+        print(f"OFP Tower: ignored MCDU waypoint {ident!r} with no real position ({lat}, {lon})",
+              file=sys.stderr)
+
+
 def parse_plan_xml(xml_text, destination=None):
     root = ET.fromstring(xml_text)
     cruise = _num(root.findtext("cruiseLevel"))
@@ -85,6 +104,9 @@ def parse_plan_xml(xml_text, destination=None):
                 continue
             flags = [name for ch, name in SYMBOLS.items() if ch in raw]
             ident = re.sub("[" + SYMBOL_CHARS + "]", "", raw).strip()
+            if not _real_position(lat, lon):
+                _note_dropped(ident or raw or ltype, lat, lon)   # e.g. 0,0 while the MCDU is mid-entry
+                continue
             leg = {"id": ident, "lat": round(lat, 6), "lon": round(lon, 6),
                    "via": lg.findtext("via") or None, "kind": ltype}
             eta = (lg.findtext("ETA") or "").strip()
