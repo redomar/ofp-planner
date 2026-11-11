@@ -213,7 +213,8 @@ export function GateMap({
     if (near) {
       const R = 3440.065;
       const ahead = (routeLegs ?? []).slice(Math.max(0, nearest)).map((l): [number, number] => [l.lon, l.lat]);
-      const pts: [number, number][] = [to, ...ahead, ...(pos ? [pos] : [])].filter((p) => geoDistance(p, to) * R < NEAR_NM * 1.4);
+      const rw = (plan?.runways ?? []).filter((r) => r.airport === f.to.icao).flatMap((r) => [r.start, r.end]);
+      const pts: [number, number][] = [to, ...rw, ...ahead, ...(pos ? [pos] : [])].filter((p) => geoDistance(p, to) * R < NEAR_NM * 1.4);
       proj = view(pts, to, NEAR_MIN_ACROSS_NM / R);
       reach = 0.06;
     } else {
@@ -228,7 +229,7 @@ export function GateMap({
     ]);
     return { proj, path: geoPath(proj) };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on what moves the view, not array identity
-  }, [from[0], from[1], to[0], to[1], W, H, near, posKey, routeLegs, nearest]);
+  }, [from[0], from[1], to[0], to[1], W, H, near, posKey, routeLegs, nearest, plan]);
   const base = useMemo(() => baseLayers(geo.proj, geo.path, W, H, outlines, terrain), [geo, W, H, outlines, terrain]);
   const line = (a: [number, number], b: [number, number]) => geo.path({ type: "LineString", coordinates: [0, 0.2, 0.4, 0.6, 0.8, 1].map((k) => geoInterpolate(a, b)(k)) }) ?? "";
   const lineThrough = (pts: [number, number][]) => (pts.length > 1 ? (geo.path({ type: "LineString", coordinates: pts }) ?? "") : "");
@@ -252,10 +253,36 @@ export function GateMap({
       </g>
     );
   const right = (pt?.[0] ?? 0) >= (pf?.[0] ?? 0);
+  const rwys = legs
+    ? (plan?.runways ?? []).flatMap((r) => {
+        const a = geo.proj(r.start);
+        const b = geo.proj(r.end);
+        return a && b ? [{ ...r, a, b }] : [];
+      })
+    : [];
+  // an airport with its runway drawn: no dot, and its code set off to the side, never on the bar
+  const codeBy = (icao: string, p: [number, number] | null, code: string, right: boolean) => {
+    const r = rwys.find((x) => x.airport === icao);
+    if (!r || !p) return dot(p, code, right);
+    const ux = r.b[0] - r.a[0];
+    const uy = r.b[1] - r.a[1];
+    const d = Math.hypot(ux, uy) || 1;
+    // perpendicular, on the upper side, clear of the bar's width
+    const flip = ux / d > 0 ? -1 : 1;
+    const nx = (-uy / d) * flip;
+    const ny = (ux / d) * flip;
+    const mx = (r.a[0] + r.b[0]) / 2 + nx * W * 0.035;
+    const my = (r.a[1] + r.b[1]) / 2 + ny * W * 0.035;
+    return (
+      <text className="gm-code" x={mx} y={my} textAnchor="middle" fontSize={W * 0.032}>
+        {code}
+      </text>
+    );
+  };
   // the fixes to name: the next few ahead (all ahead when near), not the airports themselves
   const named =
     routeLegs?.filter((l, i) => {
-      if (l.pseudo || l.id === f.from.icao || l.id === f.to.icao) return false;
+      if (l.pseudo || l.id.startsWith(f.from.icao) || l.id.startsWith(f.to.icao)) return false;
       if (nearest < 0) return i > 0 && i < routeLegs.length - 1;
       return i > nearest && i <= nearest + (near ? 12 : 5);
     }) ?? [];
@@ -345,8 +372,12 @@ export function GateMap({
           </g>
         );
       })}
-      {inView(pf) || !near ? dot(pf, f.from.iata ?? f.from.icao, !right) : null}
-      {dot(pt, f.to.iata ?? f.to.icao, right)}
+      {inView(pf) || !near ? codeBy(f.from.icao, pf, f.from.iata ?? f.from.icao, !right) : null}
+      {codeBy(f.to.icao, pt, f.to.iata ?? f.to.icao, right)}
+      {/* runways on top of everything: stylised 5 km bars from the threshold (OFP Link), pure white, no text on them */}
+      {rwys.map((r) => (
+        <line key={`${r.role}-${r.runway}`} className="gm-rwy" x1={r.a[0]} y1={r.a[1]} x2={r.b[0]} y2={r.b[1]} strokeWidth={W * 0.016} />
+      ))}
       {pp && (
         <g transform={`translate(${pp[0]} ${pp[1]}) rotate(${hdg}) scale(${(W * 0.055) / 64}) translate(-32 -32)`}>
           <path className="gm-plane" d={PLANE} />

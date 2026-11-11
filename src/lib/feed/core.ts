@@ -110,6 +110,8 @@ export interface FlightPlan {
   cruiseFt: number | null;
   phase: string | null;
   legs: PlanLeg[];
+  /** Departure and arrival runways as display lines (OFP Link: threshold + 5 km along the course, stylised, not true length). */
+  runways: { role: "departure" | "arrival"; airport: string; runway: string; start: [number, number]; end: [number, number] }[];
 }
 
 const icao = (v: unknown) => (typeof v === "string" && /^[A-Z0-9]{4}$/.test(v) ? v : null);
@@ -159,6 +161,20 @@ export function toPlan(m: Record<string, unknown>): FlightPlan | null {
     cruiseFt: num(m.cruiseLevel),
     phase: txt(m.phase, 24),
     legs,
+    runways: (Array.isArray(m.runways) ? m.runways.slice(0, 4) : []).flatMap((raw) => {
+      const r = raw as Record<string, Record<string, unknown> | unknown>;
+      const a = r.start as Record<string, unknown> | undefined;
+      const b = r.end as Record<string, unknown> | undefined;
+      const pt = (p?: Record<string, unknown>): [number, number] | null => {
+        const lat = p ? num(p.lat) : null;
+        const lon = p ? num(p.lon) : null;
+        return lat != null && lon != null && Math.abs(lat) <= 90 && Math.abs(lon) <= 180 ? [lon, lat] : null;
+      };
+      const s0 = pt(a);
+      const e0 = pt(b);
+      if (!s0 || !e0) return [];
+      return [{ role: r.role === "departure" ? ("departure" as const) : ("arrival" as const), airport: icao(r.airport) ?? "", runway: txt(r.runway, 4) ?? "", start: s0, end: e0 }];
+    }),
   };
 }
 

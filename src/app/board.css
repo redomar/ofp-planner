@@ -980,6 +980,11 @@ html.screen-mode body > :not(.screen-root) {
   stroke: color-mix(in srgb, #000000 28%, var(--gs-bg));
   stroke-width: 3;
 }
+/* runways: pure white bars on top of everything (stylised length, see OFP Link) */
+.gm-rwy {
+  stroke: #ffffff;
+  stroke-linecap: butt;
+}
 /* altitude constraints in Airbus magenta, white text on it (AA) */
 .gm-alt rect {
   fill: #b0127f;
