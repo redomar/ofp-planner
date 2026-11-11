@@ -579,6 +579,20 @@ async function run() {
       pl?.active?.to === 1 && pl.legs[1].eta === "15:09" && pl.legs[1].wind?.[0] === 250 && pl.vSpeeds?.v1 === 152 && core.toPlan({ origin: "EDDM", destination: "EGBB", active: { from: 0, to: 5 }, legs: [] })?.active === null
         ? pass("gate feed: the FMS plan's active legs, times over the fixes and V-speeds read in (an impossible active is dropped)")
         : fail(`gate feed: plan ${JSON.stringify(pl)}`);
+      // 1.12.2: the landing time is the FMS's time at the runway (EGKK → EICK at 21:25Z: the MCDU's DEST
+      // line said 22:02, the distance at cruise speed 21:54); midnight wraps; no time when the route stops short
+      {
+        const eick = { lat: 51.8413, lon: -8.4911 };
+        const t = Date.UTC(2026, 10, 11, 21, 25);
+        const mk = (legs) => core.toPlan({ origin: "EGKK", destination: "EICK", legs });
+        const full = mk([{ id: "DECEL", lat: 51.75, lon: -7.9, eta: "21:54" }, { id: "EICK34", lat: 51.83, lon: -8.49, eta: "22:02" }, { id: "CRK", lat: 51.84, lon: -8.6, eta: "22:09", missed: true }]);
+        const late = mk([{ id: "EICK34", lat: 51.83, lon: -8.49, eta: "00:10" }]);
+        const short = mk([{ id: "NUMPO", lat: 51.4, lon: -5.5, eta: "21:40" }, { id: "BANBA", lat: 51.6, lon: -6.6, eta: "21:48" }]);
+        const min = (pl, at = t) => { const x = core.fmsArrival(pl, eick, at); return x == null ? null : Math.round((x - at) / 60000); };
+        min(full) === 37 && min(late, Date.UTC(2026, 10, 11, 23, 50)) === 20 && min(short) === null && min(mk([{ id: "EICK34", lat: 51.83, lon: -8.49 }, { id: "X", lat: 51.9, lon: -8.4 }])) === null
+          ? pass("gate feed: the landing time is the FMS's at the runway (37 min, not the cruise-speed 29), across midnight, none for a route that stops short")
+          : fail(`gate feed: FMS arrival ${min(full)} ${min(late, Date.UTC(2026, 10, 11, 23, 50))} ${min(short)}`);
+      }
       // 1.11.1: the landing is the first contact, even when a bounce has the aircraft back in the air on
       // that reading (EDDM → EGBB: −776 fpm, then a 2 s bounce, on the ground at −117)
       {

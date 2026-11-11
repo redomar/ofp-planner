@@ -7,7 +7,7 @@ import { routeColor, textOn } from "@/lib/colors";
 import { MIN } from "@/lib/board/board";
 import type { GateFlight, GateState } from "@/lib/board/gate";
 import { BACKS, layers, layersFrom, layersTo, VIEW_INFO, type Layers, type Look, type LookBack, type ShownView } from "@/lib/board/looks";
-import { bearing, distNm, landingText, levelFt, PHASE_LABEL, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState } from "@/lib/feed/core";
+import { bearing, distNm, fmsArrival, landingText, levelFt, PHASE_LABEL, utcAt, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState } from "@/lib/feed/core";
 import { useOutlines } from "@/lib/outlines";
 import { useTerrain } from "@/lib/terrain";
 import { baseLayers, mapRadius } from "../RouteMap";
@@ -124,7 +124,10 @@ export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null,
   // along the programmed route when there is one (OFP Tower, Fenix), else straight to the airport
   const byRoute = routeToGo(f, plan, s);
   const toGo = Math.round(byRoute?.toGo ?? distNm(s, f.to));
-  const minLeft = air && s.gs > 60 ? (toGo / s.gs) * 60 : null;
+  // the FMS's time at the runway (OFP Tower, Fenix) knows the descent and the approach; else the
+  // distance at the ground speed, which takes the cruise speed all the way down
+  const fmsOn = air ? fmsArrival(plan, f.to, s.t) : null;
+  const minLeft = fmsOn != null ? Math.max(0, (fmsOn - s.t) / MIN) : air && s.gs > 60 ? (toGo / s.gs) * 60 : null;
   const arrives = live.stamps.on ?? (minLeft != null ? s.t + minLeft * MIN : plannedEta);
   const flown = live.stage === "arrived" || !air ? (live.stamps.on != null ? 1 : 0) : Math.min(1, Math.max(0, 1 - toGo / Math.max(1, byRoute?.total ?? total)));
   const rate = landingText(live.stamps);
@@ -556,14 +559,6 @@ const ident = (f: GateFlight) => (
   </span>
 );
 
-
-/** "hh:mm" UTC as a time (ms) near `t` (the next day when it reads more than 12 hours earlier). */
-function utcAt(hhmm: string, t: number): number {
-  const [h, m] = hhmm.split(":").map(Number);
-  const day = t - (t % 86_400_000);
-  const at = day + (h * 60 + m) * 60_000;
-  return at < t - 43_200_000 ? at + 86_400_000 : at;
-}
 
 /** "15:09Z" from a time (ms). */
 const zClock = (ms: number) => `${new Date(ms).toISOString().slice(11, 16)}Z`;

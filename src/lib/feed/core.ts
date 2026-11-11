@@ -662,3 +662,27 @@ export function detectAll(samples: FeedSample[], ctx: FlightContext = {}): Fligh
   for (const s of samples) out.push((st = step(st, s, ctx)));
   return out;
 }
+
+/** "hh:mm" UTC as a time (ms) near `t` (the next day when it reads more than 12 hours earlier). */
+export function utcAt(hhmm: string, t: number): number {
+  const [h, m] = hhmm.split(":").map(Number);
+  const day = t - (t % 86_400_000);
+  const at = day + (h * 60 + m) * 60_000;
+  return at < t - 43_200_000 ? at + 86_400_000 : at;
+}
+
+/** How near the destination (nm) the plan's last leg must be for its time to be the landing time. */
+const ARRIVAL_LEG_NM = 30;
+
+/**
+ * The FMS's landing time (ms): the time over the plan's last leg before the missed approach (the
+ * runway, else the airport), as the MCDU's F-PLN shows it on the DEST line. It knows the descent
+ * and the approach, where the distance at the ground speed takes the cruise speed all the way down.
+ * Null without a time there, or when the plan doesn't end at the destination (a route not finished).
+ */
+export function fmsArrival(plan: FlightPlan | null | undefined, to: { lat: number; lon: number }, t: number): number | null {
+  const legs = plan?.legs.filter((l) => !l.missed) ?? [];
+  const end = legs[legs.length - 1];
+  if (!end?.eta || distNm(end, to) > ARRIVAL_LEG_NM) return null;
+  return utcAt(end.eta, t);
+}
