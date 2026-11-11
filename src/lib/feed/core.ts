@@ -97,6 +97,8 @@ export interface PlanLeg {
   pseudo: boolean;
   /** After the destination runway: the missed approach. */
   missed: boolean;
+  /** The turn at this fix as OFP Link works it out (about 25° bank): fly-by turns start leadNm early, fly-overs swing outside. */
+  turn: { style: "flyby" | "flyover"; radiusNm: number; leadNm: number | null } | null;
 }
 
 export interface FlightPlan {
@@ -112,6 +114,14 @@ export interface FlightPlan {
 
 const icao = (v: unknown) => (typeof v === "string" && /^[A-Z0-9]{4}$/.test(v) ? v : null);
 const txt = (v: unknown, n: number) => (typeof v === "string" && v.trim() ? v.trim().slice(0, n) : null);
+
+function turnOf(v: unknown): PlanLeg["turn"] {
+  const t = v as Record<string, unknown> | null | undefined;
+  const r = t ? num(t.radiusNm) : null;
+  if (!t || r == null || r <= 0 || r > 10) return null;
+  const lead = num(t.leadNm);
+  return { style: t.style === "flyover" ? "flyover" : "flyby", radiusNm: r, leadNm: lead != null && lead >= 0 && lead < 20 ? lead : null };
+}
 
 /** A "plan" message from OFP Link, checked field by field; null when it has no origin or destination. */
 export function toPlan(m: Record<string, unknown>): FlightPlan | null {
@@ -137,6 +147,7 @@ export function toPlan(m: Record<string, unknown>): FlightPlan | null {
       alt: ft != null ? { ft, type, text: txt(a?.text, 10) ?? String(ft) } : null,
       pseudo: l.pseudo === true,
       missed: l.missed === true,
+      turn: turnOf(l.turn),
     });
   }
   return {

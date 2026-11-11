@@ -196,7 +196,16 @@ export function GateMap({
           ],
           { type: "Feature", properties: {}, geometry: { type: "MultiPoint", coordinates: pts } },
         );
-      if (minAcrossRad != null) proj.scale(Math.min(proj.scale(), (W * 0.76) / minAcrossRad));
+      if (minAcrossRad != null && proj.scale() > (W * 0.76) / minAcrossRad) {
+        // zoomed out to the minimum width: keep what it frames in the middle (the fit's offset was for the tighter zoom)
+        const [x0, y0] = proj([centre[0], centre[1]])!;
+        const xs = pts.map((p) => proj(p)![0]);
+        const ys = pts.map((p) => proj(p)![1]);
+        const cx = (Math.min(...xs) + Math.max(...xs)) / 2 - x0;
+        const cy = (Math.min(...ys) + Math.max(...ys)) / 2 - y0;
+        const k2 = (W * 0.76) / minAcrossRad / proj.scale();
+        proj.scale(proj.scale() * k2).translate([W / 2 - cx * k2, H / 2 - cy * k2]);
+      }
       return proj;
     };
     let proj;
@@ -250,6 +259,44 @@ export function GateMap({
       if (nearest < 0) return i > 0 && i < routeLegs.length - 1;
       return i > nearest && i <= nearest + (near ? 12 : 5);
     }) ?? [];
+  // the route with its turns (OFP Link's turn geometry): fly-by fixes as rounded corners that start
+  // leadNm early, fly-overs through the fix and then a swing outside it; straight lines otherwise
+  const turnedRoute = useMemo(() => {
+    if (!routeLegs) return "";
+    const P = routeLegs.map((l) => geo.proj([l.lon, l.lat]));
+    if (P.some((p) => !p)) return lineThrough(routeLegs.map((l) => [l.lon, l.lat]));
+    const pts = P as [number, number][];
+    const pxPerNm = geo.proj.scale() / 3440.065;
+    const unit = (a: [number, number], b: [number, number]): [number, number] => {
+      const d = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+      return [(b[0] - a[0]) / d, (b[1] - a[1]) / d];
+    };
+    const at = (p: [number, number], u: [number, number], k: number) => `${(p[0] + u[0] * k).toFixed(1)},${(p[1] + u[1] * k).toFixed(1)}`;
+    let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+    for (let i = 1; i < pts.length; i++) {
+      const p = pts[i];
+      const t = routeLegs[i].turn;
+      if (!t || i === pts.length - 1) {
+        d += `L${p[0].toFixed(1)},${p[1].toFixed(1)}`;
+        continue;
+      }
+      const uIn = unit(pts[i - 1], p);
+      const uOut = unit(p, pts[i + 1]);
+      const legIn = Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]);
+      const legOut = Math.hypot(pts[i + 1][0] - p[0], pts[i + 1][1] - p[1]);
+      const r = t.radiusNm * pxPerNm;
+      if (t.style === "flyby") {
+        const lead = Math.min((t.leadNm ?? t.radiusNm) * pxPerNm, legIn * 0.45, legOut * 0.45);
+        d += `L${at(p, uIn, -lead)}Q${p[0].toFixed(1)},${p[1].toFixed(1)} ${at(p, uOut, lead)}`;
+      } else {
+        // over the fix, carry on along the inbound course while turning, then join the outbound leg
+        const out = Math.min(2 * r, legOut * 0.6);
+        d += `L${p[0].toFixed(1)},${p[1].toFixed(1)}Q${at(p, uIn, Math.min(r * 1.5, legOut * 0.5))} ${at(p, uOut, out)}`;
+      }
+    }
+    return d;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the projection and the legs are what it draws
+  }, [routeLegs, geo]);
   const missed = legs && routeLegs ? [routeLegs[routeLegs.length - 1], ...legs.filter((l) => l.missed)].map((l): [number, number] => [l.lon, l.lat]) : [];
   return (
     <svg className="gm" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label} preserveAspectRatio="xMidYMid slice">
@@ -260,7 +307,7 @@ export function GateMap({
       <path className="gm-borders" d={base.borders} strokeWidth={3.4 * k} strokeDasharray={`${7 * k} ${6 * k}`} />
       {routeLegs ? (
         <>
-          <path className="gm-togo" d={lineThrough(routeLegs.map((l) => [l.lon, l.lat]))} strokeWidth={W * 0.004} strokeDasharray={`${W * 0.002} ${W * 0.012}`} />
+          <path className="gm-togo" d={turnedRoute} strokeWidth={W * 0.004} strokeDasharray={`${W * 0.002} ${W * 0.012}`} />
           {missed.length > 1 && <path className="gm-missed" d={lineThrough(missed)} strokeWidth={W * 0.003} strokeDasharray={`${W * 0.01} ${W * 0.008}`} />}
           {pos && <path className="gm-flown" d={flownPath} strokeWidth={W * 0.006} />}
         </>
