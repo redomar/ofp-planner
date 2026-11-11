@@ -1,12 +1,12 @@
 "use client";
 
 import { geoAzimuthalEquidistant, geoDistance, geoInterpolate, geoPath } from "d3-geo";
-import { useMemo, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { cityName } from "@/lib/data/flight";
 import { routeColor, textOn } from "@/lib/colors";
 import { MIN } from "@/lib/board/board";
 import type { GateFlight, GateState, ShownView } from "@/lib/board/gate";
-import { distNm, PHASE_LABEL, type FeedSource, type FlightPlan, type FlightPhase, type FlightStage, type FlightState } from "@/lib/feed/core";
+import { distNm, PHASE_LABEL, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightStage, type FlightState } from "@/lib/feed/core";
 import { useOutlines } from "@/lib/outlines";
 import { useTerrain } from "@/lib/terrain";
 import { baseLayers, mapRadius } from "../RouteMap";
@@ -18,10 +18,9 @@ import { GateScreen, localClock, PLANE, screenNow, type GateWx } from "./GateScr
  */
 export function shownView(g: Pick<GateState, "view" | "stages" | "scenes" | "hold">, live: FlightState | null, scene: string | null = null): ShownView {
   if (g.view !== "auto") return g.view;
-  const rule = scene ? g.scenes.find(([n]) => n.trim().toLowerCase() === scene.trim().toLowerCase()) : null;
-  if (rule) return rule[1];
   const stage: FlightStage = g.hold ?? live?.stage ?? "ready";
-  return g.stages[stage];
+  const rule = scene ? g.scenes.find(([n]) => n.trim().toLowerCase() === scene.trim().toLowerCase()) : null;
+  return rule ? rule[1][stage] : g.stages[stage];
 }
 
 /** An airport's own name, short: no "Airport", no city in front (London Heathrow Airport → Heathrow). */
@@ -160,6 +159,9 @@ const SOURCE: Record<FeedSource, string | null> = { link: "MSFS", replay: "Repla
 /** Near the end the map closes in on the destination: this far out (nm), and at least this wide. */
 const NEAR_NM = 150;
 const NEAR_MIN_ACROSS_NM = 60;
+/** Within this distance of the destination (nm) the map closes in to FINAL_ACROSS_NM across. */
+const FINAL_NM = 10;
+const FINAL_ACROSS_NM = 40;
 /** A short FMS route (London City → Heathrow) is still shown at least this wide (nm). */
 const ROUTE_MIN_ACROSS_NM = 40;
 /** Runways are drawn this long (m): longer than most, so they read on the map. */
@@ -221,6 +223,7 @@ export function GateMap({
   trail = [],
   plan = null,
   near = false,
+  final = false,
 }: {
   f: GateFlight;
   facts: LiveFacts;
@@ -230,6 +233,8 @@ export function GateMap({
   trail?: [number, number][];
   plan?: FlightPlan | null;
   near?: boolean;
+  /** Within FINAL_NM of the destination: closer still, on the runway and the last fixes. */
+  final?: boolean;
 }) {
   const outlines = useOutlines();
   const terrain = useTerrain();
@@ -270,6 +275,11 @@ export function GateMap({
           ],
           { type: "Feature", properties: {}, geometry: { type: "MultiPoint", coordinates: pts } },
         );
+      // everything at one point (the aircraft parked at its destination): no extent to fit
+      if (!Number.isFinite(proj.scale()) || !proj.translate().every(Number.isFinite)) {
+        proj.scale((W * 0.76) / (minAcrossRad ?? 0.03)).translate([W / 2, H / 2]);
+        return proj;
+      }
       if (minAcrossRad != null && proj.scale() > (W * 0.76) / minAcrossRad) {
         // zoomed out to the minimum width: keep what it frames in the middle (the fit's offset was for the tighter zoom)
         const [x0, y0] = proj([centre[0], centre[1]])!;
@@ -286,8 +296,15 @@ export function GateMap({
     let reach;
     // a short FMS route stays fitted to the whole route (and the aircraft) all the way, as at the gate
     const short = !!routeLegs && routeLegs.length <= 24 && (f.nm ?? 999) < 400;
-    if (near && !short) {
-      const R = 3440.065;
+    const R = 3440.065;
+    if (final) {
+      // the last miles: the destination's runway, the aircraft and the fixes left, about 40 nm across
+      const rw = (plan?.runways ?? []).filter((r) => r.airport === f.to.icao).flatMap((r) => [r.start, r.end]);
+      const ahead = (routeLegs ?? []).slice(Math.max(0, nearest)).map((l): [number, number] => [l.lon, l.lat]);
+      const pts: [number, number][] = [to, ...rw, ...ahead, ...(pos ? [pos] : [])].filter((p) => geoDistance(p, to) * R < 25);
+      proj = view(pts, to, FINAL_ACROSS_NM / R);
+      reach = 0.03;
+    } else if (near && !short) {
       const ahead = (routeLegs ?? []).slice(Math.max(0, nearest)).map((l): [number, number] => [l.lon, l.lat]);
       const rw = (plan?.runways ?? []).filter((r) => r.airport === f.to.icao).flatMap((r) => [r.start, r.end]);
       const pts: [number, number][] = [to, ...rw, ...ahead, ...(pos ? [pos] : [])].filter((p) => geoDistance(p, to) * R < NEAR_NM * 1.4);
@@ -306,7 +323,7 @@ export function GateMap({
     ]);
     return { proj, path: geoPath(proj) };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on what moves the view, not array identity
-  }, [from[0], from[1], to[0], to[1], W, H, near, posKey, routeLegs, nearest, plan, f.nm]);
+  }, [from[0], from[1], to[0], to[1], W, H, near, final, posKey, routeLegs, nearest, plan, f.nm]);
   const base = useMemo(() => baseLayers(geo.proj, geo.path, W, H, outlines, terrain), [geo, W, H, outlines, terrain]);
   const line = (a: [number, number], b: [number, number]) => geo.path({ type: "LineString", coordinates: [0, 0.2, 0.4, 0.6, 0.8, 1].map((k) => geoInterpolate(a, b)(k)) }) ?? "";
   const lineThrough = (pts: [number, number][]) => (pts.length > 1 ? (geo.path({ type: "LineString", coordinates: pts }) ?? "") : "");
@@ -531,7 +548,7 @@ const ident = (f: GateFlight) => (
 
 /* ---------- the views ---------- */
 
-interface ViewProps {
+export interface ViewProps {
   flight: GateFlight;
   state: GateState;
   now: number;
@@ -570,12 +587,13 @@ export function GateViewScreen(p: ViewProps) {
   const arrives = facts.arrives != null ? localClock(facts.arrives, f.to.tz) : null;
   // the end of the flight: the map closes in on the destination
   const near = !!p.live && (p.live.stage === "arrived" || (p.live.stage === "flying" && facts.toGo != null && facts.toGo < NEAR_NM));
+  const final = !!p.live && p.live.stage === "flying" && facts.toGo != null && facts.toGo <= FINAL_NM;
 
   if (view === "map" || view === "mapwin") {
     return (
       <div className={`gv gv-map${view === "mapwin" ? " is-win" : ""}`} style={style} role="region" aria-label={label}>
         <div className="gv-map-pic">
-          <GateMap f={f} facts={facts} W={1100} H={1080} label={mapLabel} trail={p.trail} plan={p.plan} near={near} />
+          <GateMap f={f} facts={facts} W={1100} H={1080} label={mapLabel} trail={p.trail} plan={p.plan} near={near} final={final} />
         </div>
         <div className="gv-rail">
           <div className="gv-rail-top">
@@ -616,7 +634,7 @@ export function GateViewScreen(p: ViewProps) {
             {dest}
           </div>
           <div className="gv-frame-map">
-            <GateMap f={f} facts={facts} W={600} H={560} label={mapLabel} trail={p.trail} plan={p.plan} near={near} />
+            <GateMap f={f} facts={facts} W={600} H={560} label={mapLabel} trail={p.trail} plan={p.plan} near={near} final={final} />
           </div>
           <div className="gv-tiles">
             <Tile k="Altitude" v={facts.alt} />
@@ -647,7 +665,7 @@ export function GateViewScreen(p: ViewProps) {
             <small>{facts.status}</small>
           </div>
           <div className="gv-corner-map">
-            <GateMap f={f} facts={facts} W={800} H={520} label={mapLabel} trail={p.trail} plan={p.plan} near={near} />
+            <GateMap f={f} facts={facts} W={800} H={520} label={mapLabel} trail={p.trail} plan={p.plan} near={near} final={final} />
           </div>
           <div className="gv-corner-facts mono">
             <span>{facts.alt ?? "—"}</span>
@@ -708,6 +726,82 @@ export function GateViewScreen(p: ViewProps) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ---------- examples for the Stream panel: the flight on screen at each stage ---------- */
+
+/**
+ * An example of the aircraft at a stage of this flight, for the Stream panel's thumbnails and its
+ * phase preview: at the gate, taxiing out, half-way at the cruise level, at the arrival gate.
+ * Illustrative only (the panel labels it so); the stream itself follows the live feed.
+ */
+export function sampleLive(f: GateFlight, stage: FlightStage, now: number): FlightState {
+  const mid = { lat: (f.from.lat + f.to.lat) / 2, lon: (f.from.lon + f.to.lon) / 2 };
+  const at = stage === "flying" ? mid : stage === "arrived" ? f.to : f.from;
+  const cruise = f.cruiseFt ?? 36_000;
+  const brg = (Math.atan2(f.to.lon - f.from.lon, f.to.lat - f.from.lat) * 180) / Math.PI;
+  const base = startState();
+  const t = now;
+  const block = (f.block ?? 90) * MIN;
+  const last: FeedSample = {
+    t,
+    lat: at.lat,
+    lon: at.lon,
+    alt: stage === "flying" ? cruise : ((stage === "arrived" ? f.to.elevFt : f.from.elevFt) ?? 0),
+    gs: stage === "flying" ? 450 : stage === "taxi" ? 15 : 0,
+    hdg: (brg + 360) % 360,
+    vs: 0,
+    onGround: stage !== "flying",
+    parkBrake: stage === "ready" || stage === "arrived",
+    engines: stage === "ready" ? [false, false] : [stage !== "arrived", stage !== "arrived"],
+    beacon: stage !== "arrived",
+    doors: [0, 0, 0, 0],
+    seatbelts: stage !== "arrived",
+    noSmoking: "auto",
+    landingRate: null,
+    tdSim: null,
+  };
+  const phase: FlightPhase = stage === "ready" ? "doorsClosed" : stage === "taxi" ? "taxi" : stage === "flying" ? "cruise" : "gate";
+  const out = stage === "ready" ? null : t - (stage === "taxi" ? 5 * MIN : stage === "flying" ? block / 2 : block);
+  return {
+    ...base,
+    phase,
+    stage,
+    last,
+    airborne: stage !== "ready" && stage !== "taxi",
+    stamps: {
+      out,
+      off: stage === "flying" || stage === "arrived" ? (out ?? t) + 15 * MIN : null,
+      on: stage === "arrived" ? t - 8 * MIN : null,
+      in: stage === "arrived" ? t - 2 * MIN : null,
+      landingRate: stage === "arrived" ? -180 : null,
+      tdSim: null,
+    },
+  };
+}
+
+/**
+ * A small 16:9 example of one view over a sample sky (the see-through parts show it). Drawn at
+ * 960 px and scaled down as a picture, so it looks exactly like the screen (browsers won't shrink
+ * text below a minimum size, which would break the layout at thumbnail width).
+ */
+export function MiniScreen({ view, ...p }: Omit<ViewProps, "state"> & { state: GateState; view: ShownView }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [k, setK] = useState(0.15);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setK(e.contentRect.width / 960));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div ref={ref} className="sp-mini" aria-hidden="true">
+      <div className="gs-frame sp-mini-in" style={{ transform: `scale(${k})` }}>
+        <GateViewScreen {...p} state={{ ...p.state, view }} />
+      </div>
     </div>
   );
 }

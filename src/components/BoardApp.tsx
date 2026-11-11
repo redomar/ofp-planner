@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cityName, dur, isoDay, onDay } from "@/lib/data/flight";
 import { findFlight, loadRoutes, useDataset, useManifest, type FlightRow } from "@/lib/data/load";
@@ -35,6 +35,7 @@ import { RouteMap, type MapRoute } from "./RouteMap";
 import { FidsBoard } from "./board/FidsBoard";
 import type { FlightContext } from "@/lib/feed/core";
 import { useObsScene } from "@/lib/feed/obs";
+import { sendRelay, useRelay } from "@/lib/feed/relay";
 import { CLOCK_FEED, feedFromParams, useFlightFeed, type FeedConfig } from "@/lib/feed/useFlightFeed";
 import { GateViewScreen, shownView } from "./board/GateViews";
 import { LogArrival, REHEARSE_REC, RehearseStrip, StreamPanel } from "./board/StreamPanel";
@@ -277,7 +278,15 @@ export function BoardApp() {
     [baseFlight],
   );
   const live = useFlightFeed(rehearse ?? feedCfg, feedCtx);
-  const obsScene = useObsScene();
+  // &as=BRB: this source shows the grid's BRB column whatever scene is live (one source per scene, Studio Mode)
+  const [asScene, setAsScene] = useState<string | null>(null);
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get("as");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of the URL after hydration
+    if (v && v.trim()) setAsScene(v.trim().slice(0, 40));
+  }, []);
+  const obsLive = useObsScene();
+  const obsScene = asScene ?? obsLive;
   // with no Finder flight or OFP, the flight programmed in the aircraft's FMS (OFP Link, Fenix)
   const planFlight = useMemo(
     () => (!baseFlight && !gate.f && !gate.sb && live.plan && live.planAt != null ? fromPlan(live.plan, live.planAt, airports, airlines) : null),
@@ -344,6 +353,31 @@ export function BoardApp() {
 
   const patch = (p: Partial<GateState>) => setGate((g) => ({ ...g, ...p }));
 
+  // 1.10: the Stream panel's settings reach every open screen (OBS too) live through OFP Link
+  const relayOn = ready && (screen ? feedCfg.source === "link" || feedCfg.source === "auto" : tab === "gate");
+  const latestGate = useRef(gate);
+  useEffect(() => {
+    latestGate.current = gate;
+  }, [gate]);
+  const onRelay = useCallback(
+    (m: Record<string, unknown>) => {
+      if (screen && m.kind === "settings" && typeof m.q === "string") {
+        const s = gateFromParams(new URLSearchParams(m.q), Date.now());
+        setGate((g) => ({ ...g, stages: s.stages, scenes: s.scenes, hold: s.hold, delay: s.delay, cancelled: s.cancelled, gate: s.gate, oldGate: s.oldGate, reg: s.reg, msg: s.msg, rotate: s.rotate }));
+      }
+      // a screen that just connected asks for the current settings
+      if (!screen && m.kind === "hello") sendRelay({ kind: "settings", q: gateToParams(latestGate.current, Date.now()).toString() });
+    },
+    [screen],
+  );
+  const relayOpen = useRelay(relayOn, onRelay);
+  useEffect(() => {
+    if (relayOpen && screen) sendRelay({ kind: "hello" });
+  }, [relayOpen, screen]);
+  useEffect(() => {
+    if (relayOpen && !screen) sendRelay({ kind: "settings", q: gateToParams(gate, Date.now()).toString() });
+  }, [relayOpen, screen, gate]);
+
   // keyboard on the screen itself (OBS "Interact", or the popup): ↑/↓ delay, 0 resets, C cancels, F full screen
   useEffect(() => {
     if (!screen) return;
@@ -370,8 +404,8 @@ export function BoardApp() {
   );
 
   // the Stream panel's URL: one browser source that follows the aircraft and the OBS scene
-  const streamUrl = () => {
-    const q = gateToParams({ ...gate, view: "auto" }, now, { tab: "gate", screen: "1", feed: "auto", who: feedCfg.who });
+  const streamUrl = (as: string | null = null) => {
+    const q = gateToParams({ ...gate, view: "auto" }, now, { tab: "gate", screen: "1", feed: "auto", who: feedCfg.who, as });
     return `${typeof window === "undefined" ? "" : window.location.origin}/board?${q}`;
   };
 
@@ -598,7 +632,7 @@ export function BoardApp() {
             {/* after the flight has loaded: the controls above it are their full height by then */}
             {ready && tab === "gate" && flight && (
               <>
-                <StreamPanel gate={gate} flight={flight} feedCfg={feedCfg} feed={live} url={streamUrl()} onPatch={patch} onFeed={setFeedCfg} />
+                <StreamPanel gate={gate} flight={flight} feedCfg={feedCfg} feed={live} url={streamUrl()} urlFor={(as) => streamUrl(as)} now={now} wx={gateWx} relayOpen={relayOpen} onPatch={patch} onFeed={setFeedCfg} />
                 <RehearseStrip
                   gate={gate}
                   ctx={feedCtx}

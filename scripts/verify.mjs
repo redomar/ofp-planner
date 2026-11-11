@@ -784,25 +784,31 @@ async function run() {
       page.on("pageerror", (e) => errors.push(String(e)));
       return { ctx, page, errors };
     };
-    // the panel: sources, the stage table, the scene rules, one URL
+    // the panel: sources, the audience grid (phases × OBS scenes, a thumbnail each), one URL
     const a = await start();
     await a.page.goto(`${base}/board?tab=gate&f=${FR}&in=30`, { waitUntil: "networkidle" });
     await a.page.waitForSelector(".sp .sp-src");
+    await a.page.waitForSelector(".sp-aud .sp-cell");
     const srcs = await a.page.locator(".sp-src b").allTextContents();
-    const stages = await a.page.locator(".sp-tbl tbody select").evaluateAll((els) => els.map((e) => e.value));
-    const rules = await a.page.locator(".sp-rules li").evaluateAll((lis) => lis.map((li) => `${li.querySelector("input").value}:${li.querySelector("select").value}`));
+    const cells = await a.page.locator(".sp-aud-grid > .sp-aud-row:not(.is-head) .sp-cell > small").allTextContents();
+    const scenes = await a.page.locator(".sp-aud-scene input").evaluateAll((els) => els.map((e) => e.value));
     const url = await a.page.locator(".sp-url").inputValue();
-    srcs.length === 4 && /Clock only · live/.test(srcs[3]) && stages.join(",") === "full,full,strip,full" && rules.join(" ") === "BRB:frame Map:map Camera:card" && /screen=1/.test(url) && /view=auto/.test(url) && /feed=auto/.test(url)
-      ? pass("stream panel: four live links (clock in use), the stage table and scene rules from sheet 07, one stream URL (view=auto, feed=auto)")
-      : fail(`stream panel: ${JSON.stringify({ srcs, stages, rules, url })}`);
+    // rows: gate, taxi, flying, arrived; columns: any other scene, BRB, Map, Camera
+    const col0 = [0, 4, 8, 12].map((i) => cells[i]);
+    srcs.length === 4 && /Clock only · live/.test(srcs[3]) && cells.length === 16 && col0.join("|") === "Full screen · G1|Full screen · G1|Strip · G4|Full screen · G1" && scenes.join(" ") === "BRB Map Camera" && /screen=1/.test(url) && /view=auto/.test(url) && /feed=auto/.test(url)
+      ? pass("stream panel: four live links (clock in use), a grid of 4 phases × 4 scenes with a thumbnail each, one stream URL (view=auto, feed=auto)")
+      : fail(`stream panel: ${JSON.stringify({ srcs, n: cells.length, col0, scenes, url })}`);
     await checkPage("stream panel 1280 light", a.page, a.errors);
     await shot(a.page, "stream-panel");
-    // changing the table and the rules goes into the URL
-    await a.page.getByLabel("Flying: the screen shows").selectOption("map");
-    await a.page.getByLabel("Scene name 1").fill("Be right back");
+    // a preset, a picked thumbnail and a renamed scene go into the URL
+    await a.page.getByRole("button", { name: "Minimal", exact: true }).click();
+    await a.page.locator(".sp-aud-grid > .sp-aud-row:not(.is-head)").nth(2).locator(".sp-cell").nth(1).click();
+    await a.page.locator(".sp-pick .sp-cell", { hasText: "Moving map" }).click();
+    await a.page.getByRole("button", { name: "Done", exact: true }).click();
+    await a.page.getByLabel("OBS scene name 1").fill("Be right back");
     const url2 = await a.page.locator(".sp-url").inputValue();
-    /st=full%2Cfull%2Cmap%2Cfull|st=full,full,map,full/.test(url2) && /Be(\+|%20)right(\+|%20)back%3Aframe/.test(url2)
-      ? pass("stream panel: the stage table and scene rules travel in the stream URL")
+    /st=pill%2Cpill%2Cpill%2Cpill|st=pill,pill,pill,pill/.test(url2) && /Be(\+|%20)right(\+|%20)back%3Aframe%2Cframe%2Cmap%2Cframe/.test(url2)
+      ? pass("stream panel: a preset, a thumbnail picked for one phase and a renamed scene travel in the stream URL")
       : fail(`stream panel: url ${url2}`);
     // VATSIM: a callsign, then it's the one in use when it's online (answered here)
     await a.ctx.close();
@@ -828,9 +834,10 @@ async function run() {
     const inGame = await scr("Gameplay");
     const noObs = await scr(null);
     const held = await scr(null, "&hold=arrived");
-    inBrb === "frame" && inGame === "strip" && noObs === "strip" && held === "full"
-      ? pass("stream panel: OBS scene \"brb\" shows the frame, another scene the stage's view (strip while flying), hold=arrived holds the full screen (OBS API stood in)")
-      : fail(`stream panel: scenes brb ${inBrb} game ${inGame} none ${noObs} held ${held}`);
+    const asBrb = await scr(null, "&as=BRB");
+    inBrb === "frame" && inGame === "strip" && noObs === "strip" && held === "full" && asBrb === "frame"
+      ? pass("stream panel: OBS scene \"brb\" shows the frame, another scene the stage's view (strip while flying), hold=arrived holds the full screen, a source with as=BRB is the BRB column without OBS (OBS API stood in)")
+      : fail(`stream panel: scenes brb ${inBrb} game ${inGame} none ${noObs} held ${held} as=BRB ${asBrb}`);
 
     // rehearse: play the recorded flight on the preview, drag to hold a stage
     const r = await start();
