@@ -1590,3 +1590,163 @@ html.screen-mode body > :not(.screen-root) {
   gap: 12px;
   flex-wrap: wrap;
 }
+
+/* ---------- 1.10: what your audience sees (phases × OBS scenes) ---------- */
+.sp-aud {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+.sp-aud-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.sp-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sp-presets .btn[aria-pressed="true"] {
+  border-color: var(--green);
+  background: var(--green-bg);
+}
+.sp-aud-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .sp-aud-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.sp-aud-grid {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-x: auto;
+}
+.sp-aud-row {
+  display: grid;
+  grid-template-columns: 9.5rem repeat(auto-fill, minmax(8.5rem, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(8.5rem, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+.sp-aud-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.9rem;
+}
+.sp-aud-stage .sp-now {
+  align-self: flex-start;
+  margin-left: 0;
+}
+.sp-aud-col b {
+  font-size: 0.85rem;
+}
+.sp-aud-scene {
+  display: flex;
+  gap: 4px;
+}
+.sp-aud-scene .ctl-input {
+  min-width: 0;
+  flex: 1;
+}
+.sp-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 4px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--field);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+.sp-cell small {
+  font-size: 0.72rem;
+  line-height: 1.2;
+}
+.sp-cell:hover,
+.sp-cell.is-open,
+.sp-cell[aria-pressed="true"] {
+  border-color: var(--magenta);
+  outline: 1px solid var(--magenta);
+}
+/* a sample sky under the thumbnails: the see-through parts of a view show "the game" */
+.sp-mini {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 2px;
+  background: linear-gradient(#7fa6c9 0 55%, #6f7f5a 55% 100%);
+  pointer-events: none;
+}
+.sp-mini-in {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 960px;
+  border-radius: 0;
+  background: none;
+  transform-origin: 0 0;
+}
+.sp-pick {
+  position: absolute;
+  z-index: 5;
+  inset: 2.2rem 0 auto 0;
+  padding: 10px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--sheet);
+  box-shadow: var(--shadow);
+}
+.sp-pick-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.sp-pick-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.sp-aud-pv-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.sp-aud-screen {
+  background: linear-gradient(#7fa6c9 0 55%, #6f7f5a 55% 100%);
+}
+
+.sp-live,
+.sp-stale {
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+}
+.sp-live {
+  background: var(--green-bg);
+  color: var(--green);
+}
+.sp-stale {
+  background: var(--amber-bg);
+  color: var(--amber);
+}

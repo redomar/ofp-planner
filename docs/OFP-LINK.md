@@ -145,14 +145,17 @@ Every flight is written to `%USERPROFILE%\Documents\OFP Link\recordings\<UTC yyy
 - `parseRecording()` in `core.ts` reads v1 and v2. v1 files are corrected on reading: their values are shifted back one line, the parking brake is read as unknown, and `td` becomes `tdSim`.
 - A recording replays on the gate screen (`&feed=replay&rec=/recordings/….jsonl&rate=60&at=20`), feeds the rehearse strip, and is how the Mac tests everything without a sim. To use one there, copy it into `public/recordings/`. Registrations in recordings are fine to publish (owner, 2026-11-10).
 
-## Relay (later)
+## Relay: the Stream panel's settings to OBS (1.10)
 
-The controller tab and the screen talk over a `BroadcastChannel` today. That works between tabs of one browser, but not between Chrome and OBS's own browser. OFP Link would pass the same messages along:
+The page side is built (1.10, `src/lib/feed/relay.ts`). The Stream panel on Board → Gate screen and every open gate screen (the OBS browser source too) keep a WebSocket to OFP Link. OFP Link must pass relay messages on:
 
-- A page sends `{"type":"relay","channel":"<ch>","msg":{…GateMessage…}}`.
-- OFP Link forwards it to every other connected page, and each page acts only on its own channel.
+- **A page sends** `{"type":"relay","channel":"stream","msg":{…}}`.
+- **OFP Link forwards it, unchanged, to every OTHER connected page** (not back to the sender). It doesn't read `msg`. Same origin checks as for samples.
+- **Messages in `msg`:**
+  - `{"kind":"settings","q":"st=strip%2Cpill%2Cpill%2Cfull&sc=BRB%3Aframe&late=10&…"}` comes from the panel whenever a setting changes. `q` is the screen's own URL query (stage table `st`, scene rules `sc`, `hold`, delay, gate, message, …). A screen applies only those display settings, checked as if they came from its URL, and keeps its flight and feed.
+  - `{"kind":"hello"}` comes from a screen when it connects. The panel answers with the current settings.
 
-That's how delay, gate changes, messages and "hold this stage" would reach the stream from the controller tab. **The page side is not built:** pages don't send or read `relay` yet.
+Without OFP Link, nothing is sent. The panel then says "copy the stream URL again" after a change.
 
 ## The program
 

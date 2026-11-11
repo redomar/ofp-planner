@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState, type PointerEvent as RPointerEvent } from "react";
-import { DEFAULT_STAGES, STAGES, type GateFlight, type GateState, type ShownView } from "@/lib/board/gate";
+import { allStages, PRESETS, STAGES, type GateFlight, type GateState, type ShownView } from "@/lib/board/gate";
+import { GateViewScreen, MiniScreen, sampleLive } from "./GateViews";
+import type { GateWx } from "./GateScreen";
 import { detectAll, fitToRoute, parseRecording, type FlightContext, type FlightStage, type FlightState } from "@/lib/feed/core";
 import type { FeedConfig, FlightFeed } from "@/lib/feed/useFlightFeed";
 import { inObs } from "@/lib/feed/obs";
@@ -28,17 +30,6 @@ const STAGE_NAMES: Record<FlightStage, { name: string; until: string }> = {
   arrived: { name: "Arrived", until: "you close it" },
 };
 
-function ViewSelect({ label, value, onChange }: { label: string; value: ShownView; onChange: (v: ShownView) => void }) {
-  return (
-    <select className="ctl-input sp-view" aria-label={label} value={value} onChange={(e) => onChange(e.target.value as ShownView)}>
-      {VIEW_NAMES.map(([v, n]) => (
-        <option key={v} value={v}>
-          {n}
-        </option>
-      ))}
-    </select>
-  );
-}
 
 /**
  * Board → Gate screen → Stream (sheet 07, FL1): where the live figures come from, what shows at
@@ -50,6 +41,9 @@ export function StreamPanel({
   feedCfg,
   feed,
   url,
+  now,
+  wx,
+  relayOpen,
   onPatch,
   onFeed,
 }: {
@@ -59,11 +53,18 @@ export function StreamPanel({
   feed: FlightFeed;
   /** The stream URL for these settings. */
   url: string;
+  now: number;
+  wx: GateWx | null;
+  /** OFP Link passes changes to the OBS source live (no new URL needed). */
+  relayOpen: boolean;
   onPatch: (p: Partial<GateState>) => void;
   onFeed: (c: FeedConfig) => void;
 }) {
   const [who, setWho] = useState(feedCfg.who ?? "");
   const [copied, setCopied] = useState(false);
+  // the URL last copied: a change since then has to be pasted into OBS again (unless OFP Link carries it)
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const stale = copiedUrl != null && copiedUrl !== url && !relayOpen;
   const using = feed.state ? feed.using : "clock";
   const link = feed.link;
   const vat = feed.vatsim;
@@ -79,14 +80,6 @@ export function StreamPanel({
       </span>
     </li>
   );
-  const setStage = (k: FlightStage, v: ShownView) => onPatch({ stages: { ...gate.stages, [k]: v } });
-  const setScene = (i: number, n: string | null, v?: ShownView) => {
-    const sc = gate.scenes.slice();
-    if (n == null) sc.splice(i, 1);
-    else sc[i] = [n.replace(/[;:]/g, "").slice(0, 40), v ?? sc[i][1]];
-    onPatch({ scenes: sc });
-  };
-  const flyingNow = feed.state?.stage ?? null;
 
   return (
     <section className="sp" aria-labelledby="sp-h">
@@ -132,56 +125,6 @@ export function StreamPanel({
         </div>
 
         <div className="sp-col">
-          <h4 className="ctl-label">2 · What shows when</h4>
-          <table className="sp-tbl">
-            <thead>
-              <tr>
-                <th scope="col">Stage</th>
-                <th scope="col">The screen shows</th>
-                <th scope="col">Until</th>
-              </tr>
-            </thead>
-            <tbody>
-              {STAGES.map((k) => (
-                <tr key={k}>
-                  <th scope="row">
-                    {STAGE_NAMES[k].name}
-                    {flyingNow === k && <span className="sp-now">now</span>}
-                    {gate.hold === k && <span className="sp-now is-hold">held</span>}
-                  </th>
-                  <td>
-                    <ViewSelect label={`${STAGE_NAMES[k].name}: the screen shows`} value={gate.stages[k]} onChange={(v) => setStage(k, v)} />
-                  </td>
-                  <td className="muted small">{STAGE_NAMES[k].until}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {STAGES.some((k) => gate.stages[k] !== DEFAULT_STAGES[k]) && (
-            <button type="button" className="linkish small" onClick={() => onPatch({ stages: DEFAULT_STAGES })}>
-              Back to full screen on the ground, strip while flying
-            </button>
-          )}
-          <h4 className="ctl-label sp-sub">Unless my OBS scene is called…</h4>
-          <ul className="sp-rules">
-            {gate.scenes.map(([n, v], i) => (
-              <li key={i}>
-                <input className="ctl-input sp-scene" aria-label={`Scene name ${i + 1}`} value={n} maxLength={40} onChange={(e) => setScene(i, e.target.value)} />
-                <ViewSelect label={`Scene ${n || i + 1}: the screen shows`} value={v} onChange={(x) => setScene(i, n, x)} />
-                <button type="button" className="btn sp-x" aria-label={`Remove the rule for ${n || "this scene"}`} onClick={() => setScene(i, null)}>
-                  ×
-                </button>
-              </li>
-            ))}
-          </ul>
-          {gate.scenes.length < 8 && (
-            <button type="button" className="linkish small" onClick={() => onPatch({ scenes: [...gate.scenes, ["", "frame"]] })}>
-              + add a rule
-            </button>
-          )}
-        </div>
-
-        <div className="sp-col">
           <h4 className="ctl-label">3 · For OBS</h4>
           <input className="ctl-input mono sp-url" readOnly value={url} aria-label="Stream URL" onFocus={(e) => e.target.select()} />
           <button
@@ -191,21 +134,27 @@ export function StreamPanel({
             onClick={() => {
               void navigator.clipboard?.writeText(url).then(() => {
                 setCopied(true);
+                setCopiedUrl(url);
                 setTimeout(() => setCopied(false), 2000);
               });
             }}
           >
             {copied ? "Copied" : "Copy stream URL"}
           </button>
+          {relayOpen ? (
+            <p className="sp-live small">Changes reach OBS live through OFP Link: no need to copy the URL again.</p>
+          ) : stale ? (
+            <p className="sp-stale small">Changed since you copied it: copy the stream URL again and paste it into OBS (or run OFP Link and changes go there by themselves).</p>
+          ) : null}
           <ol className="sp-steps small">
             <li>
-              <b>Add it once</b> as a Browser source, 1920 × 1080.
+              <b>Add it</b> as a Browser source, 1920 × 1080, above the game capture, in your main scene.
             </li>
             <li>
-              In your other scenes choose <b>Add existing</b>, above the game capture.
+              <b>One source per scene</b> is simplest: in another scene (BRB) add a new Browser source with the same URL. With Studio Mode, a shared source only shows the scene that is live (Program).
             </li>
             <li>
-              In its properties set <b>Page permissions</b> to read the scene name (at least “Read access to user information”).
+              In its properties set <b>Page permissions</b> to “Read access to user information”, so it can read the scene name.
             </li>
           </ol>
           <p className="muted small">
@@ -213,7 +162,190 @@ export function StreamPanel({
           </p>
         </div>
       </div>
+      {flight && (
+        <AudienceGrid
+          gate={gate}
+          flight={flight}
+          now={now}
+          wx={wx}
+          feed={feed}
+          onPatch={onPatch}
+        />
+      )}
     </section>
+  );
+}
+
+/* ---------- 2 · what your audience sees: phases × OBS scenes, each cell a thumbnail ---------- */
+
+const STAGE_ROWS: { k: FlightStage; name: string; short: string; until: string }[] = [
+  { k: "ready", name: "At the gate", short: "Gate", until: "until the aircraft moves" },
+  { k: "taxi", name: "Push-back and taxi", short: "Taxi", until: "until wheels off" },
+  { k: "flying", name: "Flying", short: "Flying", until: "until parked, engines off" },
+  { k: "arrived", name: "Arrived", short: "Arrived", until: "until you close it" },
+];
+
+function AudienceGrid({
+  gate,
+  flight,
+  now,
+  wx,
+  feed,
+  onPatch,
+}: {
+  gate: GateState;
+  flight: GateFlight;
+  now: number;
+  wx: GateWx | null;
+  feed: FlightFeed;
+  onPatch: (p: Partial<GateState>) => void;
+}) {
+  // columns: any other scene (the stage table), then each named scene
+  const cols: { name: string | null; views: Record<FlightStage, ShownView> }[] = [{ name: null, views: gate.stages }, ...gate.scenes.map(([n, v]) => ({ name: n, views: v }))];
+  const [pick, setPick] = useState<{ col: number; stage: FlightStage } | null>(null);
+  const [pvCol, setPvCol] = useState(0);
+  const [pvStage, setPvStage] = useState<FlightStage | null>(null);
+  const liveStage = gate.hold ?? feed.state?.stage ?? null;
+  const samples = useMemo(() => Object.fromEntries(STAGES.map((k) => [k, sampleLive(flight, k, now)])) as Record<FlightStage, FlightState>, [flight, now]);
+  const set = (col: number, stage: FlightStage | "all", v: ShownView) => {
+    const views = stage === "all" ? allStages(v) : { ...cols[col].views, [stage]: v };
+    if (col === 0) onPatch({ stages: views });
+    else onPatch({ scenes: gate.scenes.map((sc, i) => (i === col - 1 ? [sc[0], views] : sc)) });
+  };
+  const rename = (col: number, name: string) => onPatch({ scenes: gate.scenes.map((sc, i) => (i === col - 1 ? [name.replace(/[;:,]/g, "").slice(0, 40), sc[1]] : sc)) });
+  const remove = (col: number) => {
+    onPatch({ scenes: gate.scenes.filter((_, i) => i !== col - 1) });
+    setPvCol(0);
+  };
+  const mini = (view: ShownView, stage: FlightStage) => (
+    <MiniScreen view={view} flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={samples[stage]} source="link" trail={[]} plan={feed.plan} />
+  );
+  const pvScene = pvCol > 0 ? (gate.scenes[pvCol - 1]?.[0] ?? null) : null;
+  const pvStageShown = pvStage ?? liveStage ?? "ready";
+  const pvLive = pvStage ? samples[pvStage] : (feed.state ?? samples[pvStageShown]);
+
+  return (
+    <div className="sp-aud">
+      <div className="sp-aud-head">
+        <h4 className="ctl-label">2 · What your audience sees</h4>
+        <div className="sp-presets" role="group" aria-label="Start from a preset (any other scene)">
+          {PRESETS.map((p) => (
+            <button key={p.name} type="button" className="btn btn-sm" title={p.note} aria-pressed={STAGES.every((k) => gate.stages[k] === p.stages[k])} onClick={() => onPatch({ stages: p.stages })}>
+              {p.name}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="sp-aud-body">
+        <div className="sp-aud-grid" role="table" aria-label="What each OBS scene shows at each phase">
+          <div role="row" className="sp-aud-row is-head">
+            <span role="columnheader" />
+            {cols.map((c, i) => (
+              <span role="columnheader" key={i} className="sp-aud-col">
+                {i === 0 ? (
+                  <b>Any other scene</b>
+                ) : (
+                  <span className="sp-aud-scene">
+                    <input className="ctl-input" aria-label={`OBS scene name ${i}`} value={c.name ?? ""} onChange={(e) => rename(i, e.target.value)} />
+                    <button type="button" className="btn sp-x" aria-label={`Remove the scene ${c.name}`} onClick={() => remove(i)}>
+                      ×
+                    </button>
+                  </span>
+                )}
+              </span>
+            ))}
+            {gate.scenes.length < 6 && (
+              <span role="columnheader">
+                <button type="button" className="linkish small" onClick={() => onPatch({ scenes: [...gate.scenes, ["Scene", allStages("frame")]] })}>
+                  + an OBS scene
+                </button>
+              </span>
+            )}
+          </div>
+          {STAGE_ROWS.map((r) => (
+            <div role="row" className="sp-aud-row" key={r.k}>
+              <span role="rowheader" className="sp-aud-stage">
+                <b>{r.name}</b>
+                {liveStage === r.k && <span className="sp-now">{gate.hold === r.k ? "held" : "now"}</span>}
+                <small className="muted">{r.until}</small>
+              </span>
+              {cols.map((c, i) => (
+                <span role="cell" key={i}>
+                  <button
+                    type="button"
+                    className={`sp-cell${pick?.col === i && pick.stage === r.k ? " is-open" : ""}`}
+                    aria-label={`${c.name ?? "Any other scene"}, ${r.name}: ${VIEW_NAMES.find(([v]) => v === c.views[r.k])?.[1]}. Change`}
+                    onClick={() => {
+                      setPick(pick?.col === i && pick.stage === r.k ? null : { col: i, stage: r.k });
+                      setPvCol(i);
+                      setPvStage(r.k);
+                    }}
+                  >
+                    {mini(c.views[r.k], r.k)}
+                    <small>{VIEW_NAMES.find(([v]) => v === c.views[r.k])?.[1]}</small>
+                  </button>
+                </span>
+              ))}
+            </div>
+          ))}
+          {pick && (
+            <div className="sp-pick" role="dialog" aria-label={`Choose what ${cols[pick.col]?.name ?? "any other scene"} shows: ${STAGE_ROWS.find((r) => r.k === pick.stage)?.name}`}>
+              <div className="sp-pick-head">
+                <b>
+                  {cols[pick.col]?.name ?? "Any other scene"} · {STAGE_ROWS.find((r) => r.k === pick.stage)?.name}
+                </b>
+                <button type="button" className="btn btn-sm" onClick={() => setPick(null)}>
+                  Done
+                </button>
+              </div>
+              <div className="sp-pick-list">
+                {VIEW_NAMES.map(([v, n]) => (
+                  <button key={v} type="button" className="sp-cell" aria-pressed={cols[pick.col]?.views[pick.stage] === v} onClick={() => set(pick.col, pick.stage, v)}>
+                    {mini(v, pick.stage)}
+                    <small>{n}</small>
+                  </button>
+                ))}
+              </div>
+              {pick.col > 0 && (
+                <button type="button" className="linkish small" onClick={() => set(pick.col, "all", cols[pick.col].views[pick.stage])}>
+                  Use this for the whole flight in {cols[pick.col].name}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="sp-aud-pv">
+          <div className="sp-aud-pv-head">
+            <label className="jr-ctl">
+              <span className="ctl-label">OBS scene</span>
+              <select className="ctl-input" value={pvCol} onChange={(e) => setPvCol(Number(e.target.value))}>
+                {cols.map((c, i) => (
+                  <option key={i} value={i}>
+                    {c.name ?? "Any other scene"}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="seg jr-seg" role="radiogroup" aria-label="Phase to preview">
+              <button type="button" role="radio" aria-checked={pvStage == null} className="seg-btn" onClick={() => setPvStage(null)}>
+                Now
+              </button>
+              {STAGE_ROWS.map((r) => (
+                <button key={r.k} type="button" role="radio" aria-checked={pvStage === r.k} className="seg-btn" onClick={() => setPvStage(r.k)}>
+                  {r.short}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="gs-frame sp-aud-screen">
+            <GateViewScreen flight={flight} state={{ ...gate, view: "auto", hold: pvStage ?? gate.hold }} now={now} wx={wx} live={pvLive} source={feed.using} scene={pvScene} trail={pvStage ? [] : feed.trail} plan={feed.plan} />
+          </div>
+          <p className="muted small">
+            What OBS shows in {pvScene ?? "any other scene"} {pvStage ? `at "${STAGE_ROWS.find((r) => r.k === pvStage)?.name}" (an example of this flight)` : "now"}. The see-through parts show your game.
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
 

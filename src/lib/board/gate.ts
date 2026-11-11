@@ -39,21 +39,33 @@ export interface GateState {
   view: GateView;
   /** view=auto: the view at each stage of the flight. */
   stages: Record<FlightStage, ShownView>;
-  /** view=auto: unless the OBS scene is called this (any case), then this view. */
-  scenes: [string, ShownView][];
+  /**
+   * view=auto in a named OBS scene (any case): that scene's own view at each stage, e.g. BRB is the
+   * frame whatever the aircraft does. Any other scene uses `stages`.
+   */
+  scenes: SceneRule[];
   /** Hold the screen on this stage whatever the aircraft does (when the detection gets it wrong). */
   hold: FlightStage | null;
 }
 
 export type ShownView = Exclude<GateView, "auto">;
+export type SceneRule = [string, Record<FlightStage, ShownView>];
+export const allStages = (v: ShownView): Record<FlightStage, ShownView> => ({ ready: v, taxi: v, flying: v, arrived: v });
 export const STAGES: FlightStage[] = ["ready", "taxi", "flying", "arrived"];
 /** Sheet 07: the full screen on the ground, the strip while flying. */
 export const DEFAULT_STAGES: Record<FlightStage, ShownView> = { ready: "full", taxi: "full", flying: "strip", arrived: "full" };
 /** Sheet 07: the scene names that turn the same source into the frame, the map or the card. */
-export const DEFAULT_SCENES: [string, ShownView][] = [
-  ["BRB", "frame"],
-  ["Map", "map"],
-  ["Camera", "card"],
+export const DEFAULT_SCENES: SceneRule[] = [
+  ["BRB", allStages("frame")],
+  ["Map", allStages("map")],
+  ["Camera", allStages("card")],
+];
+/** Starting points for the stage table (Stream panel presets). */
+export const PRESETS: { name: string; note: string; stages: Record<FlightStage, ShownView> }[] = [
+  { name: "Classic", note: "the gate screen on the ground, the strip while flying", stages: DEFAULT_STAGES },
+  { name: "Mostly sim", note: "the strip at the gate, the pill from push-back, the strip at the gate again", stages: { ready: "strip", taxi: "pill", flying: "pill", arrived: "strip" } },
+  { name: "Minimal", note: "just the pill, all flight", stages: allStages("pill") },
+  { name: "Map", note: "the moving map all flight, full screen at the gates", stages: { ready: "full", taxi: "corner", flying: "map", arrived: "full" } },
 ];
 
 /**
@@ -97,20 +109,31 @@ function stagesFrom(v: string | null): Record<FlightStage, ShownView> {
   if (parts.length !== 4 || !parts.every(isShown)) return DEFAULT_STAGES;
   return { ready: parts[0], taxi: parts[1], flying: parts[2], arrived: parts[3] } as Record<FlightStage, ShownView>;
 }
-/** sc=BRB:frame;Map:map ("-" = no rules): scene names and their views. */
-function scenesFrom(v: string | null): [string, ShownView][] {
+/**
+ * sc=BRB:frame;Map:map;Flying:strip,pill,pill,full ("-" or empty = no rules): scene names and their
+ * view, one for the whole flight or one per stage (ready, taxi, flying, arrived).
+ */
+function scenesFrom(v: string | null): SceneRule[] {
   if (v == null) return DEFAULT_SCENES;
-  if (v === "-") return [];
-  const out: [string, ShownView][] = [];
+  if (v === "-" || v === "") return [];
+  const out: SceneRule[] = [];
   for (const part of v.split(";").slice(0, 8)) {
     const i = part.lastIndexOf(":");
     const name = text(part.slice(0, i), 40).trim();
-    const view = part.slice(i + 1);
-    if (name && isShown(view)) out.push([name, view]);
+    const views = part.slice(i + 1).split(",");
+    if (!name) continue;
+    if (views.length === 1 && isShown(views[0])) out.push([name, allStages(views[0])]);
+    else if (views.length === 4 && views.every(isShown)) out.push([name, { ready: views[0], taxi: views[1], flying: views[2], arrived: views[3] } as Record<FlightStage, ShownView>]);
   }
   return out;
 }
-const scenesTo = (sc: [string, ShownView][]) => sc.map(([n, v]) => `${n.replace(/[;:]/g, "")}:${v}`).join(";");
+const scenesTo = (sc: SceneRule[]) =>
+  sc
+    .map(([n, v]) => {
+      const vs = STAGES.map((k) => v[k]);
+      return `${n.replace(/[;:,]/g, "")}:${vs.every((x) => x === vs[0]) ? vs[0] : vs.join(",")}`;
+    })
+    .join(";");
 
 /** ?f=&d=&sb=&in=25&late=15&pin=boarding&cx=1&gate=12&was=9&reg=G-ABCD&msg=…&ov=1&rot=0 */
 export function gateFromParams(q: URLSearchParams, now: number): GateState {
