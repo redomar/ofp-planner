@@ -7,7 +7,7 @@ import { routeColor, textOn } from "@/lib/colors";
 import { MIN } from "@/lib/board/board";
 import type { GateFlight, GateState } from "@/lib/board/gate";
 import { BACKS, layers, layersFrom, layersTo, VIEW_INFO, type Layers, type Look, type LookBack, type ShownView } from "@/lib/board/looks";
-import { bearing, distNm, fmsArrival, landingText, levelFt, PHASE_LABEL, utcAt, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState } from "@/lib/feed/core";
+import { bearing, distNm, fmsArrival, routeBefore, landingText, levelFt, PHASE_LABEL, utcAt, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState } from "@/lib/feed/core";
 import { useOutlines } from "@/lib/outlines";
 import { useTerrain } from "@/lib/terrain";
 import { baseLayers, mapRadius } from "../RouteMap";
@@ -307,8 +307,9 @@ export function GateMap({
     };
     let proj;
     let reach;
-    // a short FMS route stays fitted to the whole route (and the aircraft) all the way, as at the gate
-    const short = !!routeLegs && routeLegs.length <= 24 && (f.nm ?? 999) < 400;
+    // a short hop (London City → Heathrow) stays fitted to the whole route and the aircraft all the
+    // way, as at the gate: it's smaller than the near view. Anything longer closes in near the end.
+    const short = !!routeLegs && routeLegs.length <= 24 && (f.nm ?? 999) < NEAR_NM;
     const R = 3440.065;
     if (final) {
       // the last miles: the destination's runway, the aircraft and the fixes left, about 40 nm across
@@ -342,8 +343,9 @@ export function GateMap({
   const lineThrough = (pts: [number, number][]) => (pts.length > 1 ? (geo.path({ type: "LineString", coordinates: pts }) ?? "") : "");
   // stroke widths as on the design sheet's 1120-wide map, scaled to this one
   const k = W / 1120;
-  // the line flown: from the departure through where the aircraft has been to where it is
-  const flownPath = pos ? lineThrough([from, ...trail, pos]) : "";
+  // the line flown: from the departure through where the aircraft has been to where it is. The
+  // trail starts when the page opened; before that (a page reloaded in flight) along the route
+  const flownPath = pos ? lineThrough([from, ...routeBefore(routeLegs ?? f.route ?? null, trail[0] ?? pos), ...trail, pos]) : "";
   const pf = geo.proj(from);
   const pt = geo.proj(to);
   const pp = pos ? geo.proj(pos) : null;

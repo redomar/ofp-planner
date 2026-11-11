@@ -593,6 +593,14 @@ async function run() {
           ? pass("gate feed: the landing time is the FMS's at the runway (37 min, not the cruise-speed 29), across midnight, none for a route that stops short")
           : fail(`gate feed: FMS arrival ${min(full)} ${min(late, Date.UTC(2026, 10, 11, 23, 50))} ${min(short)}`);
       }
+      // 1.12.2: a page opened in flight draws the line flown along the route up to where its trail starts
+      {
+        const r = [{ lat: 51.15, lon: -0.19 }, { lat: 50.955, lon: -1.345 }, { lat: 50.75, lon: -3.6 }, { lat: 50.1, lon: -5.67 }, { lat: 51.3, lon: -7.7 }];
+        const n = (at) => core.routeBefore(r, at).length;
+        n([-6.3, 50.6]) === 4 && n([-5.0, 50.3]) === 3 && n([-0.19, 51.15]) === 0 && n([-0.5, 51.1]) === 1 && core.routeBefore(null, [0, 51]).length === 0
+          ? pass("gate feed: the line flown before the trail follows the route's fixes behind the aircraft")
+          : fail(`gate feed: routeBefore ${n([-6.3, 50.6])} ${n([-5.0, 50.3])} ${n([-0.19, 51.15])} ${n([-0.5, 51.1])}`);
+      }
       // 1.11.1: the landing is the first contact, even when a bounce has the aircraft back in the air on
       // that reading (EDDM → EGBB: −776 fpm, then a 2 s bounce, on the ground at −117)
       {

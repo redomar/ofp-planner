@@ -3,6 +3,8 @@
 ## 1.12.2 — 2026-11-11
 
 - **The landing time is the FMS's.** With OFP Tower and a route in the MCDU, "eta", "Landing in", "min to go" and every countdown to landing come from the FMS's time at the destination runway, the DEST line of the F-PLN page. Until now they were the distance at the current ground speed, which takes the cruise speed all the way down: on a flight to Cork the board said 21:54 while the MCDU said 22:02. Without a time there (no route entered, a route that stops short of the destination, a VATSIM pilot) it's the ground speed as before.
+- **The map closes in near the end on mid-length flights again.** Since 1.9.5 a route under 400 nm kept the whole route on the map until the last 10 nm, so Gatwick → Cork showed southern England with the aircraft a dot beside Cork. Now only a hop smaller than the near view (under 150 nm, London City → Heathrow) stays fitted; anything longer closes in on the destination in its last 150 nm.
+- **A board opened in flight draws the line flown along the route.** The line flown is kept by the page, so a reloaded OBS source used to draw a straight line from the departure to where its track began. Now it follows the route's fixes behind the aircraft up to there.
 
 ## 1.12.1 — 2026-11-11
 

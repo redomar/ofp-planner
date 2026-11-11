@@ -686,3 +686,19 @@ export function fmsArrival(plan: FlightPlan | null | undefined, to: { lat: numbe
   if (!end?.eta || distNm(end, to) > ARRIVAL_LEG_NM) return null;
   return utcAt(end.eta, t);
 }
+
+/**
+ * The route's fixes already behind a point on it (where the trail starts): every fix before the one
+ * nearest that point, and that one too once the point is past it. Empty without a route, or when the
+ * point is still at the departure.
+ */
+export function routeBefore(route: { lat: number; lon: number }[] | null, at: [number, number]): [number, number][] {
+  if (!route || route.length < 2) return [];
+  const p = { lon: at[0], lat: at[1] };
+  let near = 0;
+  route.forEach((x, i) => {
+    if (distNm(p, x) < distNm(p, route[near])) near = i;
+  });
+  const past = near < route.length - 1 && distNm(p, route[near + 1]) < distNm(route[near], route[near + 1]);
+  return route.slice(0, past ? near + 1 : near).map((x): [number, number] => [x.lon, x.lat]);
+}
