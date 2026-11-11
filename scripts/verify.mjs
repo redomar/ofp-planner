@@ -183,6 +183,8 @@ async function run() {
     let weatherFails = errors.filter((e) => e.startsWith("__weather_")).length;
     const errs = errors.filter((e) => {
       if (e.startsWith("__weather_")) return false;
+      // the board looking for OFP Tower on this machine; none runs here
+      if (/WebSocket connection to 'ws:\/\/localhost:47800\/' failed/.test(e)) return false;
       if (weatherFails > 0 && /^Failed to load resource/.test(e)) return (weatherFails--, false);
       return true;
     });
@@ -579,6 +581,28 @@ async function run() {
       pl?.active?.to === 1 && pl.legs[1].eta === "15:09" && pl.legs[1].wind?.[0] === 250 && pl.vSpeeds?.v1 === 152 && core.toPlan({ origin: "EDDM", destination: "EGBB", active: { from: 0, to: 5 }, legs: [] })?.active === null
         ? pass("gate feed: the FMS plan's active legs, times over the fixes and V-speeds read in (an impossible active is dropped)")
         : fail(`gate feed: plan ${JSON.stringify(pl)}`);
+      // 1.12.2: the landing time is the FMS's time at the runway (EGKK → EICK at 21:25Z: the MCDU's DEST
+      // line said 22:02, the distance at cruise speed 21:54); midnight wraps; no time when the route stops short
+      {
+        const eick = { lat: 51.8413, lon: -8.4911 };
+        const t = Date.UTC(2026, 10, 11, 21, 25);
+        const mk = (legs) => core.toPlan({ origin: "EGKK", destination: "EICK", legs });
+        const full = mk([{ id: "DECEL", lat: 51.75, lon: -7.9, eta: "21:54" }, { id: "EICK34", lat: 51.83, lon: -8.49, eta: "22:02" }, { id: "CRK", lat: 51.84, lon: -8.6, eta: "22:09", missed: true }]);
+        const late = mk([{ id: "EICK34", lat: 51.83, lon: -8.49, eta: "00:10" }]);
+        const short = mk([{ id: "NUMPO", lat: 51.4, lon: -5.5, eta: "21:40" }, { id: "BANBA", lat: 51.6, lon: -6.6, eta: "21:48" }]);
+        const min = (pl, at = t) => { const x = core.fmsArrival(pl, eick, at); return x == null ? null : Math.round((x - at) / 60000); };
+        min(full) === 37 && min(late, Date.UTC(2026, 10, 11, 23, 50)) === 20 && min(short) === null && min(mk([{ id: "EICK34", lat: 51.83, lon: -8.49 }, { id: "X", lat: 51.9, lon: -8.4 }])) === null
+          ? pass("gate feed: the landing time is the FMS's at the runway (37 min, not the cruise-speed 29), across midnight, none for a route that stops short")
+          : fail(`gate feed: FMS arrival ${min(full)} ${min(late, Date.UTC(2026, 10, 11, 23, 50))} ${min(short)}`);
+      }
+      // 1.12.2: a page opened in flight draws the line flown along the route up to where its trail starts
+      {
+        const r = [{ lat: 51.15, lon: -0.19 }, { lat: 50.955, lon: -1.345 }, { lat: 50.75, lon: -3.6 }, { lat: 50.1, lon: -5.67 }, { lat: 51.3, lon: -7.7 }];
+        const n = (at) => core.routeBefore(r, at).length;
+        n([-6.3, 50.6]) === 4 && n([-5.0, 50.3]) === 3 && n([-0.19, 51.15]) === 0 && n([-0.5, 51.1]) === 1 && core.routeBefore(null, [0, 51]).length === 0
+          ? pass("gate feed: the line flown before the trail follows the route's fixes behind the aircraft")
+          : fail(`gate feed: routeBefore ${n([-6.3, 50.6])} ${n([-5.0, 50.3])} ${n([-0.19, 51.15])} ${n([-0.5, 51.1])}`);
+      }
       // 1.11.1: the landing is the first contact, even when a bounce has the aircraft back in the air on
       // that reading (EDDM → EGBB: −776 fpm, then a 2 s bounce, on the ground at −117)
       {
@@ -1486,7 +1510,7 @@ async function run() {
       }),
     );
     await page.goto(base + "/board?tab=gate", { waitUntil: "networkidle" });
-    await page.locator(".gt-sb input").fill("example-pilot");
+    await page.getByPlaceholder("Your SimBrief username").fill("example-pilot");
     await page.getByRole("button", { name: "Use my latest OFP" }).click();
     await page.waitForSelector(".gs-dest");
     const sb = { dest: await page.locator(".gs-dest").textContent(), sub: await page.locator(".gs-dest-sub").textContent(), brand: await page.locator(".gs-wordmark").textContent(), st: await page.locator(".gs-status").innerText() };
@@ -1501,7 +1525,7 @@ async function run() {
     await page.waitForURL(/\/board\?.*tab=gate/);
     await page.waitForSelector(".gs-dest");
     pass("finder: the flight card opens its gate screen");
-    errors.filter((e) => !e.startsWith("__weather_") && !/Failed to load resource/.test(e)).length ? fail(`board: console errors ${JSON.stringify(errors.slice(0, 3))}`) : pass("board: 0 console errors");
+    errors.filter((e) => !e.startsWith("__weather_") && !/Failed to load resource|ws:\/\/localhost:47800/.test(e)).length ? fail(`board: console errors ${JSON.stringify(errors.slice(0, 3))}`) : pass("board: 0 console errors");
     await ctx.close();
     for (const [width, theme] of [[1280, "dark"], [390, "light"], [390, "dark"]]) {
       const o = await open(gateUrl.pathname + gateUrl.search, { width, height: width < 500 ? 844 : 900, theme });
