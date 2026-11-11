@@ -177,8 +177,8 @@ export function GateMap({ f, facts, W, H, label, trail = [] }: { f: GateFlight; 
       <rect className="gm-sea" width={W} height={H} />
       <path className="gm-grid" d={base.minor} strokeWidth={1.5 * k} />
       <path className="gm-land" d={base.land} />
-      <path className="gm-coast" d={base.coast} strokeWidth={1.4 * k} />
-      <path className="gm-borders" d={base.borders} strokeWidth={1.2 * k} strokeDasharray={`${5 * k} ${5 * k}`} />
+      <path className="gm-coast" d={base.coast} strokeWidth={2 * k} />
+      <path className="gm-borders" d={base.borders} strokeWidth={2.4 * k} strokeDasharray={`${7 * k} ${6 * k}`} />
       {pos ? (
         <>
           <path className="gm-togo" d={line(pos, to)} strokeWidth={W * 0.004} strokeDasharray={`${W * 0.002} ${W * 0.012}`} />
