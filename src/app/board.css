@@ -2995,3 +2995,10 @@ html.screen-mode body > :not(.screen-root) {
 .gv-over[data-size="xs"] .gv-back .gv-card-facts {
   font-size: 0.9cqw;
 }
+/* 1.12.5: the strip at extra small keeps the same floors (its labels were 10 px at 1080p) */
+.gv-over[data-size="xs"] .gv-strip :is(small, i) {
+  font-size: var(--xs-label);
+}
+.gv-over[data-size="xs"] .gv-strip :is(.gv-tile b, .gv-strip-st b) {
+  font-size: var(--xs-fig);
+}

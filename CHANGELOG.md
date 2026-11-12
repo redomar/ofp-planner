@@ -4,6 +4,7 @@
 
 - **No elapsed times as clock times before take-off.** At the gate the Airbus F-PLN TIME column counts from take-off ("00:00" … "01:28"); the route rows showed those as UTC ("01:28Z"). They're left out until the Takeoff phase, when the MCDU switches to UTC. Seen on HA-LPM Budapest → Milan.
 - **The landing time no longer twitches.** The Fenix rounds its runway time back and forth (19:57 / 19:58 every 10 s for minutes in cruise). A one-minute change now shows once it has stood for 30 s; two minutes or more shows at once.
+- **The strip at Extra small is readable.** Its labels were 10 px at 1080p; now nothing in it is under 14 px and the figures are 21 px, at 70 px high (92 at Small). The other extra-small panels, and their route back sides, were already at those floors.
 
 ## 1.12.4 — 2026-11-12
 

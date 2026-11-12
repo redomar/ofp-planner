@@ -913,6 +913,23 @@ async function run() {
         : fail(`gate views: ${v} ${JSON.stringify({ w: box?.width, tiny: tiny.slice(0, 4), facts })}`);
       await o.ctx.close();
     }
+    // 1.12.5: the strip at extra small keeps the floors (its labels were 10 px) and is lower than at small
+    {
+      const xs = await open1("strip.xs");
+      const sm = await open1("strip.s");
+      const hx = (await xs.page.locator(".gv-strip").boundingBox())?.height ?? 0;
+      const hs = (await sm.page.locator(".gv-strip").boundingBox())?.height ?? 0;
+      const tiny = await xs.page.evaluate(() =>
+        [...document.querySelectorAll(".gv-over *")]
+          .filter((el) => [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) && el.getBoundingClientRect().width > 0 && parseFloat(getComputedStyle(el).fontSize) < 14)
+          .map((el) => `${el.textContent.trim().slice(0, 12)} ${getComputedStyle(el).fontSize}`),
+      );
+      hx > 0 && hx < hs && !tiny.length
+        ? pass(`gate views: strip.xs is ${Math.round(hx)} px high (small ${Math.round(hs)}), no text under 14 px`)
+        : fail(`gate views: strip.xs ${JSON.stringify({ hx, hs, tiny: tiny.slice(0, 4) })}`);
+      await xs.ctx.close();
+      await sm.ctx.close();
+    }
     // full screen in flight: the steps run on to the arrival gate, the live source is named
     const f = await open1("full");
     const steps = await f.page.locator(".gs-steps li b").allTextContents();
