@@ -216,6 +216,9 @@ export function toPlan(m: Record<string, unknown>): FlightPlan | null {
   const origin = icao(m.origin);
   const destination = icao(m.destination);
   if (!origin || !destination) return null;
+  // before take-off the Airbus F-PLN TIME column is time since take-off ("00:00" … "01:28"), not a
+  // clock time; it turns UTC at the Takeoff phase
+  const elapsed = /^pre.?flight$/i.test(txt(m.phase, 24) ?? "");
   const legs: PlanLeg[] = [];
   for (const raw of Array.isArray(m.legs) ? m.legs.slice(0, 200) : []) {
     const l = raw as Record<string, unknown>;
@@ -236,7 +239,7 @@ export function toPlan(m: Record<string, unknown>): FlightPlan | null {
       pseudo: l.pseudo === true,
       missed: l.missed === true,
       turn: turnOf(l.turn),
-      eta: typeof l.eta === "string" && /^\d{2}:\d{2}$/.test(l.eta) ? l.eta : null,
+      eta: !elapsed && typeof l.eta === "string" && /^\d{2}:\d{2}$/.test(l.eta) ? l.eta : null,
       wind: windOf(l.wind),
       passed: l.passed === true,
     });
@@ -710,6 +713,37 @@ export function fmsArrival(plan: FlightPlan | null | undefined, to: { lat: numbe
   // a time already gone (a go-around: the runway was passed and the FMS hasn't a new one) isn't one
   const at = utcAt(end.eta, t);
   return at < t - STALE_ARRIVAL_MS ? null : at;
+}
+
+/** A shown time moves by one minute only once the new one has held this long (the Fenix rounds to and fro). */
+const HOLD_MS = 30_000;
+const held = new Map<string, { shown: number; next: number | null; since: number; t: number }>();
+
+/**
+ * A time for the screen that doesn't twitch: a change of one minute shows once it has stood for
+ * 30 s; two minutes or more shows at once. Per key (one flight's arrival); null clears it. Starts
+ * again when the clock goes back (a replay scrubbed).
+ */
+export function steadyTime(key: string, at: number | null, t: number): number | null {
+  const h = held.get(key);
+  if (at == null) {
+    held.delete(key);
+    return null;
+  }
+  if (!h || t < h.t || Math.abs(at - h.shown) >= 120_000) {
+    held.set(key, { shown: at, next: null, since: t, t });
+    return at;
+  }
+  h.t = t;
+  if (Math.abs(at - h.shown) < 60_000) h.next = null;
+  else if (h.next !== at) {
+    h.next = at;
+    h.since = t;
+  } else if (t - h.since >= HOLD_MS) {
+    h.shown = at;
+    h.next = null;
+  }
+  return h.shown;
 }
 
 /**

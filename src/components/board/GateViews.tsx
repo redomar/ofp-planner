@@ -7,7 +7,7 @@ import { routeColor, textOn } from "@/lib/colors";
 import { MIN } from "@/lib/board/board";
 import type { GateFlight, GateState } from "@/lib/board/gate";
 import { BACKS, layers, layersFrom, layersTo, VIEW_INFO, type Layers, type Look, type LookBack, type ShownView } from "@/lib/board/looks";
-import { bearing, distNm, fmsArrival, routeBefore, landingText, levelFt, phaseLabel, utcAt, wentAround, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState } from "@/lib/feed/core";
+import { bearing, distNm, fmsArrival, routeBefore, steadyTime, landingText, levelFt, phaseLabel, utcAt, wentAround, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState } from "@/lib/feed/core";
 import { useOutlines } from "@/lib/outlines";
 import { useTerrain } from "@/lib/terrain";
 import { baseLayers, mapRadius } from "../RouteMap";
@@ -128,7 +128,8 @@ export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null,
   // distance at the ground speed, which takes the cruise speed all the way down
   // after a go-around: no landing time until the next approach (vectors, a hold: nobody knows yet)
   const around = wentAround(live);
-  const fmsOn = air && !around ? fmsArrival(plan, f.to, s.t) : null;
+  // held against the Fenix's minute rounding (19:57 / 19:58 every 10 s)
+  const fmsOn = steadyTime(`${f.from.icao}-${f.to.icao}`, air && !around ? fmsArrival(plan, f.to, s.t) : null, s.t);
   const minLeft = around ? null : fmsOn != null ? Math.max(0, (fmsOn - s.t) / MIN) : air && s.gs > 60 ? (toGo / s.gs) * 60 : null;
   // no time while going round: the schedule's would read as a fresh estimate
   const arrives = live.stamps.on ?? (minLeft != null ? s.t + minLeft * MIN : around ? null : plannedEta);

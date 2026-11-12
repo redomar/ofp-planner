@@ -595,6 +595,23 @@ async function run() {
           ? pass("gate feed: the landing time is the FMS's at the runway (37 min, not the cruise-speed 29), across midnight, none for a route that stops short")
           : fail(`gate feed: FMS arrival ${min(full)} ${min(late, Date.UTC(2026, 10, 11, 23, 50))} ${min(short)}`);
       }
+      // 1.12.5 (LHBP → LIMC, 12 Nov): before take-off the F-PLN TIME column is time since take-off
+      // ("00:00" … "01:28"), not UTC; it turns UTC at Takeoff. The Fenix rounds 19:57 / 19:58 every 10 s.
+      {
+        const legs = [{ id: "LHBP31L", lat: 47.43, lon: 19.26, eta: "00:00" }, { id: "LIMC35R", lat: 45.62, lon: 8.72, eta: "01:28" }];
+        const pre = core.toPlan({ origin: "LHBP", destination: "LIMC", phase: "PreFlight", legs });
+        const off = core.toPlan({ origin: "LHBP", destination: "LIMC", phase: "Takeoff", legs: legs.map((l, i) => ({ ...l, eta: ["18:22", "19:50"][i] })) });
+        const T = Date.UTC(2026, 10, 12, 18, 48);
+        const m = (hhmm) => core.utcAt(hhmm, T);
+        const seq = [];
+        // 19:57 / 19:58 every 10 s, then 19:58 holds 30 s, then a jump to 20:01
+        [["19:57", 0], ["19:58", 10], ["19:57", 20], ["19:58", 30], ["19:58", 40], ["19:58", 50], ["19:58", 60], ["20:01", 70]].forEach(([h, sec]) => seq.push(core.steadyTime("t-LHBP-LIMC", m(h), T + sec * 1000)));
+        const shown = seq.map((x) => new Date(x).toISOString().slice(11, 16)).join(" ");
+        const cleared = core.steadyTime("t-LHBP-LIMC", null, T + 80_000) === null && core.steadyTime("t-LHBP-LIMC", m("20:05"), T + 90_000) === m("20:05");
+        pre?.legs.every((l) => l.eta === null) && off?.legs[1].eta === "19:50" && shown === "19:57 19:57 19:57 19:57 19:57 19:57 19:58 20:01" && cleared
+          ? pass("gate feed: no pre-flight elapsed times as clock times; the FMS minute holds 30 s against rounding, jumps of 2+ min at once")
+          : fail(`gate feed: pre-flight eta ${pre?.legs.map((l) => l.eta)} / ${off?.legs[1].eta}; held ${shown} ${cleared}`);
+      }
       // 1.12.2: a page opened in flight draws the line flown along the route up to where its trail starts
       {
         const r = [{ lat: 51.15, lon: -0.19 }, { lat: 50.955, lon: -1.345 }, { lat: 50.75, lon: -3.6 }, { lat: 50.1, lon: -5.67 }, { lat: 51.3, lon: -7.7 }];
@@ -895,6 +912,23 @@ async function run() {
         ? pass(`gate views: ${v} is ${Math.round(box.width)} px wide (${Math.round(box.width / 19.2)}%), no text under 14 px, figures ${Math.round(facts)} px`)
         : fail(`gate views: ${v} ${JSON.stringify({ w: box?.width, tiny: tiny.slice(0, 4), facts })}`);
       await o.ctx.close();
+    }
+    // 1.12.5: the strip at extra small keeps the floors (its labels were 10 px) and is lower than at small
+    {
+      const xs = await open1("strip.xs");
+      const sm = await open1("strip.s");
+      const hx = (await xs.page.locator(".gv-strip").boundingBox())?.height ?? 0;
+      const hs = (await sm.page.locator(".gv-strip").boundingBox())?.height ?? 0;
+      const tiny = await xs.page.evaluate(() =>
+        [...document.querySelectorAll(".gv-over *")]
+          .filter((el) => [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) && el.getBoundingClientRect().width > 0 && parseFloat(getComputedStyle(el).fontSize) < 14)
+          .map((el) => `${el.textContent.trim().slice(0, 12)} ${getComputedStyle(el).fontSize}`),
+      );
+      hx > 0 && hx < hs && !tiny.length
+        ? pass(`gate views: strip.xs is ${Math.round(hx)} px high (small ${Math.round(hs)}), no text under 14 px`)
+        : fail(`gate views: strip.xs ${JSON.stringify({ hx, hs, tiny: tiny.slice(0, 4) })}`);
+      await xs.ctx.close();
+      await sm.ctx.close();
     }
     // full screen in flight: the steps run on to the arrival gate, the live source is named
     const f = await open1("full");
