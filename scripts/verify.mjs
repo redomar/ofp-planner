@@ -962,7 +962,7 @@ async function run() {
     await a.page.getByRole("button", { name: "+ Add a layer" }).click();
     await a.page.locator(".st-group", { hasText: "Map corners" }).click();
     await a.page.locator(".st-opt", { hasText: "Map corner" }).first().click();
-    await a.page.getByRole("radio", { name: "Small" }).click();
+    await a.page.getByRole("radio", { name: "Small", exact: true }).click();
     await a.page.getByRole("button", { name: "Use this look" }).click();
     await a.page.locator(".st-scene", { hasText: "BRB" }).click();
     await a.page.locator(".st-look").nth(2).click();
