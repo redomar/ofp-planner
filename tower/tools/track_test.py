@@ -43,8 +43,19 @@ t.note_route("EGKK", "EICK")
 t.add(fix(70000, 51.15, -0.19))
 t.note_route("EGKK", "EICK")
 check("same route keeps track", len(t.points) == 1)
-t.note_route("EICK", "EGKK")
-check("new route resets track", len(t.points) == 0)
+t.note_route("EGKK", "EIDW")                       # airborne: a diversion keeps the path
+check("diversion keeps track", len(t.points) == 1)
+t.add(fix(70100, 53.42, -6.27, alt=0, gs=0, ground=True))
+t.note_route("EIDW", "EGKK")                       # on the ground: next flight
+check("new route on ground resets track", len(t.points) == 0)
+
+# 4b. a bounce (airborne again 1 s after touchdown) keeps the flown path
+t = TrackLog()
+t.add(fix(70000, 51.0, -1.0)); t.add(fix(70060, 51.0, -1.2))
+t.add(fix(70100, 51.0, -1.3, alt=300, gs=140, ground=True))
+t.add(fix(70101, 51.0, -1.301, alt=310, gs=139, ground=False))  # bounce
+t.add(fix(70103, 51.0, -1.303, alt=300, gs=136, ground=True))
+check("bounce keeps track", len(t.points) >= 3, f"({len(t.points)})")
 
 # 5. land, taxi, take off again -> reset at the second take-off only
 t = TrackLog()
