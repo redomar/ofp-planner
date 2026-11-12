@@ -612,6 +612,55 @@ async function run() {
           ? pass("gate feed: no pre-flight elapsed times as clock times; the FMS minute holds 30 s against rounding, jumps of 2+ min at once")
           : fail(`gate feed: pre-flight eta ${pre?.legs.map((l) => l.eta)} / ${off?.legs[1].eta}; held ${shown} ${cleared}`);
       }
+      // 1.13: the countdown to the stream (go=): from the page loading, a clock time, the off-block; fallbacks in order
+      {
+        const cd = await import(join(process.cwd(), "src/lib/board/countdown.ts"));
+        const T = Date.UTC(2026, 10, 12, 18, 40);
+        const std = Date.UTC(2026, 10, 12, 19, 30);
+        const z = (x) => (x == null ? null : new Date(x).toISOString().slice(11, 16));
+        const clean = [cd.goParam("5M"), cd.goParam("std-30, 5m"), cd.goParam("soon"), cd.goParam("19:30Z,xx,std+5,3m,1m")].join("|");
+        const at = [
+          z(cd.goTarget("5m", T, std, T)),
+          z(cd.goTarget("19:30z", T, std, T)),
+          z(cd.goTarget("00:10z", T, std, T)), // after midnight: tomorrow's
+          z(cd.goTarget("std-30", T, std, T)),
+          z(cd.goTarget("std-30,5m", T, null, T)), // no schedule: the fallback
+          z(cd.goTarget("25:00z,5m", T, std, T)),
+          String(cd.goTarget(null, T, std, T)),
+        ].join(" ");
+        clean === "5m|std-30,5m||19:30z,std+5,3m" && at === "18:45 19:30 00:10 19:00 18:45 18:45 null" && cd.goTarget("00:10z", T, std, T) - T === 330 * 60000
+          ? pass("gate feed: the countdown's start from go= (5m from load, 19:30Z, std-30, fallbacks in order, past midnight)")
+          : fail(`gate feed: countdown ${clean} / ${at}`);
+      }
+      // 1.13: OFP Tower's summary and track; the ending's numbers and how the landing felt; the airline's own names
+      {
+        const end = await import(join(process.cwd(), "src/lib/board/ending.ts"));
+        const nm = await import(join(process.cwd(), "src/lib/board/naming.ts"));
+        const now = Date.UTC(2026, 10, 12, 20, 30);
+        const out = now - 137 * 60000, off = out + 9 * 60000, on = off + 94 * 60000, inn = on + 8 * 60000;
+        const sum = core.toSummary({ type: "summary", v: 1, flight: { origin: "LHBP", destination: "LIMC", reg: "G-ABCD" }, times: { out, off, on, in: inn }, runways: { departure: "13l", arrival: "35L" }, landing: { fpm: -600, tdSim: -511, peakG: 1.59, bounces: 1 }, maxAltFt: 34000, maxGsKt: 437, distanceNm: 542, fuel: { tripKg: 4018, cruiseFfKgH: 2349 }, complete: true }, now);
+        const bad = core.toSummary({ type: "summary", v: 1, times: { off: 5, on: "x" }, landing: { fpm: 90000 }, runways: { departure: "99" } }, now);
+        const trk = core.toTrack({ type: "track", points: [[72000, 47.4, 19.2, 0], [71000, 47.5, 19.0, 3000], ["x"], [71500, 0, 0, 0]] }, now);
+        const merged = core.mergeTrail([{ t: 1000, lon: 0, lat: 0 }, { t: 40000, lon: 1, lat: 0 }], [{ t: 1500, lon: 0.001, lat: 0 }, { t: 20000, lon: 0.5, lat: 0 }]);
+        const f = { source: "simbrief", from: { icao: "LHBP" }, to: { icao: "LIMC" }, stdMs: out - 5 * 60000, block: 110, airline: "Wizz Air", flightNo: "W6 5PL" };
+        const x = end.endStats(f, null, sum, null);
+        const rec = end.endingRecord(f, null, sum, [[19.2, 47.4], [8.7, 45.6]], now);
+        const back = end.readEnding(JSON.stringify(rec), f, now + 3600000);
+        const other = end.readEnding(JSON.stringify(rec), { from: { icao: "EGKK" }, to: { icao: "EICK" } }, now);
+        const stale = end.readEnding(JSON.stringify(rec), f, now + 25 * 3600000);
+        const feels = [[-80, 1.1, 0], [-150, 1.2, 0], [-300, 1.3, 0], [-450, 1.4, 0], [-600, 1.59, 1], [-250, 1.85, 0]].map(([a, g, b]) => end.landingFeel(a, g, b).word).join(",");
+        const named = nm.namedFlight(f, "Wizz Air Malta", "W4");
+        const ok =
+          sum.depRunway === "13L" && sum.arrRunway === "35L" && sum.fpm === -600 && sum.complete && bad.off === null && bad.fpm === null && bad.depRunway === null &&
+          trk.length === 2 && trk[0].t < trk[1].t && merged.length === 3 &&
+          x.block === 111 && x.air === 94 && x.late === 6 && x.tripKg === 4018 &&
+          back?.summary?.fpm === -600 && back.trail.length === 2 && other === null && stale === null &&
+          feels === "Butter,Smooth,Normal,Firm,Hard,Hard" && end.landingFeel(-600, 1.59, 1).line.includes("bounce") &&
+          named.airline === "Wizz Air Malta" && named.flightNo === "W4 5PL" && nm.namedFlight(f, "", "") === f;
+        ok
+          ? pass("gate feed: OFP Tower's summary and track read, the ending kept per flight for 24 h, block 1h51 / air 1h34 / 6 min late, landings Butter → Hard, the airline renamed (W4 5PL)")
+          : fail(`gate feed: ending ${JSON.stringify({ sum: sum && [sum.depRunway, sum.arrRunway, sum.fpm], bad: bad && [bad.off, bad.fpm, bad.depRunway], trk: trk.length, merged: merged.length, x: [x.block, x.air, x.late], back: !!back, other, stale, feels, named: [named.airline, named.flightNo] })}`);
+      }
       // 1.12.2: a page opened in flight draws the line flown along the route up to where its trail starts
       {
         const r = [{ lat: 51.15, lon: -0.19 }, { lat: 50.955, lon: -1.345 }, { lat: 50.75, lon: -3.6 }, { lat: 50.1, lon: -5.67 }, { lat: 51.3, lon: -7.7 }];
@@ -929,6 +978,67 @@ async function run() {
         : fail(`gate views: strip.xs ${JSON.stringify({ hx, hs, tiny: tiny.slice(0, 4) })}`);
       await xs.ctx.close();
       await sm.ctx.close();
+    }
+    // 1.13: the countdown look: the gate screen with a big clock to the stream's start, "Starting now" from zero
+    {
+      const cdPage = async (q) => {
+        const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, reducedMotion: "reduce" });
+        await ctx.addInitScript(SEED);
+        await ctx.route(/simbrief\.com\/api\/xml\.fetcher\.php/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(OFP) }));
+        const page = await ctx.newPage();
+        await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&view=countdown&${q}`, { waitUntil: "networkidle" });
+        await page.waitForSelector(".gs-count", { timeout: 15_000 }).catch(() => {});
+        const t = (await page.locator(".gs-count").innerText().catch(() => "")).replace(/\s+/g, " ");
+        await ctx.close();
+        return t;
+      };
+      const a = await cdPage("go=5m");
+      const b = await cdPage("go=0m");
+      const c = await cdPage("");
+      /STREAM STARTS IN (5:00|4:5\d)/i.test(a) && /Starting now/i.test(b) && /Starting soon/i.test(c)
+        ? pass(`gate views: countdown look (${a} · ${b} · ${c})`)
+        : fail(`gate views: countdown "${a}" "${b}" "${c}"`);
+    }
+    // 1.13: the ending screen fed by a stand-in OFP Tower (summary + track), then kept for a page with OFP Tower closed
+    {
+      const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, reducedMotion: "reduce" });
+      await ctx.addInitScript(SEED);
+      await ctx.route(/simbrief\.com\/api\/xml\.fetcher\.php/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(OFP) }));
+      const now = Date.now();
+      const on = now - 10 * 60000;
+      const zs = (ms) => (ms % 86400000) / 1000;
+      let tower = true;
+      await ctx.routeWebSocket(/localhost:47800/, (ws) => {
+        if (!tower) return ws.close();
+        ws.send(JSON.stringify({ type: "hello", app: "OFP Tower" }));
+        ws.send(JSON.stringify({ type: "track", points: [0, 0.25, 0.5, 0.75, 1].map((k) => [zs(on - (1 - k) * 100 * 60000), 35.214 + (40.64 - 35.214) * k, -80.943 + (-73.779 + 80.943) * k, Math.round(Math.sin(k * Math.PI) * 39000)]) }));
+        ws.send(JSON.stringify({ type: "summary", v: 1, flight: { origin: "KCLT", destination: "KJFK" }, times: { out: on - 112 * 60000, off: on - 100 * 60000, on, in: on + 6 * 60000 }, runways: { departure: "36C", arrival: "22L" }, landing: { fpm: -142, peakG: 1.18, bounces: 0 }, maxAltFt: 39000, maxGsKt: 512, distanceNm: 488, fuel: { tripKg: 4410, cruiseFfKgH: 2510 }, complete: true }));
+        ws.send(JSON.stringify({ type: "sample", lat: 40.64, lon: -73.779, alt: 13, gs: 0, hdg: 220, vs: 0, onGround: true, engines: [false, false], zulu: zs(Date.now()) }));
+      });
+      const page = await ctx.newPage();
+      const errors = [];
+      page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+      page.on("pageerror", (e) => errors.push(String(e)));
+      await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&feed=link&view=ending&bye=See+you+next+week`, { waitUntil: "networkidle" });
+      await page.waitForFunction(() => document.querySelectorAll(".gv-end-stats > div").length >= 10, null, { timeout: 15_000 }).catch(() => {});
+      const stats = (await page.locator(".gv-end-stats").innerText().catch(() => "")).replace(/\s+/g, " ");
+      const pax = (await page.locator(".gv-end-pax").innerText().catch(() => "")).replace(/\s+/g, " ");
+      const bye = await page.locator(".gv-end-bye").innerText().catch(() => "");
+      const clear = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+      const tiny = await page.evaluate(() => [...document.querySelectorAll(".gv-end *")].filter((el) => [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) && el.getBoundingClientRect().width > 0 && parseFloat(getComputedStyle(el).fontSize) < 14).length);
+      const fits = await page.evaluate(() => [...document.querySelectorAll(".gv-end-rail, .gv-end-bye")].every((el) => el.getBoundingClientRect().bottom <= window.innerHeight + 1));
+      const kept = await page.evaluate(() => localStorage.getItem("ofp-planner:ending"));
+      await checkPage("gate view ending 1920", page, errors.filter((e) => !/ws:\/\/localhost:47800/.test(e)));
+      // OFP Tower closed, the OBS source refreshed: the kept ending
+      tower = false;
+      await page.reload({ waitUntil: "networkidle" });
+      await page.waitForTimeout(2500);
+      const again = (await page.locator(".gv-end-stats").innerText().catch(() => "")).replace(/\s+/g, " ");
+      /BLOCK TIME 1h 58m/i.test(stats) && /-142 fpm/.test(stats) && /FL390/.test(stats) && /488 nm/.test(stats) && /4,410 kg/.test(stats) && /TAKE-OFF · 36C/i.test(stats) &&
+      /Smooth/i.test(pax) && /See you next week/.test(bye) && clear === "rgba(0, 0, 0, 0)" && !tiny && fits && kept && /-142 fpm/.test(again) && /488 nm/.test(again)
+        ? pass(`gate views: ending screen with OFP Tower's numbers (${stats.slice(0, 90)}…), passengers "${pax.slice(0, 50)}…", kept after OFP Tower closed`)
+        : fail(`gate views: ending ${JSON.stringify({ stats, pax, bye, clear, tiny, fits, kept: !!kept, again })}`);
+      await ctx.close();
     }
     // full screen in flight: the steps run on to the arrival gate, the live source is named
     const f = await open1("full");

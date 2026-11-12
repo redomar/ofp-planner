@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { fitToRoute, startState, step, type FeedSample, type FeedSource, type FlightContext, type FlightPlan, type FlightState } from "./core";
+import { fitToRoute, mergeTrail, startState, step, type FeedSample, type FeedSource, type FlightContext, type FlightPlan, type FlightState, type FlightSummary } from "./core";
 import { LINK_PORT, linkSource, replaySource, vatsimSource, type FeedStatus } from "./sources";
 
 /** Which feed the gate screen follows, from its URL: &feed=link|replay|vatsim (none = the clock, as before 1.9). */
@@ -59,6 +59,8 @@ export interface FlightFeed {
   /** The route programmed in the aircraft's FMS (OFP Tower with a Fenix), and when it first came. */
   plan: FlightPlan | null;
   planAt: number | null;
+  /** 1.13, OFP Tower: its summary of the flight (times, landing, fuel, …). */
+  summary: FlightSummary | null;
 }
 
 /**
@@ -98,6 +100,8 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<s
     let st = startState();
     let trail: [number, number][] = [];
     let trailAt = 0;
+    // the trail's times, for putting OFP Tower's backlog in (a page opened mid-flight, a refresh)
+    let trailT: number[] = [];
     const put = (p: Partial<FlightFeed>) => setFeed((f) => ({ ...(f.key === k ? f : NO_FEED), ...p, key: k }));
     // auto: OFP Tower wins while it's sending; VATSIM fills in when it isn't
     let linkAt = 0;
@@ -109,6 +113,7 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<s
       const last = trail[trail.length - 1];
       if (!last || s.t - trailAt >= 30_000 || Math.hypot(s.lon - last[0], s.lat - last[1]) > 0.033) {
         trail = [...trail, [s.lon, s.lat]];
+        trailT = [...trailT, s.t];
         trailAt = s.t;
       }
       const path = trail;
@@ -146,11 +151,22 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<s
         return { ...base, key: k, plan: p, planAt: base.planAt ?? Date.now() };
       });
     };
+    const onSummary = (sum: FlightSummary) => put({ summary: sum });
+    const onTrack = (pts: { t: number; lat: number; lon: number }[]) => {
+      const merged = mergeTrail(
+        trail.map(([lon, lat], i) => ({ t: trailT[i], lon, lat })),
+        pts,
+      );
+      trail = merged.map((p) => [p.lon, p.lat] as [number, number]);
+      trailT = merged.map((p) => p.t);
+      trailAt = trailT[trailT.length - 1] ?? 0;
+      put({ trail });
+    };
     if (source === "replay" && rec) return replaySource(rec, rate, { onSample: take("replay"), onStatus: said("replay") }, at * 60_000, fitTo);
     if (source === "vatsim" && who) return vatsimSource(who, { onSample: take("vatsim"), onStatus: said("vatsim"), onPlan: onVatsimPlan });
-    if (source === "link") return linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan });
+    if (source === "link") return linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan, onSummary, onTrack });
     if (source === "auto") {
-      const stops = [linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan })];
+      const stops = [linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan, onSummary, onTrack })];
       if (who) stops.push(vatsimSource(who, { onSample: take("vatsim"), onStatus: said("vatsim"), onPlan: onVatsimPlan }));
       return () => stops.forEach((x) => x());
     }
@@ -158,4 +174,4 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<s
   return feed.key === key ? feed : NO_FEED;
 }
 
-const NO_FEED: FlightFeed = { state: null, status: null, using: "clock", link: null, vatsim: null, trail: [], plan: null, planAt: null };
+const NO_FEED: FlightFeed = { state: null, status: null, using: "clock", link: null, vatsim: null, trail: [], plan: null, planAt: null, summary: null };

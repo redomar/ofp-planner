@@ -22,6 +22,7 @@ export const KEYS = {
   logbook: `${NS}logbook`,
   range: `${NS}range`,
   dispatched: `${NS}dispatched`,
+  airlineNames: `${NS}airline-names`,
 } as const;
 
 function get(key: string): string | null {

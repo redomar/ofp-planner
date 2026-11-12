@@ -117,6 +117,7 @@ export function GateScreen({
   source = null,
   plan = null,
   belt = true,
+  countdown,
 }: {
   flight: GateFlight;
   state: GateState;
@@ -129,6 +130,11 @@ export function GateScreen({
   plan?: FlightPlan | null;
   /** The seatbelt sign while it's on (a look's setting). */
   belt?: boolean;
+  /**
+   * 1.13, the countdown view: when the stream starts (ms; null = no time set). The status panel
+   * becomes a big countdown, "Starting now" from zero on.
+   */
+  countdown?: number | null;
 }) {
   const bg = routeColor(f.brand);
   const ink = textOn(bg);
@@ -348,10 +354,14 @@ export function GateScreen({
             <b className="mono">{localClock(eta, toTz)}</b>
           </div>
         )}
-        <div className={`gs-status gs-${tone}`} aria-live="polite">
-          <b>{status}</b>
-          {next && <small>{next}</small>}
-        </div>
+        {countdown !== undefined ? (
+          <CountPanel at={countdown} now={now} />
+        ) : (
+          <div className={`gs-status gs-${tone}`} aria-live="polite">
+            <b>{status}</b>
+            {next && <small>{next}</small>}
+          </div>
+        )}
       </div>
 
 {inFlight ? (
@@ -396,11 +406,32 @@ export function GateScreen({
   );
 }
 
+/** "4:59", "1:05:00": time left in whole seconds (rounded down: the page's clock ticks a little behind its loading). */
+export function countText(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = String(s % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
+}
+
+/** The countdown view's panel: time left to the stream's start, never below zero. */
+function CountPanel({ at, now }: { at: number | null; now: number }) {
+  const left = at == null ? null : at - now;
+  const going = left != null && left >= 1000;
+  return (
+    <div className={`gs-status gs-count${going ? "" : " is-now"}`} role="timer" aria-label={going ? `Stream starts in ${countText(left)}` : at == null ? "Stream starting soon" : "Stream starting now"}>
+      <small>{going ? "Stream starts in" : "Stream"}</small>
+      <b className="mono">{going ? countText(left) : at == null ? "Starting soon" : "Starting now"}</b>
+    </div>
+  );
+}
+
 /** A plain airliner seen from above (decorative, not any airline's mark). */
 export const PLANE = "M32 3c2.2 0 3.4 2.4 3.4 6v13.6l22.6 12.6v5.6l-22.6-7.2v11.8l7.6 5.6v4.4l-11-3.4-11 3.4v-4.4l7.6-5.6V33.6L6 40.8v-5.6l22.6-12.6V9c0-3.6 1.2-6 3.4-6z";
 
 /** A small weather picto from a WMO code: clear, partly cloudy, cloud, fog, rain, snow or thunder. */
-function WxPicto({ code, night }: { code: number | null; night: boolean }) {
+export function WxPicto({ code, night }: { code: number | null; night: boolean }) {
   const c = code ?? 3;
   const kind =
     c <= 1

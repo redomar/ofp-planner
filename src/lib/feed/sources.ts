@@ -5,7 +5,7 @@
  * Each source calls onSample with the shared FeedSample shape and onStatus with how it's going,
  * and returns a function that stops it.
  */
-import { parseRecording, toPlan, toSample, type FeedSample, type FlightPlan } from "./core";
+import { parseRecording, toPlan, toSample, toSummary, toTrack, zuluMs, type FeedSample, type FlightPlan, type FlightSummary } from "./core";
 
 export type FeedStatus = { state: "connecting" | "live" | "waiting" | "ended" | "error"; text: string };
 export interface SourceHandlers {
@@ -13,6 +13,9 @@ export interface SourceHandlers {
   onStatus: (s: FeedStatus) => void;
   /** OFP Tower with a Fenix: the route programmed in the FMS. */
   onPlan?: (p: FlightPlan) => void;
+  /** 1.13, OFP Tower: the flight's numbers, and the track flown before this page connected. */
+  onSummary?: (s: FlightSummary) => void;
+  onTrack?: (points: { t: number; lat: number; lon: number; alt: number | null }[]) => void;
 }
 
 /* ---------- a recorded flight ---------- */
@@ -189,12 +192,21 @@ export function linkSource(port: number, h: SourceHandlers): () => void {
         if (plan) h.onPlan?.(plan);
         return;
       }
+      if (m.type === "summary") {
+        const sum = toSummary(m, Date.now());
+        if (sum) h.onSummary?.(sum);
+        return;
+      }
+      if (m.type === "track") {
+        const pts = toTrack(m, Date.now());
+        if (pts.length) h.onTrack?.(pts);
+        return;
+      }
       if (m.type !== "sample") return;
       const z = typeof m.zulu === "number" ? m.zulu : null;
       const now = Date.now();
-      const day = now - (now % 86_400_000);
       // sim time of day → today's date, or yesterday's just after midnight
-      const t = z != null ? day + z * 1000 - (day + z * 1000 > now + 43_200_000 ? 86_400_000 : 0) : typeof m.t === "number" ? m.t : now;
+      const t = z != null ? zuluMs(z, now) : typeof m.t === "number" ? m.t : now;
       const s = toSample(m, Math.round(t));
       if (s) h.onSample(s);
     };

@@ -42,6 +42,10 @@ import { GateViewScreen, shownLooks } from "./board/GateViews";
 import { overSim as overSim_ } from "@/lib/board/looks";
 import { LogArrival, REHEARSE_REC, RehearseStrip, StreamPanel } from "./board/StreamPanel";
 import { logFromFeed } from "@/lib/feed/toLog";
+import { KEYS, readJSON, writeJSON } from "@/lib/storage";
+import { goParam } from "@/lib/board/countdown";
+import { namedFlight } from "@/lib/board/naming";
+import { ENDING_KEY, endingRecord } from "@/lib/board/ending";
 import { localClock, screenNow, zoneLabel, type GateWx } from "./board/GateScreen";
 import { cx, radioKeys, roving } from "./ui";
 
@@ -294,7 +298,34 @@ export function BoardApp() {
     () => (!baseFlight && !gate.f && !gate.sb && live.plan && live.planAt != null ? fromPlan(live.plan, live.planAt, airports, airlines) : null),
     [baseFlight, gate.f, gate.sb, live.plan, live.planAt, airports, airlines],
   );
-  const flight = baseFlight ?? planFlight;
+  // 1.13: with the airline name and code the user gave (Wizz Air Malta, W4), over the data's
+  const flight = useMemo(() => {
+    const f = baseFlight ?? planFlight;
+    return f ? namedFlight(f, gate.an, gate.ac) : null;
+  }, [baseFlight, planFlight, gate.an, gate.ac]);
+  // the operator the names are remembered under: the OFP's airline, else the Finder flight's
+  const airlineCode = gate.sb ? (ofp?.user === gate.sb ? ofp.ofp?.airline || null : null) : snapFlight && snapFlight.id === gate.f ? snapFlight.al : null;
+  // a flight of an airline named before: its names come back (this browser only; the screen's URL carries them to OBS)
+  useEffect(() => {
+    if (!airlineCode || screen) return;
+    const saved = readJSON<Record<string, { an?: string; ac?: string }>>(KEYS.airlineNames, {})[airlineCode];
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- once per airline, from storage
+    if (saved) setGate((g) => (g.an || g.ac ? g : { ...g, an: saved.an ?? "", ac: saved.ac ?? "" }));
+  }, [airlineCode, screen]);
+
+  // 1.13: once down, keep the flight's ending (numbers and the line flown) for the ending screen, so
+  // an OBS source refreshed after the flight, or with OFP Tower closed, still has it
+  const endKey = flight && (live.state?.stamps.on != null || live.summary?.on != null) ? `${live.state?.stamps.on}|${live.state?.stamps.in}|${JSON.stringify(live.summary)}|${Math.floor(live.trail.length / 10)}` : null;
+  useEffect(() => {
+    if (!endKey || !flight) return;
+    const rec = endingRecord(flight, live.state, live.summary, live.trail, Date.now());
+    try {
+      if (rec) window.localStorage.setItem(ENDING_KEY, JSON.stringify(rec));
+    } catch {
+      // storage full or blocked: the screen still shows what this page saw
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- endKey says when it changed
+  }, [endKey]);
 
   // destination weather at arrival, for the info strip
   const [wx, setWx] = useState<{ key: string; wx: GateWx } | null>(null);
@@ -436,7 +467,7 @@ export function BoardApp() {
         <ScreenModeClass overlay={overSim} />
         <div className="gs-frame">
           {flight ? (
-            <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} trail={live.trail} plan={live.plan} />
+            <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} trail={live.trail} plan={live.plan} summary={live.summary} />
           ) : (
             <p className="screen-wait">{ofp?.error ? `SimBrief: ${ofp.error}` : "Loading the flight…"}</p>
           )}
@@ -602,7 +633,7 @@ export function BoardApp() {
                 <div className="gt-preview">
                   <div className="gs-frame" id="gs-preview">
                     {flight ? (
-                      <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} trail={live.trail} plan={live.plan} />
+                      <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} trail={live.trail} plan={live.plan} summary={live.summary} />
                     ) : (
                       <div className="gs-empty">
                         <p>{gate.sb ? (ofp?.error ? `SimBrief: ${ofp.error}` : "Loading your SimBrief OFP…") : gate.f ? "Loading the flight…" : feedCfg.who ? (live.vatsim?.state === "live" ? `${feedCfg.who} is on VATSIM but hasn’t filed a flight plan` : (live.vatsim?.text ?? `Looking for ${feedCfg.who} on VATSIM…`)) : "No flight yet"}</p>
@@ -641,6 +672,8 @@ export function BoardApp() {
                   snap={snapFlight && snapFlight.id === gate.f ? snapFlight : null}
                   now={now}
                   autoReg={autoReg}
+                  airlineCode={airlineCode}
+                  dataFlight={baseFlight ?? planFlight}
                   ofpError={gate.sb && ofp?.user === gate.sb ? ofp.error : null}
                   onPatch={patch}
                   onSet={setGate}
@@ -761,6 +794,8 @@ function GateControls({
   snap,
   now,
   autoReg,
+  airlineCode,
+  dataFlight,
   ofpError,
   onPatch,
   onSet,
@@ -772,6 +807,10 @@ function GateControls({
   snap: FlightRow | null;
   now: number;
   autoReg: string | null;
+  /** The operator the airline's names are remembered under (the OFP's airline, the Finder flight's). */
+  airlineCode: string | null;
+  /** The flight as the data has it (without the user's names), for the placeholders. */
+  dataFlight: GateFlight | null;
   ofpError: string | null;
   onPatch: (p: Partial<GateState>) => void;
   onSet: (g: GateState) => void;
@@ -783,6 +822,16 @@ function GateControls({
   const [user, setUser] = useState(() => (typeof window === "undefined" ? "" : readSbUser()));
   const [vin, setVin] = useState(25);
   const [newGate, setNewGate] = useState("");
+  // the airline's names: on the screen now, and remembered for this airline's next flights
+  const nameAirline = (p: Pick<Partial<GateState>, "an" | "ac">) => {
+    onPatch(p);
+    if (!airlineCode) return;
+    const all = readJSON<Record<string, { an?: string; ac?: string }>>(KEYS.airlineNames, {});
+    const next = { an: gate.an, ac: gate.ac, ...p };
+    if (next.an || next.ac) all[airlineCode] = next;
+    else delete all[airlineCode];
+    writeJSON(KEYS.airlineNames, all);
+  };
   const minToStd = flight ? Math.round(((flight.stdMs - screenNow(now, flight, gate)) / MIN) * 1) : null;
   // the next operating dates of a snapshot flight, for the date menu
   const hour = Math.floor(now / (60 * MIN));
@@ -1006,6 +1055,29 @@ function GateControls({
                 placeholder={flight.reg ?? autoReg ?? "e.g. G-ABCD"}
               />
             </label>
+            <div className="gt-row">
+              <label className="jr-ctl">
+                <span className="ctl-label">Airline name</span>
+                <input
+                  className="ctl-input"
+                  value={gate.an}
+                  maxLength={40}
+                  onChange={(e) => nameAirline({ an: e.target.value.slice(0, 40) })}
+                  placeholder={dataFlight?.airline ?? "e.g. Wizz Air Malta"}
+                />
+              </label>
+              <label className="jr-ctl">
+                <span className="ctl-label">Code in the flight number</span>
+                <input
+                  className="ctl-input gt-gate"
+                  value={gate.ac}
+                  maxLength={3}
+                  onChange={(e) => nameAirline({ ac: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3) })}
+                  placeholder={dataFlight?.flightNo.split(/\s+/)[0] ?? "e.g. W4"}
+                />
+              </label>
+            </div>
+            {airlineCode && (gate.an || gate.ac) && <p className="muted small">Remembered for {airlineCode} flights in this browser; the screen&apos;s link carries them to OBS.</p>}
             <label className="jr-ctl">
               <span className="ctl-label">Message</span>
               <input
@@ -1014,6 +1086,31 @@ function GateControls({
                 maxLength={120}
                 onChange={(e) => onPatch({ msg: e.target.value.slice(0, 120) })}
                 placeholder="On the info strip, e.g. Welcome aboard!"
+              />
+            </label>
+            <label className="jr-ctl">
+              <span className="ctl-label">Countdown to the stream</span>
+              <input
+                className="ctl-input"
+                defaultValue={gate.go ?? ""}
+                maxLength={40}
+                onChange={(e) => onPatch({ go: goParam(e.target.value), goFrom: Date.now() })}
+                placeholder="5m · 19:30 · 19:30Z · std-30 (several: std-30,5m)"
+                aria-describedby="gt-go-note"
+              />
+            </label>
+            <p className="muted small" id="gt-go-note">
+              For the Countdown look. 5m counts from when the page loads: tick &ldquo;Refresh browser when scene becomes active&rdquo; on the OBS source and it starts
+              again each time. 19:30 is this PC&apos;s clock, 19:30Z UTC; std-30 is 30 min before the flight&apos;s off-block. The first that gives a time wins.
+            </p>
+            <label className="jr-ctl">
+              <span className="ctl-label">Sign-off</span>
+              <input
+                className="ctl-input"
+                value={gate.bye}
+                maxLength={140}
+                onChange={(e) => onPatch({ bye: e.target.value.slice(0, 140) })}
+                placeholder="On the Ending screen, e.g. Thanks for watching!"
               />
             </label>
             <label className="check">

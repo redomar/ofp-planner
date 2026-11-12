@@ -9,6 +9,7 @@ import { blockTime, flightNo, gcNm } from "../data/flight";
 import { MIN, taxiOf, type PhaseKey } from "./board";
 import type { FlightPlan, PlanLeg, ViewStage } from "../feed/core";
 import { layers, layersFrom, layersTo, type Layers, type ShownView } from "./looks";
+import { goParam } from "./countdown";
 
 export interface GateState {
   /** Snapshot flight id. */
@@ -31,6 +32,9 @@ export interface GateState {
   /** The gate before a gate change, shown as "Gate change: 12 → 14". */
   oldGate: string;
   reg: string;
+  /** 1.13: the airline's name and its code in the flight number as shown, over the data's (Wizz Air Malta, not "Wizz Air"); empty = the data's. */
+  an: string;
+  ac: string;
   msg: string;
   /** Transparent around the screen (for an OBS overlay). */
   overlay: boolean;
@@ -50,6 +54,16 @@ export interface GateState {
   scenes: SceneRule[];
   /** Hold the screen on this stage whatever the aircraft does (when the detection gets it wrong). */
   hold: ViewStage | null;
+  /**
+   * 1.13: the countdown to the stream's start (view "countdown"), as written in the URL: "5m" from
+   * when the page loaded, "19:30" (this PC's time) or "19:30Z", "std-30" from the flight's off-block;
+   * several joined by commas, the first that gives a time wins. URL only: never relayed by OFP Tower.
+   */
+  go: string | null;
+  /** When the page read `go` (the start of a "5m"). */
+  goFrom: number;
+  /** 1.13: the ending screen's sign-off line; empty = the default. URL only. */
+  bye: string;
 }
 
 export type { ShownView } from "./looks";
@@ -91,6 +105,8 @@ export const EMPTY_GATE: GateState = {
   gate: "",
   oldGate: "",
   reg: "",
+  an: "",
+  ac: "",
   msg: "",
   overlay: false,
   rotate: true,
@@ -98,6 +114,9 @@ export const EMPTY_GATE: GateState = {
   stages: DEFAULT_STAGES,
   scenes: DEFAULT_SCENES,
   hold: null,
+  go: null,
+  goFrom: 0,
+  bye: "",
 };
 
 const PINS: PhaseKey[] = ["scheduled", "gate", "boarding", "final", "closed", "ready", "pushback", "lineup", "takeoff", "departed"];
@@ -173,6 +192,8 @@ export function gateFromParams(q: URLSearchParams, now: number): GateState {
     gate: text(q.get("gate"), 6),
     oldGate: text(q.get("was"), 6),
     reg: text(q.get("reg"), 10),
+    an: text(q.get("an"), 40),
+    ac: /^[A-Z0-9]{2,3}$/.test((q.get("ac") ?? "").toUpperCase()) ? (q.get("ac") ?? "").toUpperCase() : "",
     msg: text(q.get("msg"), 120),
     overlay: q.get("ov") === "1",
     rotate: q.get("rot") !== "0",
@@ -180,8 +201,12 @@ export function gateFromParams(q: URLSearchParams, now: number): GateState {
     stages: stagesFrom(q.get("st")),
     scenes: scenesFrom(q.get("sc")),
     hold: STAGES.includes(q.get("hold") as ViewStage) ? (q.get("hold") as ViewStage) : null,
+    go: goParam(q.get("go")),
+    goFrom: now,
+    bye: text(q.get("bye"), 140),
   };
 }
+
 
 export function gateToParams(g: GateState, now: number, extra: Record<string, string | null> = {}): URLSearchParams {
   const q = new URLSearchParams();
@@ -196,6 +221,8 @@ export function gateToParams(g: GateState, now: number, extra: Record<string, st
   set("gate", g.gate);
   set("was", g.oldGate);
   set("reg", g.reg);
+  set("an", g.an);
+  set("ac", g.ac);
   set("msg", g.msg);
   set("ov", g.overlay && "1");
   set("rot", !g.rotate && "0");
@@ -205,6 +232,8 @@ export function gateToParams(g: GateState, now: number, extra: Record<string, st
   const sc = scenesTo(g.scenes);
   set("sc", sc !== scenesTo(DEFAULT_SCENES) && (sc || "-"));
   set("hold", g.hold);
+  set("go", g.go);
+  set("bye", g.bye);
   for (const [k, v] of Object.entries(extra)) set(k, v);
   return q;
 }
@@ -224,19 +253,21 @@ export function streamSettingsQuery(g: GateState): string {
   if (g.gate) q.set("gate", g.gate);
   if (g.oldGate) q.set("was", g.oldGate);
   if (g.reg) q.set("reg", g.reg);
+  if (g.an) q.set("an", g.an);
+  if (g.ac) q.set("ac", g.ac);
   if (g.msg) q.set("msg", g.msg);
   if (!g.rotate) q.set("rot", "0");
   return q.toString();
 }
 
-export type StreamSettings = Pick<GateState, "stages" | "scenes" | "hold" | "delay" | "cancelled" | "gate" | "oldGate" | "reg" | "msg" | "rotate">;
+export type StreamSettings = Pick<GateState, "stages" | "scenes" | "hold" | "delay" | "cancelled" | "gate" | "oldGate" | "reg" | "an" | "ac" | "msg" | "rotate">;
 
 /** A relayed settings query, or null when it isn't complete (no stage table: an old, empty or partial message). */
 export function streamSettingsFrom(q: string, now: number): StreamSettings | null {
   const p = new URLSearchParams(q);
   if (!p.get("st") || !p.get("sc")) return null;
   const s = gateFromParams(p, now);
-  return { stages: s.stages, scenes: s.scenes, hold: s.hold, delay: s.delay, cancelled: s.cancelled, gate: s.gate, oldGate: s.oldGate, reg: s.reg, msg: s.msg, rotate: s.rotate };
+  return { stages: s.stages, scenes: s.scenes, hold: s.hold, delay: s.delay, cancelled: s.cancelled, gate: s.gate, oldGate: s.oldGate, reg: s.reg, an: s.an, ac: s.ac, msg: s.msg, rotate: s.rotate };
 }
 
 /* ---------- what the screen shows, from a snapshot flight or a SimBrief OFP ---------- */
