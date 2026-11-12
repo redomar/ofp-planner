@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.12.5 — 2026-11-12
+
+- **No elapsed times as clock times before take-off.** At the gate the Airbus F-PLN TIME column counts from take-off ("00:00" … "01:28"); the route rows showed those as UTC ("01:28Z"). They're left out until the Takeoff phase, when the MCDU switches to UTC. Seen on HA-LPM Budapest → Milan.
+- **The landing time no longer twitches.** The Fenix rounds its runway time back and forth (19:57 / 19:58 every 10 s for minutes in cruise). A one-minute change now shows once it has stood for 30 s; two minutes or more shows at once.
+
 ## 1.12.4 — 2026-11-12
 
 - **Extra small** for every panel over the sim (Stream studio → a look → Size, or `.xs` in a look's token: `g6a2.xs`, `g7b.xs.bn`). About a sixth of the width (290–350 px at 1080p, was 470 at Small), and still readable on a stream watched in a small player: nothing under 14 px at 1080p, the altitude, speed and minutes at 21 px. To make the room, it shows less: the map names the airports only, the route rows show the next two fixes with distance and time, the ribbon the next three by name, "49 min to landing" becomes "49 min". The BRB frame looks and the other sizes are unchanged.
