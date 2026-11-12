@@ -865,7 +865,7 @@ async function run() {
       const lk = await import(join(process.cwd(), "src/lib/board/looks.ts"));
       const g = lk.lookFrom("g6b.l.tl.bnr.e240.h30");
       const two = lk.layersFrom("strip~g6a1.s");
-      g && g.size === "l" && g.pos === "tl" && g.backs.join() === "numbers,route" && g.every === 240 && g.hold === 30 && lk.lookTo(g) === "g6b.l.tl.bnr.e240.h30" && lk.lookTo(lk.lookFrom("card")) === "card" && two?.length === 2 && two[1].size === "s" && lk.lookFrom("nope") === null && lk.layersTo(two) === "strip~g6a1.s"
+      g && g.size === "l" && g.pos === "tl" && g.backs.join() === "numbers,route" && g.every === 240 && g.hold === 30 && lk.lookTo(g) === "g6b.l.tl.bnr.e240.h30" && lk.lookTo(lk.lookFrom("card")) === "card" && two?.length === 2 && two[1].size === "s" && lk.lookFrom("nope") === null && lk.layersTo(two) === "strip~g6a1.s" && lk.lookFrom("g6a2.xs")?.size === "xs" && lk.lookTo(lk.lookFrom("g7b.xs.bn")) === "g7b.xs.bn"
         ? pass("gate views: looks read and write as tokens (G6b large top left, back sides, timings; layers)")
         : fail(`gate views: looks ${JSON.stringify({ g, two })}`);
     }
@@ -880,6 +880,21 @@ async function run() {
         : fail(`gate views: size/corner ${JSON.stringify({ rm, rs })}`);
       await m.ctx.close();
       await sm.ctx.close();
+    }
+    // 1.12.4: extra small, about a sixth of the width, the text still readable at 1080p
+    for (const v of ["g6a2.xs", "card.xs", "g7a3.xs"]) {
+      const o = await open1(v);
+      const box = await o.page.locator(":is(.gv-corner, .gv-card)").first().boundingBox();
+      const tiny = await o.page.evaluate(() =>
+        [...document.querySelectorAll(".gv-over *")]
+          .filter((el) => [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) && el.getBoundingClientRect().width > 0 && parseFloat(getComputedStyle(el).fontSize) < 14)
+          .map((el) => `${el.textContent.trim().slice(0, 12)} ${getComputedStyle(el).fontSize}`),
+      );
+      const facts = await o.page.locator(":is(.gv-corner-facts, .gv-card-facts) span").first().evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+      box && box.width <= 360 && !tiny.length && facts >= 20
+        ? pass(`gate views: ${v} is ${Math.round(box.width)} px wide (${Math.round(box.width / 19.2)}%), no text under 14 px, figures ${Math.round(facts)} px`)
+        : fail(`gate views: ${v} ${JSON.stringify({ w: box?.width, tiny: tiny.slice(0, 4), facts })}`);
+      await o.ctx.close();
     }
     // full screen in flight: the steps run on to the arrival gate, the live source is named
     const f = await open1("full");
@@ -947,7 +962,7 @@ async function run() {
     await a.page.getByRole("button", { name: "+ Add a layer" }).click();
     await a.page.locator(".st-group", { hasText: "Map corners" }).click();
     await a.page.locator(".st-opt", { hasText: "Map corner" }).first().click();
-    await a.page.getByRole("radio", { name: "Small" }).click();
+    await a.page.getByRole("radio", { name: "Small", exact: true }).click();
     await a.page.getByRole("button", { name: "Use this look" }).click();
     await a.page.locator(".st-scene", { hasText: "BRB" }).click();
     await a.page.locator(".st-look").nth(2).click();

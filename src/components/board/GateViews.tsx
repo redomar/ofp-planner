@@ -130,7 +130,8 @@ export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null,
   const around = wentAround(live);
   const fmsOn = air && !around ? fmsArrival(plan, f.to, s.t) : null;
   const minLeft = around ? null : fmsOn != null ? Math.max(0, (fmsOn - s.t) / MIN) : air && s.gs > 60 ? (toGo / s.gs) * 60 : null;
-  const arrives = live.stamps.on ?? (minLeft != null ? s.t + minLeft * MIN : plannedEta);
+  // no time while going round: the schedule's would read as a fresh estimate
+  const arrives = live.stamps.on ?? (minLeft != null ? s.t + minLeft * MIN : around ? null : plannedEta);
   const flown = live.stage === "arrived" || !air ? (live.stamps.on != null ? 1 : 0) : Math.min(1, Math.max(0, 1 - toGo / Math.max(1, byRoute?.total ?? total)));
   const rate = landingText(live.stamps);
   const z = (ms: number | null) => (ms == null ? null : localClock(ms, f.to.tz));
@@ -158,7 +159,8 @@ export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null,
     // on the ground: GND and the ground speed (0 kt parked), rather than dashes
     alt: air ? altText(s) : "GND",
     gs: Math.round(s.gs),
-    toGo: live.stage === "arrived" ? null : toGo,
+    // on the ground after landing there's nothing left to fly
+    toGo: live.stage === "arrived" || live.stamps.on != null ? null : toGo,
     minLeft,
     arrives,
     flown,
@@ -1013,8 +1015,9 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null }) {
   const mapLabel = `Map: ${f.from.iata ?? f.from.icao} to ${f.to.iata ?? f.to.icao}${facts.toGo != null ? `, ${facts.toGo} nm to go` : ""}`;
   const arrives = facts.arrives != null ? localClock(facts.arrives, f.to.tz) : null;
   // the end of the flight: the map closes in on the destination
-  const near = !!p.live && (p.live.stage === "arrived" || (p.live.stage === "flying" && facts.toGo != null && facts.toGo < NEAR_NM));
-  const final = !!p.live && p.live.stage === "flying" && facts.toGo != null && facts.toGo <= FINAL_NM;
+  const down = p.live?.stamps.on != null; // landed: no distance to go, still at the destination
+  const near = !!p.live && (p.live.stage === "arrived" || (p.live.stage === "flying" && (down || (facts.toGo != null && facts.toGo < NEAR_NM))));
+  const final = !!p.live && p.live.stage === "flying" && (down || (facts.toGo != null && facts.toGo <= FINAL_NM));
   const sm = p.live?.last ?? null;
   const inAir = !!p.live && p.live.stage === "flying" && p.live.phase !== "landed" && p.live.phase !== "taxiIn";
   const ahd = sm && p.live?.stage !== "arrived" ? routeAhead(f, p.plan, sm, 6) : null;
@@ -1059,7 +1062,7 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null }) {
           <div className="gv-corner-facts mono">
             <span>{facts.alt ?? "—"}</span>
             <span>{facts.gs != null ? `${facts.gs} kt` : "—"}</span>
-            <span>{facts.minLeft != null ? `${mins(facts.minLeft)} to landing` : (facts.line ?? "")}</span>
+            <span>{facts.minLeft != null ? <>{mins(facts.minLeft)}<span className="gv-xs-long"> to landing</span></> : (facts.line ?? "")}</span>
           </div>
         </div>
       </div>
@@ -1068,7 +1071,7 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null }) {
 
   // G7a: the corner card with the route
   if (v2 === "g7a1" || v2 === "g7a2" || v2 === "g7a3") {
-    const togo7 = facts.minLeft != null ? `${mins(facts.minLeft)} to go` : facts.line;
+    const togo7 = facts.minLeft != null ? <>{mins(facts.minLeft)}<span className="gv-xs-long"> to go</span></> : facts.line;
     const toNext = ahd?.next[0] && sm ? minsTo(ahd.next[0], sm) : null;
     return (
       <div className="gv gv-over" style={style} {...at} role="region" aria-label={label}>
@@ -1236,7 +1239,7 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null }) {
           <div className="gv-corner-facts mono">
             <span>{facts.alt ?? "—"}</span>
             <span>{facts.gs != null ? `${facts.gs} kt` : "—"}</span>
-            <span>{facts.minLeft != null ? `${mins(facts.minLeft)} to landing` : (facts.line ?? "")}</span>
+            <span>{facts.minLeft != null ? <>{mins(facts.minLeft)}<span className="gv-xs-long"> to landing</span></> : (facts.line ?? "")}</span>
           </div>
         </div>
       </div>
@@ -1311,7 +1314,7 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null }) {
           <div className="gv-card-facts mono">
             <span>{facts.alt ?? "—"}</span>
             <span>{facts.gs != null ? `${facts.gs} kt` : "—"}</span>
-            <span>{togo ?? ""}</span>
+            <span>{facts.minLeft != null ? <>{mins(facts.minLeft)}<span className="gv-xs-long"> to go</span></> : (togo ?? "")}</span>
           </div>
         </div>
       )}
