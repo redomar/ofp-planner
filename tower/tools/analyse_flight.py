@@ -105,7 +105,12 @@ if takeoff_i is not None:
     print(f"  block: {hm(rows[moving]['t'])} -> {hm(rows[stopped]['t']) if stopped and stopped < len(rows) else '?'}   air time: {(rows[land_i]['t'] - rows[takeoff_i]['t']) / 60000:.0f} min")
 fuel = [(r["t"], r["fobKg"]) for r in rows if r.get("fobKg") is not None]
 if fuel:
-    print(f"  fuel (recorded from {hm(fuel[0][0])}): {fuel[0][1]:.0f} kg -> {fuel[-1][1]:.0f} kg = {fuel[0][1] - fuel[-1][1]:.0f} kg used")
+    print(f"  fuel on board: first {fuel[0][1]:.0f} kg, last {fuel[-1][1]:.0f} kg (refuels before/after the flight count here)")
+    if takeoff_i is not None:
+        f_to = next((r["fobKg"] for r in rows[takeoff_i:] if r.get("fobKg") is not None), None)
+        f_ld = next((r["fobKg"] for r in reversed(rows[:land_i + 1]) if r.get("fobKg") is not None), None)
+        if f_to is not None and f_ld is not None:
+            print(f"  trip fuel take-off -> landing: {f_to:.0f} kg -> {f_ld:.0f} kg = {f_to - f_ld:.0f} kg burned")
     cr = [r["ffKgH"] for r in rows if r.get("ffKgH") and (r.get("pressAlt") or 0) > 30000]
     if cr: print(f"  cruise fuel flow above FL300: avg {sum(cr) / len(cr):.0f} kg/h")
 diff = [(r["pressAlt"] - r["alt"]) for r in rows if r.get("pressAlt") is not None and (r.get("pressAlt") or 0) > 25000]
@@ -117,7 +122,7 @@ if land_i is not None:
     t0 = rows[land_i]["t"]
     win = [r for r in rows if t0 - 30000 <= r["t"] <= t0 + 5000]
     dts = [win[i]["t"] - win[i - 1]["t"] for i in range(1, len(win))]
-    print(f"  samples: {len(win)}  median dt {sorted(dts)[len(dts) // 2]} ms  (fast mode is 100 ms below 200 ft)")
+    print(f"  samples: {len(win)}  median dt {sorted(dts)[len(dts) // 2]} ms  (lines are 1 Hz; the 100 ms touchdown polling below 200 ft feeds landingRate/touchdowns, not extra lines)")
     for r in win:
         if r["t"] >= t0 - 3000:
             print(f"  {hm(r['t'])}.{r['t'] % 1000:03d}  agl {r['agl']:6.1f}  vs {r['vs']:6.0f}  gs {r['gs']:5.1f}  onGround {r['onGround']}")
