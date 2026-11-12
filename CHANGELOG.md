@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.12.4 — 2026-11-12
+
+- **Extra small** for every panel over the sim (Stream studio → a look → Size, or `.xs` in a look's token: `g6a2.xs`, `g7b.xs.bn`). About a sixth of the width (290–350 px at 1080p, was 470 at Small), and still readable on a stream watched in a small player: nothing under 14 px at 1080p, the altitude, speed and minutes at 21 px. To make the room, it shows less: the map names the airports only, the route rows show the next two fixes with distance and time, the ribbon the next three by name, "49 min to landing" becomes "49 min". The BRB frame looks and the other sizes are unchanged.
+- **No arrival time during a go-around.** The OFP's scheduled arrival showed in its place and read as a fresh estimate.
+- **No "nm to go" after landing** (taxiing in showed "1 nm to go"); the map stays on the airport.
+
 ## 1.12.3 — 2026-11-11
 
 - **Go-arounds.** Climbing out of an approach shows "Go-around", and after it the board says it's going round for another approach rather than "Climbing … for FL260" or a stale "Landing in 0 min". There's no landing time until the next approach. Below FL100 the stage stays Approaching, so OBS doesn't swap looks mid-approach. Levelling off near the airport after one, or climbing on vectors, is no longer read as an approach or another go-around; heading back in on the way down is the next approach. Checked on BAW772 to Cork: two go-arounds and three approaches, as flown, landing 22:35:04 at −134 fpm.

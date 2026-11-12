@@ -6,7 +6,7 @@
  *
  * In the URL a look is a short token, the view first and only what differs from its defaults:
  *   card            the corner card, medium, top right
- *   card.s.bl       small, bottom left
+ *   card.s.bl       small, bottom left (xs: extra small, for a corner that keeps out of the game)
  *   g6b.l.bnp.e240  the map corner that flips, large, back sides "numbers" then "plan", every 4 min
  *   strip~g6a1.s    two layers: the strip and a small map corner with legs
  * A plain view name ("strip") is a look with its defaults, so every URL from before 1.12 still reads.
@@ -35,7 +35,7 @@ export const VIEWS = [
 export type ShownView = (typeof VIEWS)[number];
 export const isView = (v: string): v is ShownView => (VIEWS as readonly string[]).includes(v);
 
-export type LookSize = "s" | "m" | "l";
+export type LookSize = "xs" | "s" | "m" | "l";
 export type LookPos = "tl" | "tc" | "tr" | "ml" | "mr" | "bl" | "bc" | "br";
 export const POSITIONS: LookPos[] = ["tl", "tc", "tr", "ml", "mr", "bl", "bc", "br"];
 /** The back sides of a card that flips. */
@@ -106,6 +106,7 @@ export const BACKS: { k: LookBack; name: string; note: string; ready: boolean; n
 ];
 
 export const SIZES: { k: LookSize; name: string }[] = [
+  { k: "xs", name: "Extra small" },
   { k: "s", name: "Small" },
   { k: "m", name: "Medium" },
   { k: "l", name: "Large" },
@@ -122,7 +123,7 @@ export function lookFrom(token: string): Look | null {
   if (!isView(v)) return null;
   const l = look(v);
   for (const p of parts) {
-    if (p === "s" || p === "m" || p === "l") l.size = p;
+    if (p === "xs" || p === "s" || p === "m" || p === "l") l.size = p;
     else if ((POSITIONS as string[]).includes(p)) l.pos = p as LookPos;
     else if (/^b[nprad]{1,5}$/.test(p)) {
       const bs = [...p.slice(1)].map((c) => (Object.keys(BACK_CODE) as LookBack[]).find((k) => BACK_CODE[k] === c)!);

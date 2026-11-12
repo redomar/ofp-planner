@@ -1456,6 +1456,9 @@ html.screen-mode body > :not(.screen-root) {
 /* ---------- 1.12: looks: size and corner for every panel over the sim, layers, G6/G7, flip ---------- */
 
 /* size: the whole panel scales with its unit */
+.gv-over[data-size="xs"] {
+  --u: 0.5cqw;
+}
 .gv-over[data-size="s"] {
   --u: 0.72cqw;
 }
@@ -2895,4 +2898,100 @@ html.screen-mode body > :not(.screen-root) {
     border-left: 0;
     border-top: 1px solid var(--rule);
   }
+}
+
+/* ---------- 1.12.4: extra small, a compact panel that's still readable on a 1080p stream ---------- */
+/* The panel shrinks with its unit (about 17% of the width); the text doesn't go below what a viewer
+   reads in a small player: labels 0.75cqw (14 px at 1080p), the figures 1.1cqw (21 px), the
+   destination 1.25cqw (24 px). Less important lines drop out. */
+.gv-over[data-size="xs"] {
+  --xs-label: 0.75cqw;
+  --xs-fig: 1.1cqw;
+}
+.gv-over[data-size="xs"] :is(.gv-corner-top, .gv-card-top) :is(.mono, small) {
+  font-size: var(--xs-label);
+}
+.gv-over[data-size="xs"] .gv-corner-top b {
+  font-size: 1.25cqw;
+}
+.gv-over[data-size="xs"] :is(.gv-corner-facts, .gv-card-facts) {
+  font-size: var(--xs-fig);
+  gap: calc(var(--u) * 1.6);
+}
+/* "49 min to landing" → "49 min" */
+.gv-over[data-size="xs"] .gv-xs-long {
+  display: none;
+}
+/* the map: the airports only, big enough to read; no fix names or constraints */
+.gv-over[data-size="xs"] :is(.gm-wpt text, .gm-alt) {
+  display: none;
+}
+.gv-over[data-size="xs"] .gm-code {
+  font-size: 40px;
+}
+/* route rows: the fix and when, two rows, no header */
+.gv-over[data-size="xs"] .gv-legs {
+  font-size: var(--xs-label);
+}
+.gv-over[data-size="xs"] .gv-leg:is(.is-head, .is-past),
+.gv-over[data-size="xs"] .gv-leg:nth-child(n + 4) {
+  display: none;
+}
+.gv-over[data-size="xs"] .gv-leg > :is(:nth-child(2), :nth-child(3)) {
+  display: none;
+}
+.gv-over[data-size="xs"] .gv-leg {
+  grid-template-columns: 1fr auto auto;
+}
+/* the ribbon: the next three fixes, names only */
+.gv-over[data-size="xs"] .gv-ribbon {
+  font-size: var(--xs-label);
+}
+.gv-over[data-size="xs"] .gv-ribbon :is(small, li.is-past) {
+  display: none;
+}
+.gv-over[data-size="xs"] .gv-ribbon li:nth-child(n + 5) {
+  display: none;
+}
+/* next fix big: the fix, then distance and time under it */
+.gv-over[data-size="xs"] .gv-nextbig > small {
+  display: none;
+}
+.gv-over[data-size="xs"] .gv-next-main b {
+  font-size: var(--xs-fig);
+}
+.gv-over[data-size="xs"] .gv-next-main span {
+  font-size: var(--xs-label);
+}
+/* timeline and countdowns */
+.gv-over[data-size="xs"] .gv-timeline {
+  font-size: var(--xs-label);
+}
+.gv-over[data-size="xs"] .gv-counts :is(small, i) {
+  font-size: var(--xs-label);
+}
+.gv-over[data-size="xs"] .gv-counts b {
+  font-size: var(--xs-fig);
+}
+.gv-over[data-size="xs"] .gv-prog :is(span:not(.gv-prog-line), em) {
+  font-size: var(--xs-label);
+}
+/* the back sides of the flip cards */
+.gv-over[data-size="xs"] .gv-back :is(.gv-mcdu, .gv-counts-sub, .gv-kv) {
+  font-size: var(--xs-label);
+}
+.gv-over[data-size="xs"] .gv-back .gv-mcdu-r:nth-child(n + 6):not(.is-dest) {
+  display: none;
+}
+.gv-over[data-size="xs"] .gv-back .gv-routeline text {
+  display: none;
+}
+.gv-over[data-size="xs"] .gv-back {
+  width: calc(var(--u) * 36);
+}
+.gv-over[data-size="xs"] .gv-prog .mono {
+  font-size: var(--xs-label);
+}
+.gv-over[data-size="xs"] .gv-back .gv-card-facts {
+  font-size: 0.9cqw;
 }
