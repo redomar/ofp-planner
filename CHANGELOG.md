@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.13.1 — 2026-11-13
+
+- **The countdown skips an old OFP.** With `go=std-30,5m` and SimBrief still holding yesterday's OFP, the countdown read "Starting now" for the whole pre-show. An off-block time over 3 h gone now falls through to the next part (`5m`).
+
 ## 1.13.0 — 2026-11-12
 
 - **Countdown** look (Stream studio → Start and end, or `view=countdown`): the gate screen with a big clock to the stream's start, "Starting now" from zero, never below. It needs no OFP Tower: the flight comes from SimBrief, the time from the screen's link, set under "Countdown to the stream":

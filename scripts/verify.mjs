@@ -626,9 +626,11 @@ async function run() {
           z(cd.goTarget("std-30", T, std, T)),
           z(cd.goTarget("std-30,5m", T, null, T)), // no schedule: the fallback
           z(cd.goTarget("25:00z,5m", T, std, T)),
+          z(cd.goTarget("std-30,5m", T, std - 24 * 3600000, T)), // yesterday's OFP: the fallback
+          z(cd.goTarget("std-30,5m", T, Date.UTC(2026, 10, 12, 17, 0), T)), // gone 1h10: "Starting now" stays
           String(cd.goTarget(null, T, std, T)),
         ].join(" ");
-        clean === "5m|std-30,5m||19:30z,std+5,3m" && at === "18:45 19:30 00:10 19:00 18:45 18:45 null" && cd.goTarget("00:10z", T, std, T) - T === 330 * 60000
+        clean === "5m|std-30,5m||19:30z,std+5,3m" && at === "18:45 19:30 00:10 19:00 18:45 18:45 18:45 16:30 null" && cd.goTarget("00:10z", T, std, T) - T === 330 * 60000
           ? pass("gate feed: the countdown's start from go= (5m from load, 19:30Z, std-30, fallbacks in order, past midnight)")
           : fail(`gate feed: countdown ${clean} / ${at}`);
       }
