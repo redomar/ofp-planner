@@ -1230,7 +1230,7 @@ async function run() {
   await section("stream panel", async () => {
     const FR = encodeURIComponent("RYR:RYR658:EBBR-EIDW:1234567");
     const start = async ({ width = 1280, height = 900, theme = "light", obs = null, pilots = [] } = {}) => {
-      const ctx = await browser.newContext({ viewport: { width, height }, colorScheme: theme, reducedMotion: "reduce" });
+      const ctx = await browser.newContext({ viewport: { width, height }, colorScheme: theme, reducedMotion: "reduce", permissions: ["clipboard-read", "clipboard-write"] });
       await ctx.addInitScript(SEED);
       await ctx.addInitScript(() => {
         window.__cls = 0;
@@ -1248,83 +1248,114 @@ async function run() {
       page.on("pageerror", (e) => errors.push(String(e)));
       return { ctx, page, errors };
     };
-    // the panel (1.12, the Stream studio): status, tabs, the scenes with each one's flight, the URL
+    // 1.15 "One desk": the one preview with the scenes as tabs and the six stages as a strip; the
+    // flight, what's written on it, Send to OBS on the right
     const a = await start();
     await a.page.goto(`${base}/board?tab=gate&f=${FR}&in=30`, { waitUntil: "networkidle" });
-    await a.page.waitForSelector(".st-timeline .st-look");
-    const srcs = await a.page.locator(".sp-src b").allTextContents();
-    const tabs = await a.page.locator(".st-tabs [role=tab]").allTextContents();
-    const sceneList = await a.page.locator(".st-scene b").allTextContents();
-    const stageCards = await a.page.locator(".st-timeline .st-look").count();
+    await a.page.waitForSelector(".dk-stage");
+    const chips = await a.page.locator(".dk-chips .st-chip").allTextContents();
+    const sceneList = (await a.page.locator(".dk-scenes [role=tab]").allTextContents()).map((x) => x.trim());
+    const stageCards = await a.page.locator(".dk-stage").count();
+    const previews = await a.page.locator(".gs-frame").count();
+    await a.page.getByRole("button", { name: /All scenes/ }).click();
     const ovOther = await a.page.locator(".st-ov-row:not(.is-head)").first().locator(".st-ov-cell .mono").allTextContents();
-    const url = await a.page.locator(".sp-url").inputValue();
-    srcs.length === 4 && /Clock only · live/.test(srcs[3]) && tabs.join("|").startsWith("Scenes") && /Rehearse\|Live feed\|OBS setup/.test(tabs.join("|")) && sceneList.join("|") === "Any other scene|BRB|Map|Camera" && stageCards === 6 && ovOther.join("|") === "G1|G1|G4 M|G4 M|G4 M|G1" && /screen=1/.test(url) && /view=auto/.test(url) && /feed=auto/.test(url)
-      ? pass("stream panel: the studio: tabs, the OBS scenes, a scene's six stages, every scene at a glance (any other: G1 G1 G4 G4 G4 G1), one stream URL (view=auto, feed=auto)")
-      : fail(`stream panel: ${JSON.stringify({ srcs, tabs, sceneList, stageCards, ovOther, url })}`);
+    // the glance grid's six columns sit on one row at this width (1.14 wrapped Arrived)
+    const ovRows = await a.page.evaluate(() => (getComputedStyle(document.querySelector(".st-ov-row.is-head")).gridTemplateColumns.split(" ").length === 7 && document.querySelector(".st-ov-row.is-head").children.length === 7 ? 1 : 2));
+    await a.page.getByRole("button", { name: /Send to OBS/ }).click();
+    const linkNames = await a.page.locator(".dk-links li b").allTextContents();
+    const copies = await a.page.locator(".dk-links li .btn").count();
+    await a.page.locator(".dk-links li", { hasText: "Main" }).getByRole("button", { name: "Copy" }).click();
+    const url = await a.page.evaluate(() => navigator.clipboard.readText());
+    const chip = await a.page.locator(".dk-obs-bar .st-chip").textContent();
+    chips.some((c) => /OFP Tower · not running/.test(c)) && sceneList.join("|") === "Any other scene|BRB|Map|Camera" && stageCards === 6 && previews === 1 && ovOther.join("|") === "G1|G1|G4 M|G4 M|G4 M|G1" && ovRows === 1 &&
+    linkNames.join("|") === "Main|BRB|Map|Camera|Countdown|Ending|This look only|Screen window" && copies === linkNames.length && /screen=1/.test(url) && /view=auto/.test(url) && /feed=auto/.test(url) && /copy after changes/.test(chip)
+      ? pass("stream panel: one preview, the OBS scenes as tabs, six stages in a strip, every scene at a glance on one row (G1 G1 G4 G4 G4 G1); Send to OBS: one copy button per link, Main follows the aircraft (view=auto, feed=auto)")
+      : fail(`stream panel: ${JSON.stringify({ chips, sceneList, stageCards, previews, ovOther, ovRows, linkNames, copies, url, chip })}`);
     await checkPage("stream panel 1280 light", a.page, a.errors);
     await shot(a.page, "stream-panel");
-    // a preset, a look picked in the editor (a map corner that flips, large, top left), a layer and a renamed scene go into the URL
-    await a.page.locator(".st-scene", { hasText: "Any other scene" }).click();
-    await a.page.locator(".st-from select").selectOption("Minimal");
-    await a.page.locator(".st-look").nth(4).click();
+    // a preset, a look picked in the editor (a map corner that flips, large, top left), a layer and a renamed scene go into the link
+    await a.page.getByRole("tab", { name: "Any other scene" }).click();
+    await a.page.locator(".dk-row .st-from select").selectOption("Minimal");
+    await a.page.locator(".dk-stage-x").nth(4).click();
     await a.page.getByRole("button", { name: "+ Add a layer" }).click();
     await a.page.locator(".st-group", { hasText: "Map corners" }).click();
     await a.page.locator(".st-opt", { hasText: "Map corner" }).first().click();
     await a.page.getByRole("radio", { name: "Small", exact: true }).click();
     await a.page.getByRole("button", { name: "Use this look" }).click();
-    await a.page.locator(".st-scene", { hasText: "BRB" }).click();
-    await a.page.locator(".st-look").nth(2).click();
+    await a.page.getByRole("tab", { name: "BRB" }).click();
+    await a.page.locator(".dk-stage-x").nth(2).click();
     await a.page.locator(".st-group", { hasText: "Full screens" }).click();
     await a.page.locator(".st-opt", { hasText: "Moving map" }).click();
     await a.page.getByRole("button", { name: "Use this look" }).click();
     await a.page.getByLabel("OBS scene name").fill("Be right back");
-    await a.page.locator(".st-scene", { hasText: "Camera" }).click();
-    await a.page.locator(".st-look").nth(2).click();
+    await a.page.getByRole("tab", { name: "Camera" }).click();
+    await a.page.locator(".dk-stage-x").nth(2).click();
     await a.page.locator(".st-group", { hasText: "Map corners" }).click();
     await a.page.locator(".st-opt", { hasText: "Corner that flips" }).click();
     await a.page.getByRole("radio", { name: "Large" }).click();
     await a.page.getByRole("radio", { name: "top left" }).click();
     const dlgShot = await a.page.locator(".st-dlg").count();
+    // 1.15: the flip sides without data aren't offered
+    const backsOffered = await a.page.locator(".st-flip .st-check").allTextContents();
     await shot(a.page, "stream-studio-editor");
     await a.page.getByRole("button", { name: "Use this look" }).click();
     // 1.14: a rotation for Camera's cruise: the card 2 min, then the strip 60 s
-    await a.page.locator(".st-look").nth(3).click();
+    await a.page.locator(".dk-stage-x").nth(3).click();
     await a.page.getByRole("button", { name: "+ Rotate: add a second look" }).click();
     await a.page.locator(".st-turn-secs input").first().fill("120");
     await a.page.locator(".st-group", { hasText: "Strips and pills" }).click();
     await a.page.locator(".st-opt", { hasText: "Strip" }).first().click();
     await shot(a.page, "stream-studio-rotation");
     await a.page.getByRole("button", { name: "Use this rotation" }).click();
-    const rotTag = await a.page.locator(".st-timeline .st-tag.is-turn").count();
-    const url2 = decodeURIComponent((await a.page.locator(".sp-url").inputValue()).replace(/\+/g, " "));
-    /st=pill,pill,pill,pill~corner\.s,pill(&|$)/.test(url2) && /Be right back:frame,frame,map,frame,frame,frame/.test(url2) && /Camera:card,card,g6b\.l\.tl,card@120>strip@60,card,card/.test(url2) && dlgShot === 1 && rotTag === 1
-      ? pass("stream panel: a preset, a layer (pill + small map corner on approach), a look picked in the editor for the climb (G6b large, top left), a rotation for the cruise (card 2 min → strip 60 s) and a renamed scene travel in the stream URL")
-      : fail(`stream panel: url ${url2} rotTag ${rotTag}`);
-    // VATSIM: a callsign, then it's the one in use when it's online (answered here)
+    const rotTag = await a.page.locator(".dk-stage .mono", { hasText: "⟳2" }).count();
+    const url2 = decodeURIComponent(a.page.url().replace(/\+/g, " "));
+    /st=pill,pill,pill,pill~corner\.s,pill(&|$)/.test(url2) && /Be right back:frame,frame,map,frame,frame,frame/.test(url2) && /Camera:card,card,g6b\.l\.tl,card@120>strip@60,card,card/.test(url2) && dlgShot === 1 && rotTag === 1 && backsOffered.filter((x) => !/Back sides only/.test(x)).length === 3 && !backsOffered.some((x) => /Aircraft status|Flight deck/.test(x))
+      ? pass("stream panel: a preset, a layer (pill + small map corner on approach), a look picked in the editor for the climb (G6b large, top left), a rotation for the cruise (card 2 min → strip 60 s) and a renamed scene travel in the link; only the three flip sides with data are offered")
+      : fail(`stream panel: url ${url2} rotTag ${rotTag} backs ${JSON.stringify(backsOffered)}`);
+    // the preview is the screen: the same scene at the same stage draws the same look
+    await a.page.getByRole("tab", { name: "Any other scene" }).click();
+    await a.page.locator(".dk-stage-b").nth(3).click();
+    const pvCruise = await a.page.evaluate(() => (document.querySelector("#gs-preview .gv-pill") ? "pill" : document.querySelector("#gs-preview .gv-strip") ? "strip" : document.querySelector("#gs-preview .gs") ? "full" : "none"));
+    const scrPage = await a.ctx.newPage();
+    await scrPage.goto(`${base}/board?tab=gate&f=${FR}&in=30&screen=1&view=auto&hold=cruise&st=pill,pill,pill,pill~corner.s,pill`, { waitUntil: "networkidle" });
+    const scrCruise = await scrPage.evaluate(() => (document.querySelector(".gv-pill") ? "pill" : document.querySelector(".gv-strip") ? "strip" : document.querySelector(".gs") ? "full" : "none"));
+    await scrPage.close();
+    pvCruise === "pill" && scrCruise === "pill" ? pass("stream panel: the preview at Cruise draws what the screen draws at Cruise (the pill)") : fail(`stream panel: preview ${pvCruise} screen ${scrCruise}`);
     await a.ctx.close();
+    // VATSIM: your own callsign gives the position while OFP Tower isn't running
     const pilot = { cid: 1000000, callsign: "RYR7FE", latitude: 34.195541, longitude: -80.70894, altitude: 28404, groundspeed: 463, heading: 346, last_updated: "2026-11-10T18:48:22Z" };
     const v = await start({ pilots: [pilot] });
     await v.page.goto(`${base}/board?tab=gate&f=${FR}&in=30`, { waitUntil: "networkidle" });
-    await v.page.getByRole("tab", { name: "Live feed" }).click();
-    await v.page.getByLabel("VATSIM callsign or CID").fill("ryr7fe");
+    await v.page.locator(".dk-flight .dk-card-h button").click();
+    await v.page.getByLabel(/Your VATSIM callsign/).fill("ryr7fe");
     await v.page.getByRole("button", { name: "Use", exact: true }).click();
-    await v.page.waitForFunction(() => document.querySelector(".sp-src.is-on b")?.textContent?.includes("VATSIM"), null, { timeout: 15_000 }).catch(() => {});
-    const on = await v.page.locator(".sp-src.is-on b").textContent().catch(() => "");
+    await v.page.waitForFunction(() => [...document.querySelectorAll(".dk-chips .st-chip.is-on")].some((e) => /VATSIM · live/.test(e.textContent)), null, { timeout: 15_000 }).catch(() => {});
+    const on = (await v.page.locator(".dk-chips .st-chip.is-on").allTextContents()).join("|");
     /VATSIM · live/.test(on) && /who=RYR7FE/.test(v.page.url()) ? pass("stream panel: with a callsign, VATSIM is used while OFP Tower isn't running") : fail(`stream panel: vatsim ${on} ${v.page.url()}`);
     await v.ctx.close();
-    // 1.12.1: another pilot on VATSIM with no Finder flight or OFP: the flight is what they filed
+    // 1.12.1: another pilot on VATSIM: the flight is what they filed (1.15: pinned, fs=vatsim)
     const ewg = { cid: 1000001, callsign: "EWG50T", latitude: 50.3, longitude: 6.1, altitude: 34000, groundspeed: 452, heading: 289, last_updated: new Date().toISOString(), flight_plan: { departure: "EDDM", arrival: "EGBB", altitude: "FL340", aircraft_short: "A320" } };
     const w = await start({ pilots: [ewg] });
     await w.page.goto(`${base}/board?tab=gate`, { waitUntil: "networkidle" });
-    await w.page.getByLabel("A pilot on VATSIM").fill("ewg50t");
+    await w.page.locator(".dk-flight .dk-card-h button").click();
+    await w.page.getByRole("radio", { name: "Another pilot" }).click();
+    await w.page.getByLabel("Their VATSIM callsign").fill("ewg50t");
     await w.page.getByRole("button", { name: "Watch", exact: true }).click();
-    await w.page.waitForFunction(() => /Birmingham/.test(document.querySelector("#gs-preview")?.textContent ?? ""), null, { timeout: 20_000 }).catch(() => {});
+    await w.page.waitForFunction(() => /BHX/.test(document.querySelector("#gs-preview")?.textContent ?? ""), null, { timeout: 20_000 }).catch(() => {});
     const watched = (await w.page.locator("#gs-preview").innerText().catch(() => "")).replace(/\s+/g, " ");
-    /Birmingham/.test(watched) && /EWG50T/.test(watched) && /who=EWG50T/.test(w.page.url()) && !/[?&]f=/.test(w.page.url())
-      ? pass("stream panel: a VATSIM callsign with no flight loaded: the board shows what they filed (EDDM → EGBB), live from VATSIM")
-      : fail(`stream panel: watch VATSIM ${watched.slice(0, 160)} ${w.page.url()}`);
+    const from = await w.page.locator(".dk-facts dd").first().innerText();
+    /MUC.*BHX/.test(watched) && /EWG50T/.test(watched) && /who=EWG50T/.test(w.page.url()) && /fs=vatsim/.test(w.page.url()) && /what EWG50T filed on VATSIM/.test(from) && /pinned/.test(from)
+      ? pass("stream panel: Another pilot (pinned): the board shows what EWG50T filed (EDDM → EGBB), live from VATSIM, and says so")
+      : fail(`stream panel: watch VATSIM ${watched.slice(0, 160)} | ${from} | ${w.page.url()}`);
     await checkPage("watch vatsim", w.page, w.errors);
     await w.ctx.close();
+    // 1.15: a pinned source wins over a link's sb=/f=: a Finder flight with fs=fms waits for the FMS
+    const p = await start();
+    await p.page.goto(`${base}/board?tab=gate&f=${FR}&in=30&fs=fms`, { waitUntil: "networkidle" });
+    await p.page.waitForTimeout(1200);
+    const pinned = (await p.page.locator(".dk-flight-line").innerText()).replace(/\s+/g, " ");
+    /OFP Tower isn’t running/.test(pinned) && (await p.page.locator(".dk-stage").count()) === 0 ? pass("stream panel: fs=fms pins My aircraft: the Finder flight in the link doesn't hide it (waiting for OFP Tower)") : fail(`stream panel: pinned fms "${pinned}"`);
+    await p.ctx.close();
 
     // OBS scene names (stand-in API): a rule wins over the stage table, case aside; other scenes follow the stage
     const scr = (obs, extra = "") => start({ width: 1920, height: 1080, obs }).then(async (o) => {
@@ -1346,10 +1377,10 @@ async function run() {
     // rehearse: play the recorded flight on the preview, drag to hold a stage
     const r = await start();
     await r.page.goto(`${base}/board?tab=gate&f=${FR}&in=30`, { waitUntil: "networkidle" });
-    await r.page.getByRole("tab", { name: "Rehearse" }).click();
+    await r.page.locator(".dk-rs summary").click();
     await r.page.waitForSelector(".rs-b");
     const blocks = await r.page.locator(".rs-b").allTextContents();
-    await r.page.getByRole("button", { name: "▶ Play in 60 s" }).click();
+    await r.page.getByRole("button", { name: "▶ Rehearse in 60 s" }).click();
     await r.page.waitForFunction(() => document.querySelector("#gs-preview .gv-strip"), null, { timeout: 15_000 }).catch(() => {});
     const playing = await r.page.locator("#gs-preview .gv-strip").count();
     const marker = await r.page.locator(".rs-at").count();
@@ -1357,19 +1388,109 @@ async function run() {
     await r.page.waitForTimeout(500);
     const heldView = await r.page.locator("#gs-preview .gs").count();
     const heldUrl = /hold=arrived/.test(r.page.url());
-    const say = await r.page.locator(".rs .gt-actions [aria-live]").textContent();
+    const say = await r.page.locator(".dk-pv > [aria-live]").textContent();
     blocks.length >= 3 && /Climb/.test(blocks[0]) && /Cruise/.test(blocks[1]) && playing === 1 && marker === 1 && heldView === 1 && heldUrl && /Holding: Arrived/.test(say)
       ? pass(`stream panel: rehearse plays the recorded flight (${blocks.join(" | ")}), a block holds its stage (preview and URL)`)
       : fail(`stream panel: rehearse ${JSON.stringify({ blocks, playing, marker, heldView, heldUrl, say })}`);
     await r.ctx.close();
 
+    // 1.15: who/here through a stand-in OFP Tower. The board asks "who"; a 1.15 screen answers "here"
+    // with its scene and look; a page from before only said a bare hello. A screen answers itself.
+    {
+      const relay = (msg) => JSON.stringify({ type: "relay", channel: "stream", msg });
+      const pkgV = JSON.parse(readFileSync("package.json", "utf8")).version;
+      const b = await start();
+      let whos = 0;
+      await b.ctx.routeWebSocket(/localhost:47800/, (ws) => {
+        ws.send(JSON.stringify({ type: "hello", app: "OFP Tower" }));
+        // an older page connects: a bare hello, never a "here"
+        setTimeout(() => ws.send(relay({ kind: "hello" })), 300);
+        ws.onMessage((raw) => {
+          const m = JSON.parse(String(raw));
+          if (m.type === "relay" && m.msg?.kind === "who") {
+            whos++;
+            ws.send(relay({ kind: "here", id: "scr1", as: "Livestream", view: "auto", v: pkgV }));
+            ws.send(relay({ kind: "here", id: "scr2", as: null, view: "countdown", v: "1.13.0" }));
+          }
+        });
+      });
+      await b.page.goto(`${base}/board?tab=gate&f=${FR}&in=30&feed=link`, { waitUntil: "networkidle" });
+      await b.page.getByRole("button", { name: /Send to OBS/ }).click();
+      await b.page.waitForFunction(() => document.querySelectorAll(".dk-open tbody tr").length >= 2, null, { timeout: 15_000 }).catch(() => {});
+      // the bare hello shows once the next ask finds no "here" for it (30 s)
+      const rows1 = (await b.page.locator(".dk-open tbody tr").allInnerTexts()).map((x) => x.replace(/\s+/g, " "));
+      const chip = await b.page.locator(".dk-obs-bar .st-chip").textContent();
+      await b.page.getByRole("button", { name: "Add scene" }).click();
+      const tabs = (await b.page.locator(".dk-scenes [role=tab]").allTextContents()).map((x) => x.trim());
+      const stillAdd = await b.page.getByRole("button", { name: "Add scene" }).count();
+      const lsTurns = /Livestream:[^;&]*line@240/.test(decodeURIComponent(b.page.url()));
+      await b.page.waitForFunction(() => /An older page/.test(document.querySelector(".dk-open")?.textContent ?? ""), null, { timeout: 40_000 }).catch(() => {});
+      const older = /refresh this source/.test(await b.page.locator(".dk-open").innerText().catch(() => ""));
+      whos >= 1 && rows1.some((r) => /Livestream/.test(r) && /no scene named Livestream/.test(r) && !/refresh/.test(r)) && rows1.some((r) => /Countdown look/.test(r) && /keeps its own look/.test(r) && /runs 1.13.0: refresh/.test(r)) && /Changes go live to 2 screens/.test(chip) && tabs.includes("Livestream") && stillAdd === 0 && lsTurns && older
+        ? pass("stream panel: Send to OBS lists the open screens (Livestream follows the aircraft, the Countdown keeps its look and runs 1.13.0), Add scene makes the Livestream scene (the pill, the map now and then, the strip), a bare hello is an older page to refresh")
+        : fail(`stream panel: who/here ${JSON.stringify({ whos, rows1, chip, tabs, stillAdd, lsTurns, older })}`);
+      await b.ctx.close();
+      const s = await start({ width: 1920, height: 1080 });
+      const said = [];
+      await s.ctx.routeWebSocket(/localhost:47800/, (ws) => {
+        ws.send(JSON.stringify({ type: "hello", app: "OFP Tower" }));
+        ws.onMessage((raw) => said.push(JSON.parse(String(raw))));
+        setTimeout(() => ws.send(relay({ kind: "who" })), 800);
+      });
+      await s.page.goto(`${base}/board?tab=gate&f=${FR}&in=30&screen=1&view=auto&feed=link&as=BRB`, { waitUntil: "networkidle" });
+      await s.page.waitForTimeout(1500);
+      const heres = said.filter((m) => m.msg?.kind === "here");
+      heres.length >= 2 && heres.every((m) => m.msg.as === "BRB" && m.msg.view === "auto" && m.msg.v === pkgV && m.msg.id === heres[0].msg.id) && said.some((m) => m.msg?.kind === "hello") && !said.some((m) => m.msg?.kind === "who")
+        ? pass(`stream panel: a screen says hello, then "here" (as=BRB, view=auto, ${pkgV}) on connect and to every "who", and never asks itself`)
+        : fail(`stream panel: screen here ${JSON.stringify(said.map((m) => m.msg))}`);
+      await s.ctx.close();
+    }
+
+    // 1.15: a relay from a 1.15 board (sv=2) carries the sign-off; one from before (OFP Tower keeps the
+    // last) leaves the source's own. Names given for another airline don't show.
+    {
+      const relay = (msg) => JSON.stringify({ type: "relay", channel: "stream", msg });
+      const endPage = async (q) => {
+        const e = await start({ width: 1920, height: 1080 });
+        await e.ctx.routeWebSocket(/localhost:47800/, (ws) => {
+          ws.send(JSON.stringify({ type: "hello", app: "OFP Tower" }));
+          setTimeout(() => ws.send(relay({ kind: "settings", q })), 500);
+        });
+        await e.page.goto(`${base}/board?tab=gate&f=${FR}&in=30&screen=1&view=ending&feed=link&bye=From+the+link`, { waitUntil: "networkidle" });
+        await e.page.waitForTimeout(1500);
+        const bye = await e.page.locator(".gv-end-bye").innerText().catch(() => "");
+        await e.ctx.close();
+        return bye.replace(/\s+/g, " ");
+      };
+      const newer = await endPage("st=full,full,strip,full&sc=-&sv=2&bye=See+you+next+week");
+      const older = await endPage("st=full,full,strip,full&sc=-");
+      /See you next week/.test(newer) && /From the link/.test(older)
+        ? pass("stream panel: a 1.15 relay brings the sign-off live; a relay from an older board leaves the source's own")
+        : fail(`stream panel: relayed sign-off new "${newer}" old "${older}"`);
+      // Ryanair's flight with names typed for Wizz Air Malta (anf=WMT): the data's names; without anf (before 1.15) they apply
+      const nm = await start();
+      await nm.page.goto(`${base}/board?tab=gate&f=${FR}&in=30&an=Wizz+Air+Malta&ac=W4&anf=WMT`, { waitUntil: "networkidle" });
+      await nm.page.waitForSelector(".dk-flight-line b");
+      const other = await nm.page.locator(".dk-flight-line").innerText();
+      await nm.page.goto(`${base}/board?tab=gate&f=${FR}&in=30&an=Wizz+Air+Malta&ac=W4`, { waitUntil: "networkidle" });
+      await nm.page.waitForSelector(".dk-flight-line b");
+      const legacy = await nm.page.locator(".dk-flight-line").innerText();
+      await nm.page.goto(`${base}/board?tab=gate&f=${FR}&in=30`, { waitUntil: "networkidle" });
+      await nm.page.waitForSelector(".dk-flight-line b");
+      await nm.page.getByLabel("Airline name").fill("Ryanair Sun");
+      const keyed = /anf=RYR/.test(nm.page.url()) && /Ryanair Sun/.test(await nm.page.locator(".dk-flight-line").innerText());
+      !/Wizz/.test(other) && /RYR|FR/.test(other) && /Wizz Air Malta/.test(legacy) && /W4/.test(legacy) && keyed
+        ? pass("stream panel: names typed for Wizz Air Malta (anf=WMT) don't show on a Ryanair flight; names from before 1.15 still do; names typed now are kept for this airline (anf=RYR)")
+        : fail(`stream panel: names ${JSON.stringify({ other, legacy, keyed, url: nm.page.url() })}`);
+      await nm.ctx.close();
+    }
+
     // the owner's case: Turkish Airlines VKO → IST with the map at each stage, rehearsed: the
     // aircraft stays on the VKO → IST line instead of the recording's own US position
     const t = await start();
     await t.page.goto(`${base}/board?f=${encodeURIComponent("THY:THYTHY2MH:UUWW-LTFM:123456")}&d=2026-11-11&view=auto&st=map%2Cfull%2Cmap%2Cfull&tab=gate`, { waitUntil: "networkidle" });
-    await t.page.getByRole("tab", { name: "Rehearse" }).click();
-    await t.page.waitForSelector(".rs-b");
-    await t.page.getByRole("button", { name: "▶ Play in 60 s" }).click();
+    await t.page.waitForSelector(".dk-stage");
+    await t.page.getByRole("button", { name: "▶ Rehearse in 60 s" }).click();
     await t.page.waitForFunction(() => /CLIMBING|CRUISING|DESCENDING/i.test(document.querySelector("#gs-preview .gv-status")?.textContent ?? ""), null, { timeout: 15_000 }).catch(() => {});
     const toGo = Number(((await t.page.locator("#gs-preview .gv-tile", { hasText: "To go" }).innerText().catch(() => "")).match(/[\d,]+/)?.[0] ?? "NaN").replace(/,/g, ""));
     toGo > 0 && toGo < 950 ? pass(`stream panel: rehearsing VKO → IST keeps the aircraft on its route (${toGo} nm to go)`) : fail(`stream panel: rehearse VKO → IST, ${toGo} nm to go`);
@@ -1383,7 +1504,7 @@ async function run() {
     ]) {
       const o = await start({ width: w, height: h, theme });
       await o.page.goto(`${base}/board?tab=gate&f=${FR}&in=30`, { waitUntil: "networkidle" });
-      await o.page.waitForSelector(".st-timeline .st-look");
+      await o.page.waitForSelector(".dk-stage");
       await checkPage(`stream panel ${w} ${theme}`, o.page, o.errors);
       await shot(o.page, `stream-panel-${w}-${theme}`);
       await o.ctx.close();
@@ -1449,9 +1570,10 @@ async function run() {
     errors.length ? fail(`log arrival: errors ${errors.join(" ")}`) : pass("log arrival: 0 page errors");
     // a rehearsal is not a flight: nothing offered while the preview plays the recording
     await page.goto(`${base}/board?tab=gate&sb=example-pilot`, { waitUntil: "networkidle" });
+    await page.locator(".dk-rs summary").click();
     await page.waitForSelector(".rs-b");
     await page.locator(".rs-b", { hasText: "Arrived" }).click();
-    await page.getByRole("button", { name: "▶ Play in 60 s" }).click();
+    await page.getByRole("button", { name: "▶ Rehearse in 60 s" }).click();
     await page.waitForTimeout(4000);
     (await page.locator(".la").count()) === 0 ? pass("log arrival: a rehearsal offers nothing for the Logbook") : fail("log arrival: offered during a rehearsal");
     await ctx.close();

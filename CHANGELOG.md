@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.15.0 — 2026-11-13
+
+Board → Gate screen is one desk: one preview, and the questions on the right in order (which flight, what is written on it, where it goes). Every feature stays; nothing changes for the links in OBS or for OFP Tower.
+
+- **One preview, always what OBS shows.** The scenes are tabs on it ("Any other scene", then each named scene, "+ Scene"); the six stages are a strip under it. Click a stage to preview it, click it again (or "Change") for its look. The preview turns its rotations like the screen does. Under it: "Rehearse in 60 s", "Follow the aircraft | Hold this stage", "Start from…" and "All scenes" (the overview, its six columns now fit). The quick changes and "Remove this scene" are in the scene's menu; the recorded flight's stage strip (OUT · OFF · ON · IN) is a fold-out.
+- **Flight, in one line, and where it came from.** "Change" opens the sources: Auto (as before), My aircraft (the FMS through OFP Tower), My SimBrief OFP, Timetable flight, Another pilot (VATSIM). Picking one pins it (`fs=`), so a link's SimBrief username can't hide the flight you're flying; OBS follows the pin. Under it: the position (OFP Tower, VATSIM, clock), the registration and where it's from, the names shown, and what a Logbook entry would get now.
+- **The controls fold by when they matter.** "Before departure" (clock, delay, step, cancelled, gate change) folds itself once the aircraft has left the gate; "On the screen" (gate, registration, airline names, message, info strip, see-through); "Start and end" (countdown, sign-off).
+- **Send to OBS.** With OFP Tower running, the screens open in OBS are listed with what each shows and what a change here does to it ("reaches it live", or "keeps its own look"); a source asking for a scene the page doesn't have gets "Add scene"; one that runs an older version says to refresh it. Then every link with one copy button each: Main, one per scene, Countdown, Ending, this look only, the screen window. A chip says whether changes go live.
+- **The sign-off reaches OBS live** through OFP Tower, like the other settings. So does the VATSIM callsign. (A message from an older page, as OFP Tower keeps the last one, leaves them as the source has them.)
+- **Airline names follow the airline.** A name and code typed for one airline (Wizz Air Malta) show only on its flights (`anf=`), FMS flights too (by the flight number's letters). Names typed before 1.15 still show everywhere until changed.
+- **Hidden until there's data:** the flip sides "Aircraft status" and "Flight deck". Links that name them still work.
+- **One set of stage names** everywhere: At the gate, Taxi, Climb, Cruise, Approaching, Arrived.
+
 ## 1.14.0 — 2026-11-13
 
 - **Vertical speed** on the strip (a V/S tile: "↑ 2,400 fpm", "↓ 1,800 fpm" or "Level") and on the pills ("FL120 ↑2,400", only while climbing or descending). Averaged over about 10 s so turbulence doesn't twitch it, rounded to 100 ft/min, "Level" within ±200. Each look can turn it off ("Vertical speed" in the look editor, `.nvs` in a link).

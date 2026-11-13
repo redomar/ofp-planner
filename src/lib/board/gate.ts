@@ -64,7 +64,18 @@ export interface GateState {
   goFrom: number;
   /** 1.13: the ending screen's sign-off line; empty = the default. URL only. */
   bye: string;
+  /**
+   * 1.15: where the flight comes from, pinned: "fms" the aircraft's FMS (OFP Tower), "ofp" the
+   * SimBrief OFP, "tt" the timetable flight (f=), "vatsim" another pilot's filed plan. Null = Auto,
+   * the order before 1.15 (OFP, then timetable, then the FMS or the watched pilot's plan).
+   */
+  fs: FlightSource | null;
+  /** 1.15: the airline code the names (an, ac) were given for; they show only on its flights. Empty = any flight (as before). */
+  anf: string;
 }
+
+export type FlightSource = "fms" | "ofp" | "tt" | "vatsim";
+export const FLIGHT_SOURCES: FlightSource[] = ["fms", "ofp", "tt", "vatsim"];
 
 export type { ShownView } from "./looks";
 /** 1.14: what each stage shows, one look or a rotation. */
@@ -135,6 +146,8 @@ export const EMPTY_GATE: GateState = {
   go: null,
   goFrom: 0,
   bye: "",
+  fs: null,
+  anf: "",
 };
 
 const PINS: PhaseKey[] = ["scheduled", "gate", "boarding", "final", "closed", "ready", "pushback", "lineup", "takeoff", "departed"];
@@ -232,6 +245,8 @@ export function gateFromParams(q: URLSearchParams, now: number): GateState {
     go: goParam(q.get("go")),
     goFrom: now,
     bye: text(q.get("bye"), 140),
+    fs: FLIGHT_SOURCES.includes(q.get("fs") as FlightSource) ? (q.get("fs") as FlightSource) : null,
+    anf: /^[A-Z0-9]{2,4}$/.test((q.get("anf") ?? "").toUpperCase()) ? (q.get("anf") ?? "").toUpperCase() : "",
   };
 }
 
@@ -251,6 +266,7 @@ export function gateToParams(g: GateState, now: number, extra: Record<string, st
   set("reg", g.reg);
   set("an", g.an);
   set("ac", g.ac);
+  set("anf", (g.an || g.ac) && g.anf);
   set("msg", g.msg);
   set("ov", g.overlay && "1");
   set("rot", !g.rotate && "0");
@@ -262,6 +278,7 @@ export function gateToParams(g: GateState, now: number, extra: Record<string, st
   set("hold", g.hold);
   set("go", g.go);
   set("bye", g.bye);
+  set("fs", g.fs);
   for (const [k, v] of Object.entries(extra)) set(k, v);
   return q;
 }
@@ -271,7 +288,7 @@ export function gateToParams(g: GateState, now: number, extra: Record<string, st
  * the stage table and the scenes written out even at their defaults, so a screen can tell a real
  * message from an empty or partial one (those keep the screen's own URL settings).
  */
-export function streamSettingsQuery(g: GateState): string {
+export function streamSettingsQuery(g: GateState, who: string | null = null): string {
   const q = new URLSearchParams();
   q.set("st", stagesText(g.stages));
   q.set("sc", scenesTo(g.scenes) || "-");
@@ -285,17 +302,26 @@ export function streamSettingsQuery(g: GateState): string {
   if (g.ac) q.set("ac", g.ac);
   if (g.msg) q.set("msg", g.msg);
   if (!g.rotate) q.set("rot", "0");
+  // 1.15: the sign-off, the pinned flight source and the names' airline; "sv=2" says they're in it
+  // (absent = empty), so a message from an older page (OFP Tower keeps the last one) leaves them be
+  q.set("sv", "2");
+  if ((g.an || g.ac) && g.anf) q.set("anf", g.anf);
+  if (g.bye) q.set("bye", g.bye);
+  if (g.fs) q.set("fs", g.fs);
+  // the VATSIM callsign the board uses (a watched pilot, or the owner's own for the position)
+  if (who) q.set("who", who);
   return q.toString();
 }
 
-export type StreamSettings = Pick<GateState, "stages" | "scenes" | "hold" | "delay" | "cancelled" | "gate" | "oldGate" | "reg" | "an" | "ac" | "msg" | "rotate">;
+export type StreamSettings = Pick<GateState, "stages" | "scenes" | "hold" | "delay" | "cancelled" | "gate" | "oldGate" | "reg" | "an" | "ac" | "msg" | "rotate"> & Partial<Pick<GateState, "bye" | "fs" | "anf">>;
 
 /** A relayed settings query, or null when it isn't complete (no stage table: an old, empty or partial message). */
 export function streamSettingsFrom(q: string, now: number): StreamSettings | null {
   const p = new URLSearchParams(q);
   if (!p.get("st") || !p.get("sc")) return null;
   const s = gateFromParams(p, now);
-  return { stages: s.stages, scenes: s.scenes, hold: s.hold, delay: s.delay, cancelled: s.cancelled, gate: s.gate, oldGate: s.oldGate, reg: s.reg, an: s.an, ac: s.ac, msg: s.msg, rotate: s.rotate };
+  const base = { stages: s.stages, scenes: s.scenes, hold: s.hold, delay: s.delay, cancelled: s.cancelled, gate: s.gate, oldGate: s.oldGate, reg: s.reg, an: s.an, ac: s.ac, msg: s.msg, rotate: s.rotate };
+  return p.get("sv") === "2" ? { ...base, bye: s.bye, fs: s.fs, anf: s.anf } : base;
 }
 
 /* ---------- what the screen shows, from a snapshot flight or a SimBrief OFP ---------- */

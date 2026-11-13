@@ -66,9 +66,10 @@ pages:        # all client components; one shared TopBar (Finder · Journeys · 
               # (phones: .only-xs short text where .hide-xs drops the long one); each page: one <main> with an sr-only <h1>
   /:          src/components/FinderApp.tsx  — filters, roll bar, Flights/Destinations tabs, floating flight panel
   /journeys:  src/components/JourneysApp.tsx — multi-leg planner (form in the URL, results list + sticky detail with map and legs)
-  /board:     src/components/BoardApp.tsx — Airport board (board/FidsBoard.tsx) and Gate screen (board/GateScreen.tsx + controls);
+  /board:     src/components/BoardApp.tsx — Airport board (board/FidsBoard.tsx) and Gate screen (1.15 "One desk": board/StreamStudio.tsx
+              ScenesPreview on the left, board/GateDesk.tsx FlightCard · WrittenOn · SendToObs on the right; the screens are board/GateViews.tsx);
               lib/board/board.ts (dated movements from the weekly pattern, boarding phases, remarks), lib/board/gate.ts (state ⇄ URL,
-              snapshot or SimBrief OFP → GateFlight, BroadcastChannel). ?tab=gate&f&d&sb&in=<min to STD, virtual>&late&pin&cx&gate&was&reg&msg&ov&rot&screen=1&ch.
+              snapshot or SimBrief OFP → GateFlight, BroadcastChannel). ?tab=gate&f&d&sb&in=<min to STD, virtual>&late&pin&cx&gate&was&reg&an&ac&anf&msg&ov&rot&view&st&sc&as&hold&go&bye&fs&feed&who&screen=1&ch.
               screen=1 portals the 16:9 screen into body and hides the rest (html.screen-mode); sized in cqw units.
               SimBrief: www.simbrief.com/api/xml.fetcher.php?username=…&json=v2 is CORS *; the username is kept in localStorage only.
   /brief:     src/components/BriefApp.tsx   — FlightCard, date, next leg (sample + full list), weather

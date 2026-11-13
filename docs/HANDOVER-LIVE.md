@@ -4,7 +4,7 @@ Written on 2026-11-11 by the two Claude sessions that built it: the Mac session 
 
 ## 1. Where things stand
 
-The live site is <https://plans.massorbit.co.uk>. The latest release is **1.14.0**. All releases are signed tags with GitHub releases, made from `main` through PRs.
+The live site is <https://plans.massorbit.co.uk>. The latest release is **1.15.0**. All releases are signed tags with GitHub releases, made from `main` through PRs.
 
 | Version | What | PR |
 |---|---|---|
@@ -22,7 +22,8 @@ The live site is <https://plans.massorbit.co.uk>. The latest release is **1.14.0
 | 1.12.1–1.12.5 | FMS landing time; go-arounds; extra-small size (`.xs`); no pre-flight elapsed times, steady landing minute, readable `strip.xs` | #44–#51 |
 | 1.13.0 | **Countdown** (G8, `go=`) and **Ending screen** (G9, `bye=`, passengers' strip, numbers from OFP Tower's summary, kept in `ofp-planner:ending`); OFP Tower track backlog read; airline name / flight-number code overrides (`an=`, `ac=`, remembered per airline in `ofp-planner:airline-names`) | #53 |
 | 1.13.1–1.13.2 | Countdown skips an off-block over 3 h gone; the Logbook entry from an FMS flight takes OFP Tower's reg, no made-up STD/STA | #54, #56 |
-| 1.14.0 | **Vertical speed** on the strip and pills (smoothed 10 s, Level ±200, `.nvs` off); **Climb and Cruise stages** (6 in `st=`, 5 and 4 still read; `hold=flying` = cruise); **Arrived** on engines + seatbelt sign off, or 2 min after the sign; **rotations** per stage (`a@240>b|c@30>d@120`, also in `view=`), flip cards' backs only (`.bo`), preset "Pills, map now and then" | this release |
+| 1.14.0 | **Vertical speed** on the strip and pills (smoothed 10 s, Level ±200, `.nvs` off); **Climb and Cruise stages** (6 in `st=`, 5 and 4 still read; `hold=flying` = cruise); **Arrived** on engines + seatbelt sign off, or 2 min after the sign; **rotations** per stage (`a@240>b|c@30>d@120`, also in `view=`), flip cards' backs only (`.bo`), preset "Pills, map now and then" | #57 |
+| 1.15.0 | **One desk** (Board → Gate screen, plan in `docs/GATE-PAGE-PLAN.md`): one preview with scene tabs and a stage strip, the flight in one line with a pinned source (`fs=`), controls folded by when, Send to OBS with the open screens (`who`/`here` relay) and one copy per link; `bye`, `fs`, `anf`, `who` relayed (`sv=2`); airline names kept per airline (`anf=`); unready flip sides hidden | this release |
 
 **Naming:** "OFP Tower" is the user-facing name, the owner's choice on 2026-11-11. In code and protocol the old name stays: `feed=link`, `linkSource`, `"app":"ofp-link"`, port 47800, `docs/OFP-LINK.md`, and the PC folder `ofp-link-recorder`. Rename both sides together or not at all.
 
@@ -32,7 +33,7 @@ The live site is <https://plans.massorbit.co.uk>. The latest release is **1.14.0
 MSFS 2024 (Fenix A320 family) ──SimConnect──▶ OFP Tower (Python, sim PC)
                                   Fenix gateway (read-only) ─┘   │  ws://127.0.0.1:47800 (loopback only, origin allowlist)
                                                                  ▼
-          Board → Gate screen (owner's browser: controls, Stream panel)  ◀─ relay ─▶  OBS browser sources (gate screen pages)
+          Board → Gate screen (owner's browser: the desk)  ◀─ relay ─▶  OBS browser sources (gate screen pages)
 ```
 
 - **OFP Tower sends** `hello`, `sample` (1 Hz, 10 Hz near touchdown), `plan` (Fenix FMS route: legs, constraints, turns, runways) and `relay` (Stream panel settings, plus the last settings kept for late joiners). The shapes are in `docs/OFP-LINK.md`.
@@ -56,8 +57,10 @@ MSFS 2024 (Fenix A320 family) ──SimConnect──▶ OFP Tower (Python, sim P
 | `src/lib/board/naming.ts` | 1.13 `namedFlight`: the user's airline name and flight-number code over the data's. |
 | `src/components/board/GateScreen.tsx` | Full view G1 (clock or live; flight steps to the arrival gate); with `countdown` it's G8. |
 | `src/components/board/GateViews.tsx` | `shownTurns` / `shownLooks` (view=auto: hold, then scene rule, then stage table; BoardApp keeps when the stage began and passes the rotation's step), `liveFacts`, `routeToGo`, `routeAhead`, `descentAhead`, `flipSide`, `GateMap`, every view incl. G6/G7 and the flip back sides, layers, `sampleLive`, `MiniScreen`. |
-| `src/components/board/StreamPanel.tsx` | Stream panel shell: status bar, tabs (Scenes, Rehearse, Live feed, OBS setup), rehearse strip, `LogArrival`. |
-| `src/components/board/StreamStudio.tsx` | 1.12 studio: scenes rail, a scene's stage timeline, overview, preview, the look editor (`<dialog>`) with the rotation bar (`TurnsBar`), My looks (localStorage `ofp:my-looks`, rotations too). |
+| `src/components/board/StreamPanel.tsx` | 1.15: only `RehearseStrip` (the recorded flight's stage blocks, it reports the 60 s rate) and `LogArrival`; the panel shell went. |
+| `src/components/board/StreamStudio.tsx` | `ScenesPreview` (1.15 P1: scene tabs, the one preview through `useShownStep`, the stage strip of glyphs, Rehearse / Follow-Hold / Start from / All scenes, scene menu), the look editor (`<dialog>`) with the rotation bar (`TurnsBar`), My looks (localStorage `ofp:my-looks`, rotations too), `STAGE_INFO` (the one stage-name table). |
+| `src/components/board/GateDesk.tsx` | 1.15 right column: `FlightCard` (F1, sources and `fs=`, position chips, registration, Logbook note), `WrittenOn` (C1, three folds), `SendToObs` (S1, open screens, links). |
+| `src/components/board/useShownStep.ts` | 1.15: one rule for what a screen shows now (stage, scene, the rotation clock), used by the OBS screen and the preview. |
 | `src/components/BoardApp.tsx` | Wires the flight (snapshot, OFP or FMS plan), feed, relay, `as=`, screen mode. |
 | `scripts/verify.mjs` | Sections: `gate feed`, `gate views`, `stream panel`, `log arrival`, `track estimates`. Run one with `VERIFY_ONLY="<name>"`. |
 
@@ -214,6 +217,6 @@ Recovery if Remote Control or the session drops:
 1. MSFS + Fenix loaded.
 2. Double-click "OFP Tower". Check its window shows "listening on …47800" and the "Fenix MCDU plan" line.
 3. Open OBS (OFP Planner collection).
-4. Open Board → Gate screen → Stream in the browser; it should show "OFP Tower · live".
+4. Open Board → Gate screen in the browser; under Flight, Position should show "OFP Tower · live", and Send to OBS lists the open screens.
 5. Self-tests (no sim needed): `py tools\relay_test.py`, `py tools\settings_test.py` (temp files, real settings untouched), `py tools\link_selftest.py`.
 6. With the sim: `py fenix_fms.py` prints the live plan; `py tools\lvar_watch.py 120` logs switch L:vars for 2 min.
