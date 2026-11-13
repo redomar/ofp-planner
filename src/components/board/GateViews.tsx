@@ -8,7 +8,7 @@ import { MIN } from "@/lib/board/board";
 import type { GateFlight, GateState } from "@/lib/board/gate";
 import { goTarget } from "@/lib/board/countdown";
 import { ENDING_KEY, endStats, landingFeel, readEnding, routeKey, type EndingRecord } from "@/lib/board/ending";
-import { BACKS, layers, layersTo, stepAt, turnsFrom, turnsOf, turnsTo, VIEW_INFO, type Layers, type Look, type LookBack, type ShownView, type Turns } from "@/lib/board/looks";
+import { BACKS, layers, layersTo, shownBacks, stepAt, turnsFrom, turnsOf, turnsTo, VIEW_INFO, type Layers, type Look, type LookBack, type ShownView, type Turns } from "@/lib/board/looks";
 import { bearing, distNm, fmsArrival, routeBefore, steadyTime, landingText, levelFt, phaseLabel, utcAt, wentAround, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState, type FlightSummary, vsText } from "@/lib/feed/core";
 import { useOutlines } from "@/lib/outlines";
 import { useTerrain } from "@/lib/terrain";
@@ -1022,7 +1022,8 @@ export function GateViewScreen(p: ViewProps & { back?: number | null; step?: { l
 
 /** One look: a view at its size and corner. `back` shows a flip card's back side (that index) instead of following its timer. */
 function LookScreen(p: ViewProps & { look: Look; back?: number | null; stepFrom?: number | null }) {
-  const lk = p.look;
+  // 1.15: back sides without data yet aren't shown (their codes still read)
+  const lk = VIEW_INFO[p.look.v].flip ? { ...p.look, backs: shownBacks(p.look.backs) } : p.look;
   const view = lk.v;
   if (view === "full") return <GateScreen flight={p.flight} state={p.state} now={p.now} wx={p.wx} live={p.live} source={SOURCE[p.source]} plan={p.plan ?? null} belt={lk.belt} />;
   if (view === "countdown") {

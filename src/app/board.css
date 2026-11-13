@@ -2578,7 +2578,8 @@ html.screen-mode body > :not(.screen-root) {
 }
 .st-ov-row {
   display: grid;
-  grid-template-columns: minmax(130px, 1.1fr) repeat(5, minmax(96px, 1fr));
+  /* 1.14: six stages; on a phone the grid scrolls inside its card, never the page */
+  grid-template-columns: minmax(110px, 1.1fr) repeat(6, minmax(76px, 1fr));
   gap: 4px;
   align-items: center;
 }
@@ -3332,4 +3333,378 @@ html.screen-mode body > :not(.screen-root) {
 }
 .gv-end-pax li[class^="gs-"] b {
   color: inherit;
+}
+
+/* ---------- 1.15: Board → Gate screen, "One desk" ---------- */
+/* left: the one preview (scenes, the screen, the stages); right: which flight, what is written, Send to OBS */
+.dk {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 1080px) {
+  .dk {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.dk-left,
+.dk-right {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dk-card {
+  padding: 12px 14px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--sheet);
+  min-width: 0;
+}
+.dk-card-h {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.dk-card-h .ctl-label {
+  margin: 0;
+}
+
+/* P1: the preview */
+.dk-pv {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.dk-pv-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 6px 12px;
+}
+.dk-scenes {
+  flex-wrap: wrap;
+}
+.dk-add {
+  color: var(--ink-2);
+}
+.dk-hint {
+  margin: 0 0 6px;
+}
+.dk-scene-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+}
+.dk-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dk-name .ctl-label {
+  margin: 0;
+}
+.dk-name .ctl-input {
+  width: 220px;
+  max-width: 60vw;
+}
+.dk-menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px;
+  border: 1px dashed var(--rule);
+  border-radius: var(--radius);
+}
+.dk-under {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.dk-caption {
+  margin: 0;
+}
+.dk-stages {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+@media (max-width: 640px) {
+  .dk-stages {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.dk-stage {
+  position: relative;
+  min-width: 0;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--field);
+}
+.dk-stage.is-on {
+  border-color: var(--magenta);
+  box-shadow: inset 0 -2px 0 var(--magenta);
+}
+.dk-stage-b {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 8px 24px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.dk-stage-name {
+  font-family: var(--font-cond);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.dk-stage.is-now .dk-stage-name small {
+  color: var(--magenta);
+}
+.dk-stage-look {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--ink-2);
+  min-width: 0;
+}
+.dk-stage-look .mono {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dk-stage-x {
+  position: absolute;
+  left: 8px;
+  bottom: 4px;
+}
+.dk-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.dk-row .st-from .ctl-input {
+  max-width: 220px;
+}
+.dk-rs > summary {
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.dk-rs[open] > summary {
+  margin-bottom: 8px;
+}
+
+/* F1: which flight */
+.dk-flight-line {
+  margin: 4px 0 8px;
+  font-size: 16px;
+}
+.dk-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 12px;
+  margin: 0;
+  font-size: 14px;
+}
+.dk-facts dt {
+  font-family: var(--font-cond);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding-top: 2px;
+}
+.dk-facts dd {
+  margin: 0;
+  min-width: 0;
+}
+.dk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.dk-pin {
+  color: var(--magenta);
+  font-weight: 600;
+}
+.dk-src {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--rule);
+}
+.dk-src p {
+  margin: 0;
+}
+.dk-seg {
+  flex-wrap: wrap;
+}
+
+/* C1: folded by when */
+.dk-fold {
+  padding: 0;
+}
+.dk-fold-h {
+  margin: 0;
+}
+.dk-fold-h button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  width: 100%;
+  padding: 10px 14px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.dk-fold-h button::after {
+  content: "▾";
+  grid-column: 2;
+  grid-row: 1;
+  color: var(--ink-3);
+}
+.dk-fold.is-open .dk-fold-h button::after {
+  content: "▴";
+}
+.dk-fold-h .ctl-label {
+  margin: 0;
+}
+.dk-fold-note {
+  grid-column: 1 / -1;
+  color: var(--ink-3);
+  font-size: 13px;
+}
+.dk-fold-sum {
+  grid-column: 1 / -1;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.dk-fold.is-open .dk-fold-sum {
+  display: none;
+}
+.dk-fold-b {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 14px 14px;
+}
+.dk-fold-b p {
+  margin: 0;
+}
+.dk-fold-b .jr-ctl > .ctl-input {
+  width: 100%;
+}
+
+/* S1: Send to OBS */
+.dk-obs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dk-obs-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.dk-send {
+  flex: 1 1 180px;
+}
+.dk-obs-b {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dk-obs-b .ctl-label {
+  margin: 0;
+}
+.dk-open {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.dk-open th,
+.dk-open td {
+  padding: 6px 6px 6px 0;
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+  vertical-align: top;
+}
+.dk-open thead th {
+  font-family: var(--font-cond);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.dk-open td .btn {
+  margin-left: 6px;
+}
+.dk-old {
+  color: var(--amber, var(--ink-2));
+}
+.dk-links {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dk-links li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.dk-links li > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.dk-links small {
+  color: var(--ink-2);
+  font-size: 13px;
+}
+/* the preview: a sample sky where the screen is see-through (the game shows there in OBS) */
+.dk-screen {
+  background: linear-gradient(#7fa6c9 0 55%, #6f7f5a 55% 100%);
+}
+.dk-screen:fullscreen {
+  background: #000;
+}
+/* folded parts stay folded (display above would override the hidden attribute) */
+.dk-fold-b[hidden],
+.dk-obs-b[hidden] {
+  display: none;
+}
+.dk-stage-look .st-glyph {
+  flex: none;
+  width: 44px;
 }

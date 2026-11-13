@@ -117,6 +117,12 @@ export const BACKS: { k: LookBack; name: string; note: string; ready: boolean; n
   { k: "deck", name: "Flight deck", note: "Autopilot modes, the FCU, the PROG and FUEL PRED pages.", ready: false, needs: "after the MCDU page work on the PC" },
 ];
 
+/**
+ * 1.15: the back sides a screen shows: only the ready ones. The others ("Aircraft status", "Flight
+ * deck") stay readable in links but are hidden everywhere until the probe gives them real data.
+ */
+export const shownBacks = (bs: LookBack[]): LookBack[] => bs.filter((b) => BACKS.find((x) => x.k === b)?.ready);
+
 export const SIZES: { k: LookSize; name: string }[] = [
   { k: "xs", name: "Extra small" },
   { k: "s", name: "Small" },

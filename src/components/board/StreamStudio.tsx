@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { allStages, PRESETS, STAGES, type GateFlight, type GateState, type SceneRule, type StageTurns } from "@/lib/board/gate";
 import {
   BACKS,
   look,
+  shownBacks,
   layersTo,
   MAX_ALTS,
   MAX_LAYERS,
@@ -14,7 +15,6 @@ import {
   STEP_DEFAULT_S,
   STEP_MAX_S,
   STEP_MIN_S,
-  stepAt,
   turnsFrom,
   turnsTo,
   turning,
@@ -28,7 +28,9 @@ import {
 } from "@/lib/board/looks";
 import { viewStage, type FlightState, type ViewStage } from "@/lib/feed/core";
 import type { FlightFeed } from "@/lib/feed/useFlightFeed";
-import { MiniScreen, sampleLive } from "./GateViews";
+import { GateViewScreen, MiniScreen, sampleLive } from "./GateViews";
+import { useShownStep } from "./useShownStep";
+import { cx, radioKeys, roving } from "../ui";
 import type { GateWx } from "./GateScreen";
 
 /**
@@ -81,28 +83,43 @@ const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, 
 const turnsName = (t: Turns) => (turning(t) ? `Rotation: ${t.map((st) => `${st.alts.map(layersName).join(" / ")} ${mmss(st.secs)}`).join(" → ")}` : layersName(first(t)));
 const turnsCodes = (t: Turns) => (turning(t) ? t.map((st) => st.alts.map(codes).join("/")).join(" → ") : codes(first(t)));
 
-export function StreamStudio({
+export function ScenesPreview({
   gate,
   flight,
   now,
   wx,
   feed,
-  urlFor,
+  rehearsing,
+  canRehearse,
+  onRehearse,
+  rehearseStrip,
+  arrived,
   onPatch,
+  onLook,
 }: {
   gate: GateState;
   flight: GateFlight;
   now: number;
   wx: GateWx | null;
   feed: FlightFeed;
-  urlFor: (scene: string) => string;
+  /** The preview plays the recorded flight (this page only). */
+  rehearsing: boolean;
+  canRehearse: boolean;
+  onRehearse: (play: boolean) => void;
+  /** The timed rehearse strip (OUT · OFF · ON · IN), in its fold-out. */
+  rehearseStrip: ReactNode;
+  /** "Write to my Logbook", beside the preview once arrived. */
+  arrived: ReactNode;
   onPatch: (p: Partial<GateState>) => void;
+  /** The look the preview shows (for Send to OBS's "This look only"). */
+  onLook?: (token: string) => void;
 }) {
-  const [sel, setSel] = useState<SceneIx>(() => (gate.scenes.length ? 0 : OTHER));
-  const [pv, setPv] = useState<ViewStage | "now">("now");
+  const [sel, setSel] = useState<SceneIx>(OTHER);
+  const [pv, setPv] = useState<ViewStage | null>(null);
   const [pvBack, setPvBack] = useState<number | null>(null);
   const [edit, setEdit] = useState<{ scene: SceneIx; stage: ViewStage } | null>(null);
-  const [copied, setCopied] = useState<string | null>(null);
+  const [all, setAll] = useState(false);
+  const [menu, setMenu] = useState(false);
   const scene = sel >= 0 && sel < gate.scenes.length ? sel : OTHER;
   const stagesOf = (i: SceneIx) => (i === OTHER ? gate.stages : gate.scenes[i][1]);
   const nameOf = (i: SceneIx) => (i === OTHER ? "Any other scene" : gate.scenes[i][0]);
@@ -125,137 +142,176 @@ export function StreamStudio({
     onPatch({ scenes: gate.scenes.filter((_, j) => j !== i) });
     setSel(OTHER);
   };
-  const copy = (key: string, text: string) =>
-    void navigator.clipboard?.writeText(text).then(() => {
-      setCopied(key);
-      setTimeout(() => setCopied(null), 1800);
-    });
 
-  const pvStage: ViewStage = pv === "now" ? (liveStage ?? "ready") : pv;
-  const pvLive = pv === "now" ? (feed.state ?? samples[pvStage]) : samples[pvStage];
-  // a rotation turns in the preview too (on the clock)
-  const pvTurns = cur[pvStage];
-  const pvLayers = stepAt(pvTurns, now).ls;
-  const pvFlip = pvLayers.find((l) => VIEW_INFO[l.v].flip);
+  // what the chosen scene shows at the chosen stage: the aircraft's own state at the live stage,
+  // an example of this flight at another; one rule with the screens (and their rotation clock)
+  const pvStage: ViewStage = pv ?? liveStage ?? "ready";
+  // now: the aircraft's own state, or with no feed the screen's clock (the boarding steps); another stage: an example
+  const isNow = pv == null;
+  const isLive = isNow && !!feed.state;
+  const pvLive = isNow ? feed.state : samples[pvStage];
   const sceneName = scene === OTHER ? null : gate.scenes[scene][0];
+  const step = useShownStep({ view: "auto", stages: gate.stages, scenes: gate.scenes, hold: pvStage }, pvLive, sceneName, feed.plan, now);
+  const pvTurns = cur[pvStage];
+  const pvFlip = step.ls.find((l) => VIEW_INFO[l.v].flip);
+  const token = layersTo(step.ls);
+  useEffect(() => {
+    onLook?.(token);
+  }, [token, onLook]);
+  const pick = (k: ViewStage) => {
+    // a second click on the stage shown opens its look
+    if (k === pvStage) setEdit({ scene, stage: k });
+    else {
+      setPv(k === liveStage ? null : k);
+      setPvBack(null);
+    }
+  };
 
   return (
-    <div className="st">
-      {/* scenes, like OBS's own Scenes dock */}
-      <nav className="st-scenes" aria-label="OBS scenes">
-        <h4 className="ctl-label">OBS scenes</h4>
-        <ul>
+    <section className="dk-pv" aria-label="What OBS shows">
+      <div className="dk-pv-top">
+        <div className="tabs dk-scenes" role="tablist" aria-label="OBS scenes">
           {[OTHER, ...gate.scenes.map((_, i) => i)].map((i) => (
-            <li key={i}>
-              <button type="button" className={`st-scene${i === scene ? " is-on" : ""}`} aria-current={i === scene} onClick={() => setSel(i)}>
-                <b>{nameOf(i)}</b>
-                <small>{i === OTHER ? "every scene not named here" : summary(stagesOf(i))}</small>
-                <span className="st-scene-strip" aria-hidden="true">
-                  {STAGES.map((k) => (
-                    <Glyph key={k} ls={first(stagesOf(i)[k])} />
-                  ))}
+            <button type="button" role="tab" key={i} aria-selected={i === scene} className="tab" onClick={() => setSel(i)}>
+              {nameOf(i)}
+            </button>
+          ))}
+          <button type="button" className="tab dk-add" onClick={addScene} disabled={gate.scenes.length >= 8}>
+            + Scene
+          </button>
+        </div>
+        <span className="dk-hint ctl-label">What OBS shows · click a stage to change its look</span>
+      </div>
+      <div className="dk-scene-bar">
+        {scene === OTHER ? (
+          <span className="muted small">Every OBS scene not named in a tab. Name the others exactly as in OBS.</span>
+        ) : (
+          <label className="dk-name">
+            <span className="ctl-label">OBS scene name</span>
+            <input className="ctl-input" value={gate.scenes[scene][0]} aria-label="OBS scene name" maxLength={40} onChange={(e) => rename(scene, e.target.value)} />
+          </label>
+        )}
+        <span className="st-grow" />
+        <button type="button" className="btn btn-sm" aria-expanded={menu} aria-controls="dk-scene-menu" onClick={() => setMenu((m) => !m)}>
+          Scene ▾
+        </button>
+      </div>
+      {menu && (
+        <div id="dk-scene-menu" className="dk-menu" role="group" aria-label={`${nameOf(scene)}: quick changes`}>
+          <button type="button" className="btn btn-sm" onClick={() => setStages(scene, allStages(cur[pvStage]))}>
+            {STAGE_INFO[pvStage].name}’s look all flight
+          </button>
+          <button type="button" className="btn btn-sm" onClick={() => setStages(scene, { ...cur, arrived: cur.ready })}>
+            Arrived = At the gate
+          </button>
+          <button type="button" className="btn btn-sm" onClick={() => setStages(scene, { ...cur, climb: cur.cruise })}>
+            Climb = Cruise
+          </button>
+          <button type="button" className="btn btn-sm" onClick={() => setStages(scene, { ...cur, approaching: cur.cruise })}>
+            Approaching = Cruise
+          </button>
+          {scene !== OTHER && (
+            <button type="button" className="btn btn-sm" onClick={() => remove(scene)}>
+              Remove this scene
+            </button>
+          )}
+        </div>
+      )}
+
+      <div className="gs-frame dk-screen" id="gs-preview">
+        <GateViewScreen flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={pvLive} source={isLive ? feed.using : "link"} trail={isLive ? feed.trail : []} plan={feed.plan} summary={feed.summary} step={step} back={pvFlip && pvBack != null ? pvBack : undefined} />
+      </div>
+      <div className="dk-under">
+        <p className="muted small dk-caption">
+          {nameOf(scene)} · {STAGE_INFO[pvStage].name}
+          {isLive ? " (now)" : liveStage ? "" : " (an example of this flight)"}: {turnsName(pvTurns)}
+          {pvFlip && !pvFlip.only ? `, turning over every ${mmss(pvFlip.every)} for ${mmss(pvFlip.hold)}` : ""}. The see-through parts show your game.
+        </p>
+        <button type="button" className="btn btn-sm" onClick={() => void document.getElementById("gs-preview")?.requestFullscreen?.()}>
+          Full screen
+        </button>
+      </div>
+      {pvFlip && shownBacks(pvFlip.backs).length > 0 && (
+        <div className="seg st-pv-seg" role="radiogroup" aria-label="Which side of the flip card">
+          <button type="button" role="radio" aria-checked={pvBack == null} className="seg-btn" onClick={() => setPvBack(null)}>
+            As it turns
+          </button>
+          {shownBacks(pvFlip.backs).map((b, i) => (
+            <button type="button" role="radio" key={b} aria-checked={pvBack === i} className="seg-btn" onClick={() => setPvBack(i)}>
+              {BACKS.find((x) => x.k === b)?.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <ol className="dk-stages" aria-label={`${nameOf(scene)}: what it shows at each stage`}>
+        {STAGES.map((k) => {
+          const t = cur[k];
+          const ls = first(t);
+          const on = k === pvStage;
+          return (
+            <li key={k} className={cx("dk-stage", on && "is-on", k === liveStage && "is-now")}>
+              <button type="button" className="dk-stage-b" aria-pressed={on} onClick={() => pick(k)} aria-label={`${STAGE_INFO[k].name}${k === liveStage ? " (now)" : ""}: ${turnsName(t)}${on ? ". Click again to change" : ""}`}>
+                <span className="dk-stage-name">
+                  {STAGE_INFO[k].name}
+                  {k === liveStage && <small> · now</small>}
+                </span>
+                <span className="dk-stage-look">
+                  <Glyph ls={ls} />
+                  <span className="mono">
+                    {codes(ls)}
+                    {turning(t) ? ` ⟳${t.length}` : VIEW_INFO[ls[0].v].kind !== "screen" ? ` ${ls[0].size.toUpperCase()}` : ""}
+                  </span>
                 </span>
               </button>
+              <button type="button" className="linkish small dk-stage-x" onClick={() => setEdit({ scene, stage: k })} aria-label={`Change ${STAGE_INFO[k].name}`}>
+                Change
+              </button>
             </li>
-          ))}
-        </ul>
-        <button type="button" className="st-add" onClick={addScene} disabled={gate.scenes.length >= 8}>
-          + Add an OBS scene
+          );
+        })}
+      </ol>
+
+      <div className="dk-row">
+        <button type="button" className="btn" disabled={!canRehearse} onClick={() => onRehearse(!rehearsing)}>
+          {rehearsing ? "■ Stop rehearsing" : "▶ Rehearse in 60 s"}
         </button>
-        <p className="muted small">Name them exactly as in OBS. A source that isn’t in a named scene follows “Any other scene”.</p>
-      </nav>
+        <div className="seg" role="radiogroup" aria-label="Follow the aircraft or hold a stage" onKeyDown={radioKeys}>
+          <button type="button" role="radio" aria-checked={!gate.hold} tabIndex={roving(!gate.hold, 0)} className="seg-btn" onClick={() => onPatch({ hold: null })}>
+            Follow the aircraft
+          </button>
+          <button type="button" role="radio" aria-checked={!!gate.hold} tabIndex={roving(!!gate.hold, 1)} className="seg-btn" onClick={() => onPatch({ hold: pvStage })} title={`Hold ${STAGE_INFO[pvStage].name}, on the stream too`}>
+            Hold this stage
+          </button>
+        </div>
+        <label className="st-from">
+          <span className="sr-only">Start this scene from a preset</span>
+          <select
+            className="ctl-input"
+            value=""
+            onChange={(e) => {
+              const p = PRESETS.find((x) => x.name === e.target.value);
+              if (p) setStages(scene, p.stages);
+            }}
+          >
+            <option value="">Start from…</option>
+            {PRESETS.map((p) => (
+              <option key={p.name} value={p.name}>
+                {p.name}: {p.note}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="button" className="btn" aria-expanded={all} aria-controls="dk-all" onClick={() => setAll((a) => !a)}>
+          All scenes {all ? "▴" : "▾"}
+        </button>
+      </div>
+      <p className="muted small" aria-live="polite">
+        {gate.hold ? `Holding: ${STAGE_INFO[gate.hold].name}, on the stream too.` : rehearsing ? "Playing the recorded flight on this page." : "Following the aircraft."}
+      </p>
 
-      <div className="st-main">
-        {/* the chosen scene's flight */}
-        <section className="st-card" aria-label={`${nameOf(scene)}: what it shows at each stage`}>
-          <div className="st-head">
-            {scene === OTHER ? (
-              <h4 className="st-title">Any other scene</h4>
-            ) : (
-              <input className="st-title st-name" value={gate.scenes[scene][0]} aria-label="OBS scene name" maxLength={40} onChange={(e) => rename(scene, e.target.value)} />
-            )}
-            <span className="st-badge">{scene === OTHER ? "Default" : "OBS scene"}</span>
-            <span className="st-grow" />
-            <label className="st-from">
-              <span className="sr-only">Start this scene from a preset</span>
-              <select
-                className="ctl-input"
-                value=""
-                onChange={(e) => {
-                  const p = PRESETS.find((x) => x.name === e.target.value);
-                  if (p) setStages(scene, p.stages);
-                }}
-              >
-                <option value="">Start from…</option>
-                {PRESETS.map((p) => (
-                  <option key={p.name} value={p.name}>
-                    {p.name}: {p.note}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {sceneName && (
-              <button type="button" className="btn" onClick={() => copy(`url:${scene}`, urlFor(sceneName))}>
-                {copied === `url:${scene}` ? "Copied" : "Copy URL for this scene"}
-              </button>
-            )}
-            {scene !== OTHER && (
-              <button type="button" className="btn btn-icon" aria-label={`Remove ${gate.scenes[scene][0]}`} title="Remove this scene" onClick={() => remove(scene)}>
-                ×
-              </button>
-            )}
-          </div>
-          <ol className="st-timeline">
-            {STAGES.map((k, i) => {
-              const t = cur[k];
-              const ls = first(t);
-              const same = i > 0 && turnsTo(cur[STAGES[i - 1]]) === turnsTo(t);
-              return (
-                <li key={k} className={`st-stage${k === liveStage ? " is-now" : ""}`}>
-                  <span className="st-dot" aria-hidden="true" />
-                  <span className="st-stage-name">
-                    <b>{STAGE_INFO[k].name}</b>
-                    {k === liveStage && <small>now</small>}
-                  </span>
-                  <button type="button" className={`st-look${edit?.scene === scene && edit.stage === k ? " is-open" : ""}`} onClick={() => setEdit({ scene, stage: k })} aria-label={`${STAGE_INFO[k].name}: ${turnsName(t)}. Change`}>
-                    <MiniScreen view={ls} flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={samples[k]} source="link" trail={[]} plan={feed.plan} />
-                    <span className="st-look-name">
-                      <b>{turning(t) ? `${layersName(ls)} and ${t.length > 1 ? `${t.length - 1} more` : "others"}` : layersName(ls)}</b>
-                      <span className="mono">{turnsCodes(t)}</span>
-                    </span>
-                    <span className="st-tags">
-                      {turning(t) && <span className="st-tag is-turn">rotates</span>}
-                      <span className="st-tag">{sizeName(ls[0])}</span>
-                      {ls.some((l) => VIEW_INFO[l.v].flip) && <span className="st-tag is-flip">flips</span>}
-                      {ls.length > 1 && <span className="st-tag">{ls.length} layers</span>}
-                      {same && <span className="st-tag is-same">same as before</span>}
-                    </span>
-                  </button>
-                  <small className="st-when">{STAGE_INFO[k].when}</small>
-                </li>
-              );
-            })}
-          </ol>
-          <div className="st-quick" role="group" aria-label="Quick changes">
-            <span className="ctl-label">Quick</span>
-            <button type="button" className="btn btn-sm" onClick={() => setStages(scene, allStages(cur[pvStage]))}>
-              {STAGE_INFO[pvStage].name}’s look all flight
-            </button>
-            <button type="button" className="btn btn-sm" onClick={() => setStages(scene, { ...cur, arrived: cur.ready })}>
-              Arrived = At the gate
-            </button>
-            <button type="button" className="btn btn-sm" onClick={() => setStages(scene, { ...cur, climb: cur.cruise })}>
-              Climb = Cruise
-            </button>
-            <button type="button" className="btn btn-sm" onClick={() => setStages(scene, { ...cur, approaching: cur.cruise })}>
-              Approaching = Cruise
-            </button>
-          </div>
-        </section>
-
-        {/* every scene × stage at a glance */}
-        <section className="st-card st-ov" aria-label="All scenes at a glance">
-          <h4 className="ctl-label">All scenes at a glance</h4>
+      {all && (
+        <section id="dk-all" className="st-ov" aria-label="All scenes at a glance">
           <div className="st-ov-grid" role="table">
             <div role="row" className="st-ov-row is-head">
               <span role="columnheader" />
@@ -299,39 +355,14 @@ export function StreamStudio({
             ))}
           </div>
         </section>
-      </div>
+      )}
 
-      {/* what OBS shows */}
-      <aside className="st-card st-pv" aria-label="What OBS shows">
-        <h4 className="ctl-label">What OBS shows · {nameOf(scene)}</h4>
-        <div className="seg st-pv-seg" role="radiogroup" aria-label="At which stage">
-          <button type="button" role="radio" aria-checked={pv === "now"} className="seg-btn" onClick={() => setPv("now")}>
-            Now
-          </button>
-          {STAGES.map((k) => (
-            <button type="button" role="radio" key={k} aria-checked={pv === k} className="seg-btn" onClick={() => setPv(k)}>
-              {STAGE_INFO[k].name}
-            </button>
-          ))}
-        </div>
-        <MiniScreen view={pvLayers} back={pvFlip ? (pvBack ?? (pv === "now" ? null : -1)) : -1} flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={pvLive} source={pv === "now" && feed.state ? feed.using : "link"} trail={pv === "now" ? feed.trail : []} plan={feed.plan} />
-        {pvFlip && (
-          <div className="seg st-pv-seg" role="radiogroup" aria-label="Which side of the flip card">
-            <button type="button" role="radio" aria-checked={pvBack == null} className="seg-btn" onClick={() => setPvBack(null)}>
-              Front
-            </button>
-            {pvFlip.backs.map((b, i) => (
-              <button type="button" role="radio" key={b} aria-checked={pvBack === i} className="seg-btn" onClick={() => setPvBack(i)}>
-                {BACKS.find((x) => x.k === b)?.name}
-              </button>
-            ))}
-          </div>
-        )}
-        <p className="muted small">
-          {nameOf(scene)} {pv === "now" ? (liveStage ? `now (${STAGE_INFO[liveStage].name.toLowerCase()})` : "now") : `at “${STAGE_INFO[pvStage].name}”, an example of this flight`}: {turnsName(pvTurns)}
-          {pvFlip ? `, turning over every ${mmss(pvFlip.every)} for ${mmss(pvFlip.hold)}` : ""}. The see-through parts show your game.
-        </p>
-      </aside>
+      <details className="dk-rs">
+        <summary>The recorded flight, stage by stage (OUT · OFF · ON · IN)</summary>
+        {rehearseStrip}
+      </details>
+
+      {arrived}
 
       {edit && (
         <LookEditor
@@ -350,14 +381,11 @@ export function StreamStudio({
           onClose={() => setEdit(null)}
         />
       )}
-    </div>
+    </section>
   );
 }
 
-function summary(st: StageTurns): string {
-  const u = [...new Set(STAGES.map((k) => turnsCodes(st[k])))];
-  return u.length === 1 ? `${turnsName(st.ready)} all flight` : u.join(" · ");
-}
+
 
 /** A tiny picture of where the look sits on the screen (the scenes list and the overview). */
 function Glyph({ ls }: { ls: Layers }) {
@@ -641,8 +669,8 @@ function LookEditor({
           {info.flip && (
             <fieldset className="st-field st-flip">
               <legend className="ctl-label">Back sides, in turn</legend>
-              {BACKS.map((b) => (
-                <label key={b.k} className={`st-check${b.ready ? "" : " is-later"}`}>
+              {BACKS.filter((b) => b.ready).map((b) => (
+                <label key={b.k} className="st-check">
                   <input
                     type="checkbox"
                     disabled={!b.ready}
@@ -651,7 +679,7 @@ function LookEditor({
                   />
                   <span>
                     {b.name}
-                    <small>{b.ready ? b.note : b.needs}</small>
+                    <small>{b.note}</small>
                   </span>
                 </label>
               ))}
@@ -677,7 +705,7 @@ function LookEditor({
                 <button type="button" role="radio" aria-checked={back == null} className="seg-btn" onClick={() => setBack(null)}>
                   Front
                 </button>
-                {cur.backs.map((b, i) => (
+                {shownBacks(cur.backs).map((b, i) => (
                   <button type="button" role="radio" key={b} aria-checked={back === i} className="seg-btn" onClick={() => setBack(i)}>
                     {BACKS.find((x) => x.k === b)?.name}
                   </button>

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { cityName, dur, isoDay, onDay } from "@/lib/data/flight";
@@ -13,7 +12,7 @@ import { placeOptions } from "@/lib/places";
 import { useAirframes } from "@/lib/simbrief";
 import { fetchForecast, hourAt, nearestHour } from "@/lib/wx/forecast";
 import { wmoText } from "@/lib/wx/category";
-import { depOn, isoDate, MIN, movements, nextDep, phases, type Movement, type PhaseKey, type Side } from "@/lib/board/board";
+import { depOn, isoDate, MIN, movements, nextDep, type Movement, type Side } from "@/lib/board/board";
 import {
   channelName,
   EMPTY_GATE,
@@ -23,6 +22,7 @@ import {
   fromSnapshot,
   gateFromParams,
   gateToParams,
+  PRESETS,
   streamSettingsFrom,
   streamSettingsQuery,
   type GateFlight,
@@ -38,37 +38,36 @@ import type { FlightContext } from "@/lib/feed/core";
 import { useObsScene } from "@/lib/feed/obs";
 import { sendRelay, useRelay } from "@/lib/feed/relay";
 import { CLOCK_FEED, feedFromParams, useFlightFeed, type FeedConfig } from "@/lib/feed/useFlightFeed";
-import { GateViewScreen, shownTurns } from "./board/GateViews";
-import { overSim as overSim_, stepAt } from "@/lib/board/looks";
-import { LogArrival, REHEARSE_REC, RehearseStrip, StreamPanel } from "./board/StreamPanel";
+import { GateViewScreen } from "./board/GateViews";
+import { useShownStep } from "./board/useShownStep";
+import { overSim as overSim_ } from "@/lib/board/looks";
+import { LogArrival, REHEARSE_REC, RehearseStrip } from "./board/StreamPanel";
+import { ScenesPreview } from "./board/StreamStudio";
+import { FlightCard, SendToObs, WrittenOn } from "./board/GateDesk";
 import { logFromFeed } from "@/lib/feed/toLog";
-import { KEYS, readJSON, writeJSON } from "@/lib/storage";
-import { goParam } from "@/lib/board/countdown";
+import { KEYS, readJSON } from "@/lib/storage";
 import { namedFlight } from "@/lib/board/naming";
 import { ENDING_KEY, endingRecord } from "@/lib/board/ending";
-import { localClock, screenNow, zoneLabel, type GateWx } from "./board/GateScreen";
+import { localClock, zoneLabel, type GateWx } from "./board/GateScreen";
 import { cx, radioKeys, roving } from "./ui";
 
 type Tab = "airport" | "gate";
 const HOURS = [3, 6, 12];
+/** 1.15: the app version a screen reports (from package.json at build time). */
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "";
+/** who/here: ask every 30 s, drop a screen after two missed answers, give a hello 6 s to be followed by its "here". */
+const WHO_EVERY_MS = 30_000;
+const SCREEN_GONE_MS = 65_000;
+const HERE_WAIT_MS = 6_000;
+/** A screen open now (OBS, the popup), as it said in its "here". */
+export interface OpenScreen {
+  id: string;
+  as: string | null;
+  view: string;
+  v: string | null;
+  seen: number;
+}
 const ROWS = 40;
-const SB_KEY = "ofp-planner:simbrief-user";
-const VIRTUAL = [5, 10, 15, 20, 25, 30, 45, 60, 90];
-
-const readSbUser = () => {
-  try {
-    return window.localStorage.getItem(SB_KEY) ?? "";
-  } catch {
-    return "";
-  }
-};
-const writeSbUser = (v: string) => {
-  try {
-    window.localStorage.setItem(SB_KEY, v);
-  } catch {
-    /* forgets */
-  }
-};
 
 /**
  * The board: an airport's departures or arrivals for the next hours, as a flight information
@@ -242,13 +241,13 @@ export function BoardApp() {
 
   const [snapFlight, setSnapFlight] = useState<FlightRow | null>(null);
   useEffect(() => {
-    if (!ready || !gate.f || gate.sb || !manifest) return;
+    if (!ready || !gate.f || (gate.sb && gate.fs !== "tt") || !manifest) return;
     let live = true;
     void findFlight(gate.f).then((f) => live && setSnapFlight(f));
     return () => {
       live = false;
     };
-  }, [ready, gate.f, gate.sb, manifest]);
+  }, [ready, gate.f, gate.sb, gate.fs, manifest]);
   const [ofp, setOfp] = useState<{ user: string; ofp: SbOfp | null; error: string | null } | null>(null);
   useEffect(() => {
     if (!ready || !gate.sb) return;
@@ -265,15 +264,19 @@ export function BoardApp() {
     return () => ctl.abort();
   }, [ready, gate.sb]);
 
+  // 1.15: which flight, Auto (the OFP, then the timetable flight, then the FMS or a watched pilot's
+  // plan) unless a source is pinned (fs=), so a link's sb= can't hide the flight being flown
+  const useOfp = !!gate.sb && (gate.fs == null || gate.fs === "ofp");
+  const useTt = !!gate.f && (gate.fs == null ? !gate.sb : gate.fs === "tt");
   const baseFlight = useMemo<GateFlight | null>(() => {
     if (!airports) return null;
-    if (gate.sb) return ofp?.user === gate.sb && ofp.ofp ? fromOfp(ofp.ofp, airports, airlines) : null;
-    if (!snapFlight || snapFlight.id !== gate.f) return null;
+    if (useOfp) return ofp?.user === gate.sb && ofp.ofp ? fromOfp(ofp.ofp, airports, airlines) : null;
+    if (!useTt || !snapFlight || snapFlight.id !== gate.f) return null;
     const f = applyFn(snapFlight, fnOv);
     const std = (gate.d ? depOn(f, gate.d) : null) ?? nextDep(f, minute - 30 * MIN);
     // block, taxi and typical lateness from the times of the day it departs
     return std != null ? fromSnapshot(onDay(f, isoDay(new Date(std))), std, airports, airlines.get(f.al) ?? null) : null;
-  }, [airports, airlines, gate.sb, gate.f, gate.d, ofp, snapFlight, fnOv, minute]);
+  }, [airports, airlines, useOfp, useTt, gate.sb, gate.f, gate.d, ofp, snapFlight, fnOv, minute]);
 
   // 1.9: a live feed (OFP Tower, a recorded flight or VATSIM) moves the screen with the aircraft
   const feedCtx = useMemo<FlightContext>(
@@ -293,24 +296,44 @@ export function BoardApp() {
   }, []);
   const obsLive = useObsScene();
   const obsScene = asScene ?? obsLive;
-  // with no Finder flight or OFP, the flight programmed in the aircraft's FMS (OFP Tower, Fenix)
+  // with no Finder flight or OFP (or pinned to it), the flight programmed in the aircraft's FMS (OFP
+  // Tower, Fenix), or the plan a watched VATSIM pilot filed
+  const usePlan = gate.fs == null ? !baseFlight && !gate.f && !gate.sb : gate.fs === "fms" || gate.fs === "vatsim";
   const planFlight = useMemo(
-    () => (!baseFlight && !gate.f && !gate.sb && live.plan && live.planAt != null ? fromPlan(live.plan, live.planAt, airports, airlines) : null),
-    [baseFlight, gate.f, gate.sb, live.plan, live.planAt, airports, airlines],
+    () => (usePlan && live.plan && live.planAt != null ? fromPlan(live.plan, live.planAt, airports, airlines) : null),
+    [usePlan, live.plan, live.planAt, airports, airlines],
   );
+  // the operator the names are kept under: the OFP's airline, the timetable flight's, else the
+  // flight number's letters (an FMS flight: EWG71W → EWG)
+  const airlineCode = useOfp
+    ? ofp?.user === gate.sb
+      ? ofp.ofp?.airline || null
+      : null
+    : useTt
+      ? snapFlight && snapFlight.id === gate.f
+        ? snapFlight.al
+        : null
+      : (planFlight && /^([A-Z0-9]{2,3}?)\d/.exec((planFlight.callsign ?? planFlight.flightNo).replace(/\s/g, ""))?.[1]) || null;
+  // 1.15: the names given for one airline show only on its flights (anf); names from before carry no airline and always show
+  const namesApply = !gate.anf || gate.anf === airlineCode;
   // 1.13: with the airline name and code the user gave (Wizz Air Malta, W4), over the data's
   const flight = useMemo(() => {
     const f = baseFlight ?? planFlight;
-    return f ? namedFlight(f, gate.an, gate.ac) : null;
-  }, [baseFlight, planFlight, gate.an, gate.ac]);
-  // the operator the names are remembered under: the OFP's airline, else the Finder flight's
-  const airlineCode = gate.sb ? (ofp?.user === gate.sb ? ofp.ofp?.airline || null : null) : snapFlight && snapFlight.id === gate.f ? snapFlight.al : null;
-  // a flight of an airline named before: its names come back (this browser only; the screen's URL carries them to OBS)
+    return f ? namedFlight(f, namesApply ? gate.an : "", namesApply ? gate.ac : "") : null;
+  }, [baseFlight, planFlight, gate.an, gate.ac, namesApply]);
+  // a flight of an airline named before: its names come back (this browser only; the relay and the link carry them to OBS)
   useEffect(() => {
     if (!airlineCode || screen) return;
     const saved = readJSON<Record<string, { an?: string; ac?: string }>>(KEYS.airlineNames, {})[airlineCode];
     // eslint-disable-next-line react-hooks/set-state-in-effect -- once per airline, from storage
-    if (saved) setGate((g) => (g.an || g.ac ? g : { ...g, an: saved.an ?? "", ac: saved.ac ?? "" }));
+    setGate((g) => {
+      if (g.anf === airlineCode) return g;
+      // names typed before 1.15 (no airline) stay until they're changed
+      if (!g.anf && (g.an || g.ac)) return g;
+      if (saved) return { ...g, an: saved.an ?? "", ac: saved.ac ?? "", anf: airlineCode };
+      // another airline's names: they don't show here, and stop being carried to OBS
+      return g.anf ? { ...g, an: "", ac: "", anf: "" } : g;
+    });
   }, [airlineCode, screen]);
 
   // 1.13: once down, keep the flight's ending (numbers and the line flown) for the ending screen, so
@@ -389,40 +412,94 @@ export function BoardApp() {
   // 1.10: the Stream panel's settings reach every open screen (OBS too) live through OFP Tower
   const relayOn = ready && (screen ? feedCfg.source === "link" || feedCfg.source === "auto" : tab === "gate");
   const latestGate = useRef(gate);
+  const latestWho = useRef<string | null>(feedCfg.who);
   useEffect(() => {
     latestGate.current = gate;
-  }, [gate]);
+    latestWho.current = feedCfg.who;
+  }, [gate, feedCfg.who]);
   // What the stream settings were when last sent, received or first seen. A panel sends only when the
   // owner changes them (never just for opening or loading a flight), so a fresh tab can't put its
   // defaults over OBS; screens and panels apply only complete settings (streamSettingsFrom).
   const relayKnown = useRef<string | null>(null);
   const relayChanged = useRef(false);
+  // 1.15: who/here. A screen says which scene it is and what it shows when the page asks ("who"),
+  // and when it connects; the page lists them (Send to OBS). A bare hello with no "here" is a page
+  // from before 1.15: "refresh this source".
+  const screenId = useRef("");
+  const screenAs = useRef<string | null>(null);
+  const [screens, setScreens] = useState<OpenScreen[]>([]);
+  const [olderSeen, setOlderSeen] = useState<number | null>(null);
+  const helloAt = useRef<number[]>([]);
+  const hereMsg = useCallback(
+    () => ({ kind: "here", id: screenId.current, as: screenAs.current, view: latestGate.current.view, v: APP_VERSION }),
+    [],
+  );
   const onRelay = useCallback(
     (m: Record<string, unknown>) => {
       if (m.kind === "settings" && typeof m.q === "string") {
         const s = streamSettingsFrom(m.q, Date.now());
         if (!s) return;
-        relayKnown.current = streamSettingsQuery({ ...latestGate.current, ...s });
+        // 1.15: the board's VATSIM callsign comes with its settings (sv=2), so a watched pilot reaches OBS
+        const q = new URLSearchParams(m.q);
+        const who = q.get("sv") === "2" ? (/^[A-Z0-9_-]{2,12}$/i.test(q.get("who") ?? "") ? q.get("who")!.toUpperCase() : null) : undefined;
+        relayKnown.current = streamSettingsQuery({ ...latestGate.current, ...s }, who === undefined ? latestWho.current : who);
         setGate((g) => ({ ...g, ...s }));
+        if (who !== undefined && who !== latestWho.current) setFeedCfg((c) => (c.source === "auto" || c.source === "vatsim" ? { ...c, who } : c));
+      }
+      if (screen) {
+        // only screens answer; they ignore one another's answers
+        if (m.kind === "who") sendRelay(hereMsg());
+        return;
       }
       // a screen that just connected asks for the current settings (OFP Tower also sends the last ones)
-      if (!screen && m.kind === "hello" && relayChanged.current) sendRelay({ kind: "settings", q: streamSettingsQuery(latestGate.current) });
+      if (m.kind === "hello") {
+        if (relayChanged.current) sendRelay({ kind: "settings", q: streamSettingsQuery(latestGate.current, latestWho.current) });
+        helloAt.current.push(Date.now());
+      }
+      if (m.kind === "here" && typeof m.id === "string" && m.id) {
+        const t = Date.now();
+        helloAt.current = helloAt.current.filter((h) => t - h > HERE_WAIT_MS);
+        const row: OpenScreen = { id: m.id.slice(0, 24), as: typeof m.as === "string" ? m.as.slice(0, 40) : null, view: typeof m.view === "string" ? m.view.slice(0, 200) : "full", v: typeof m.v === "string" ? m.v.slice(0, 16) : null, seen: t };
+        setScreens((l) => [...l.filter((x) => x.id !== row.id), row].sort((a, b) => a.id.localeCompare(b.id)));
+      }
     },
-    [screen],
+    [screen, hereMsg],
   );
   const relayOpen = useRelay(relayOn, onRelay);
   useEffect(() => {
-    if (relayOpen && screen) sendRelay({ kind: "hello" });
+    if (!relayOpen || !screen) return;
+    if (!screenId.current) screenId.current = Math.random().toString(36).slice(2, 10);
+    screenAs.current = new URLSearchParams(window.location.search).get("as")?.trim().slice(0, 40) || null;
+    sendRelay({ kind: "hello" });
+    sendRelay(hereMsg());
+  }, [relayOpen, screen, hereMsg]);
+  // the page asks on every (re)connect and every 30 s (OFP Tower keeps no answers; one can be dropped)
+  useEffect(() => {
+    if (!relayOpen || screen) return;
+    const ask = () => {
+      sendRelay({ kind: "who" });
+      const t = Date.now();
+      setScreens((l) => (l.some((x) => t - x.seen > SCREEN_GONE_MS) ? l.filter((x) => t - x.seen <= SCREEN_GONE_MS) : l));
+      // a hello that no "here" followed: a page from before 1.15
+      const old = helloAt.current.filter((h) => t - h > HERE_WAIT_MS);
+      if (old.length) {
+        setOlderSeen(old.at(-1)!);
+        helloAt.current = helloAt.current.filter((h) => t - h <= HERE_WAIT_MS);
+      }
+    };
+    ask();
+    const id = setInterval(ask, WHO_EVERY_MS);
+    return () => clearInterval(id);
   }, [relayOpen, screen]);
   useEffect(() => {
     if (!relayOpen || screen) return;
-    const q = streamSettingsQuery(gate);
+    const q = streamSettingsQuery(gate, feedCfg.who);
     if (relayKnown.current === null) relayKnown.current = q;
     else if (q !== relayKnown.current && sendRelay({ kind: "settings", q })) {
       relayKnown.current = q;
       relayChanged.current = true;
     }
-  }, [relayOpen, screen, gate]);
+  }, [relayOpen, screen, gate, feedCfg.who]);
 
   // keyboard on the screen itself (OBS "Interact", or the popup): ↑/↓ delay, 0 resets, C cancels, F full screen
   useEffect(() => {
@@ -449,24 +526,60 @@ export function BoardApp() {
     [screen, rehearse, flight, live.state, live.using, gate.reg, live.summary],
   );
 
-  // the Stream panel's URL: one browser source that follows the aircraft and the OBS scene
+  // the link for one browser source that follows the aircraft and the OBS scene (with as=, always that scene)
   const streamUrl = (as: string | null = null) => {
     const q = gateToParams({ ...gate, view: "auto" }, now, { tab: "gate", screen: "1", feed: "auto", who: feedCfg.who, as });
     return `${typeof window === "undefined" ? "" : window.location.origin}/board?${q}`;
   };
+  // 1.15: a link with one fixed look (the Countdown, the Ending, the preview's look)
+  const lookUrl = (view: string) => {
+    const q = gateToParams({ ...gate, view }, now, { tab: "gate", screen: "1", feed: "auto", who: feedCfg.who });
+    return `${typeof window === "undefined" ? "" : window.location.origin}/board?${q}`;
+  };
+  const [rehearseRate, setRehearseRate] = useState<number | null>(null);
+  // an OFP or a timetable flight on its way (the page would grow above the right column on a phone)
+  // and a live feed's first reading (at most 2.5 s): the controls fold by where the aircraft is
+  const [feedWait, setFeedWait] = useState(true);
+  useEffect(() => {
+    if (!ready) return;
+    const id = setTimeout(() => setFeedWait(false), 2500);
+    return () => clearTimeout(id);
+  }, [ready]);
+  const flightPending =
+    (!flight && ((useOfp && ofp?.user !== gate.sb) || (useTt && (!snapFlight || snapFlight.id !== gate.f)) || !airports)) ||
+    ((rehearse ?? feedCfg).source !== "clock" && !live.state && feedWait);
+  const [previewToken, setPreviewToken] = useState("");
+  // a scene a screen asks for (as=) that the page has no rule for: added as a gameplay scene (the
+  // pill, the map now and then, the strip), to change on the preview
+  const addScene = (name: string) => {
+    const preset = PRESETS.find((p) => p.name === "Pills, map now and then") ?? PRESETS[0];
+    patch({ scenes: [...gate.scenes, [name.replace(/[;:,]/g, "").slice(0, 40), preset.stages]] });
+  };
+  // registration: typed, else the OFP's, else a saved airframe of the type; the Logbook also takes OFP Tower's
+  const summaryReg = live.summary && flight && (live.summary.origin == null || live.summary.origin === flight.from.icao) ? live.summary.reg : null;
+  const regInfo = gate.reg
+    ? { value: gate.reg, from: "typed here" }
+    : flight?.reg
+      ? { value: flight.reg, from: "from your SimBrief OFP" }
+      : autoReg
+        ? { value: autoReg, from: "a saved airframe of the type (the screen); the Logbook takes OFP Tower’s" }
+        : summaryReg
+          ? { value: summaryReg, from: "from OFP Tower (the sim’s ATC ID), for the Logbook" }
+          : { value: null, from: "type one, load your OFP, or OFP Tower sends the sim’s at the gate" };
+  const logNote = !flight
+    ? "—"
+    : [
+        "OUT · OFF · ON · IN as they happen",
+        flight.source === "fms" ? "no STD/STA (a flight from the FMS has no schedule: load your OFP for them)" : flight.block != null ? `STD ${new Date(flight.stdMs).toISOString().slice(11, 16)}Z → STA ${new Date(flight.stdMs + flight.block * MIN).toISOString().slice(11, 16)}Z` : "STD only (no block time)",
+        gate.reg || flight.reg || summaryReg ? `reg ${gate.reg || flight.reg || summaryReg}` : "no registration yet",
+      ].join(" · ");
 
   /* ---------- screen only (stream source / popup) ---------- */
 
   // 1.14: a stage that rotates turns through its steps from when the stage (or scene) began
-  const shownT = shownTurns(gate, live.state, obsScene, live.plan);
-  // (reset while rendering when the key changes, from the page's clock: React's pattern for state that follows a prop)
-  const [turnFrom, setTurnFrom] = useState<{ key: string; at: number } | null>(null);
-  if (turnFrom?.key !== shownT.key) setTurnFrom({ key: shownT.key, at: now });
-  const turnAt = turnFrom?.key === shownT.key ? turnFrom.at : now;
-  const step = stepAt(shownT.turns, now - turnAt);
-  const shownStep = { ls: step.ls, key: `${shownT.key}#${step.i}.${step.alt}`, from: turnAt + step.from };
+  const shownStep = useShownStep(gate, live.state, obsScene, live.plan, now);
   // the views drawn over the sim are transparent outside their panels, like the overlay switch
-  const overSim = gate.overlay || overSim_(step.ls);
+  const overSim = gate.overlay || overSim_(shownStep.ls);
 
   if (screen) {
     if (!ready) return null;
@@ -637,96 +750,67 @@ export function BoardApp() {
             )}
 
             {ready && tab === "gate" && (
-              <div className="gt-split">
-                <div className="gt-preview">
-                  <div className="gs-frame" id="gs-preview">
-                    {flight ? (
-                      <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} trail={live.trail} plan={live.plan} summary={live.summary} step={shownStep} />
-                    ) : (
-                      <div className="gs-empty">
-                        <p>{gate.sb ? (ofp?.error ? `SimBrief: ${ofp.error}` : "Loading your SimBrief OFP…") : gate.f ? "Loading the flight…" : feedCfg.who ? (live.vatsim?.state === "live" ? `${feedCfg.who} is on VATSIM but hasn’t filed a flight plan` : (live.vatsim?.text ?? `Looking for ${feedCfg.who} on VATSIM…`)) : "No flight yet"}</p>
-                        {!gate.sb && !gate.f && live.link && (
-                          <p className="gs-empty-link">{live.link.state === "live" ? "OFP Tower connected · waiting for a route in the MCDU" : live.link.text}</p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {
-                    <div className="gt-actions">
-                      <button
-                        type="button"
-                        className="btn btn-primary"
-                        disabled={!flight}
-                        onClick={() => window.open(screenUrl(true), `gate-${ch}`, "popup,width=1280,height=720")}
-                        title="A window with only the screen, kept in step with these controls (capture it in OBS as a window)"
-                      >
-                        Open screen window
-                      </button>
-                      <CopyButton
-                        disabled={!flight}
-                        text={() => screenUrl(false)}
-                        label="Copy stream URL"
-                        title="For an OBS browser source at 1920×1080: the screen with these settings (the virtual clock starts again when the source loads)"
-                      />
-                      <button type="button" className="btn" disabled={!flight} onClick={() => void document.getElementById("gs-preview")?.requestFullscreen?.()}>
-                        Full screen
-                      </button>
-                    </div>
-                  }
-                </div>
-                <GateControls
-                  gate={gate}
-                  flight={flight}
-                  snap={snapFlight && snapFlight.id === gate.f ? snapFlight : null}
-                  now={now}
-                  autoReg={autoReg}
-                  airlineCode={airlineCode}
-                  dataFlight={baseFlight ?? planFlight}
-                  ofpError={gate.sb && ofp?.user === gate.sb ? ofp.error : null}
-                  onPatch={patch}
-                  onSet={setGate}
-                  watching={!gate.f && !gate.sb && feedCfg.who ? feedCfg.who : null}
-                  onWatch={(who) => {
-                    // another pilot on VATSIM: the flight comes from what they filed, the position from the feed
-                    setGate({ ...EMPTY_GATE, rotate: gate.rotate, overlay: gate.overlay, view: gate.view, stages: gate.stages, scenes: gate.scenes });
-                    setFeedCfg({ ...feedCfg, source: "auto", who });
-                  }}
-                />
-              </div>
-            )}
-            {/* after the flight has loaded: the controls above it are their full height by then */}
-            {ready && tab === "gate" && flight && (
-              <>
-                <StreamPanel
-                  gate={gate}
-                  flight={flight}
-                  feedCfg={feedCfg}
-                  feed={live}
-                  url={streamUrl()}
-                  urlFor={(as) => streamUrl(as)}
-                  now={now}
-                  wx={gateWx}
-                  relayOpen={relayOpen}
-                  onPatch={patch}
-                  onFeed={setFeedCfg}
-                  rehearse={
-                    <RehearseStrip
-                      gate={gate}
-                      ctx={feedCtx}
-                      rehearsing={!!rehearse}
+              <div className="dk">
+                <div className="dk-left">
+                  {flight ? (
+                    <ScenesPreview
+                      gate={shownGate}
+                      flight={flight}
+                      now={now}
+                      wx={gateWx}
                       feed={live}
-                      onPlay={(rate) => {
-                        setRehearse({ ...CLOCK_FEED, source: "replay", rec: REHEARSE_REC, rate, fit: true });
-                        if (gate.view === "full") patch({ view: "auto" });
-                      }}
-                      onStop={() => setRehearse(null)}
-                      onHold={(hold) => patch({ hold })}
+                      rehearsing={!!rehearse}
+                      canRehearse={rehearseRate != null}
+                      onRehearse={(play) => setRehearse(play && rehearseRate != null ? { ...CLOCK_FEED, source: "replay", rec: REHEARSE_REC, rate: rehearseRate, fit: true } : null)}
+                      rehearseStrip={<RehearseStrip gate={gate} ctx={feedCtx} rehearsing={!!rehearse} feed={live} onRate={setRehearseRate} onHold={(hold) => patch({ hold })} />}
+                      arrived={arrivedLog && <LogArrival entry={arrivedLog} />}
+                      onPatch={patch}
+                      onLook={setPreviewToken}
                     />
-                  }
-                />
-                {/* last on the page: it appears when the aircraft reaches the gate and moves nothing */}
-                {arrivedLog && <LogArrival entry={arrivedLog} />}
-              </>
+                  ) : (
+                    <div className="gs-frame" id="gs-preview">
+                      <div className="gs-empty">
+                        <p>{gate.sb && useOfp ? (ofp?.error ? `SimBrief: ${ofp.error}` : "Loading your SimBrief OFP…") : useTt ? "Loading the flight…" : feedCfg.who ? (live.vatsim?.state === "live" ? `${feedCfg.who} is on VATSIM but hasn’t filed a flight plan` : (live.vatsim?.text ?? `Looking for ${feedCfg.who} on VATSIM…`)) : "No flight yet"}</p>
+                        {usePlan && live.link && <p className="gs-empty-link">{live.link.state === "live" ? "OFP Tower connected · waiting for a route in the MCDU" : live.link.text}</p>}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {/* while the flight loads, the right column waits: it would only move down under it */}
+                {!flightPending && (
+                <div className="dk-right">
+                  <FlightCard
+                    gate={gate}
+                    flight={flight}
+                    dataFlight={baseFlight ?? planFlight}
+                    snap={snapFlight && snapFlight.id === gate.f ? snapFlight : null}
+                    now={now}
+                    feed={live}
+                    feedCfg={feedCfg}
+                    ofpError={gate.sb && ofp?.user === gate.sb ? ofp.error : null}
+                    reg={regInfo}
+                    logNote={logNote}
+                    onPatch={patch}
+                    onSet={setGate}
+                    onFeed={setFeedCfg}
+                  />
+                  {flight && <WrittenOn gate={gate} flight={flight} dataFlight={baseFlight ?? planFlight} now={now} left={!!live.state && (live.state.stage !== "ready" || live.state.stamps.out != null)} autoReg={autoReg} airlineCode={airlineCode} namesApply={namesApply} onPatch={patch} />}
+                  <SendToObs
+                    gate={gate}
+                    hasFlight={!!flight}
+                    relayOpen={relayOpen}
+                    screens={screens}
+                    olderSeen={olderSeen}
+                    version={APP_VERSION}
+                    streamUrl={streamUrl}
+                    lookUrl={lookUrl}
+                    previewToken={previewToken}
+                    onOpenWindow={() => window.open(screenUrl(true), `gate-${ch}`, "popup,width=1280,height=720")}
+                    onAddScene={addScene}
+                  />
+                </div>
+                )}
+              </div>
             )}
           </div>
         </section>
@@ -761,380 +845,3 @@ function Seg<T extends string>({ label, value, options, onChange }: { label: str
   );
 }
 
-function CopyButton({ text, label, title, disabled }: { text: () => string; label: string; title?: string; disabled?: boolean }) {
-  const [done, setDone] = useState(false);
-  return (
-    <button
-      type="button"
-      className="btn"
-      title={title}
-      disabled={disabled}
-      onClick={() => {
-        void navigator.clipboard?.writeText(text()).then(() => {
-          setDone(true);
-          setTimeout(() => setDone(false), 1600);
-        });
-      }}
-    >
-      {done ? "Copied" : label}
-    </button>
-  );
-}
-
-/* ---------- the gate screen's controls ---------- */
-
-const PIN_LABELS: [PhaseKey, string][] = [
-  ["scheduled", "On time / delayed"],
-  ["gate", "Go to gate"],
-  ["boarding", "Boarding"],
-  ["final", "Final call"],
-  ["closed", "Gate closed"],
-  ["ready", "Ready for pushback"],
-  ["pushback", "Pushback"],
-  ["lineup", "Lining up"],
-  ["takeoff", "Take-off"],
-  ["departed", "Departed"],
-];
-
-function GateControls({
-  gate,
-  flight,
-  snap,
-  now,
-  autoReg,
-  airlineCode,
-  dataFlight,
-  ofpError,
-  onPatch,
-  onSet,
-  watching,
-  onWatch,
-}: {
-  gate: GateState;
-  flight: GateFlight | null;
-  snap: FlightRow | null;
-  now: number;
-  autoReg: string | null;
-  /** The operator the airline's names are remembered under (the OFP's airline, the Finder flight's). */
-  airlineCode: string | null;
-  /** The flight as the data has it (without the user's names), for the placeholders. */
-  dataFlight: GateFlight | null;
-  ofpError: string | null;
-  onPatch: (p: Partial<GateState>) => void;
-  onSet: (g: GateState) => void;
-  /** The VATSIM callsign whose flight is on screen (no Finder flight or OFP). */
-  watching: string | null;
-  onWatch: (callsign: string | null) => void;
-}) {
-  const [vatsim, setVatsim] = useState(watching ?? "");
-  const [user, setUser] = useState(() => (typeof window === "undefined" ? "" : readSbUser()));
-  const [vin, setVin] = useState(25);
-  const [newGate, setNewGate] = useState("");
-  // the airline's names: on the screen now, and remembered for this airline's next flights
-  const nameAirline = (p: Pick<Partial<GateState>, "an" | "ac">) => {
-    onPatch(p);
-    if (!airlineCode) return;
-    const all = readJSON<Record<string, { an?: string; ac?: string }>>(KEYS.airlineNames, {});
-    const next = { an: gate.an, ac: gate.ac, ...p };
-    if (next.an || next.ac) all[airlineCode] = next;
-    else delete all[airlineCode];
-    writeJSON(KEYS.airlineNames, all);
-  };
-  const minToStd = flight ? Math.round(((flight.stdMs - screenNow(now, flight, gate)) / MIN) * 1) : null;
-  // the next operating dates of a snapshot flight, for the date menu
-  const hour = Math.floor(now / (60 * MIN));
-  const dates = useMemo(() => {
-    if (!snap) return [];
-    const out: number[] = [];
-    let from = hour * 60 * MIN - 60 * MIN;
-    for (let i = 0; i < 7; i++) {
-      const t = nextDep(snap, from);
-      if (t == null) break;
-      out.push(t);
-      from = t + MIN;
-    }
-    return out;
-  }, [snap, hour]);
-  const ps = flight ? phases(flight.types, flight.taxiOut) : [];
-
-  return (
-    <section className="gt-ctl" aria-label="Gate screen controls">
-      <fieldset className="gt-group">
-        <legend>Flight</legend>
-        {(flight || gate.f || gate.sb) && (
-          <p className="gt-flight">
-            {!flight && <span className="muted">Loading the flight…</span>}
-            {flight && (
-              <>
-                <b className="mono">{flight.flightNo}</b> {flight.from.iata ?? flight.from.icao} → {flight.to.iata ?? flight.to.icao} · {flight.airline}
-                {flight.source === "snapshot" && (
-                  <>
-                    {" "}
-                    ·{" "}
-                    <Link href={`/brief?f=${encodeURIComponent(gate.f ?? "")}`} className="linkish">
-                      Brief
-                    </Link>
-                  </>
-                )}
-              </>
-            )}
-          </p>
-        )}
-        {gate.f && !gate.sb && gate.stdAt == null && (
-          <label className="jr-ctl">
-            <span className="ctl-label">Date (UTC)</span>
-            <select className="ctl-input" value={gate.d ?? ""} onChange={(e) => onPatch({ d: e.target.value || null })}>
-              <option value="">Next departure</option>
-              {dates.map((t) => (
-                <option key={t} value={isoDate(t)}>
-                  {new Date(t).toUTCString().slice(0, 11)} · {new Date(t).toISOString().slice(11, 16)}Z
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        <form
-          className="gt-sb"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const u = user.trim();
-            if (!u) return;
-            writeSbUser(u);
-            onSet({ ...EMPTY_GATE, sb: u, rotate: gate.rotate, overlay: gate.overlay });
-          }}
-        >
-          <label className="jr-ctl">
-            <span className="ctl-label">SimBrief username</span>
-            <input className="ctl-input" value={user} onChange={(e) => setUser(e.target.value)} placeholder="Your SimBrief username" autoComplete="off" spellCheck={false} />
-          </label>
-          <button type="submit" className="btn" disabled={!user.trim()}>
-            {gate.sb ? "Reload OFP" : "Use my latest OFP"}
-          </button>
-          {gate.sb && (
-            <button type="button" className="btn" onClick={() => onSet({ ...EMPTY_GATE, rotate: gate.rotate, overlay: gate.overlay })}>
-              Forget OFP
-            </button>
-          )}
-        </form>
-        {ofpError && <p className="st-err">SimBrief: {ofpError}</p>}
-        <form
-          className="gt-sb"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const c = vatsim.trim().toUpperCase();
-            if (/^[A-Z0-9_-]{2,12}$/.test(c)) onWatch(c);
-          }}
-        >
-          <label className="jr-ctl">
-            <span className="ctl-label">A pilot on VATSIM</span>
-            <input className="ctl-input mono" value={vatsim} maxLength={12} onChange={(e) => setVatsim(e.target.value)} placeholder="Callsign, e.g. EWG50T" autoComplete="off" spellCheck={false} />
-          </label>
-          <button type="submit" className="btn" disabled={!/^[A-Za-z0-9_-]{2,12}$/.test(vatsim.trim())}>
-            {watching ? "Watch another" : "Watch"}
-          </button>
-          {watching && (
-            <button type="button" className="btn" onClick={() => onWatch(null)}>
-              Stop
-            </button>
-          )}
-        </form>
-        {watching && <p className="muted small">The flight is what {watching} filed on VATSIM, its position from the VATSIM feed (every 15 s). Only read; nothing is sent to VATSIM.</p>}
-        {!flight && !gate.sb && (
-          <p className="muted small">
-            Or pick a flight on the <b>Airport board</b>, or <b>Gate screen</b> on a flight in the <Link href="/">Finder</Link> or a leg in <Link href="/journeys">Journeys</Link>.
-          </p>
-        )}
-      </fieldset>
-
-      {flight && (
-        <>
-          <fieldset className="gt-group">
-            <legend>Clock</legend>
-            <div className="seg jr-seg" role="radiogroup" aria-label="Clock" onKeyDown={radioKeys}>
-              <button type="button" role="radio" aria-checked={gate.stdAt == null} tabIndex={roving(gate.stdAt == null, 0)} className="seg-btn" onClick={() => onPatch({ stdAt: null })}>
-                Real time
-              </button>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={gate.stdAt != null}
-                tabIndex={roving(gate.stdAt != null, 1)}
-                className="seg-btn"
-                onClick={() => onPatch({ stdAt: Math.floor(Date.now() / MIN) * MIN + vin * MIN })}
-              >
-                Virtual
-              </button>
-            </div>
-            <div className="gt-row">
-              <label className="jr-ctl">
-                <span className="ctl-label">STD in</span>
-                <select className="ctl-input" value={vin} onChange={(e) => setVin(Number(e.target.value))}>
-                  {VIRTUAL.map((m) => (
-                    <option key={m} value={m}>
-                      {m} min
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button type="button" className="btn" onClick={() => onPatch({ stdAt: Math.floor(Date.now() / MIN) * MIN + vin * MIN })}>
-                {gate.stdAt != null ? "Restart" : "Start"}
-              </button>
-            </div>
-            <p className="muted small">
-              {gate.stdAt != null
-                ? `The screen's clock runs so STD comes round in ${minToStd != null ? Math.max(0, minToStd) : "?"} min; the boarding steps play out live.`
-                : "The screen shows the flight's real date and time; pick Virtual to start the countdown when you go live."}
-            </p>
-          </fieldset>
-
-          <fieldset className="gt-group">
-            <legend>Status</legend>
-            <div className="gt-row">
-              <span className="gt-delay mono" aria-live="polite">
-                {gate.delay ? `+${gate.delay} min` : "On time"}
-              </span>
-              {[-5, 5, 15, 30].map((d) => (
-                <button key={d} type="button" className="btn" onClick={() => onPatch({ delay: Math.max(0, Math.min(600, gate.delay + d)) })} disabled={d < 0 && !gate.delay}>
-                  {d > 0 ? `+${d}` : d}
-                </button>
-              ))}
-              <button type="button" className="btn" onClick={() => onPatch({ delay: 0 })} disabled={!gate.delay}>
-                Reset
-              </button>
-            </div>
-            <label className="jr-ctl">
-              <span className="ctl-label">Step</span>
-              <select className="ctl-input" value={gate.pin ?? ""} onChange={(e) => onPatch({ pin: (e.target.value || null) as PhaseKey | null })}>
-                <option value="">Follow the clock</option>
-                {PIN_LABELS.map(([k, l]) => (
-                  <option key={k} value={k}>
-                    Hold on: {l}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="check">
-              <input type="checkbox" checked={gate.cancelled} onChange={(e) => onPatch({ cancelled: e.target.checked })} />
-              Cancelled
-            </label>
-            {ps.length > 0 && (
-              <p className="muted small">
-                Gate opens {Math.abs(ps[1].at)} min before off-block, boarding {Math.abs(ps[2].at)}, final call 20, gate closed 15; take-off after {ps[8].at} min of taxi.
-              </p>
-            )}
-          </fieldset>
-
-          <fieldset className="gt-group">
-            <legend>On the screen</legend>
-            <div className="gt-row">
-              <label className="jr-ctl">
-                <span className="ctl-label">Gate</span>
-                <input
-                  className="ctl-input gt-gate"
-                  value={gate.gate}
-                  maxLength={6}
-                  onChange={(e) => onPatch({ gate: e.target.value.toUpperCase().slice(0, 6), oldGate: "" })}
-                  placeholder="e.g. 12"
-                />
-              </label>
-              <label className="jr-ctl">
-                <span className="ctl-label">Gate change to</span>
-                <input className="ctl-input gt-gate" value={newGate} maxLength={6} onChange={(e) => setNewGate(e.target.value.toUpperCase().slice(0, 6))} placeholder="e.g. 14" />
-              </label>
-              <button
-                type="button"
-                className="btn"
-                disabled={!newGate || !gate.gate || newGate === gate.gate}
-                onClick={() => {
-                  onPatch({ oldGate: gate.gate, gate: newGate });
-                  setNewGate("");
-                }}
-              >
-                Change
-              </button>
-            </div>
-            <label className="jr-ctl">
-              <span className="ctl-label">Registration</span>
-              <input
-                className="ctl-input"
-                value={gate.reg}
-                maxLength={10}
-                onChange={(e) => onPatch({ reg: e.target.value.toUpperCase().slice(0, 10) })}
-                placeholder={flight.reg ?? autoReg ?? "e.g. G-ABCD"}
-              />
-            </label>
-            <div className="gt-row">
-              <label className="jr-ctl">
-                <span className="ctl-label">Airline name</span>
-                <input
-                  className="ctl-input"
-                  value={gate.an}
-                  maxLength={40}
-                  onChange={(e) => nameAirline({ an: e.target.value.slice(0, 40) })}
-                  placeholder={dataFlight?.airline ?? "e.g. Wizz Air Malta"}
-                />
-              </label>
-              <label className="jr-ctl">
-                <span className="ctl-label">Code in the flight number</span>
-                <input
-                  className="ctl-input gt-gate"
-                  value={gate.ac}
-                  maxLength={3}
-                  onChange={(e) => nameAirline({ ac: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 3) })}
-                  placeholder={dataFlight?.flightNo.split(/\s+/)[0] ?? "e.g. W4"}
-                />
-              </label>
-            </div>
-            {airlineCode && (gate.an || gate.ac) && <p className="muted small">Remembered for {airlineCode} flights in this browser; the screen&apos;s link carries them to OBS.</p>}
-            <label className="jr-ctl">
-              <span className="ctl-label">Message</span>
-              <input
-                className="ctl-input"
-                value={gate.msg}
-                maxLength={120}
-                onChange={(e) => onPatch({ msg: e.target.value.slice(0, 120) })}
-                placeholder="On the info strip, e.g. Welcome aboard!"
-              />
-            </label>
-            <label className="jr-ctl">
-              <span className="ctl-label">Countdown to the stream</span>
-              <input
-                className="ctl-input"
-                defaultValue={gate.go ?? ""}
-                maxLength={40}
-                onChange={(e) => onPatch({ go: goParam(e.target.value), goFrom: Date.now() })}
-                placeholder="5m · 19:30 · 19:30Z · std-30 (several: std-30,5m)"
-                aria-describedby="gt-go-note"
-              />
-            </label>
-            <p className="muted small" id="gt-go-note">
-              For the Countdown look. 5m counts from when the page loads: tick &ldquo;Refresh browser when scene becomes active&rdquo; on the OBS source and it starts
-              again each time. 19:30 is this PC&apos;s clock, 19:30Z UTC; std-30 is 30 min before the flight&apos;s off-block. The first that gives a time wins.
-            </p>
-            <label className="jr-ctl">
-              <span className="ctl-label">Sign-off</span>
-              <input
-                className="ctl-input"
-                value={gate.bye}
-                maxLength={140}
-                onChange={(e) => onPatch({ bye: e.target.value.slice(0, 140) })}
-                placeholder="On the Ending screen, e.g. Thanks for watching!"
-              />
-            </label>
-            <label className="check">
-              <input type="checkbox" checked={gate.rotate} onChange={(e) => onPatch({ rotate: e.target.checked })} />
-              Rotate the info strip (weather, flight facts, message)
-            </label>
-            <label className="check">
-              <input type="checkbox" checked={gate.overlay} onChange={(e) => onPatch({ overlay: e.target.checked })} />
-              Transparent around the screen (stream overlay)
-            </label>
-          </fieldset>
-          <p className="muted small gt-keys">
-            On the screen window: <kbd>↑</kbd>/<kbd>↓</kbd> delay ±5 min, <kbd>0</kbd> on time, <kbd>C</kbd> cancelled, <kbd>F</kbd> full screen.
-          </p>
-        </>
-      )}
-    </section>
-  );
-}
