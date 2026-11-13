@@ -60,6 +60,8 @@ export interface Look {
   belt: boolean;
   /** 1.13.3, strip and pills: the vertical speed (climbing and descending only, on the pills). */
   vs: boolean;
+  /** 1.14, flip cards: the back sides only, `hold` s each (a rotation step that shows the numbers or the plan). */
+  only: boolean;
 }
 
 export type ViewKind = "screen" | "box" | "bar" | "pill";
@@ -124,7 +126,7 @@ export const SIZES: { k: LookSize; name: string }[] = [
 
 export function look(v: ShownView, p: Partial<Omit<Look, "v">> = {}): Look {
   const i = VIEW_INFO[v];
-  return { v, size: "m", pos: i.pos, backs: i.flip ? ["numbers", "plan"] : [], every: 180, hold: 45, belt: !i.noBelt, vs: true, ...p };
+  return { v, size: "m", pos: i.pos, backs: i.flip ? ["numbers", "plan"] : [], every: 180, hold: 45, belt: !i.noBelt, vs: true, only: false, ...p };
 }
 
 /** A token as a look; null when its view isn't one. Unknown parts are skipped. */
@@ -143,6 +145,7 @@ export function lookFrom(token: string): Look | null {
     else if (p === "nb") l.belt = false;
     else if (p === "wb") l.belt = true;
     else if (p === "nvs") l.vs = false;
+    else if (p === "bo") l.only = true;
   }
   return l;
 }
@@ -157,6 +160,7 @@ export function lookTo(l: Look): string {
     if (l.backs.join() !== d.backs.join() && l.backs.length) out.push(`b${l.backs.map((b) => BACK_CODE[b]).join("")}`);
     if (l.every !== d.every) out.push(`e${l.every}`);
     if (l.hold !== d.hold) out.push(`h${l.hold}`);
+    if (l.only) out.push("bo");
   }
   if (l.belt !== d.belt) out.push(l.belt ? "wb" : "nb");
   if (!l.vs && SHOWS_VS.includes(l.v)) out.push("nvs");
@@ -179,3 +183,72 @@ export const sameLayers = (a: Layers, b: Layers) => layersTo(a) === layersTo(b);
 export const layers = (v: ShownView, p: Partial<Omit<Look, "v">> = {}): Layers => [look(v, p)];
 /** Drawn over the sim: every layer floats (nothing paints the whole screen). */
 export const overSim = (ls: Layers) => ls.every((l) => VIEW_INFO[l.v].kind !== "screen" || l.v === "frame" || l.v === "mapwin" || l.v === "ending");
+
+/* ---------- 1.14: rotations ---------- */
+
+/**
+ * A stage can turn through looks: steps in order, each shown for `secs`, round and round. A step
+ * can hold alternatives, one per time round (the map corner with the legs, then the numbers, …).
+ * In the URL: steps joined by ">", alternatives by "|", the seconds after "@":
+ *   line@240>g6a1.mr|g6b.mr.bn.bo@30>strip@120
+ * One step with one look is written as the look alone, so every token from before reads as it was.
+ */
+export interface Step {
+  alts: Layers[];
+  secs: number;
+}
+export type Turns = Step[];
+export const MAX_STEPS = 8;
+export const MAX_ALTS = 6;
+export const STEP_MIN_S = 10;
+export const STEP_MAX_S = 1800;
+export const STEP_DEFAULT_S = 60;
+const clampSecs = (n: number) => Math.max(STEP_MIN_S, Math.min(STEP_MAX_S, Math.round(n)));
+
+export const turnsOf = (ls: Layers, secs = STEP_DEFAULT_S): Turns => [{ alts: [ls], secs }];
+
+/** A stage's token as its turns; null when a part isn't a look. */
+export function turnsFrom(token: string): Turns | null {
+  const steps: Turns = [];
+  for (const part of token.split(">").slice(0, MAX_STEPS)) {
+    const at = part.lastIndexOf("@");
+    const body = at >= 0 ? part.slice(0, at) : part;
+    const secs = at >= 0 && /^\d{1,4}$/.test(part.slice(at + 1)) ? clampSecs(Number(part.slice(at + 1))) : STEP_DEFAULT_S;
+    const alts = body.split("|").slice(0, MAX_ALTS).map(layersFrom);
+    if (!alts.length || alts.some((a) => a == null)) return null;
+    steps.push({ alts: alts as Layers[], secs });
+  }
+  return steps.length ? steps : null;
+}
+
+export function turnsTo(t: Turns): string {
+  if (t.length === 1 && t[0].alts.length === 1) return layersTo(t[0].alts[0]);
+  return t.map((st) => `${st.alts.map(layersTo).join("|")}@${clampSecs(st.secs)}`).join(">");
+}
+export const sameTurns = (a: Turns, b: Turns) => turnsTo(a) === turnsTo(b);
+/** Turns through more than one look. */
+export const turning = (t: Turns) => t.length > 1 || t[0].alts.length > 1;
+
+/**
+ * What a stage shows `elapsed` ms after it began: the step (round and round), the alternative for
+ * this time round, and when that step began (ms into the stage), for a flip card's back sides.
+ */
+export function stepAt(t: Turns, elapsed: number): { ls: Layers; i: number; alt: number; from: number } {
+  if (!turning(t)) return { ls: t[0].alts[0], i: 0, alt: 0, from: 0 };
+  const cycle = t.reduce((n, st) => n + st.secs, 0) * 1000;
+  const e = Math.max(0, elapsed);
+  const round = Math.floor(e / cycle);
+  let r = e - round * cycle;
+  for (let i = 0; i < t.length; i++) {
+    const len = t[i].secs * 1000;
+    if (r < len || i === t.length - 1) {
+      const alt = round % t[i].alts.length;
+      return { ls: t[i].alts[alt], i, alt, from: e - r };
+    }
+    r -= len;
+  }
+  return { ls: t[0].alts[0], i: 0, alt: 0, from: 0 };
+}
+
+/** Every look a stage can show (for "is it all over the sim"). */
+export const allLayers = (t: Turns): Layers => t.flatMap((st) => st.alts.flat());

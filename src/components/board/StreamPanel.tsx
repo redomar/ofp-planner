@@ -16,7 +16,8 @@ export const REHEARSE_REC = "/recordings/kclt-kjfk.jsonl";
 const STAGE_NAMES: Record<ViewStage, { name: string; until: string }> = {
   ready: { name: "Getting ready", until: "the aircraft moves back" },
   taxi: { name: "Push-back and taxi", until: "wheels off" },
-  flying: { name: "Flying", until: "the approach" },
+  climb: { name: "Climb", until: "the cruise level" },
+  cruise: { name: "Cruise", until: "the approach" },
   approaching: { name: "Approach and landing", until: "parked, engines off" },
   arrived: { name: "Arrived", until: "you close it" },
 };

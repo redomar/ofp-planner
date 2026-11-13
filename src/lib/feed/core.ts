@@ -313,13 +313,24 @@ export type FlightStage = "ready" | "taxi" | "flying" | "arrived";
 /**
  * What the Stream grid has a row for (1.11): the detector's stages, with "approaching" cut out of
  * flying: on approach, descending below FL100, the FMS in its approach phase, and the landing roll
- * and taxi in until the gate.
+ * and taxi in until the gate. 1.14: flying is cut in two, the climb and the cruise (the descent
+ * above FL100 with it); "arrived" comes with the engines off and the seatbelt sign off, or 2 min
+ * after the sign goes off.
  */
-export type ViewStage = "ready" | "taxi" | "flying" | "approaching" | "arrived";
+export type ViewStage = "ready" | "taxi" | "climb" | "cruise" | "approaching" | "arrived";
+/** At the gate this long after the seatbelt sign goes off, engines or not (ms). */
+export const BELTS_OFF_GATE_MS = 2 * 60_000;
+/** Cruising: level within this of the planned cruise level (ft), else the detector's cruise at any level. */
+export const CRUISE_WITHIN_FT = 1_000;
 
 export function viewStage(st: FlightState, plan: FlightPlan | null = null): ViewStage {
   if (st.stage !== "flying") return st.stage;
   const s = st.last;
+  // landed: at the gate with the engines off and the sign off, or 2 min after the sign went off
+  if (st.stamps.on != null && s && st.beltsOffAt != null) {
+    const enginesOff = !!s.engines?.length && s.engines.every((e) => !e);
+    if (enginesOff || s.t - st.beltsOffAt >= BELTS_OFF_GATE_MS) return "arrived";
+  }
   if (st.phase === "approach" || st.phase === "landed" || st.phase === "taxiIn") return "approaching";
   // on the way down: below FL100 with the seatbelt sign on (both; unknown sign counts as on), or the FMS in its approach phase
   const belts = s?.seatbelts !== false;
@@ -327,7 +338,9 @@ export function viewStage(st: FlightState, plan: FlightPlan | null = null): View
   if (wentAround(st) && s && levelFt(s) < 10_000 && belts) return "approaching";
   if (st.phase === "descent" && s && levelFt(s) < 10_000 && belts) return "approaching";
   if (plan && /approach/i.test(plan.phase ?? "") && (st.phase === "descent" || st.phase === "cruise") && belts) return "approaching";
-  return "flying";
+  // the climb until the cruise: the FMS says so, or the detector saw it level at the planned level
+  // (a step climb later stays in the cruise; so does the descent above FL100)
+  return st.cruised || (plan && /cruise|descent|approach/i.test(plan.phase ?? "")) ? "cruise" : "climb";
 }
 
 export const STAGE_OF: Record<FlightPhase, FlightStage> = {
@@ -427,6 +440,10 @@ export interface FlightState {
   /** 1.13.3: the vertical speed smoothed over about VS_SMOOTH_MS (ft/min), and the reading it is from; null on the ground. */
   vsAvg: number | null;
   vsAt: number | null;
+  /** 1.14: reached the cruise (level near the planned level, or descending): the climb is over. */
+  cruised: boolean;
+  /** 1.14: after landing, when the seatbelt sign went off (ms); null while it's on. */
+  beltsOffAt: number | null;
 }
 
 /** The vertical speed shown: averaged over ~10 s so turbulence doesn't twitch it. */
@@ -473,6 +490,8 @@ export const startState = (): FlightState => ({
   parkedSince: null,
   vsAvg: null,
   vsAt: null,
+  cruised: false,
+  beltsOffAt: null,
 });
 
 const R_NM = 3440.065;
@@ -698,6 +717,17 @@ export function step(prev: FlightState, s: FeedSample, ctx: FlightContext = {}):
   // the cruise level, kept until the aircraft settles at another (a step climb) or lands
   if (phase === "cruise" && st.trend === "level" && (st.cruiseAlt == null || Math.abs(levelFt(s) - st.cruiseAlt) > RULE.leaveCruise)) st.cruiseAlt = levelFt(s);
   if (ground) st.cruiseAlt = null;
+  // 1.14: the climb is over once level near the planned cruise level (any level without a plan), or on the way down
+  const lvl = levelFt(s);
+  st.cruised =
+    !ground &&
+    (prev.cruised ||
+      (phase === "cruise" && (ctx.cruiseFt == null || lvl >= ctx.cruiseFt - CRUISE_WITHIN_FT)) ||
+      phase === "descent" ||
+      phase === "approach");
+  if (ground) st.cruised = st.stamps.on != null && prev.cruised;
+  // after landing: when the seatbelt sign went off (unknown keeps what was seen)
+  st.beltsOffAt = st.stamps.on == null || !ground ? null : s.seatbelts === false ? (prev.beltsOffAt ?? s.t) : s.seatbelts === true ? null : prev.beltsOffAt;
   // the vertical speed as shown: smoothed in the air, none on the ground
   st.vsAvg = ground ? null : smoothVs(prev.vsAvg, prev.vsAt, s.vs, s.t);
   st.vsAt = ground ? null : s.vs != null ? s.t : prev.vsAt;
