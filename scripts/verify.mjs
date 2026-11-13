@@ -1337,7 +1337,7 @@ async function run() {
     const ewg = { cid: 1000001, callsign: "EWG50T", latitude: 50.3, longitude: 6.1, altitude: 34000, groundspeed: 452, heading: 289, last_updated: new Date().toISOString(), flight_plan: { departure: "EDDM", arrival: "EGBB", altitude: "FL340", aircraft_short: "A320" } };
     const w = await start({ pilots: [ewg] });
     await w.page.goto(`${base}/board?tab=gate`, { waitUntil: "networkidle" });
-    await w.page.locator(".dk-flight .dk-card-h button").click();
+    // no flight yet: the sources are already open
     await w.page.getByRole("radio", { name: "Another pilot" }).click();
     await w.page.getByLabel("Their VATSIM callsign").fill("ewg50t");
     await w.page.getByRole("button", { name: "Watch", exact: true }).click();
@@ -1948,8 +1948,8 @@ async function run() {
     // controls: delay, gate change, message
     await statusAt({ in: "90", rot: "0" });
     await page.getByRole("button", { name: "+15", exact: true }).click();
-    await page.locator(".gt-ctl input[placeholder='e.g. 12']").fill("12");
-    await page.locator(".gt-ctl input[placeholder='e.g. 14']").fill("14");
+    await page.locator(".dk-right input[placeholder='e.g. 12']").fill("12");
+    await page.locator(".dk-right input[placeholder='e.g. 14']").fill("14");
     await page.getByRole("button", { name: "Change", exact: true }).click();
     const st = (await page.locator(".gs-status").innerText()).replace(/\s+/g, " ");
     /DELAYED/i.test(st) && /Gate change: 12 → 14/.test(st) && (await page.locator(".gs-gate b").textContent()) === "14" && /late=15/.test(page.url()) && /gate=14/.test(page.url())

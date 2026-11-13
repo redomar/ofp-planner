@@ -86,7 +86,8 @@ export function FlightCard({
   onSet: (g: GateState) => void;
   onFeed: (c: FeedConfig) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  // with no flight yet, the sources are open: that's where one comes from
+  const [open, setOpen] = useState(() => !flight);
   const [user, setUser] = useState(() => (typeof window === "undefined" ? "" : readSbUser()));
   const [pilot, setPilot] = useState(gate.fs === "vatsim" ? (feedCfg.who ?? "") : "");
   const [mine, setMine] = useState(gate.fs === "vatsim" ? "" : (feedCfg.who ?? ""));
@@ -140,7 +141,7 @@ export function FlightCard({
         <h3 id="dk-flight-h" className="ctl-label">
           Flight
         </h3>
-        <button type="button" className="linkish small" aria-expanded={open} aria-controls="dk-flight-src" onClick={() => setOpen((o) => !o)}>
+        <button type="button" className="linkish small" aria-expanded={open} aria-controls="dk-flight-src" aria-label={open ? "Done choosing the flight" : "Change where the flight comes from"} onClick={() => setOpen((o) => !o)}>
           {open ? "Done" : "Change"}
         </button>
       </div>

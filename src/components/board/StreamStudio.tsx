@@ -146,8 +146,10 @@ export function ScenesPreview({
   // what the chosen scene shows at the chosen stage: the aircraft's own state at the live stage,
   // an example of this flight at another; one rule with the screens (and their rotation clock)
   const pvStage: ViewStage = pv ?? liveStage ?? "ready";
-  const isLive = pvStage === liveStage && !!feed.state;
-  const pvLive = isLive ? feed.state : samples[pvStage];
+  // now: the aircraft's own state, or with no feed the screen's clock (the boarding steps); another stage: an example
+  const isNow = pv == null;
+  const isLive = isNow && !!feed.state;
+  const pvLive = isNow ? feed.state : samples[pvStage];
   const sceneName = scene === OTHER ? null : gate.scenes[scene][0];
   const step = useShownStep({ view: "auto", stages: gate.stages, scenes: gate.scenes, hold: pvStage }, pvLive, sceneName, feed.plan, now);
   const pvTurns = cur[pvStage];
