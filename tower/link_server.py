@@ -29,6 +29,7 @@ TRACK_EVERY_S = 30.0           # flown-path backlog: keep a point every 30 s ...
 TRACK_EVERY_NM = 2.0           # ... or every 2 nm ...
 TRACK_TURN_DEG = 10.0          # ... or after a 10 degree change of track (keeps turns round)
 TRACK_MAX = 3000               # thin to every other point above this (very long flights)
+SUMMARY_EVERY_S = 10.0         # flight summary: running figures (distance, max alt...) at most this often
 
 
 def _nm(a, b):
@@ -64,11 +65,13 @@ class TrackLog:
 
     def reset(self):
         self.points, self._last, self._course, self._landed = [], None, None, False
+        self._landed_z = self._rest_z = None
+        self._stopped = False
 
     def note_route(self, origin, destination):
         route = (origin or None, destination or None)
-        if self._route is not None and route != self._route and any(route):
-            self.reset()
+        if self._route is not None and route != self._route and any(route) and self._on_ground is not False:
+            self.reset()                             # airborne = a diversion: keep the flown path
         if any(route):
             self._route = route
 
@@ -80,9 +83,22 @@ class TrackLog:
             return
         on_ground = rec.get("onGround")
         if self._on_ground is False and on_ground is True:
-            self._landed = True
+            if not self._landed:
+                self._landed, self._landed_z, self._rest_z, self._stopped = True, zulu, None, False
+        elif on_ground is True and self._landed:
+            if (rec.get("gs") or 0) < 1:
+                self._rest_z = zulu if self._rest_z is None else self._rest_z
+                if (zulu - self._rest_z) % 86400 > 60:
+                    self._stopped = True
+            else:
+                self._rest_z = None
         elif self._on_ground is True and on_ground is False and self._landed:
-            self.reset()                             # next flight's take-off
+            # A bounce or a touch-and-go is the same flight; after a stop at the stand, or
+            # 10 min on the ground, this take-off starts the next flight.
+            if self._stopped or (zulu - self._landed_z) % 86400 > 600:
+                self.reset()
+            else:
+                self._landed = False
         self._on_ground = on_ground
         moving = (rec.get("gs") or 0) >= 3 or on_ground is False
         if not moving and self.points:
@@ -127,6 +143,11 @@ class LinkServer:
         self._saved = False
         self._track = TrackLog()
         self._track_lock = threading.Lock()
+        from summary import FlightSummary
+        self._summary = FlightSummary(self.hello)
+        self._summary_msg = None       # last summary sent
+        self._summary_key = None
+        self._summary_sent_at = 0.0
         try:   # the last Stream-panel settings survive a restart
             with open(self._settings_file, encoding="utf-8") as f:
                 txt = f.read()
@@ -166,7 +187,8 @@ class LinkServer:
         # publish() takes, so no sample can arrive before the backlog or fall between them.
         with self._track_lock:
             track_msg = self._track.message()
-            for extra in (self._plan_msg, track_msg, self._settings_msg):
+            summary_msg = self._summary.message()
+            for extra in (self._plan_msg, track_msg, summary_msg, self._settings_msg):
                 if extra:
                     try:
                         ws.send(extra)
@@ -225,14 +247,29 @@ class LinkServer:
             return False
         with self._track_lock:
             self._track.note_route(plan.get("origin"), plan.get("destination"))
-        self._plan_msg = msg
-        self._enqueue(msg)
+            self._summary.note_plan(plan)
+            self._plan_msg = msg
+            self._enqueue(msg)
+            self._send_summary()
         return True
 
     def publish(self, rec):
         with self._track_lock:
             self._track.add(rec)
+            self._summary.add(rec)
             self._enqueue(json.dumps({"type": "sample", **rec}))
+            self._send_summary()
+
+    def _send_summary(self, every=SUMMARY_EVERY_S):
+        """Event fields (times, runways, landing...) go out at once; running figures every 10 s."""
+        msg = self._summary.message()
+        if msg == self._summary_msg:
+            return
+        key = self._summary.key()
+        now = time.monotonic()
+        if key != self._summary_key or now - self._summary_sent_at >= every:
+            self._summary_msg, self._summary_key, self._summary_sent_at = msg, key, now
+            self._enqueue(msg)
 
     def _enqueue(self, msg, exclude=None):
         item = (msg, exclude)
