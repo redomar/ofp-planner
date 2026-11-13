@@ -220,6 +220,7 @@ def main():
     ap.add_argument("--dll", help="path to SimConnect.dll to use")
     ap.add_argument("--serve", action="store_true", help="also stream readings to OFP Planner (OFP Tower live link)")
     ap.add_argument("--port", type=int, default=47800, help="OFP Link port (default 47800)")
+    ap.add_argument("--no-probe", action="store_true", help="don't write probe/mcdu lines")
     args = ap.parse_args()
 
     sm = connect(args.dll)
@@ -261,6 +262,11 @@ def main():
         link.start()
         if profile and profile.get("name") == "Fenix":
             start_fenix_plan_thread(link, plan_q=plan_q)
+    # Automatic read-only probe for "Aircraft status" / "Flight deck" (see probe.py)
+    from probe import ProbeLog, PROBE_VARS, PROBE_EVERY_S, start_mcdu_thread
+    probe_log = None if args.no_probe else ProbeLog()
+    if probe_log and profile and profile.get("name") == "Fenix":
+        start_mcdu_thread(plan_q)            # MCDU pages go into the recording with the plan lines
 
     # pendingTd: touchdowns not yet written (a short bounce can put two between 1 Hz lines).
     # tdCount numbers the contacts of one landing: 1 = the landing, 2+ = bounces.
@@ -379,6 +385,10 @@ def main():
                     p["zulu"] = rec["zulu"]
                     f.write(json.dumps(p) + "\n")
                 f.write(json.dumps(rec) + "\n")
+                if probe_log and lines % PROBE_EVERY_S == 0:
+                    pl = probe_log.line(t_ms, rec["zulu"], sv.fetch(PROBE_VARS))
+                    if pl:
+                        f.write(json.dumps(pl) + "\n")
                 f.flush()
                 if link:
                     link.publish(rec)
