@@ -38,15 +38,16 @@ _WPT_LINE = re.compile(r"^[gwyamcb]?([A-Z0-9]{2,8})[&£¢]*(?=[\sgwsl])")
 _ALT_CON = re.compile(r"/[^/]*?ms?([+\-]?)(FL\d{3}|\d{3,5})")
 
 
-def read_values(timeout=6.0):
-    doc = "subscription { dataRefs(names: %s) { name value } }" % json.dumps(NAMES)
+def read_values(timeout=6.0, names=None):
+    names = names or NAMES
+    doc = "subscription { dataRefs(names: %s) { name value } }" % json.dumps(names)
     got = {}
     with connect(GATEWAY, subprotocols=["graphql-transport-ws"], open_timeout=5) as ws:
         ws.send(json.dumps({"type": "connection_init", "payload": {}}))
         ws.recv(timeout=5)
         ws.send(json.dumps({"id": "1", "type": "subscribe", "payload": {"query": doc}}))
         end = time.time() + timeout
-        while time.time() < end and len(got) < len(NAMES):
+        while time.time() < end and len(got) < len(names):
             try:
                 m = json.loads(ws.recv(timeout=max(0.1, end - time.time())))
             except TimeoutError:

@@ -23,6 +23,8 @@ for path in sys.argv[1:]:
                 headers.append((path.split("\\")[-1], o)); continue
             if o.get("type") == "plan":          # MCDU plan written when it changed
                 plans.append(o); continue
+            if o.get("type") is not None:        # probe / mcdu lines: see probe_report.py
+                continue
             if "t" in o:
                 o["_file"] = path.split("\\")[-1]
                 rows.append(o)
