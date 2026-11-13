@@ -201,7 +201,9 @@ the release, targeted sections per step.
 relayed; (3) add the "Livestream" scene on the page (Send to OBS offers "Add scene", which makes it
 with the "Pills, map now and then" preset, the owner's pills-then-strip idea); (4) the owner doesn't
 remember "Flight tracker": hide it (the PC session switches it off, with the owner's OK there) and
-delete it later; (5) not answered yet.
+delete it later (done: switched off in all four scenes, renamed "Flight tracker - niu", not deleted yet); (5) yes,
+the routine is right: OFP Tower, OBS, Start Screen with the countdown, Flying, BRB as needed, Ending Screen,
+then the Logbook.
 
 As built (corrections to the plan): `hello` also stays a screen's first message; a 1.15 screen sends
 its `here` right after it, unasked. The VATSIM callsign (`who`) is relayed with `sv=2` too, so a
