@@ -424,6 +424,30 @@ export interface FlightState {
   entered: Partial<Record<FlightPhase, number>>;
   /** Seconds parked with engines off after landing (feeds without engine state need a wait). */
   parkedSince: number | null;
+  /** 1.13.3: the vertical speed smoothed over about VS_SMOOTH_MS (ft/min), and the reading it is from; null on the ground. */
+  vsAvg: number | null;
+  vsAt: number | null;
+}
+
+/** The vertical speed shown: averaged over ~10 s so turbulence doesn't twitch it. */
+export const VS_SMOOTH_MS = 10_000;
+/** Within this (ft/min) it reads "Level". */
+export const VS_LEVEL = 200;
+
+/** One reading into the smoothed vertical speed (an exponential average, time constant VS_SMOOTH_MS). */
+export function smoothVs(avg: number | null, at: number | null, vs: number | null, t: number): number | null {
+  if (vs == null) return avg;
+  const dt = at == null ? Infinity : t - at;
+  if (avg == null || dt <= 0 || dt > 60_000) return vs;
+  return avg + (1 - Math.exp(-dt / VS_SMOOTH_MS)) * (vs - avg);
+}
+
+/** "↑ 2,400", "↓ 1,800" or "Level" (rounded to 100 ft/min); null without one. */
+export function vsText(vs: number | null): { dir: "up" | "down" | "level"; text: string } | null {
+  if (vs == null || !Number.isFinite(vs)) return null;
+  if (Math.abs(vs) < VS_LEVEL) return { dir: "level", text: "Level" };
+  const n = (Math.round(Math.abs(vs) / 100) * 100).toLocaleString("en-GB");
+  return vs > 0 ? { dir: "up", text: `↑ ${n}` } : { dir: "down", text: `↓ ${n}` };
 }
 
 /** "-776 fpm · 1 bounce": the landing as the screens show it; null before one. */
@@ -447,6 +471,8 @@ export const startState = (): FlightState => ({
   airborne: false,
   entered: {},
   parkedSince: null,
+  vsAvg: null,
+  vsAt: null,
 });
 
 const R_NM = 3440.065;
@@ -672,6 +698,9 @@ export function step(prev: FlightState, s: FeedSample, ctx: FlightContext = {}):
   // the cruise level, kept until the aircraft settles at another (a step climb) or lands
   if (phase === "cruise" && st.trend === "level" && (st.cruiseAlt == null || Math.abs(levelFt(s) - st.cruiseAlt) > RULE.leaveCruise)) st.cruiseAlt = levelFt(s);
   if (ground) st.cruiseAlt = null;
+  // the vertical speed as shown: smoothed in the air, none on the ground
+  st.vsAvg = ground ? null : smoothVs(prev.vsAvg, prev.vsAt, s.vs, s.t);
+  st.vsAt = ground ? null : s.vs != null ? s.t : prev.vsAt;
   if (phase !== prev.phase || prev.last == null) st.entered = { ...prev.entered, [phase]: prev.entered[phase] ?? s.t };
   st.phase = phase;
   st.stage = STAGE_OF[phase];

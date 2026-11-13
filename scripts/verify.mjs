@@ -663,6 +663,23 @@ async function run() {
           ? pass("gate feed: OFP Tower's summary and track read, the ending kept per flight for 24 h, block 1h51 / air 1h34 / 6 min late, landings Butter → Hard, the airline renamed (W4 5PL)")
           : fail(`gate feed: ending ${JSON.stringify({ sum: sum && [sum.depRunway, sum.arrRunway, sum.fpm], bad: bad && [bad.off, bad.fpm, bad.depRunway], trk: trk.length, merged: merged.length, x: [x.block, x.air, x.late], back: !!back, other, stale, feels, named: [named.airline, named.flightNo] })}`);
       }
+      // 1.13.3: the vertical speed smoothed (bumps of ±300 fpm don't twitch it), level within ±200, none on the ground
+      {
+        let st = core.startState();
+        st = { ...st, airborne: true, phase: "climb", stage: "flying" };
+        const smp = (t, vs, ground = false) => ({ t, lat: 51, lon: 0, alt: 20_000, pressAlt: 20_000, indAlt: null, gs: 400, hdg: 90, vs, onGround: ground, parkBrake: false, engines: [true, true], beacon: true, doors: null, seatbelts: true, noSmoking: null, landingRate: null, tdSim: null, hdgMag: null, fobKg: null, ffKgH: null });
+        const shown = [];
+        for (let i = 0; i < 40; i++) {
+          st = core.step(st, smp(1e12 + i * 1000, i % 2 ? 2100 : 2700));
+          if (i >= 30) shown.push(core.vsText(st.vsAvg).text);
+        }
+        const groundAfter = core.step(st, smp(1e12 + 41_000, 0, true)).vsAvg;
+        const t = (v) => core.vsText(v)?.text;
+        const ok = new Set(shown).size === 1 && shown[0] === "↑ 2,400" && t(150) === "Level" && t(-190) === "Level" && t(-1849) === "↓ 1,800" && t(null) === undefined && groundAfter === null && core.smoothVs(null, null, 900, 5) === 900 && core.smoothVs(100, 0, 1000, 120_000) === 1000;
+        ok
+          ? pass("gate feed: vertical speed smoothed (2,100/2,700 bumps read ↑ 2,400 steady), Level within ±200, none on the ground")
+          : fail(`gate feed: vertical speed ${JSON.stringify({ shown: [...new Set(shown)], l: [t(150), t(-190), t(-1849)], groundAfter })}`);
+      }
       // 1.13.2: "Write to my Logbook" after EWG71W EGBB→EDDL (13 Nov) had no registration and no STA. The
       // board had the flight from the Fenix's FMS (no schedule, no reg): the reg now comes from OFP Tower's
       // summary, and an FMS flight writes no STD/STA rather than when its plan first came
@@ -1004,6 +1021,37 @@ async function run() {
         : fail(`gate views: strip.xs ${JSON.stringify({ hx, hs, tiny: tiny.slice(0, 4) })}`);
       await xs.ctx.close();
       await sm.ctx.close();
+    }
+    // 1.13.3: the vertical speed on the strip and the pills, from a stand-in OFP Tower climbing at ~2,400 fpm
+    {
+      const vsPage = async (look) => {
+        const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, reducedMotion: "reduce" });
+        await ctx.addInitScript(SEED);
+        await ctx.route(/simbrief\.com\/api\/xml\.fetcher\.php/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(OFP) }));
+        const zs = (ms) => (ms % 86400000) / 1000;
+        await ctx.routeWebSocket(/localhost:47800/, (ws) => {
+          ws.send(JSON.stringify({ type: "hello", app: "OFP Tower" }));
+          const t0 = Date.now() - 30_000;
+          // bumpy: 2,100 to 2,700 fpm, the shown figure smoothed
+          for (let i = 0; i <= 30; i++)
+            ws.send(JSON.stringify({ type: "sample", lat: 35.5 + i * 0.01, lon: -80.6, alt: 12_000 + i * 40, pressAlt: 12_000 + i * 40, gs: 330, hdg: 40, vs: i % 2 ? 2100 : 2700, onGround: false, engines: [true, true], seatbelts: true, zulu: zs(t0 + i * 1000) }));
+        });
+        const page = await ctx.newPage();
+        await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&feed=link&view=${look}`, { waitUntil: "networkidle" });
+        await page.waitForFunction(() => /↑/.test(document.querySelector(".gv-over")?.textContent ?? ""), null, { timeout: 15_000 }).catch(() => {});
+        const text = (await page.locator(".gv-over").first().innerText().catch(() => "")).replace(/\s+/g, " ");
+        const wide = await page.evaluate(() => Math.round(document.querySelector(".gv-over > *")?.getBoundingClientRect().right ?? 0));
+        await ctx.close();
+        return { text, wide };
+      };
+      const strip = await vsPage("strip");
+      const xs = await vsPage("strip.xs");
+      const pill = await vsPage("pill");
+      const line = await vsPage("line");
+      const off = await vsPage("pill.nvs");
+      /V\/S ↑ 2,400 fpm/i.test(strip.text) && /↑ 2,400/.test(xs.text) && xs.wide <= 1920 && /FL1\d\d ↑2,400/.test(pill.text) && /FL1\d\d ↑2,400/.test(line.text) && !/↑/.test(off.text) && /EZY|U2|\d/.test(off.text)
+        ? pass(`gate views: vertical speed, smoothed: strip "V/S ↑ 2,400 fpm", pills "${pill.text.match(/FL\d+ ↑[\d,]+/)?.[0]}", off with .nvs`)
+        : fail(`gate views: vertical speed ${JSON.stringify({ strip: strip.text, xs, pill: pill.text, line: line.text, off: off.text })}`);
     }
     // 1.13: the countdown look: the gate screen with a big clock to the stream's start, "Starting now" from zero
     {

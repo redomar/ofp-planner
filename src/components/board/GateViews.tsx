@@ -9,7 +9,7 @@ import type { GateFlight, GateState } from "@/lib/board/gate";
 import { goTarget } from "@/lib/board/countdown";
 import { ENDING_KEY, endStats, landingFeel, readEnding, routeKey, type EndingRecord } from "@/lib/board/ending";
 import { BACKS, layers, layersFrom, layersTo, VIEW_INFO, type Layers, type Look, type LookBack, type ShownView } from "@/lib/board/looks";
-import { bearing, distNm, fmsArrival, routeBefore, steadyTime, landingText, levelFt, phaseLabel, utcAt, wentAround, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState, type FlightSummary } from "@/lib/feed/core";
+import { bearing, distNm, fmsArrival, routeBefore, steadyTime, landingText, levelFt, phaseLabel, utcAt, wentAround, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState, type FlightSummary, vsText } from "@/lib/feed/core";
 import { useOutlines } from "@/lib/outlines";
 import { useTerrain } from "@/lib/terrain";
 import { baseLayers, mapRadius } from "../RouteMap";
@@ -65,6 +65,8 @@ export interface LiveFacts {
   flown: number;
   pos: { lat: number; lon: number } | null;
   hdg: number | null;
+  /** 1.13.3: the vertical speed, smoothed ("↑ 2,400", "Level"); null on the ground or without a feed. */
+  vs: { dir: "up" | "down" | "level"; text: string } | null;
 }
 
 const fmsLine = (f: GateFlight) => [`${f.from.iata ?? f.from.icao} → ${f.to.iata ?? f.to.icao}`, f.cruiseFt ? `cruise ${fl(f.cruiseFt)}` : null].filter(Boolean).join(" · ");
@@ -120,6 +122,7 @@ export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null,
       flown: 0,
       pos: null,
       hdg: null,
+      vs: null,
     };
   }
   const air = live.stage === "flying" && live.phase !== "landed" && live.phase !== "taxiIn";
@@ -169,6 +172,7 @@ export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null,
     flown,
     pos: { lat: s.lat, lon: s.lon },
     hdg: s.hdg,
+    vs: air ? vsText(live.vsAvg ?? s.vs) : null,
   };
 }
 
@@ -1272,6 +1276,7 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null }) {
           <Progress f={f} facts={facts} showToGo={false} />
           <Tile k="Level" v={facts.alt} />
           <Tile k="Speed" v={facts.gs} unit="kt" />
+          {lk.vs && <Tile k="V/S" v={facts.vs?.text ?? null} unit={facts.vs && facts.vs.dir !== "level" ? "fpm" : undefined} />}
           <div className={`gv-strip-st gs-${facts.tone}`} aria-live="polite">
             <small>{facts.minLeft != null ? `${facts.status} · landing in` : facts.status}</small>
             <b className="mono">{facts.minLeft != null ? mins(facts.minLeft) : (facts.line ?? facts.status)}</b>
@@ -1283,6 +1288,8 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null }) {
 
   // card and pill (G5)
   const togo = facts.minLeft != null ? `${mins(facts.minLeft)} to go` : facts.line;
+  // 1.13.3: climbing or descending, the level and the vertical speed ("FL120 ↑2,400")
+  const vsBit = lk.vs && facts.vs && facts.vs.dir !== "level" && facts.alt ? ` · ${facts.alt} ${facts.vs.text.replace(" ", "")}` : "";
   if (v2 === "line") {
     // G5b: one row, the phase in its own colour
     return (
@@ -1294,6 +1301,7 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null }) {
           <span>
             {f.flightNo} · {f.from.iata ?? f.from.icao} → {f.to.iata ?? f.to.icao}
             {togo ? ` · ${togo}` : ""}
+            {vsBit}
           </span>
           {lk.belt && <Belt live={p.live} />}
           <b className={`gv-line-phase gs-${facts.tone}`}>{facts.status}</b>
@@ -1311,6 +1319,7 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null }) {
           <span>
             {f.flightNo} · {f.from.iata ?? f.from.icao} → {f.to.iata ?? f.to.icao}
             {togo ? ` · ${togo}` : ` · ${facts.status}`}
+            {vsBit}
           </span>
           {lk.belt && <Belt live={p.live} />}
         </div>

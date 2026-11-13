@@ -37,6 +37,9 @@ export const VIEWS = [
 export type ShownView = (typeof VIEWS)[number];
 export const isView = (v: string): v is ShownView => (VIEWS as readonly string[]).includes(v);
 
+/** The looks that can show the vertical speed. */
+export const SHOWS_VS: ShownView[] = ["strip", "pill", "line"];
+
 export type LookSize = "xs" | "s" | "m" | "l";
 export type LookPos = "tl" | "tc" | "tr" | "ml" | "mr" | "bl" | "bc" | "br";
 export const POSITIONS: LookPos[] = ["tl", "tc", "tr", "ml", "mr", "bl", "bc", "br"];
@@ -55,6 +58,8 @@ export interface Look {
   hold: number;
   /** The seatbelt sign while it's on. */
   belt: boolean;
+  /** 1.13.3, strip and pills: the vertical speed (climbing and descending only, on the pills). */
+  vs: boolean;
 }
 
 export type ViewKind = "screen" | "box" | "bar" | "pill";
@@ -119,7 +124,7 @@ export const SIZES: { k: LookSize; name: string }[] = [
 
 export function look(v: ShownView, p: Partial<Omit<Look, "v">> = {}): Look {
   const i = VIEW_INFO[v];
-  return { v, size: "m", pos: i.pos, backs: i.flip ? ["numbers", "plan"] : [], every: 180, hold: 45, belt: !i.noBelt, ...p };
+  return { v, size: "m", pos: i.pos, backs: i.flip ? ["numbers", "plan"] : [], every: 180, hold: 45, belt: !i.noBelt, vs: true, ...p };
 }
 
 /** A token as a look; null when its view isn't one. Unknown parts are skipped. */
@@ -137,6 +142,7 @@ export function lookFrom(token: string): Look | null {
     else if (/^h\d{1,3}$/.test(p)) l.hold = Math.max(10, Math.min(300, Number(p.slice(1))));
     else if (p === "nb") l.belt = false;
     else if (p === "wb") l.belt = true;
+    else if (p === "nvs") l.vs = false;
   }
   return l;
 }
@@ -153,6 +159,7 @@ export function lookTo(l: Look): string {
     if (l.hold !== d.hold) out.push(`h${l.hold}`);
   }
   if (l.belt !== d.belt) out.push(l.belt ? "wb" : "nb");
+  if (!l.vs && SHOWS_VS.includes(l.v)) out.push("nvs");
   return out.join(".");
 }
 

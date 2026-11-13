@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { allStages, PRESETS, STAGES, type GateFlight, type GateState, type SceneRule } from "@/lib/board/gate";
-import { BACKS, look, layersFrom, layersTo, MAX_LAYERS, SIZES, VIEW_GROUPS, VIEW_INFO, type Layers, type Look, type LookPos, type ShownView } from "@/lib/board/looks";
+import { BACKS, look, layersFrom, layersTo, MAX_LAYERS, SHOWS_VS, SIZES, VIEW_GROUPS, VIEW_INFO, type Layers, type Look, type LookPos, type ShownView } from "@/lib/board/looks";
 import { viewStage, type FlightState, type ViewStage } from "@/lib/feed/core";
 import type { FlightFeed } from "@/lib/feed/useFlightFeed";
 import { MiniScreen, sampleLive } from "./GateViews";
@@ -619,6 +619,15 @@ function LookEditor({
               <span>
                 Seatbelt sign
                 <small>A small lit sign while it’s on in the aircraft.</small>
+              </span>
+            </label>
+          )}
+          {SHOWS_VS.includes(cur.v) && (
+            <label className="st-check">
+              <input type="checkbox" checked={cur.vs} onChange={(e) => setCur({ vs: e.target.checked })} />
+              <span>
+                Vertical speed
+                <small>{cur.v === "strip" ? "Climbing ↑, descending ↓ or level, in ft/min." : "The level and ↑ or ↓ ft/min while climbing or descending."}</small>
               </span>
             </label>
           )}
