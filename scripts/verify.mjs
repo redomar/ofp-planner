@@ -554,9 +554,9 @@ async function run() {
       order.every((p, i) => seen.includes(p) && (i === 0 || seen.indexOf(order[i - 1]) < seen.indexOf(p)))
         ? pass(`gate feed: phases in order (${seen.join(" → ")})`)
         : fail(`gate feed: phases ${seen.join(" → ")}`);
-      // 1.11: the grid's stages, approaching cut out of flying (below FL100 on the way down, on approach, landing)
+      // 1.11: the grid's stages, approaching cut out of flying (below FL100 on the way down, on approach, landing); 1.14: flying cut into the climb (it starts at FL284 climbing) and the cruise
       const vstages = [...new Set(states.map((x) => core.viewStage(x)))];
-      vstages.join(" → ") === "flying → approaching → arrived"
+      vstages.join(" → ") === "climb → cruise → approaching → arrived"
         ? pass(`gate feed: grid stages ${vstages.join(" → ")}`)
         : fail(`gate feed: grid stages ${vstages.join(" → ")}`);
       // 1.10.3: flight levels from pressure altitude; level at the FMS's cruise level = cruising after 20 s
@@ -663,6 +663,73 @@ async function run() {
           ? pass("gate feed: OFP Tower's summary and track read, the ending kept per flight for 24 h, block 1h51 / air 1h34 / 6 min late, landings Butter → Hard, the airline renamed (W4 5PL)")
           : fail(`gate feed: ending ${JSON.stringify({ sum: sum && [sum.depRunway, sum.arrRunway, sum.fpm], bad: bad && [bad.off, bad.fpm, bad.depRunway], trk: trk.length, merged: merged.length, x: [x.block, x.air, x.late], back: !!back, other, stale, feels, named: [named.airline, named.flightNo] })}`);
       }
+      // 1.13.3: the vertical speed smoothed (bumps of ±300 fpm don't twitch it), level within ±200, none on the ground
+      {
+        let st = core.startState();
+        st = { ...st, airborne: true, phase: "climb", stage: "flying" };
+        const smp = (t, vs, ground = false) => ({ t, lat: 51, lon: 0, alt: 20_000, pressAlt: 20_000, indAlt: null, gs: 400, hdg: 90, vs, onGround: ground, parkBrake: false, engines: [true, true], beacon: true, doors: null, seatbelts: true, noSmoking: null, landingRate: null, tdSim: null, hdgMag: null, fobKg: null, ffKgH: null });
+        const shown = [];
+        for (let i = 0; i < 40; i++) {
+          st = core.step(st, smp(1e12 + i * 1000, i % 2 ? 2100 : 2700));
+          if (i >= 30) shown.push(core.vsText(st.vsAvg).text);
+        }
+        const groundAfter = core.step(st, smp(1e12 + 41_000, 0, true)).vsAvg;
+        const t = (v) => core.vsText(v)?.text;
+        const ok = new Set(shown).size === 1 && shown[0] === "↑ 2,400" && t(150) === "Level" && t(-190) === "Level" && t(-1849) === "↓ 1,800" && t(null) === undefined && groundAfter === null && core.smoothVs(null, null, 900, 5) === 900 && core.smoothVs(100, 0, 1000, 120_000) === 1000;
+        ok
+          ? pass("gate feed: vertical speed smoothed (2,100/2,700 bumps read ↑ 2,400 steady), Level within ±200, none on the ground")
+          : fail(`gate feed: vertical speed ${JSON.stringify({ shown: [...new Set(shown)], l: [t(150), t(-190), t(-1849)], groundAfter })}`);
+      }
+      // 1.14: the climb until level near the planned cruise level (an FL100 level-off isn't the cruise; a
+      // step climb stays in it); at the gate with engines and the seatbelt sign off, or 2 min after the sign
+      {
+        const ctx = { cruiseFt: 36_000 };
+        const smp = (t, r) => ({ t, lat: 51, lon: 0, alt: 0, pressAlt: null, indAlt: null, gs: 300, hdg: 90, vs: 0, onGround: false, parkBrake: false, engines: [true, true], beacon: true, doors: null, seatbelts: true, noSmoking: null, landingRate: null, tdSim: null, hdgMag: null, fobKg: null, ffKgH: null, ...r });
+        let st = { ...core.startState(), phase: "takeoff", stage: "taxi", airborne: false, stamps: { ...core.EMPTY_STAMPS, out: 1e12 - 600_000 } };
+        let t = 1e12;
+        const fly = (n, r) => {
+          for (let i = 0; i < n; i++) st = core.step(st, smp((t += 1000), r(i)), ctx);
+          return core.viewStage(st);
+        };
+        const climbing = fly(60, (i) => ({ alt: 2000 + i * 40, pressAlt: 2000 + i * 40, vs: 2400 }));
+        const fl100 = fly(150, () => ({ alt: 10_000, pressAlt: 10_000, vs: 0 }));
+        const up = fly(120, (i) => ({ alt: 10_000 + i * 220, pressAlt: 10_000 + i * 220, vs: 2200 }));
+        const atLevel = fly(90, () => ({ alt: 35_800, pressAlt: 35_800, vs: 0 }));
+        const stepUp = fly(60, (i) => ({ alt: 35_800 + i * 33, pressAlt: 35_800 + i * 33, vs: 1000 }));
+        const fmsSays = core.viewStage({ ...core.startState(), phase: "climb", stage: "flying", airborne: true, last: smp(t, { alt: 20_000, vs: 1500 }) }, { phase: "Cruise" });
+        // after landing: rolling, then parked with the sign off
+        const landed = { ...st, phase: "taxiIn", stage: "flying", stamps: { ...st.stamps, on: t } };
+        const g = (r, dt = 0, from = landed) => core.step(from, smp(t + 1000 + dt, { onGround: true, gs: 0, alt: 50, ...r }), ctx);
+        const beltsOn = g({ seatbelts: true });
+        const offRunning = g({ seatbelts: false });
+        const offShut = core.step(offRunning, smp(t + 5000, { onGround: true, gs: 0, alt: 50, seatbelts: false, engines: [false, false], parkBrake: false }), ctx);
+        const offLong = core.step(offRunning, smp(t + 1000 + 121_000, { onGround: true, gs: 0, alt: 50, seatbelts: false }), ctx);
+        const offShort = core.step(offRunning, smp(t + 1000 + 60_000, { onGround: true, gs: 0, alt: 50, seatbelts: false }), ctx);
+        const vs = (x) => core.viewStage(x);
+        const ok =
+          climbing === "climb" && fl100 === "climb" && up === "climb" && atLevel === "cruise" && stepUp === "cruise" && fmsSays === "cruise" &&
+          vs(beltsOn) === "approaching" && vs(offRunning) === "approaching" && vs(offShut) === "arrived" && vs(offLong) === "arrived" && vs(offShort) === "approaching" && offShut.stamps.in == null;
+        ok
+          ? pass("gate feed: Climb through an FL100 level-off to the cruise level, Cruise through a step climb (or when the FMS says); Arrived with engines and the sign off, or 2 min after the sign (IN still on-blocks)")
+          : fail(`gate feed: stages ${JSON.stringify({ climbing, fl100, up, atLevel, stepUp, fmsSays, beltsOn: vs(beltsOn), offRunning: vs(offRunning), offShut: vs(offShut), offLong: vs(offLong), offShort: vs(offShort), in: offShut.stamps.in })}`);
+      }
+      // 1.14: rotations: the token both ways, the step on screen over time, a step's looks one per time round
+      {
+        const lk = await import(join(process.cwd(), "src/lib/board/looks.ts"));
+        const tok = "line@240>g6a1.mr|g6b.mr.bn.bo@30>strip@120";
+        const t = lk.turnsFrom(tok);
+        const at = (s) => { const x = lk.stepAt(t, s * 1000); return `${lk.layersTo(x.ls)}`; };
+        const cycle = 390;
+        const ok =
+          t?.length === 3 && t[1].alts.length === 2 && lk.turnsTo(t) === tok && t[1].alts[1][0].only === true &&
+          at(0) === "line" && at(239) === "line" && at(240) === "g6a1.mr" && at(269) === "g6a1.mr" && at(270) === "strip" && at(cycle + 250) === "g6b.mr.bn.bo" && at(2 * cycle + 250) === "g6a1.mr" &&
+          lk.stepAt(t, 250_000).from === 240_000 &&
+          lk.turnsTo(lk.turnsFrom("strip~g6a1.s")) === "strip~g6a1.s" && !lk.turning(lk.turnsFrom("card")) &&
+          lk.turnsFrom("line@5>strip@9999")?.map((x) => x.secs).join() === "10,1800" && lk.turnsFrom("line@60>nope@30") === null;
+        ok
+          ? pass(`gate feed: rotation ${tok}: the pill 4 min, the map corner 30 s (legs, then the numbers next time round), the strip 2 min; one look reads as before`)
+          : fail(`gate feed: rotation ${JSON.stringify({ t: t && lk.turnsTo(t), a: [at(0), at(240), at(270), at(cycle + 250), at(2 * cycle + 250)] })}`);
+      }
       // 1.13.2: "Write to my Logbook" after EWG71W EGBB→EDDL (13 Nov) had no registration and no STA. The
       // board had the flight from the Fenix's FMS (no schedule, no reg): the reg now comes from OFP Tower's
       // summary, and an FMS flight writes no STD/STA rather than when its plan first came
@@ -735,8 +802,8 @@ async function run() {
         end.on === seq[2].t && end.landingRate === -776 && end.bounces === 1 && core.landingText(end) === "-776 fpm · 1 bounce"
           ? pass("gate feed: the landing is the first contact (-776 fpm), the second contact a bounce")
           : fail(`gate feed: landing ${JSON.stringify(end)}`);
-        const desc = (belts) => core.viewStage({ ...core.startState(), phase: "descent", stage: "flying", airborne: true, last: at(0, { alt: 8000, vs: -1500, seatbelts: belts }) });
-        desc(true) === "approaching" && desc(false) === "flying" && desc(null) === "approaching"
+        const desc = (belts) => core.viewStage({ ...core.startState(), phase: "descent", stage: "flying", airborne: true, cruised: true, last: at(0, { alt: 8000, vs: -1500, seatbelts: belts }) });
+        desc(true) === "approaching" && desc(false) === "cruise" && desc(null) === "approaching"
           ? pass("gate feed: approaching below FL100 on the way down only with the seatbelt sign on (unknown counts as on)")
           : fail(`gate feed: approaching with belts ${desc(true)} ${desc(false)} ${desc(null)}`);
       }
@@ -1005,6 +1072,77 @@ async function run() {
       await xs.ctx.close();
       await sm.ctx.close();
     }
+    // 1.13.3: the vertical speed on the strip and the pills, from a stand-in OFP Tower climbing at ~2,400 fpm
+    {
+      const vsPage = async (look) => {
+        const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, reducedMotion: "reduce" });
+        await ctx.addInitScript(SEED);
+        await ctx.route(/simbrief\.com\/api\/xml\.fetcher\.php/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(OFP) }));
+        const zs = (ms) => (ms % 86400000) / 1000;
+        await ctx.routeWebSocket(/localhost:47800/, (ws) => {
+          ws.send(JSON.stringify({ type: "hello", app: "OFP Tower" }));
+          const t0 = Date.now() - 30_000;
+          // bumpy: 2,100 to 2,700 fpm, the shown figure smoothed
+          for (let i = 0; i <= 30; i++)
+            ws.send(JSON.stringify({ type: "sample", lat: 35.5 + i * 0.01, lon: -80.6, alt: 12_000 + i * 40, pressAlt: 12_000 + i * 40, gs: 330, hdg: 40, vs: i % 2 ? 2100 : 2700, onGround: false, engines: [true, true], seatbelts: true, zulu: zs(t0 + i * 1000) }));
+        });
+        const page = await ctx.newPage();
+        await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&feed=link&view=${look}`, { waitUntil: "networkidle" });
+        await page.waitForFunction(() => /↑/.test(document.querySelector(".gv-over")?.textContent ?? ""), null, { timeout: 15_000 }).catch(() => {});
+        const text = (await page.locator(".gv-over").first().innerText().catch(() => "")).replace(/\s+/g, " ");
+        const wide = await page.evaluate(() => Math.round(document.querySelector(".gv-over > *")?.getBoundingClientRect().right ?? 0));
+        // the strip stays one row (the V/S tile is a sixth part)
+        const rows = await page.evaluate(() => new Set([...(document.querySelector(".gv-strip")?.children ?? [])].map((c) => Math.round(c.getBoundingClientRect().top))).size);
+        await ctx.close();
+        return { text, wide, rows };
+      };
+      const strip = await vsPage("strip");
+      const xs = await vsPage("strip.xs");
+      const pill = await vsPage("pill");
+      const line = await vsPage("line");
+      const off = await vsPage("pill.nvs");
+      /V\/S ↑ 2,400 fpm/i.test(strip.text) && strip.rows === 1 && xs.rows === 1 && /↑ 2,400/.test(xs.text) && xs.wide <= 1920 && /FL1\d\d ↑2,400/.test(pill.text) && /FL1\d\d ↑2,400/.test(line.text) && !/↑/.test(off.text) && /EZY|U2|\d/.test(off.text)
+        ? pass(`gate views: vertical speed, smoothed: strip "V/S ↑ 2,400 fpm", pills "${pill.text.match(/FL\d+ ↑[\d,]+/)?.[0]}", off with .nvs`)
+        : fail(`gate views: vertical speed ${JSON.stringify({ strip: strip.text, rows: strip.rows, xs, pill: pill.text, line: line.text, off: off.text })}`);
+    }
+    // 1.14: six stages in the URL (the climb and the cruise apart), a link from 1.11 (five) still reads; a rotation turns on screen
+    {
+      const stPage = async (q, samples, waitFor) => {
+        const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, reducedMotion: "reduce" });
+        await ctx.addInitScript(SEED);
+        await ctx.route(/simbrief\.com\/api\/xml\.fetcher\.php/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(OFP) }));
+        const zs = (ms) => (ms % 86400000) / 1000;
+        await ctx.routeWebSocket(/localhost:47800/, (ws) => {
+          ws.send(JSON.stringify({ type: "hello", app: "OFP Tower" }));
+          const t0 = Date.now() - samples.length * 1000;
+          samples.forEach((s, i) => ws.send(JSON.stringify({ type: "sample", lat: 35.5 + i * 0.002, lon: -80.6, hdg: 40, gs: 420, onGround: false, engines: [true, true], seatbelts: true, ...s, zulu: zs(t0 + i * 1000) })));
+        });
+        const page = await ctx.newPage();
+        const errors = [];
+        page.on("pageerror", (e) => errors.push(String(e)));
+        await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&feed=link&${q}`, { waitUntil: "networkidle" });
+        await page.waitForFunction((sel) => document.querySelector(sel), waitFor, { timeout: 15_000 }).catch(() => {});
+        const what = await page.evaluate(() => (document.querySelector(".gv-back") ? `back:${document.querySelector(".gv-back").className.match(/is-(\w+)/)?.[1]}` : document.querySelector(".gv-line") ? "line" : document.querySelector(".gv-strip") ? "strip" : document.querySelector(".gv-pill") ? "pill" : document.querySelector(".gs") ? "full" : "none"));
+        const clear = await page.evaluate(() => document.querySelector(".screen-root")?.classList.contains("is-overlay"));
+        return { ctx, page, what, clear, errors };
+      };
+      const climb = Array.from({ length: 40 }, (_, i) => ({ alt: 20_000 + i * 40, pressAlt: 20_000 + i * 40, vs: 2400 }));
+      const cruise = Array.from({ length: 40 }, () => ({ alt: 39_000, pressAlt: 39_000, vs: 0 }));
+      const six = "view=auto&sc=-&st=full,full,line,strip,strip,full";
+      const a = await stPage(six, climb, ".gv-line");
+      const b = await stPage(six, cruise, ".gv-strip");
+      const old = await stPage("view=auto&sc=-&st=full,full,line,strip,full", cruise, ".gv-line");
+      // a fixed view that turns: the pill 10 s, then the map corner's numbers 10 s
+      const r = await stPage("view=line@10>g6b.mr.bn.bo@10", cruise, ".gv-line");
+      const first = r.what;
+      await r.page.waitForFunction(() => document.querySelector(".gv-back.is-numbers"), null, { timeout: 15_000 }).catch(() => {});
+      const second = await r.page.evaluate(() => (document.querySelector(".gv-back.is-numbers") ? "back:numbers" : document.querySelector(".gv-line") ? "line" : "none"));
+      const stepped = await r.page.evaluate(() => !!document.querySelector(".gv-step"));
+      for (const x of [a, b, old, r]) await x.ctx.close();
+      a.what === "line" && b.what === "strip" && old.what === "line" && first === "line" && second === "back:numbers" && stepped && r.clear && ![a, b, old, r].some((x) => x.errors.length)
+        ? pass("gate views: six stages (climbing: the pill, at FL390: the strip), a five-stage link reads the climb and cruise alike; view=line@10>g6b.mr.bn.bo@10 turns from the pill to the numbers, see-through")
+        : fail(`gate views: stages and rotation ${JSON.stringify({ climb: a.what, cruise: b.what, old: old.what, first, second, stepped, clear: r.clear, errors: [a, b, old, r].flatMap((x) => x.errors).slice(0, 3) })}`);
+    }
     // 1.13: the countdown look: the gate screen with a big clock to the stream's start, "Starting now" from zero
     {
       const cdPage = async (q) => {
@@ -1120,15 +1258,15 @@ async function run() {
     const stageCards = await a.page.locator(".st-timeline .st-look").count();
     const ovOther = await a.page.locator(".st-ov-row:not(.is-head)").first().locator(".st-ov-cell .mono").allTextContents();
     const url = await a.page.locator(".sp-url").inputValue();
-    srcs.length === 4 && /Clock only · live/.test(srcs[3]) && tabs.join("|").startsWith("Scenes") && /Rehearse\|Live feed\|OBS setup/.test(tabs.join("|")) && sceneList.join("|") === "Any other scene|BRB|Map|Camera" && stageCards === 5 && ovOther.join("|") === "G1|G1|G4 M|G4 M|G1" && /screen=1/.test(url) && /view=auto/.test(url) && /feed=auto/.test(url)
-      ? pass("stream panel: the studio: tabs, the OBS scenes, a scene's five stages, every scene at a glance (any other: G1 G1 G4 G4 G1), one stream URL (view=auto, feed=auto)")
+    srcs.length === 4 && /Clock only · live/.test(srcs[3]) && tabs.join("|").startsWith("Scenes") && /Rehearse\|Live feed\|OBS setup/.test(tabs.join("|")) && sceneList.join("|") === "Any other scene|BRB|Map|Camera" && stageCards === 6 && ovOther.join("|") === "G1|G1|G4 M|G4 M|G4 M|G1" && /screen=1/.test(url) && /view=auto/.test(url) && /feed=auto/.test(url)
+      ? pass("stream panel: the studio: tabs, the OBS scenes, a scene's six stages, every scene at a glance (any other: G1 G1 G4 G4 G4 G1), one stream URL (view=auto, feed=auto)")
       : fail(`stream panel: ${JSON.stringify({ srcs, tabs, sceneList, stageCards, ovOther, url })}`);
     await checkPage("stream panel 1280 light", a.page, a.errors);
     await shot(a.page, "stream-panel");
     // a preset, a look picked in the editor (a map corner that flips, large, top left), a layer and a renamed scene go into the URL
     await a.page.locator(".st-scene", { hasText: "Any other scene" }).click();
     await a.page.locator(".st-from select").selectOption("Minimal");
-    await a.page.locator(".st-look").nth(3).click();
+    await a.page.locator(".st-look").nth(4).click();
     await a.page.getByRole("button", { name: "+ Add a layer" }).click();
     await a.page.locator(".st-group", { hasText: "Map corners" }).click();
     await a.page.locator(".st-opt", { hasText: "Map corner" }).first().click();
@@ -1149,10 +1287,19 @@ async function run() {
     const dlgShot = await a.page.locator(".st-dlg").count();
     await shot(a.page, "stream-studio-editor");
     await a.page.getByRole("button", { name: "Use this look" }).click();
+    // 1.14: a rotation for Camera's cruise: the card 2 min, then the strip 60 s
+    await a.page.locator(".st-look").nth(3).click();
+    await a.page.getByRole("button", { name: "+ Rotate: add a second look" }).click();
+    await a.page.locator(".st-turn-secs input").first().fill("120");
+    await a.page.locator(".st-group", { hasText: "Strips and pills" }).click();
+    await a.page.locator(".st-opt", { hasText: "Strip" }).first().click();
+    await shot(a.page, "stream-studio-rotation");
+    await a.page.getByRole("button", { name: "Use this rotation" }).click();
+    const rotTag = await a.page.locator(".st-timeline .st-tag.is-turn").count();
     const url2 = decodeURIComponent((await a.page.locator(".sp-url").inputValue()).replace(/\+/g, " "));
-    /st=pill,pill,pill,pill~corner\.s,pill(&|$)/.test(url2) && /Be right back:frame,frame,map,frame,frame/.test(url2) && /Camera:card,card,g6b\.l\.tl,card,card/.test(url2) && dlgShot === 1
-      ? pass("stream panel: a preset, a layer (pill + small map corner on approach), a look picked in the editor (G6b large, top left) and a renamed scene travel in the stream URL")
-      : fail(`stream panel: url ${url2}`);
+    /st=pill,pill,pill,pill~corner\.s,pill(&|$)/.test(url2) && /Be right back:frame,frame,map,frame,frame,frame/.test(url2) && /Camera:card,card,g6b\.l\.tl,card@120>strip@60,card,card/.test(url2) && dlgShot === 1 && rotTag === 1
+      ? pass("stream panel: a preset, a layer (pill + small map corner on approach), a look picked in the editor for the climb (G6b large, top left), a rotation for the cruise (card 2 min → strip 60 s) and a renamed scene travel in the stream URL")
+      : fail(`stream panel: url ${url2} rotTag ${rotTag}`);
     // VATSIM: a callsign, then it's the one in use when it's online (answered here)
     await a.ctx.close();
     const pilot = { cid: 1000000, callsign: "RYR7FE", latitude: 34.195541, longitude: -80.70894, altitude: 28404, groundspeed: 463, heading: 346, last_updated: "2026-11-10T18:48:22Z" };
@@ -1211,7 +1358,7 @@ async function run() {
     const heldView = await r.page.locator("#gs-preview .gs").count();
     const heldUrl = /hold=arrived/.test(r.page.url());
     const say = await r.page.locator(".rs .gt-actions [aria-live]").textContent();
-    blocks.length >= 2 && /Flying/.test(blocks[0]) && playing === 1 && marker === 1 && heldView === 1 && heldUrl && /Holding: Arrived/.test(say)
+    blocks.length >= 3 && /Climb/.test(blocks[0]) && /Cruise/.test(blocks[1]) && playing === 1 && marker === 1 && heldView === 1 && heldUrl && /Holding: Arrived/.test(say)
       ? pass(`stream panel: rehearse plays the recorded flight (${blocks.join(" | ")}), a block holds its stage (preview and URL)`)
       : fail(`stream panel: rehearse ${JSON.stringify({ blocks, playing, marker, heldView, heldUrl, say })}`);
     await r.ctx.close();

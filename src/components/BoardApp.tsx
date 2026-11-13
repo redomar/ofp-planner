@@ -38,8 +38,8 @@ import type { FlightContext } from "@/lib/feed/core";
 import { useObsScene } from "@/lib/feed/obs";
 import { sendRelay, useRelay } from "@/lib/feed/relay";
 import { CLOCK_FEED, feedFromParams, useFlightFeed, type FeedConfig } from "@/lib/feed/useFlightFeed";
-import { GateViewScreen, shownLooks } from "./board/GateViews";
-import { overSim as overSim_ } from "@/lib/board/looks";
+import { GateViewScreen, shownTurns } from "./board/GateViews";
+import { overSim as overSim_, stepAt } from "@/lib/board/looks";
 import { LogArrival, REHEARSE_REC, RehearseStrip, StreamPanel } from "./board/StreamPanel";
 import { logFromFeed } from "@/lib/feed/toLog";
 import { KEYS, readJSON, writeJSON } from "@/lib/storage";
@@ -457,8 +457,16 @@ export function BoardApp() {
 
   /* ---------- screen only (stream source / popup) ---------- */
 
+  // 1.14: a stage that rotates turns through its steps from when the stage (or scene) began
+  const shownT = shownTurns(gate, live.state, obsScene, live.plan);
+  // (reset while rendering when the key changes, from the page's clock: React's pattern for state that follows a prop)
+  const [turnFrom, setTurnFrom] = useState<{ key: string; at: number } | null>(null);
+  if (turnFrom?.key !== shownT.key) setTurnFrom({ key: shownT.key, at: now });
+  const turnAt = turnFrom?.key === shownT.key ? turnFrom.at : now;
+  const step = stepAt(shownT.turns, now - turnAt);
+  const shownStep = { ls: step.ls, key: `${shownT.key}#${step.i}.${step.alt}`, from: turnAt + step.from };
   // the views drawn over the sim are transparent outside their panels, like the overlay switch
-  const overSim = gate.overlay || overSim_(shownLooks(gate, live.state, obsScene, live.plan));
+  const overSim = gate.overlay || overSim_(step.ls);
 
   if (screen) {
     if (!ready) return null;
@@ -467,7 +475,7 @@ export function BoardApp() {
         <ScreenModeClass overlay={overSim} />
         <div className="gs-frame">
           {flight ? (
-            <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} trail={live.trail} plan={live.plan} summary={live.summary} />
+            <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} trail={live.trail} plan={live.plan} summary={live.summary} step={shownStep} />
           ) : (
             <p className="screen-wait">{ofp?.error ? `SimBrief: ${ofp.error}` : "Loading the flight…"}</p>
           )}
@@ -633,7 +641,7 @@ export function BoardApp() {
                 <div className="gt-preview">
                   <div className="gs-frame" id="gs-preview">
                     {flight ? (
-                      <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} trail={live.trail} plan={live.plan} summary={live.summary} />
+                      <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} trail={live.trail} plan={live.plan} summary={live.summary} step={shownStep} />
                     ) : (
                       <div className="gs-empty">
                         <p>{gate.sb ? (ofp?.error ? `SimBrief: ${ofp.error}` : "Loading your SimBrief OFP…") : gate.f ? "Loading the flight…" : feedCfg.who ? (live.vatsim?.state === "live" ? `${feedCfg.who} is on VATSIM but hasn’t filed a flight plan` : (live.vatsim?.text ?? `Looking for ${feedCfg.who} on VATSIM…`)) : "No flight yet"}</p>

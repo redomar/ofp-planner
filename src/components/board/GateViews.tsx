@@ -8,8 +8,8 @@ import { MIN } from "@/lib/board/board";
 import type { GateFlight, GateState } from "@/lib/board/gate";
 import { goTarget } from "@/lib/board/countdown";
 import { ENDING_KEY, endStats, landingFeel, readEnding, routeKey, type EndingRecord } from "@/lib/board/ending";
-import { BACKS, layers, layersFrom, layersTo, VIEW_INFO, type Layers, type Look, type LookBack, type ShownView } from "@/lib/board/looks";
-import { bearing, distNm, fmsArrival, routeBefore, steadyTime, landingText, levelFt, phaseLabel, utcAt, wentAround, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState, type FlightSummary } from "@/lib/feed/core";
+import { BACKS, layers, layersTo, stepAt, turnsFrom, turnsOf, turnsTo, VIEW_INFO, type Layers, type Look, type LookBack, type ShownView, type Turns } from "@/lib/board/looks";
+import { bearing, distNm, fmsArrival, routeBefore, steadyTime, landingText, levelFt, phaseLabel, utcAt, wentAround, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState, type FlightSummary, vsText } from "@/lib/feed/core";
 import { useOutlines } from "@/lib/outlines";
 import { useTerrain } from "@/lib/terrain";
 import { baseLayers, mapRadius } from "../RouteMap";
@@ -19,11 +19,17 @@ import { GateScreen, localClock, PLANE, screenNow, WxPicto, type GateWx } from "
  * The view on screen. A fixed &view= is that view. view=auto: an OBS scene named in the rules
  * gives its view; otherwise the stage of the flight (or the held stage) picks from the stage table.
  */
-export function shownLooks(g: Pick<GateState, "view" | "stages" | "scenes" | "hold">, live: FlightState | null, scene: string | null = null, plan: FlightPlan | null = null): Layers {
-  if (g.view !== "auto") return layersFrom(g.view) ?? layers("full");
+export function shownTurns(g: Pick<GateState, "view" | "stages" | "scenes" | "hold">, live: FlightState | null, scene: string | null = null, plan: FlightPlan | null = null): { turns: Turns; key: string } {
+  if (g.view !== "auto") return { turns: turnsFrom(g.view) ?? turnsOf(layers("full")), key: `view:${g.view}` };
   const stage: ViewStage = g.hold ?? (live ? viewStage(live, plan) : "ready");
   const rule = scene ? g.scenes.find(([n]) => n.trim().toLowerCase() === scene.trim().toLowerCase()) : null;
-  return rule ? rule[1][stage] : g.stages[stage];
+  const turns = rule ? rule[1][stage] : g.stages[stage];
+  // a new stage, scene or rotation starts the rotation from its first step
+  return { turns, key: `${rule?.[0] ?? ""}|${stage}|${turnsTo(turns)}` };
+}
+/** The looks on screen `elapsed` ms after the stage began (its rotation's step; the only look without one). */
+export function shownLooks(g: Pick<GateState, "view" | "stages" | "scenes" | "hold">, live: FlightState | null, scene: string | null = null, plan: FlightPlan | null = null, elapsed = 0): Layers {
+  return stepAt(shownTurns(g, live, scene, plan).turns, elapsed).ls;
 }
 
 /** An airport's own name, short: no "Airport", no city in front (London Heathrow Airport → Heathrow). */
@@ -65,6 +71,8 @@ export interface LiveFacts {
   flown: number;
   pos: { lat: number; lon: number } | null;
   hdg: number | null;
+  /** 1.13.3: the vertical speed, smoothed ("↑ 2,400", "Level"); null on the ground or without a feed. */
+  vs: { dir: "up" | "down" | "level"; text: string } | null;
 }
 
 const fmsLine = (f: GateFlight) => [`${f.from.iata ?? f.from.icao} → ${f.to.iata ?? f.to.icao}`, f.cruiseFt ? `cruise ${fl(f.cruiseFt)}` : null].filter(Boolean).join(" · ");
@@ -120,6 +128,7 @@ export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null,
       flown: 0,
       pos: null,
       hdg: null,
+      vs: null,
     };
   }
   const air = live.stage === "flying" && live.phase !== "landed" && live.phase !== "taxiIn";
@@ -169,6 +178,7 @@ export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null,
     flown,
     pos: { lat: s.lat, lon: s.lon },
     hdg: s.hdg,
+    vs: air ? vsText(live.vsAvg ?? s.vs) : null,
   };
 }
 
@@ -658,9 +668,10 @@ export function descentAhead(f: GateFlight, live: FlightState | null, toGo: numb
  * clock, so every source on the PC turns at the same moment: `every` s on the front, then `hold` s
  * on a back side, the next back side each time round.
  */
-export function flipSide(lk: Look, now: number): number {
-  const cyc = lk.every + lk.hold;
+export function flipSide(lk: Look, now: number, only = false): number {
   const t = Math.floor(now / 1000);
+  if (only) return Math.floor(t / lk.hold) % Math.max(1, lk.backs.length);
+  const cyc = lk.every + lk.hold;
   return t % cyc < lk.every ? -1 : Math.floor(t / cyc) % Math.max(1, lk.backs.length);
 }
 
@@ -983,23 +994,34 @@ export interface ViewProps {
  * The gate screen in one of its views. Every view sits on the same 16:9 canvas (container units);
  * the views drawn over the sim leave everything outside their panels transparent.
  */
-export function GateViewScreen(p: ViewProps & { back?: number | null }) {
-  const ls = shownLooks(p.state, p.live, p.scene ?? null, p.plan ?? null);
-  if (ls.length === 1) return <LookScreen {...p} look={ls[0]} />;
-  // layers: each on the same 16:9, the first at the bottom
-  return (
-    <div className="gv-stack">
-      {ls.map((l, i) => (
-        <div className="gv-layer" key={i}>
-          <LookScreen {...p} look={l} />
-        </div>
-      ))}
+export function GateViewScreen(p: ViewProps & { back?: number | null; step?: { ls: Layers; key: string; from: number } | null }) {
+  const ls = p.step?.ls ?? shownLooks(p.state, p.live, p.scene ?? null, p.plan ?? null);
+  const from = p.step?.from ?? null;
+  // 1.14: a rotation's step fades in over the one before
+  const inner =
+    ls.length === 1 ? (
+      <LookScreen {...p} look={ls[0]} stepFrom={from} />
+    ) : (
+      // layers: each on the same 16:9, the first at the bottom
+      <div className="gv-stack">
+        {ls.map((l, i) => (
+          <div className="gv-layer" key={i}>
+            <LookScreen {...p} look={l} stepFrom={from} />
+          </div>
+        ))}
+      </div>
+    );
+  return p.step ? (
+    <div className="gv-step" key={p.step.key}>
+      {inner}
     </div>
+  ) : (
+    inner
   );
 }
 
 /** One look: a view at its size and corner. `back` shows a flip card's back side (that index) instead of following its timer. */
-function LookScreen(p: ViewProps & { look: Look; back?: number | null }) {
+function LookScreen(p: ViewProps & { look: Look; back?: number | null; stepFrom?: number | null }) {
   const lk = p.look;
   const view = lk.v;
   if (view === "full") return <GateScreen flight={p.flight} state={p.state} now={p.now} wx={p.wx} live={p.live} source={SOURCE[p.source]} plan={p.plan ?? null} belt={lk.belt} />;
@@ -1040,7 +1062,8 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null }) {
   // the cards that flip: the front most of the time, a back side now and then (never near the ground)
   if (VIEW_INFO[view].flip) {
     const steady = !p.live || p.live.stage !== "flying" || ["takeoff", "approach", "landed", "taxiIn"].includes(p.live.phase);
-    const side = p.back != null ? p.back : steady || !lk.backs.length ? -1 : flipSide(lk, p.now);
+    // 1.14, backs only (a rotation's step): straight to the back sides, from when the step began
+    const side = p.back != null ? p.back : !lk.backs.length ? -1 : lk.only ? flipSide(lk, p.now - (p.stepFrom ?? 0), true) : steady ? -1 : flipSide(lk, p.now);
     const back = side >= 0 ? lk.backs[side % lk.backs.length] : null;
     if (back) {
       return (
@@ -1272,6 +1295,7 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null }) {
           <Progress f={f} facts={facts} showToGo={false} />
           <Tile k="Level" v={facts.alt} />
           <Tile k="Speed" v={facts.gs} unit="kt" />
+          {lk.vs && <Tile k="V/S" v={facts.vs?.text ?? null} unit={facts.vs && facts.vs.dir !== "level" ? "fpm" : undefined} />}
           <div className={`gv-strip-st gs-${facts.tone}`} aria-live="polite">
             <small>{facts.minLeft != null ? `${facts.status} · landing in` : facts.status}</small>
             <b className="mono">{facts.minLeft != null ? mins(facts.minLeft) : (facts.line ?? facts.status)}</b>
@@ -1283,6 +1307,8 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null }) {
 
   // card and pill (G5)
   const togo = facts.minLeft != null ? `${mins(facts.minLeft)} to go` : facts.line;
+  // 1.13.3: climbing or descending, the level and the vertical speed ("FL120 ↑2,400")
+  const vsBit = lk.vs && facts.vs && facts.vs.dir !== "level" && facts.alt ? ` · ${facts.alt} ${facts.vs.text.replace(" ", "")}` : "";
   if (v2 === "line") {
     // G5b: one row, the phase in its own colour
     return (
@@ -1294,6 +1320,7 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null }) {
           <span>
             {f.flightNo} · {f.from.iata ?? f.from.icao} → {f.to.iata ?? f.to.icao}
             {togo ? ` · ${togo}` : ""}
+            {vsBit}
           </span>
           {lk.belt && <Belt live={p.live} />}
           <b className={`gv-line-phase gs-${facts.tone}`}>{facts.status}</b>
@@ -1311,6 +1338,7 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null }) {
           <span>
             {f.flightNo} · {f.from.iata ?? f.from.icao} → {f.to.iata ?? f.to.icao}
             {togo ? ` · ${togo}` : ` · ${facts.status}`}
+            {vsBit}
           </span>
           {lk.belt && <Belt live={p.live} />}
         </div>
@@ -1473,17 +1501,17 @@ function EndingView(p: ViewProps) {
 }
 
 export function sampleLive(f: GateFlight, stage: ViewStage, now: number): FlightState {
-  const air = stage === "flying" || stage === "approaching";
+  const air = stage === "climb" || stage === "cruise" || stage === "approaching";
   // approaching: about 20 nm out on the way in (half-way on a hop shorter than 40 nm)
   const total = distNm(f.from, f.to);
-  const k = stage === "flying" ? 0.5 : stage === "approaching" ? Math.max(0.5, 1 - 20 / Math.max(1, total)) : 0;
+  const k = stage === "cruise" ? 0.5 : stage === "climb" ? 0.15 : stage === "approaching" ? Math.max(0.5, 1 - 20 / Math.max(1, total)) : 0;
   const at = air ? { lat: f.from.lat + (f.to.lat - f.from.lat) * k, lon: f.from.lon + (f.to.lon - f.from.lon) * k } : stage === "arrived" ? f.to : f.from;
   const cruise = f.cruiseFt ?? 36_000;
   const brg = (Math.atan2(f.to.lon - f.from.lon, f.to.lat - f.from.lat) * 180) / Math.PI;
   const base = startState();
   const t = now;
   const block = (f.block ?? 90) * MIN;
-  const alt = stage === "flying" ? cruise : stage === "approaching" ? (f.to.elevFt ?? 0) + 4000 : ((stage === "arrived" ? f.to.elevFt : f.from.elevFt) ?? 0);
+  const alt = stage === "cruise" ? cruise : stage === "climb" ? Math.round(cruise / 2000) * 1000 : stage === "approaching" ? (f.to.elevFt ?? 0) + 4000 : ((stage === "arrived" ? f.to.elevFt : f.from.elevFt) ?? 0);
   const last: FeedSample = {
     t,
     lat: at.lat,
@@ -1491,29 +1519,32 @@ export function sampleLive(f: GateFlight, stage: ViewStage, now: number): Flight
     alt,
     pressAlt: null,
     indAlt: null,
-    gs: stage === "flying" ? 450 : stage === "approaching" ? 190 : stage === "taxi" ? 15 : 0,
+    gs: stage === "cruise" ? 450 : stage === "climb" ? 330 : stage === "approaching" ? 190 : stage === "taxi" ? 15 : 0,
     hdg: (brg + 360) % 360,
-    vs: stage === "approaching" ? -800 : 0,
+    vs: stage === "approaching" ? -800 : stage === "climb" ? 2200 : 0,
     onGround: !air,
     parkBrake: stage === "ready" || stage === "arrived",
     engines: stage === "ready" ? [false, false] : [stage !== "arrived", stage !== "arrived"],
     beacon: stage !== "arrived",
     doors: [0, 0, 0, 0],
-    seatbelts: stage !== "arrived" && stage !== "flying",
+    seatbelts: stage !== "arrived" && stage !== "cruise",
     noSmoking: "auto",
     landingRate: null,
     tdSim: null,
     hdgMag: (brg + 360) % 360,
-    fobKg: stage === "flying" ? 5200 : stage === "approaching" ? 3100 : null,
-    ffKgH: stage === "flying" ? 2100 : stage === "approaching" ? 900 : null,
+    fobKg: stage === "cruise" || stage === "climb" ? 5200 : stage === "approaching" ? 3100 : null,
+    ffKgH: stage === "cruise" ? 2100 : stage === "climb" ? 3300 : stage === "approaching" ? 900 : null,
   };
-  const phase: FlightPhase = stage === "ready" ? "doorsClosed" : stage === "taxi" ? "taxi" : stage === "flying" ? "cruise" : stage === "approaching" ? "approach" : "gate";
-  const out = stage === "ready" ? null : t - (stage === "taxi" ? 5 * MIN : stage === "flying" ? block / 2 : stage === "approaching" ? block - 12 * MIN : block);
+  const phase: FlightPhase = stage === "ready" ? "doorsClosed" : stage === "taxi" ? "taxi" : stage === "cruise" ? "cruise" : stage === "climb" ? "climb" : stage === "approaching" ? "approach" : "gate";
+  const out = stage === "ready" ? null : t - (stage === "taxi" ? 5 * MIN : stage === "cruise" ? block / 2 : stage === "climb" ? 25 * MIN : stage === "approaching" ? block - 12 * MIN : block);
   return {
     ...base,
     phase,
-    stage: stage === "approaching" ? "flying" : stage,
+    stage: air ? "flying" : stage === "ready" || stage === "taxi" || stage === "arrived" ? stage : "flying",
     last,
+    cruised: stage === "cruise" || stage === "approaching",
+    vsAvg: air ? last.vs : null,
+    vsAt: air ? t : null,
     airborne: stage !== "ready" && stage !== "taxi",
     stamps: {
       out,

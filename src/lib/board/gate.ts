@@ -8,7 +8,7 @@ import type { Airport, FlightRow } from "../data/load";
 import { blockTime, flightNo, gcNm } from "../data/flight";
 import { MIN, taxiOf, type PhaseKey } from "./board";
 import type { FlightPlan, PlanLeg, ViewStage } from "../feed/core";
-import { layers, layersFrom, layersTo, type Layers, type ShownView } from "./looks";
+import { layers, turnsFrom, turnsOf, turnsTo, type Layers, type ShownView, type Turns } from "./looks";
 import { goParam } from "./countdown";
 
 export interface GateState {
@@ -46,7 +46,7 @@ export interface GateState {
    */
   view: string;
   /** view=auto: what shows at each stage of the flight (up to three looks stacked). */
-  stages: Record<ViewStage, Layers>;
+  stages: StageTurns;
   /**
    * view=auto in a named OBS scene (any case): that scene's own looks at each stage, e.g. BRB is the
    * frame whatever the aircraft does. Any other scene uses `stages`.
@@ -67,15 +67,28 @@ export interface GateState {
 }
 
 export type { ShownView } from "./looks";
-export type SceneRule = [string, Record<ViewStage, Layers>];
-export const allStages = (v: ShownView | Layers): Record<ViewStage, Layers> => {
-  const ls = typeof v === "string" ? layers(v) : v;
-  return { ready: ls, taxi: ls, flying: ls, approaching: ls, arrived: ls };
+/** 1.14: what each stage shows, one look or a rotation. */
+export type StageTurns = Record<ViewStage, Turns>;
+export type SceneRule = [string, StageTurns];
+const asTurns = (v: ShownView | Layers | Turns): Turns => (typeof v === "string" ? turnsOf(layers(v)) : "alts" in (v[0] as object) ? (v as Turns) : turnsOf(v as Layers));
+export const allStages = (v: ShownView | Layers | Turns): StageTurns => {
+  const t = asTurns(v);
+  return { ready: t, taxi: t, climb: t, cruise: t, approaching: t, arrived: t };
 };
-export const STAGES: ViewStage[] = ["ready", "taxi", "flying", "approaching", "arrived"];
-const byStage = (r: ShownView, t: ShownView, f: ShownView, a: ShownView, d: ShownView): Record<ViewStage, Layers> => ({ ready: layers(r), taxi: layers(t), flying: layers(f), approaching: layers(a), arrived: layers(d) });
+export const STAGES: ViewStage[] = ["ready", "taxi", "climb", "cruise", "approaching", "arrived"];
+/** Ready, taxi, flying (the climb and the cruise), approaching, arrived. */
+const byStage = (r: ShownView, t: ShownView, f: ShownView | Turns, a: ShownView, d: ShownView): StageTurns => ({
+  ready: asTurns(r),
+  taxi: asTurns(t),
+  climb: asTurns(f),
+  cruise: asTurns(f),
+  approaching: asTurns(a),
+  arrived: asTurns(d),
+});
 /** Sheet 07: the full screen on the ground, the strip while flying. */
-export const DEFAULT_STAGES: Record<ViewStage, Layers> = byStage("full", "full", "strip", "strip", "full");
+export const DEFAULT_STAGES: StageTurns = byStage("full", "full", "strip", "strip", "full");
+/** 1.14: the owner's flow: the pill with the phase, now and then the map corner with something to read, the strip. */
+const PILLS_TURN: Turns = turnsFrom("line@240>g6a1.mr|g6b.mr.bn.bo|g6a3.mr|g6b.mr.bp.bo@30>strip@120")!;
 /** Sheet 07: the scene names that turn the same source into the frame, the map or the card. */
 export const DEFAULT_SCENES: SceneRule[] = [
   ["BRB", allStages("frame")],
@@ -83,16 +96,21 @@ export const DEFAULT_SCENES: SceneRule[] = [
   ["Camera", allStages("card")],
 ];
 /** Starting points for a scene (the Stream studio's "Start from"). */
-export const PRESETS: { name: string; note: string; stages: Record<ViewStage, Layers> }[] = [
+export const PRESETS: { name: string; note: string; stages: StageTurns }[] = [
   { name: "Classic", note: "the gate screen on the ground, the strip while flying", stages: DEFAULT_STAGES },
   { name: "Mostly sim", note: "the strip at the gate, the pill from push-back, the strip at the gate again", stages: byStage("strip", "pill", "pill", "pill", "strip") },
   { name: "Minimal", note: "just the pill, all flight", stages: allStages("pill") },
   { name: "Map", note: "the moving map all flight, full screen at the gates", stages: byStage("full", "corner", "map", "map", "full") },
   { name: "Route", note: "the map corner with legs, flipping in cruise", stages: byStage("frame", "g6a1", "g6b", "g6a1", "frame") },
+  {
+    name: "Pills, map now and then",
+    note: "the pill with the phase; every 4 min the map corner with the legs, the numbers, the next fix or the plan for 30 s, then the strip for 2 min",
+    stages: { ...byStage("strip", "line", PILLS_TURN, "line", "strip"), climb: asTurns("line") },
+  },
 ];
 
-/** The view param: "auto", or a look token (layers too); anything else is the full screen. */
-export const viewFrom = (v: string | null) => (v === "auto" ? "auto" : v && layersFrom(v) ? v : "full");
+/** The view param: "auto", or a look token (layers too; 1.14 a rotation); anything else is the full screen. */
+export const viewFrom = (v: string | null) => (v === "auto" ? "auto" : v && turnsFrom(v) ? v : "full");
 
 export const EMPTY_GATE: GateState = {
   f: null,
@@ -123,26 +141,33 @@ const PINS: PhaseKey[] = ["scheduled", "gate", "boarding", "final", "closed", "r
 const text = (v: string | null, n: number) => (v ?? "").replace(/[^\p{L}\p{N} .,'!?:&()/+-]/gu, "").slice(0, n);
 
 /**
- * Looks per stage from "a,b,c,d,e" (ready, taxi, flying, approaching, arrived; each a look token,
- * layers joined by ~), or the four of before 1.11 ("a,b,c,d", approaching as flying); null when it
- * isn't one of those.
+ * Looks per stage, each a look token (layers joined by ~) or a rotation (1.14, steps joined by >):
+ * "a,b,c,d,e,f" ready, taxi, climb, cruise, approaching, arrived (1.14); "a,b,c,d,e" with one for
+ * flying, climb and cruise alike (1.11); "a,b,c,d" before 1.11, approaching as flying. Null when
+ * it isn't one of those.
  */
-function stagesOf(parts: string[]): Record<ViewStage, Layers> | null {
-  const ls = parts.map(layersFrom);
+export function stagesOf(parts: string[]): StageTurns | null {
+  const ls = parts.map(turnsFrom);
   if (ls.some((x) => x == null)) return null;
-  const [a, b, c, d, e] = ls as Layers[];
-  if (parts.length === 4) return { ready: a, taxi: b, flying: c, approaching: c, arrived: d };
-  if (parts.length === 5) return { ready: a, taxi: b, flying: c, approaching: d, arrived: e };
+  const [a, b, c, d, e, f] = ls as Turns[];
+  if (parts.length === 4) return { ready: a, taxi: b, climb: c, cruise: c, approaching: c, arrived: d };
+  if (parts.length === 5) return { ready: a, taxi: b, climb: c, cruise: c, approaching: d, arrived: e };
+  if (parts.length === 6) return { ready: a, taxi: b, climb: c, cruise: d, approaching: e, arrived: f };
   return null;
 }
-/** The other way: four while approaching is the same as flying (so older screens still read it), else five. */
-const stagesText = (v: Record<ViewStage, Layers>) =>
-  STAGES.filter((k) => k !== "approaching" || layersTo(v.approaching) !== layersTo(v.flying))
-    .map((k) => layersTo(v[k]))
-    .join(",");
+/**
+ * The other way, as short as reads the same, so screens from before still read what they can: four
+ * while the climb, the cruise and approaching are one; five while the climb and cruise are; else six.
+ */
+export const stagesText = (v: StageTurns) => {
+  const t = (k: ViewStage) => turnsTo(v[k]);
+  if (t("climb") !== t("cruise")) return STAGES.map(t).join(",");
+  const five = [t("ready"), t("taxi"), t("cruise"), t("approaching"), t("arrived")];
+  return (five[3] === five[2] ? [five[0], five[1], five[2], five[4]] : five).join(",");
+};
 
 /** st=full,full,strip,strip,full: the looks at each stage. */
-function stagesFrom(v: string | null): Record<ViewStage, Layers> {
+function stagesFrom(v: string | null): StageTurns {
   return stagesOf((v ?? "").split(",")) ?? DEFAULT_STAGES;
 }
 /**
@@ -159,7 +184,7 @@ function scenesFrom(v: string | null): SceneRule[] {
     const views = part.slice(i + 1).split(",");
     if (!name) continue;
     if (views.length === 1) {
-      const one = layersFrom(views[0]);
+      const one = turnsFrom(views[0]);
       if (one) out.push([name, allStages(one)]);
     } else {
       const st = stagesOf(views);
@@ -171,10 +196,13 @@ function scenesFrom(v: string | null): SceneRule[] {
 const scenesTo = (sc: SceneRule[]) =>
   sc
     .map(([n, v]) => {
-      const vs = STAGES.map((k) => layersTo(v[k]));
+      const vs = STAGES.map((k) => turnsTo(v[k]));
       return `${n.replace(/[;:,]/g, "")}:${vs.every((x) => x === vs[0]) ? vs[0] : stagesText(v)}`;
     })
     .join(";");
+
+/** hold=cruise; "flying" from before 1.14 holds the cruise. */
+const holdFrom = (v: string | null): ViewStage | null => (v === "flying" ? "cruise" : STAGES.includes(v as ViewStage) ? (v as ViewStage) : null);
 
 /** ?f=&d=&sb=&in=25&late=15&pin=boarding&cx=1&gate=12&was=9&reg=G-ABCD&msg=…&ov=1&rot=0 */
 export function gateFromParams(q: URLSearchParams, now: number): GateState {
@@ -200,7 +228,7 @@ export function gateFromParams(q: URLSearchParams, now: number): GateState {
     view: viewFrom(q.get("view")),
     stages: stagesFrom(q.get("st")),
     scenes: scenesFrom(q.get("sc")),
-    hold: STAGES.includes(q.get("hold") as ViewStage) ? (q.get("hold") as ViewStage) : null,
+    hold: holdFrom(q.get("hold")),
     go: goParam(q.get("go")),
     goFrom: now,
     bye: text(q.get("bye"), 140),

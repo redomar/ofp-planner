@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.14.0 — 2026-11-13
+
+- **Vertical speed** on the strip (a V/S tile: "↑ 2,400 fpm", "↓ 1,800 fpm" or "Level") and on the pills ("FL120 ↑2,400", only while climbing or descending). Averaged over about 10 s so turbulence doesn't twitch it, rounded to 100 ft/min, "Level" within ±200. Each look can turn it off ("Vertical speed" in the look editor, `.nvs` in a link).
+- **Climb and Cruise are their own stages** (they were one, "Flying"):
+  - Climb runs from wheels off.
+  - Cruise starts when the Fenix FMS says Cruise, or once level within 1,000 ft of the planned cruise level; a level-off on the way up (FL100) is still the climb.
+  - A step climb stays in Cruise, and so does the descent above FL100.
+  - A link from before reads its Flying look for both. `hold=flying` holds the cruise.
+- **Arrived comes with the seatbelt sign:** after landing, the engines off and the sign off, or 2 min after the sign goes off, whichever first. The Logbook's IN time is still on-blocks (engines off, parking brake set).
+- **Rotations:** a stage can turn through looks instead of showing one.
+  - Steps in order, each shown for its seconds, round and round, from the first each time the stage starts.
+  - A step can hold several looks, one per time round: e.g. the map corner with the legs, then with the numbers, then the next fix.
+  - Each step fades in.
+  - In the Stream studio: open a stage, "+ Rotate: add a second look", set each step's seconds, move steps with ← →.
+  - A rotation saved to My looks can be reused in any scene.
+  - In a link: `line@240>g6a1.mr|g6b.mr.bn.bo@30>strip@120` (steps joined by `>`, looks of a step by `|`, seconds after `@`). It works in `view=` too.
+- **New preset "Pills, map now and then":** the pill with the phase. In the cruise, every 4 min the map corner for 30 s (the legs, the numbers, the next fix, the FMS plan, in turn), then the strip for 2 min.
+- **Flip cards can show their back sides only** ("bo"), for a rotation's step that should open straight on the numbers or the plan.
+
 ## 1.13.2 — 2026-11-13
 
 - **"Write to my Logbook" fills the registration from OFP Tower.** A flight the board takes from the aircraft's FMS (no SimBrief OFP or Finder flight loaded) has no registration of its own; the entry now takes the sim's from OFP Tower's summary of the same route, and the aircraft type with it.

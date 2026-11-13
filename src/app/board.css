@@ -1241,7 +1241,10 @@ html.screen-mode body > :not(.screen-root) {
   right: calc(var(--u) * 2);
   bottom: calc(var(--u) * 2.2);
   display: grid;
-  grid-template-columns: auto 1fr auto auto auto;
+  /* the flight, the progress line, then each tile in its own column (1.14: V/S too): one row */
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-auto-flow: column;
+  grid-auto-columns: auto;
   align-items: stretch;
   border-radius: calc(var(--u) * 0.6);
   border-left: calc(var(--u) * 0.6) solid var(--gs-accent);
@@ -1533,6 +1536,21 @@ html.screen-mode body > :not(.screen-root) {
   top: 50%;
   bottom: auto;
   translate: 0 -50%;
+}
+/* 1.14: a rotation's step fades in (over the sim, where the step before has gone) */
+.gv-step {
+  height: 100%;
+  animation: gv-step 0.4s ease-out;
+}
+@keyframes gv-step {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gv-step {
+    animation: none;
+  }
 }
 /* layers: every look on the same 16:9, the first at the bottom */
 .gv-stack {
@@ -2527,6 +2545,10 @@ html.screen-mode body > :not(.screen-root) {
   background: var(--blue-bg);
   color: var(--blue);
 }
+.st-tag.is-turn {
+  background: var(--magenta-bg, var(--blue-bg));
+  color: var(--magenta, var(--blue));
+}
 .st-tag.is-same {
   background: none;
   border: 1px dashed var(--rule-strong);
@@ -2663,6 +2685,90 @@ html.screen-mode body > :not(.screen-root) {
 .st-dlg-h h3 span {
   color: var(--ink-2);
   font-weight: 500;
+}
+/* 1.14: a stage's rotation, its steps in order */
+.st-turns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+}
+.st-turns > .ctl-label {
+  margin: 0;
+}
+.st-turn-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.st-turn {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 3px 6px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--field);
+}
+.st-turn.is-on {
+  border-color: var(--magenta);
+}
+.st-turn-n {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--sunk);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+.st-turn-alts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+.st-turn-alt {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 13px;
+  cursor: pointer;
+}
+.st-turn-alt[aria-pressed="true"] {
+  border-color: var(--magenta);
+  box-shadow: inset 0 -2px 0 var(--magenta);
+}
+.st-turn-secs {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.st-turn-secs input {
+  width: 72px;
+  height: 28px;
+}
+.st-turn-act {
+  display: inline-flex;
+  gap: 2px;
+}
+.st-turns-note {
+  flex-basis: 100%;
 }
 .st-layers {
   display: flex;
