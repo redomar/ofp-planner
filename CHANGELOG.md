@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.13.2 — 2026-11-13
+
+- **"Write to my Logbook" fills the registration from OFP Tower.** A flight the board takes from the aircraft's FMS (no SimBrief OFP or Finder flight loaded) has no registration of its own; the entry now takes the sim's from OFP Tower's summary of the same route, and the aircraft type with it.
+- **No made-up STD/STA.** An FMS flight has no schedule, so its entry no longer writes the time its plan first came as the STD. Load the SimBrief OFP on the board (`sb=`) to log the scheduled times, or fill them in from the Logbook's edit form.
+
 ## 1.13.1 — 2026-11-13
 
 - **The countdown skips an old OFP.** With `go=std-30,5m` and SimBrief still holding yesterday's OFP, the countdown read "Starting now" for the whole pre-show. An off-block time over 3 h gone now falls through to the next part (`5m`).

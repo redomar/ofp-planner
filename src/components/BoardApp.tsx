@@ -445,8 +445,8 @@ export function BoardApp() {
 
   // at the gate (a live flight, not a rehearsal): one click writes its times to the Logbook
   const arrivedLog = useMemo(
-    () => (!screen && !rehearse && flight && live.state?.stage === "arrived" ? logFromFeed(flight, live.state, live.using, gate.reg || null) : null),
-    [screen, rehearse, flight, live.state, live.using, gate.reg],
+    () => (!screen && !rehearse && flight && live.state?.stage === "arrived" ? logFromFeed(flight, live.state, live.using, gate.reg || null, live.summary) : null),
+    [screen, rehearse, flight, live.state, live.using, gate.reg, live.summary],
   );
 
   // the Stream panel's URL: one browser source that follows the aircraft and the OBS scene
