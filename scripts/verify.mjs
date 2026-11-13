@@ -663,6 +663,30 @@ async function run() {
           ? pass("gate feed: OFP Tower's summary and track read, the ending kept per flight for 24 h, block 1h51 / air 1h34 / 6 min late, landings Butter → Hard, the airline renamed (W4 5PL)")
           : fail(`gate feed: ending ${JSON.stringify({ sum: sum && [sum.depRunway, sum.arrRunway, sum.fpm], bad: bad && [bad.off, bad.fpm, bad.depRunway], trk: trk.length, merged: merged.length, x: [x.block, x.air, x.late], back: !!back, other, stale, feels, named: [named.airline, named.flightNo] })}`);
       }
+      // 1.13.2: "Write to my Logbook" after EWG71W EGBB→EDDL (13 Nov) had no registration and no STA. The
+      // board had the flight from the Fenix's FMS (no schedule, no reg): the reg now comes from OFP Tower's
+      // summary, and an FMS flight writes no STD/STA rather than when its plan first came
+      {
+        const lf = await import(join(process.cwd(), "src/lib/feed/logFields.ts"));
+        const out = Date.UTC(2026, 10, 13, 14, 32), off = Date.UTC(2026, 10, 13, 14, 44), on = Date.UTC(2026, 10, 13, 15, 49), inn = Date.UTC(2026, 10, 13, 15, 59);
+        const live = { stamps: { out, off, on, in: inn, landingRate: -708 } };
+        const ap = (icao) => ({ icao });
+        const fms = { source: "fms", brand: null, airline: "", flightNo: "EWG71W", callsign: "EWG71W", from: ap("EGBB"), to: ap("EDDL"), stdMs: out - 40 * 60000, block: null, types: [], reg: null, pax: null };
+        const sb = { ...fms, source: "simbrief", flightNo: "EW 71", stdMs: Date.UTC(2026, 10, 13, 14, 30), block: 90, types: ["A319"], reg: "G-ABCD" };
+        const sum = { origin: "EGBB", destination: "EDDL", reg: "G-ABCD", aircraft: "A319" };
+        const elsewhere = { ...sum, origin: "EGKK", destination: "EICK", reg: "G-WXYZ" };
+        const a = lf.logFields(fms, live, "link", null, sum);
+        const b = lf.logFields(sb, live, "link", null, null);
+        const c = lf.logFields(fms, live, "link", null, elsewhere);
+        const d = lf.logFields(sb, live, "link", "G-TYPD", sum);
+        const ok =
+          a.reg === "G-ABCD" && a.type === "A319" && a.std === null && a.sta === null && a.off === "14:44" && a.landingFpm === -708 &&
+          b.reg === "G-ABCD" && b.std === "14:30" && b.sta === "16:00" &&
+          c.reg === null && c.type === null && d.reg === "G-TYPD" && lf.logFields(fms, { stamps: {} }, "link", null, sum) === null;
+        ok
+          ? pass("gate feed: a Logbook entry from an FMS flight takes OFP Tower's reg and type and writes no made-up STD/STA; a SimBrief one keeps 14:30 → 16:00")
+          : fail(`gate feed: logFields ${JSON.stringify({ a, b, c: [c.reg, c.type], d: d.reg })}`);
+      }
       // 1.12.2: a page opened in flight draws the line flown along the route up to where its trail starts
       {
         const r = [{ lat: 51.15, lon: -0.19 }, { lat: 50.955, lon: -1.345 }, { lat: 50.75, lon: -3.6 }, { lat: 50.1, lon: -5.67 }, { lat: 51.3, lon: -7.7 }];
