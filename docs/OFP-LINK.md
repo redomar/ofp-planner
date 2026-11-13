@@ -111,6 +111,22 @@ The fast-polling path is built in the recorder prototype but **not yet tried on 
 - 1.11: `active: {"from":0,"to":1}`. The Fenix drops passed fixes from its plan, so `legs[0]` is the last fix passed and `legs[1]` the one flown to. The route panel (G3d) uses it. Without it, the site works out the next fix from the position.
 - 1.11: `vSpeeds: {v1, vr, v2, vapp}` (kt), read in but not shown yet.
 
+## The track and the summary (1.13)
+
+On connect OFP Tower sends, in this order: `hello`, `plan`, `track`, `summary`, then the relayed settings.
+
+- **`{"type":"track","points":[[zuluSec, lat, lon, altFt], …]}`**: the line flown so far this flight (about one point every 2 nm in cruise), kept for OFP Tower's session. A page opened mid-flight, or an OBS source refreshed, draws the whole flown line from it. Read by `toTrack` and merged into the feed's trail by `mergeTrail` (`src/lib/feed/core.ts`). It resets on a new flight (a take-off after a stop of 60 s or more, or 10 min on the ground; a route change on the ground), not on a bounce or a diversion.
+- **`{"type":"summary","v":1, …}`**: the flight's numbers for the ending screen, sent on connect and when they change (events at once, running figures at most every 10 s), kept for the session. Every field may be null:
+  - `flight`: `origin`, `destination`, `flightNumber` (the MCDU's FLT NBR), `callsign`, `reg` (ATC ID), `aircraft`;
+  - `times`: `out`, `off`, `on`, `in` (UTC epoch ms);
+  - `runways`: `departure`, `arrival` (the ones used: arrival is the plan's destination runway at touchdown);
+  - `landing`: `fpm`, `tdSim`, `peakG`, `bounces`;
+  - `maxAltFt`, `maxGsKt`, `distanceNm` (airborne track, take-off to touchdown);
+  - `fuel`: `outKg`, `offKg`, `onKg`, `inKg`, `tripKg` (off − on), `cruiseFfKgH`;
+  - `complete`: true from on-blocks.
+
+  Read by `toSummary`. The board keeps the last ending in this PC's browser storage (`ofp-planner:ending`, for its route, 24 h), so the ending screen still shows it after a refresh with OFP Tower closed.
+
 ## Aircraft profiles
 
 Some aircraft keep systems in their own variables, so the default SimVars can be wrong. A profile maps a field to an L:var for aircraft whose `TITLE` contains a given string. The first match wins; with no match, the defaults apply. Shape, as the recorder's `profiles.json`:

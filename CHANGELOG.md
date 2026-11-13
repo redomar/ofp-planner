@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.13.0 — 2026-11-12
+
+- **Countdown** look (Stream studio → Start and end, or `view=countdown`): the gate screen with a big clock to the stream's start, "Starting now" from zero, never below. It needs no OFP Tower: the flight comes from SimBrief, the time from the screen's link, set under "Countdown to the stream":
+  - `5m`: from when the page loads. With "Refresh browser when scene becomes active" on the OBS source, it starts again each time the scene comes on.
+  - `19:30` (this PC's clock) or `19:30Z` (UTC).
+  - `std-30`: 30 min before the flight's off-block.
+  - Several, the first that gives a time: `std-30,5m`.
+- **Ending screen** (`view=ending`):
+  - a window for the game, top left;
+  - under it, the flight as the passengers had it: the weather at the destination, on time or late, and how the landing felt (Butter, Smooth, Normal, Firm or Hard, and any bounce);
+  - a sign-off at the bottom left, your own under "Sign-off";
+  - on the right, the route as flown on a map and the numbers: block and air time, take-off and touchdown with runways, landing rate and G, top level, fastest ground speed, distance, trip fuel, cruise burn, on-blocks against the schedule.
+- **The ending's numbers come from OFP Tower** (its new summary message), else what the page saw itself. The last ending is kept in this PC's browser, so an OBS source refreshed after the flight, or with OFP Tower closed, still shows it.
+- **A page opened mid-flight draws the whole line flown**, from OFP Tower's track.
+- **Your own airline name and flight-number code** (On the screen → Airline name, Code in the flight number), for when the data gets them wrong: Wizz Air Malta flights showed as Wizz Air, "W6". They're remembered for that airline's flights in this browser, and the screen's link (and the relay) takes them to OBS.
+
 ## 1.12.5 — 2026-11-12
 
 - **No elapsed times as clock times before take-off.** At the gate the Airbus F-PLN TIME column counts from take-off ("00:00" … "01:28"); the route rows showed those as UTC ("01:28Z"). They're left out until the Takeoff phase, when the MCDU switches to UTC. Seen on HA-LPM Budapest → Milan.

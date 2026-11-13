@@ -4,7 +4,7 @@ Written on 2026-11-11 by the two Claude sessions that built it: the Mac session 
 
 ## 1. Where things stand
 
-The live site is <https://plans.massorbit.co.uk>. The latest release is **1.10.1**. All releases are signed tags with GitHub releases, made from `main` through PRs.
+The live site is <https://plans.massorbit.co.uk>. The latest release is **1.13.0**. All releases are signed tags with GitHub releases, made from `main` through PRs.
 
 | Version | What | PR |
 |---|---|---|
@@ -18,7 +18,9 @@ The live site is <https://plans.massorbit.co.uk>. The latest release is **1.10.1
 | 1.10.0 | Stream panel made visual (phases × scenes thumbnail grid, presets, preview), settings to OBS live through OFP Tower, `&as=Scene` sources, approach zoom within 10 nm | #34 |
 | 1.10.1 | The companion is called **OFP Tower** (was OFP Link) on the site | #35 |
 | 1.10.2–1.11.2 | Relay sends complete settings; pressure altitude; route panel G3d, Approaching stage, seatbelt sign, G5b; landing = first contact; 0,0 guard | #37–#40, #42 |
-| 1.12.0 | **Stream studio**: looks (size, corner, flip, layers) per scene and stage, the look editor, G6a/G6b/G7a/G7b | this release |
+| 1.12.0 | **Stream studio**: looks (size, corner, flip, layers) per scene and stage, the look editor, G6a/G6b/G7a/G7b | #43 |
+| 1.12.1–1.12.5 | FMS landing time; go-arounds; extra-small size (`.xs`); no pre-flight elapsed times, steady landing minute, readable `strip.xs` | #44–#51 |
+| 1.13.0 | **Countdown** (G8, `go=`) and **Ending screen** (G9, `bye=`, passengers' strip, numbers from OFP Tower's summary, kept in `ofp-planner:ending`); OFP Tower track backlog read; airline name / flight-number code overrides (`an=`, `ac=`, remembered per airline in `ofp-planner:airline-names`) | this release |
 
 **Naming:** "OFP Tower" is the user-facing name, the owner's choice on 2026-11-11. In code and protocol the old name stays: `feed=link`, `linkSource`, `"app":"ofp-link"`, port 47800, `docs/OFP-LINK.md`, and the PC folder `ofp-link-recorder`. Rename both sides together or not at all.
 
@@ -47,7 +49,10 @@ MSFS 2024 (Fenix A320 family) ──SimConnect──▶ OFP Tower (Python, sim P
 | `src/lib/feed/toLog.ts` | Arrived flight to a Logbook entry. |
 | `src/lib/board/looks.ts` | 1.12 looks: a view + size, corner, flip back sides and timings, seatbelt; tokens (`card.s.bl`, `g6b.l.tl.bnp.e240`), layers joined by `~`; `VIEW_INFO`, `VIEW_GROUPS`, `BACKS`. |
 | `src/lib/board/gate.ts` | `GateState` and URL params: `view` ("auto" or a look token), `st` (5 stages of look tokens; 4 still read), `sc` (`Name:look` or `Name:a,b,c,d,e`), `hold`, `PRESETS`, `fromSnapshot`, `fromOfp`, `fromPlan` (FMS flight, `timing:"none"`). |
-| `src/components/board/GateScreen.tsx` | Full view G1 (clock or live; flight steps to the arrival gate). |
+| `src/lib/board/countdown.ts` | 1.13 `goParam`, `goTarget`: the countdown's start from `go=` (`5m` from load, `19:30`/`19:30Z`, `std-30`; fallbacks). Imports nothing (verify loads it). |
+| `src/lib/board/ending.ts` | 1.13 the ending's numbers: `endStats` (summary over stamps over kept), `endingRecord` / `readEnding` (kept per route, 24 h), `landingFeel` (Butter … Hard). |
+| `src/lib/board/naming.ts` | 1.13 `namedFlight`: the user's airline name and flight-number code over the data's. |
+| `src/components/board/GateScreen.tsx` | Full view G1 (clock or live; flight steps to the arrival gate); with `countdown` it's G8. |
 | `src/components/board/GateViews.tsx` | `shownLooks` (view=auto: hold, then scene rule, then stage table), `liveFacts`, `routeToGo`, `routeAhead`, `descentAhead`, `flipSide`, `GateMap`, every view incl. G6/G7 and the flip back sides, layers, `sampleLive`, `MiniScreen`. |
 | `src/components/board/StreamPanel.tsx` | Stream panel shell: status bar, tabs (Scenes, Rehearse, Live feed, OBS setup), rehearse strip, `LogArrival`. |
 | `src/components/board/StreamStudio.tsx` | 1.12 studio: scenes rail, a scene's stage timeline, overview, preview, the look editor (`<dialog>`), My looks (localStorage `ofp:my-looks`). |

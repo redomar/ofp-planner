@@ -761,3 +761,136 @@ export function routeBefore(route: { lat: number; lon: number }[] | null, at: [n
   const past = near < route.length - 1 && distNm(p, route[near + 1]) < distNm(route[near], route[near + 1]);
   return route.slice(0, past ? near + 1 : near).map((x): [number, number] => [x.lon, x.lat]);
 }
+
+/* ---------- 1.13: OFP Tower's flight summary and track backlog ---------- */
+
+/**
+ * The flight's numbers as OFP Tower worked them out ({"type":"summary","v":1,…}), sent on connect
+ * and when they change, kept for its session: the ending screen's figures. Every field may be null.
+ */
+export interface FlightSummary {
+  origin: string | null;
+  destination: string | null;
+  flightNumber: string | null;
+  callsign: string | null;
+  reg: string | null;
+  aircraft: string | null;
+  /** Off-block, take-off, touchdown, on-blocks (UTC ms). */
+  out: number | null;
+  off: number | null;
+  on: number | null;
+  in: number | null;
+  depRunway: string | null;
+  arrRunway: string | null;
+  /** Touchdown rate (ft/min, negative), the sim's latched one, the landing's peak G, bounces. */
+  fpm: number | null;
+  tdSim: number | null;
+  peakG: number | null;
+  bounces: number | null;
+  maxAltFt: number | null;
+  maxGsKt: number | null;
+  /** Along the track flown (nm). */
+  distanceNm: number | null;
+  fuelOutKg: number | null;
+  fuelOffKg: number | null;
+  fuelOnKg: number | null;
+  fuelInKg: number | null;
+  /** Take-off to touchdown. */
+  tripKg: number | null;
+  cruiseFfKgH: number | null;
+  /** On blocks: the numbers are final. */
+  complete: boolean;
+}
+
+/** A number within [lo, hi], else null. */
+const within = (v: unknown, lo: number, hi: number) => {
+  const n = num(v);
+  return n != null && n >= lo && n <= hi ? n : null;
+};
+/** A time as UTC ms within two days of now, else null. */
+const stamp = (v: unknown, now: number) => {
+  const n = num(v);
+  return n != null && Math.abs(n - now) < 2 * 86_400_000 ? Math.round(n) : null;
+};
+const rwy = (v: unknown) => {
+  const m = typeof v === "string" ? /^(\d{1,2})([LCR]?)$/i.exec(v.trim()) : null;
+  return m && Number(m[1]) >= 1 && Number(m[1]) <= 36 ? `${m[1].padStart(2, "0")}${m[2].toUpperCase()}` : null;
+};
+
+/** A "summary" message, checked field by field; null when it isn't one. */
+export function toSummary(m: Record<string, unknown>, now: number): FlightSummary | null {
+  if (m.type !== "summary" || (m.v != null && m.v !== 1)) return null;
+  const o = (k: string) => (m[k] && typeof m[k] === "object" ? (m[k] as Record<string, unknown>) : {});
+  const fl = o("flight");
+  const tm = o("times");
+  const rw = o("runways");
+  const ld = o("landing");
+  const fu = o("fuel");
+  const kg = (v: unknown) => within(v, 0, 400_000);
+  const out = stamp(tm.out, now);
+  const off = stamp(tm.off, now);
+  const on = stamp(tm.on, now);
+  const inn = stamp(tm.in, now);
+  return {
+    origin: icao(fl.origin),
+    destination: icao(fl.destination),
+    flightNumber: txt(fl.flightNumber, 10),
+    callsign: txt(fl.callsign, 10),
+    reg: txt(fl.reg, 10),
+    aircraft: txt(fl.aircraft, 24),
+    out,
+    off: off != null && (out == null || off >= out) ? off : null,
+    on: on != null && (off == null || on > off) ? on : null,
+    in: inn != null && (on == null || inn >= on) ? inn : null,
+    depRunway: rwy(rw.departure),
+    arrRunway: rwy(rw.arrival),
+    fpm: within(ld.fpm, -5000, 500),
+    tdSim: within(ld.tdSim, -5000, 500),
+    peakG: within(ld.peakG, 0, 6),
+    bounces: within(ld.bounces, 0, 20),
+    maxAltFt: within(m.maxAltFt, -1500, 60_000),
+    maxGsKt: within(m.maxGsKt, 0, 800),
+    distanceNm: within(m.distanceNm, 0, 12_000),
+    fuelOutKg: kg(fu.outKg),
+    fuelOffKg: kg(fu.offKg),
+    fuelOnKg: kg(fu.onKg),
+    fuelInKg: kg(fu.inKg),
+    tripKg: kg(fu.tripKg),
+    cruiseFfKgH: within(fu.cruiseFfKgH, 0, 50_000),
+    complete: m.complete === true,
+  };
+}
+
+/** Sim time of day (s) as UTC ms: today's date, or yesterday's when that would be over 12 h ahead. */
+export function zuluMs(z: number, now: number): number {
+  const day = now - (now % 86_400_000);
+  const t = day + z * 1000;
+  return Math.round(t > now + 43_200_000 ? t - 86_400_000 : t);
+}
+
+/** A "track" message (OFP Tower's backlog: [[zuluSec, lat, lon, altFt], …]) as points, oldest first. */
+export function toTrack(m: Record<string, unknown>, now: number): { t: number; lat: number; lon: number; alt: number | null }[] {
+  if (m.type !== "track" || !Array.isArray(m.points)) return [];
+  const out: { t: number; lat: number; lon: number; alt: number | null }[] = [];
+  for (const p of m.points.slice(0, 20_000)) {
+    if (!Array.isArray(p)) continue;
+    const [z, lat, lon, alt] = p.map(num);
+    if (z == null || lat == null || lon == null || z < 0 || z >= 86_400 || !realPos(lat, lon)) continue;
+    out.push({ t: zuluMs(z, now), lat, lon, alt });
+  }
+  return out.sort((a, b) => a.t - b.t);
+}
+
+/**
+ * The flown line with a backlog put in: points from both, by time, one at a time (a second apart
+ * at least), thinned as the feed thins its own (30 s or 2 nm apart).
+ */
+export function mergeTrail(a: { t: number; lon: number; lat: number }[], b: { t: number; lon: number; lat: number }[]): { t: number; lon: number; lat: number }[] {
+  const all = [...a, ...b].sort((x, y) => x.t - y.t);
+  const out: { t: number; lon: number; lat: number }[] = [];
+  for (const p of all) {
+    const last = out[out.length - 1];
+    if (!last || (p.t - last.t >= 1000 && (p.t - last.t >= 30_000 || Math.hypot(p.lon - last.lon, p.lat - last.lat) > 0.033))) out.push(p);
+  }
+  return out;
+}

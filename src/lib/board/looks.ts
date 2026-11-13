@@ -31,6 +31,8 @@ export const VIEWS = [
   "strip",
   "pill",
   "line",
+  "countdown",
+  "ending",
 ] as const;
 export type ShownView = (typeof VIEWS)[number];
 export const isView = (v: string): v is ShownView => (VIEWS as readonly string[]).includes(v);
@@ -87,6 +89,8 @@ export const VIEW_INFO: Record<ShownView, ViewInfo> = {
   strip: { name: "Strip", code: "G4", note: "One bar along the bottom or the top.", kind: "bar", pos: "bc" },
   pill: { name: "Pill", code: "G5", note: "Flight, route and time to go in one line.", kind: "pill", pos: "tl" },
   line: { name: "Pill with phase", code: "G5b", note: "The pill with the phase in its own colour.", kind: "pill", pos: "tl" },
+  countdown: { name: "Countdown", code: "G8", note: "The gate screen with a big countdown to the stream's start.", kind: "screen", pos: "tl", noBelt: true },
+  ending: { name: "Ending screen", code: "G9", note: "A window for the game, the flight's numbers and the route flown, a sign-off.", kind: "screen", pos: "tl", noBelt: true },
 };
 
 /** The picker's groups. */
@@ -95,6 +99,7 @@ export const VIEW_GROUPS: { k: string; name: string; views: ShownView[] }[] = [
   { k: "corners", name: "Map corners", views: ["corner", "g6a1", "g6a2", "g6a3", "g6b"] },
   { k: "cards", name: "Cards", views: ["card", "g7a1", "g7a2", "g7a3", "g7b"] },
   { k: "bars", name: "Strips and pills", views: ["strip", "pill", "line"] },
+  { k: "ends", name: "Start and end", views: ["countdown", "ending"] },
 ];
 
 export const BACKS: { k: LookBack; name: string; note: string; ready: boolean; needs?: string }[] = [
@@ -166,4 +171,4 @@ export const layersTo = (ls: Layers) => ls.map(lookTo).join("~");
 export const sameLayers = (a: Layers, b: Layers) => layersTo(a) === layersTo(b);
 export const layers = (v: ShownView, p: Partial<Omit<Look, "v">> = {}): Layers => [look(v, p)];
 /** Drawn over the sim: every layer floats (nothing paints the whole screen). */
-export const overSim = (ls: Layers) => ls.every((l) => VIEW_INFO[l.v].kind !== "screen" || l.v === "frame" || l.v === "mapwin");
+export const overSim = (ls: Layers) => ls.every((l) => VIEW_INFO[l.v].kind !== "screen" || l.v === "frame" || l.v === "mapwin" || l.v === "ending");

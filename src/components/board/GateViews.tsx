@@ -2,16 +2,18 @@
 
 import { geoAzimuthalEquidistant, geoDistance, geoInterpolate, geoPath } from "d3-geo";
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
-import { cityName } from "@/lib/data/flight";
+import { cityName, dur } from "@/lib/data/flight";
 import { routeColor, textOn } from "@/lib/colors";
 import { MIN } from "@/lib/board/board";
 import type { GateFlight, GateState } from "@/lib/board/gate";
+import { goTarget } from "@/lib/board/countdown";
+import { ENDING_KEY, endStats, landingFeel, readEnding, routeKey, type EndingRecord } from "@/lib/board/ending";
 import { BACKS, layers, layersFrom, layersTo, VIEW_INFO, type Layers, type Look, type LookBack, type ShownView } from "@/lib/board/looks";
-import { bearing, distNm, fmsArrival, routeBefore, steadyTime, landingText, levelFt, phaseLabel, utcAt, wentAround, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState } from "@/lib/feed/core";
+import { bearing, distNm, fmsArrival, routeBefore, steadyTime, landingText, levelFt, phaseLabel, utcAt, wentAround, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState, type FlightSummary } from "@/lib/feed/core";
 import { useOutlines } from "@/lib/outlines";
 import { useTerrain } from "@/lib/terrain";
 import { baseLayers, mapRadius } from "../RouteMap";
-import { GateScreen, localClock, PLANE, screenNow, type GateWx } from "./GateScreen";
+import { GateScreen, localClock, PLANE, screenNow, WxPicto, type GateWx } from "./GateScreen";
 
 /**
  * The view on screen. A fixed &view= is that view. view=auto: an OBS scene named in the rules
@@ -973,6 +975,8 @@ export interface ViewProps {
   trail?: [number, number][];
   /** The route programmed in the aircraft's FMS (OFP Tower, Fenix). */
   plan?: FlightPlan | null;
+  /** 1.13, OFP Tower: its summary of the flight, for the ending screen. */
+  summary?: FlightSummary | null;
 }
 
 /**
@@ -999,6 +1003,13 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null }) {
   const lk = p.look;
   const view = lk.v;
   if (view === "full") return <GateScreen flight={p.flight} state={p.state} now={p.now} wx={p.wx} live={p.live} source={SOURCE[p.source]} plan={p.plan ?? null} belt={lk.belt} />;
+  if (view === "countdown") {
+    // the stream's start: from the page loading, a clock time, or the flight's off-block (its delay too)
+    const std = p.flight.source === "fms" ? null : (p.state.stdAt ?? p.flight.stdMs) + p.state.delay * MIN;
+    const at = goTarget(p.state.go, p.state.goFrom, std, p.now);
+    return <GateScreen flight={p.flight} state={p.state} now={p.now} wx={p.wx} live={null} plan={p.plan ?? null} belt={false} countdown={at} />;
+  }
+  if (view === "ending") return <EndingView {...p} />;
   const at = { "data-size": lk.size, "data-pos": lk.pos } as Record<string, string>;
   const f = p.flight;
   const bg = routeColor(f.brand);
@@ -1330,6 +1341,137 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null }) {
  * phase preview: at the gate, taxiing out, half-way at the cruise level, at the arrival gate.
  * Illustrative only (the panel labels it so); the stream itself follows the live feed.
  */
+/* ---------- 1.13: the ending screen ---------- */
+
+/** The default sign-off under the game window. */
+export const BYE = "That's the stream for today. Thanks for flying along, catch me next time!";
+
+/**
+ * The ending screen: a window for the game top left, the sign-off under it, and on the right the
+ * flight's numbers and the route as flown. The numbers come from OFP Tower's summary, else what this
+ * page saw, else the ending a page on this PC kept (an OBS source refreshed after the flight).
+ */
+function EndingView(p: ViewProps) {
+  const f = p.flight;
+  const key = routeKey(f);
+  const [kept, setKept] = useState<EndingRecord | null>(null);
+  useEffect(() => {
+    const read = () => {
+      try {
+        setKept(readEnding(window.localStorage.getItem(ENDING_KEY), f, Date.now()));
+      } catch {
+        setKept(null);
+      }
+    };
+    read();
+    // another OBS source on this PC kept it
+    const on = (e: StorageEvent) => e.key === ENDING_KEY && read();
+    window.addEventListener("storage", on);
+    return () => window.removeEventListener("storage", on);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the flight is its route
+  }, [key]);
+  const plan = p.plan ?? null;
+  const rw = (role: "departure" | "arrival") => plan?.runways.find((r) => r.role === role && r.airport === (role === "departure" ? f.from.icao : f.to.icao))?.runway ?? null;
+  const x = endStats(f, p.live, p.summary ?? null, kept, rw("departure") ?? f.runway, rw("arrival"));
+  const trail = p.trail && p.trail.length > 1 ? p.trail : (kept?.trail ?? []);
+  const bg = routeColor(f.brand);
+  const ink = textOn(bg);
+  const accent = f.brand?.colors.secondary && /^#[0-9a-f]{6}$/i.test(f.brand.colors.secondary) && f.brand.colors.secondary.toLowerCase() !== bg.toLowerCase() ? f.brand.colors.secondary : ink;
+  const style = { "--gs-bg": bg, "--gs-ink": ink, "--gs-accent": accent } as CSSProperties;
+  const facts = liveFacts(f, p.state, p.live, p.now, plan);
+  const fromName = cityName(f.from) ?? f.from.name;
+  const toName = cityName(f.to) ?? f.to.name;
+  const t = (ms: number | null, tz: string | null) => (ms == null ? null : localClock(ms, tz));
+  const kg = (n: number | null) => (n == null ? null : `${Math.round(n).toLocaleString("en-GB")}`);
+  const tiles: { k: string; v: string | null; unit?: string; wide?: boolean }[] = [
+    { k: "Block time", v: x.block != null ? dur(x.block) : null },
+    { k: "In the air", v: x.air != null ? dur(x.air) : null },
+    { k: `Take-off${x.depRunway ? ` · ${x.depRunway}` : ""}`, v: t(x.off, f.from.tz) },
+    { k: `Touchdown${x.arrRunway ? ` · ${x.arrRunway}` : ""}`, v: t(x.on, f.to.tz) },
+    { k: "Landing", v: x.fpm != null ? `${Math.round(x.fpm)}` : null, unit: "fpm" },
+    { k: x.bounces ? `G · ${x.bounces} bounce${x.bounces > 1 ? "s" : ""}` : "G", v: x.peakG != null ? x.peakG.toFixed(2) : null, unit: "G" },
+    { k: "Top", v: x.maxAltFt != null ? (x.maxAltFt >= 18_000 ? `FL${String(Math.round(x.maxAltFt / 100)).padStart(3, "0")}` : `${Math.round(x.maxAltFt).toLocaleString("en-GB")} ft`) : null },
+    { k: "Fastest", v: x.maxGsKt != null ? `${Math.round(x.maxGsKt)}` : null, unit: "kt" },
+    { k: "Flown", v: x.distanceNm != null ? `${Math.round(x.distanceNm).toLocaleString("en-GB")}` : null, unit: "nm" },
+    { k: "Trip fuel", v: kg(x.tripKg), unit: "kg" },
+    { k: "Cruise burn", v: kg(x.cruiseFfKgH), unit: "kg/h" },
+    // against the schedule's arrival (SimBrief, the Finder): on time within 2 min
+    { k: `On blocks${x.late == null ? "" : Math.abs(x.late) < 3 ? " · on time" : ` · ${x.late < 60 && x.late > -60 ? `${Math.abs(x.late)} min` : dur(Math.abs(x.late))} ${x.late > 0 ? "late" : "early"}`}`, v: t(x.in, f.to.tz) },
+  ];
+  const shown = tiles.filter((y) => y.v != null);
+  // the flight as the passengers had it: the weather they stepped out into, on time or not, the landing
+  const feel = landingFeel(x.fpm, x.peakG, x.bounces);
+  const wx = p.wx && (p.wx.temp != null || p.wx.text) ? p.wx : null;
+  const onTime = x.late == null ? null : Math.abs(x.late) < 3 ? { word: "On time", line: "Right on schedule", tone: "go" } : x.late > 0 ? { word: `${x.late < 60 ? `${x.late} min` : dur(x.late)} late`, line: x.late > 15 ? "A delay the passengers noticed" : "A little behind the schedule", tone: x.late > 15 ? "stop" : "warn" } : { word: `${-x.late < 60 ? `${-x.late} min` : dur(-x.late)} early`, line: "Ahead of the schedule", tone: "go" };
+  const label = `Ending screen: ${f.flightNo}, ${fromName} to ${toName}`;
+  return (
+    <div className="gv gv-end" style={style} data-size="m" data-pos="tl" role="region" aria-label={label}>
+      <div className="gv-window" aria-hidden="true" />
+      {(wx || onTime || feel) && (
+        <ul className="gv-end-pax" aria-label="For the passengers">
+          {wx && (
+            <li>
+              <small>Weather in {toName}</small>
+              <b>
+                <WxPicto code={wx.code} night={wx.night} />
+                {wx.temp != null ? `${Math.round(wx.temp)}°C` : ""}
+              </b>
+              <span>{wx.text ?? ""}</span>
+            </li>
+          )}
+          {onTime && (
+            <li className={`gs-${onTime.tone}`}>
+              <small>Arrival</small>
+              <b>{onTime.word}</b>
+              <span>{onTime.line}</span>
+            </li>
+          )}
+          {feel && (
+            <li className={`gs-${feel.tone}`}>
+              <small>The landing</small>
+              <b>{feel.word}</b>
+              <span>{feel.line}</span>
+            </li>
+          )}
+        </ul>
+      )}
+      <div className="gv-end-bye">
+        <b>Flight complete</b>
+        <span>{p.state.bye || BYE}</span>
+      </div>
+      <div className="gv-end-rail">
+        <div className="gv-rail-top">
+          <Brand f={f} />
+          {ident(f)}
+        </div>
+        <div className="gv-end-route">
+          <span>{fromName}</span>
+          <i aria-hidden="true">→</i>
+          <span>{toName}</span>
+        </div>
+        <div className="gv-end-map">
+          <GateMap f={f} facts={facts} W={700} H={460} label={`Map: the route flown, ${f.from.iata ?? f.from.icao} to ${f.to.iata ?? f.to.icao}`} trail={trail} plan={plan} />
+        </div>
+        {shown.length ? (
+          <dl className="gv-end-stats">
+            {shown.map((y) => (
+              <div key={y.k}>
+                <dt>{y.k}</dt>
+                <dd className="mono">
+                  {y.v}
+                  {y.unit && <i> {y.unit}</i>}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        ) : (
+          <p className="gv-end-none">The flight&apos;s numbers show here once it has landed (OFP Tower).</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function sampleLive(f: GateFlight, stage: ViewStage, now: number): FlightState {
   const air = stage === "flying" || stage === "approaching";
   // approaching: about 20 nm out on the way in (half-way on a hop shorter than 40 nm)

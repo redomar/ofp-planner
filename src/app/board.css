@@ -554,6 +554,37 @@
   letter-spacing: 0;
   text-transform: none;
 }
+/* 1.13, the countdown view: the status panel as a big clock to the stream's start */
+.gs-count {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: calc(var(--u) * 40);
+  background: #ffffff;
+  border-left-color: var(--gs-accent);
+}
+.gs-count small {
+  font-family: var(--font-cond);
+  font-size: calc(var(--u) * 1.9);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.gs-count b {
+  font-family: var(--font-mono);
+  font-size: calc(var(--u) * 8.4);
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-transform: none;
+}
+.gs-count.is-now b {
+  font-family: var(--font-cond);
+  font-size: calc(var(--u) * 6);
+  text-transform: uppercase;
+  color: #0a5c27;
+}
 .gs-go {
   background: #dff6e6;
   border-left-color: #0a7a33;
@@ -3001,4 +3032,198 @@ html.screen-mode body > :not(.screen-root) {
 }
 .gv-over[data-size="xs"] .gv-strip :is(.gv-tile b, .gv-strip-st b) {
   font-size: var(--xs-fig);
+}
+
+/* ---------- 1.13: the ending screen (G9): the game top left, the sign-off under it, the flight's numbers on the right ---------- */
+.gv-end {
+  display: grid;
+  grid-template-columns: 62fr 38fr;
+  grid-template-rows: auto 1fr auto;
+  gap: calc(var(--u) * 1.4);
+  padding: calc(var(--u) * 1.6);
+}
+.gv-end > .gv-window {
+  grid-area: 1 / 1;
+  aspect-ratio: 16 / 9;
+  flex: none;
+}
+.gv-end > :not(.gv-window) {
+  position: relative;
+  z-index: 1;
+}
+/* the sign-off: a compact lower-third at the bottom left, only as tall as its text */
+.gv-end-bye {
+  grid-area: 3 / 1;
+  align-self: end;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 0.3);
+  padding: calc(var(--u) * 0.8) calc(var(--u) * 1.4);
+  border-left: calc(var(--u) * 0.5) solid var(--gs-accent);
+  border-radius: calc(var(--u) * 0.5);
+  /* outlined on the page's own colour, as the tiles: a tint lowers the small text's contrast on some airlines */
+  background: none;
+  outline: calc(var(--u) * 0.12) solid color-mix(in srgb, var(--gs-ink) 35%, transparent);
+  outline-offset: calc(var(--u) * -0.12);
+}
+.gv-end-bye b {
+  font-family: var(--font-cond);
+  font-size: calc(var(--u) * 1.6);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+.gv-end-bye span {
+  font-size: calc(var(--u) * 1.35);
+  font-weight: 500;
+  line-height: 1.3;
+}
+.gv-end-rail {
+  grid-area: 1 / 2 / 4 / 3;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 0.9);
+}
+.gv-end-route {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 calc(var(--u) * 0.8);
+  font-size: calc(var(--u) * 2.6);
+  font-weight: 800;
+  line-height: 1.15;
+}
+.gv-end-route i {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--gs-accent);
+}
+/* the map's own shape (700 × 460), so the whole route shows (no cropping to fill) */
+.gv-end-map {
+  flex: none;
+  aspect-ratio: 700 / 460;
+  border-radius: calc(var(--u) * 0.5);
+  overflow: hidden;
+}
+.gv-end-map > * {
+  width: 100%;
+  height: 100%;
+}
+.gv-end-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: calc(var(--u) * 0.6);
+  margin: 0;
+}
+.gv-end-stats > div {
+  min-width: 0;
+  padding: calc(var(--u) * 0.5) calc(var(--u) * 0.8);
+  border: calc(var(--u) * 0.12) solid color-mix(in srgb, var(--gs-ink) 35%, transparent);
+  border-radius: calc(var(--u) * 0.5);
+}
+.gv-end-stats dt {
+  font-family: var(--font-cond);
+  font-size: calc(var(--u) * 0.95);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gv-end-stats dd {
+  margin: 0;
+  font-size: calc(var(--u) * 1.9);
+  font-weight: 600;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.gv-end-stats dd i {
+  font-style: normal;
+  font-size: 0.55em;
+}
+.gv-end-none {
+  margin: 0;
+  font-size: calc(var(--u) * 1.4);
+}
+
+/* the flight as the passengers had it: three cards between the game and the sign-off */
+.gv-end-pax {
+  grid-area: 2 / 1;
+  align-self: center;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: calc(var(--u) * 0.8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.gv-end-pax li {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 0.15);
+  min-width: 0;
+  padding: calc(var(--u) * 0.7) calc(var(--u) * 1.1);
+  border-radius: calc(var(--u) * 0.5);
+  border-left: calc(var(--u) * 0.45) solid color-mix(in srgb, var(--gs-ink) 45%, transparent);
+  /* outlined on the page's own colour, as the tiles: a tint lowers the small text's contrast on some airlines */
+  background: none;
+  outline: calc(var(--u) * 0.12) solid color-mix(in srgb, var(--gs-ink) 35%, transparent);
+  outline-offset: calc(var(--u) * -0.12);
+}
+.gv-end-pax small {
+  font-family: var(--font-cond);
+  font-size: calc(var(--u) * 0.95);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gv-end-pax b {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 0.5);
+  font-family: var(--font-cond);
+  font-size: calc(var(--u) * 2.3);
+  font-weight: 700;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+.gv-end-pax b .gs-info-icon {
+  width: calc(var(--u) * 2.2);
+  height: calc(var(--u) * 2.2);
+}
+.gv-end-pax span {
+  font-size: calc(var(--u) * 1.1);
+  line-height: 1.25;
+}
+/* the tone is the edge's colour only: the card stays on the airline's colours */
+.gv-end-pax li.gs-go {
+  /* outlined on the page's own colour, as the tiles: a tint lowers the small text's contrast on some airlines */
+  background: none;
+  outline: calc(var(--u) * 0.12) solid color-mix(in srgb, var(--gs-ink) 35%, transparent);
+  outline-offset: calc(var(--u) * -0.12);
+  border-left-color: #2fbf63;
+}
+.gv-end-pax li.gs-warn {
+  /* outlined on the page's own colour, as the tiles: a tint lowers the small text's contrast on some airlines */
+  background: none;
+  outline: calc(var(--u) * 0.12) solid color-mix(in srgb, var(--gs-ink) 35%, transparent);
+  outline-offset: calc(var(--u) * -0.12);
+  border-left-color: #f2b233;
+}
+.gv-end-pax li.gs-stop {
+  /* outlined on the page's own colour, as the tiles: a tint lowers the small text's contrast on some airlines */
+  background: none;
+  outline: calc(var(--u) * 0.12) solid color-mix(in srgb, var(--gs-ink) 35%, transparent);
+  outline-offset: calc(var(--u) * -0.12);
+  border-left-color: #ff6b5e;
+}
+.gv-end-pax li[class^="gs-"] b {
+  color: inherit;
 }
