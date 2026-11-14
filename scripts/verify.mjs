@@ -663,6 +663,51 @@ async function run() {
           ? pass("gate feed: OFP Tower's summary and track read, the ending kept per flight for 24 h, block 1h51 / air 1h34 / 6 min late, landings Butter → Hard, the airline renamed (W4 5PL)")
           : fail(`gate feed: ending ${JSON.stringify({ sum: sum && [sum.depRunway, sum.arrRunway, sum.fpm], bad: bad && [bad.off, bad.fpm, bad.depRunway], trk: trk.length, merged: merged.length, x: [x.block, x.air, x.late], back: !!back, other, stale, feels, named: [named.airline, named.flightNo] })}`);
       }
+      // 1.16: the cockpit (the probe's fields as EICK → EGBB showed them, 13 Nov) and the MCDU pages
+      // (the Fenix's rows as recorded: lower-case letters are colour and size codes)
+      {
+        const dk = await import(join(process.cwd(), "src/lib/feed/deck.ts"));
+        const init = ["INIT FUEL PREDICTION £¢", "sTAXI           ZFW/ZFWCG", "cs0.2lw          c 53.2/w c27.9w", "sTRIP/TIME          BLOCK", "gs  1.8l/s0047lw           c4.6w", "sRTE RSV/%", "c  0.6/s5.0lw", "sALTN/TIME      TOW/   LW", "cs0.9lw/gs0020lw    gs57.6lw/ gs55.8lw", "sFINAL/TIME     TRIP WIND", "c  c1.0csc/0028clw         csHDl000w", "sMIN DEST FOB  EXTRA/TIME", "sc1.9wl         gs  0.1/0002lw"];
+        const crz = ["gCRZ", "sACT MODE   UTC DEST wEFOBw", "gMANAGEDw   g2321w       g2.8w", "s CI", "c15w              sTOl g(T/D)w", "s MANAGED   UTC      DIST", "g s.76lw      g2255        25w", "s", "s          DES CABIN RATE", "sc-350wFT/MNl", "sc ACTIVATEw          NEXT", "c£APPR PHASEw       PHASE>"];
+        const des = ["DES", "sACT MODE   UTC DEST wEFOBw", "gMANAGEDw   g2320w       g2.8w", "s CI", "c15w", "s MANAGED", "c s.78l/s268lw", "s", "s", "s PREV              NEXT", "<PHASE            PHASE>"];
+        const fpl = ["sFROMl          sTST123l £¢", "s         UTC  SPD/ALT", "gBANBA  wg 2245w g    gl lg FL305w", "s        BRG105°  s20     l", "DIQSE   s2250l  ss.76slwl/lw sFL350l", "s                 sg34w     l", 'g(T/D)  wg s2255lw  gs " l/s   "  lw', "s DEST    UTC  DIST  EFOB", "EGBB15  s2320l   s181   2.8l"];
+        const P = (r, t = 1) => dk.mcduPage(1, t, r);
+        const fi = dk.pageFigures(P(init));
+        const fc = dk.pageFigures(P(crz));
+        const fd = dk.pageFigures(P(des));
+        const ff = dk.pageFigures(P(fpl));
+        const all = dk.fmsFigures([P(init, 1), P(fpl, 2), P(crz, 3)]);
+        const runs = dk.mcduRuns("cs0.2lw          c 53.2/w c27.9w");
+        const probe = { "L:S_OH_EXT_LT_BEACON": 1, "L:S_OH_EXT_LT_STROBE": 2, "L:S_OH_EXT_LT_NAV_LOGO": 1, "L:S_OH_EXT_LT_LANDING_BOTH": 2, "L:S_OH_EXT_LT_NOSE": 2, "L:S_FC_FLAPS": 1, "L:S_MIP_GEAR": 1, "L:A_FC_SPEEDBRAKE": 0, "L:I_MIP_AUTOBRAKE_MAX_L": 1, "L:I_FCU_ATHR": 1, "L:I_FCU_AP1": 0, "L:S_ENG_MASTER_1": 1, "L:S_ENG_MASTER_2": 1, "TRANSPONDER CODE:1": 6205, "L:S_XPDR_OPERATION": 2, "KOHLSMAN SETTING MB:1": 1019, "TOTAL WEIGHT": 127000 };
+        const a = dk.aircraftStatus(probe);
+        const later = dk.aircraftStatus(dk.mergeProbe(probe, { "L:S_FC_FLAPS": 0, "L:S_MIP_GEAR": 0, "L:A_FC_SPEEDBRAKE": 2.4, "KOHLSMAN SETTING MB:1": 1013.25, "L:S_OH_EXT_LT_STROBE": 1, bad: { x: 1 } }));
+        const none = dk.aircraftStatus(null);
+        const pages = dk.keepPages(dk.keepPages(dk.keepPages([], P(crz, 1)), P(des, 2)), P(crz, 3));
+        const rec = core.parseRecording([JSON.stringify({ v: 2, kind: "ofp-recording", started: 1e12 }), JSON.stringify({ t: 1e12, zulu: 100, lat: 51, lon: 0, alt: 3000 }), JSON.stringify({ type: "probe", t: 1e12 + 400, zulu: 101, v: { "L:I_FCU_AP1": 1 } }), JSON.stringify({ type: "mcdu", t: 1e12 + 500, zulu: 101, unit: 1, title: "gCRZ", text: crz }), JSON.stringify({ t: 1e12 + 1000, zulu: 101, lat: 51.01, lon: 0, alt: 3000 })].join("\n"));
+        const ok =
+          fi.trip === 1.8 && fi.tripTime === "00:47" && fi.block === 4.6 && fi.tow === 57.6 && fi.lw === 55.8 && fi.extra === 0.1 &&
+          fc.phase === "CRZ" && fc.utcDest === "23:21" && fc.efob === 2.8 && fc.costIndex === 15 && fc.tdUtc === "22:55" && fc.tdNm === 25 && fc.managed === ".76" &&
+          fd.utcDest === "23:20" && fd.managed === ".78/268" && ff.destNm === 181 && ff.efob === 2.8 && ff.tdUtc === "22:55" && P(fpl).kind === "fpln" && P(fpl).title === "FROM TST123" &&
+          all.utcDest === "23:21" && all.trip === 1.8 && all.tdNm === 25 &&
+          runs[0].colour === "c" && runs[0].small && runs[0].text === "0.2" && runs.some((r) => r.text.includes("53.2") && r.colour === "c" && !r.small) && dk.mcduPlain("c£APPR PHASEw") === "<APPR PHASE" &&
+          a.lights.strobe === "on" && a.lights.landing === "on" && a.lights.nose === "to" && a.flaps === "1" && a.gear === "down" && a.speedbrake === "armed" && a.autobrake === "MAX" && a.athr === true && a.ap1 === false && a.xpdrCode === "6205" && a.xpdrOn === true && a.baro === 1019 && a.weightKg === 57600 && a.engines.join() === "true,true" &&
+          later.flaps === "UP" && later.gear === "up" && later.speedbrake === 70 && later.baro === "STD" && later.lights.strobe === "auto" && none.any === false && none.flaps === null &&
+          pages.length === 2 && pages.at(-1).title === "CRZ" && pages.at(-1).t === 3 && dk.deckPage(pages)?.title === "CRZ" &&
+          rec.samples.length === 2 && rec.probes.length === 1 && rec.probes[0].t === rec.samples[1].t && rec.mcdu.length === 1 && rec.mcdu[0].unit === 1;
+        // pop-ups: what changed (not what was unknown before), 30 s, the newest of each kind; the look's option in links
+        const evs = dk.statusEvents(a, later, 5000);
+        const texts = evs.map((e) => e.text).join("|");
+        const kept = dk.keepEvents(dk.keepEvents([], evs, 5000), [{ key: "flaps", text: "Flaps 2", tone: "on", t: 9000 }], 9000);
+        const lk = await import(join(process.cwd(), "src/lib/board/looks.ts"));
+        const popOk =
+          /Flaps UP/.test(texts) && /Gear UP/.test(texts) && /Speedbrake OUT/.test(texts) && /Baro STD/.test(texts) && /Strobe AUTO/.test(texts) && !/AP1/.test(texts) && dk.statusEvents(none, a, 1).length === 0 &&
+          kept.filter((e) => e.key === "flaps").length === 1 && kept.at(-1).text === "Flaps 2" &&
+          dk.showEvents(kept, 9000 + 29_000).length === 1 && dk.showEvents(kept, 9000 + 31_000).length === 0 && dk.showEvents(kept, 9000).length === 3 &&
+          lk.lookFrom("strip.nl").notify === "l" && lk.lookTo(lk.lookFrom("pill.nx")) === "pill.nx" && lk.lookTo(lk.lookFrom("strip")) === "strip" && lk.lookFrom("card.nl").notify === "l" && lk.lookTo(lk.lookFrom("card.nl")) === "card";
+        ok && popOk
+          ? pass("gate feed: the cockpit from the probe (lights, flaps, gear, speedbrake, autobrake, AP/ATHR, engines, transponder, baro, weight) and the FMS from the MCDU (INIT FUEL PRED 1.8 t/00:47, CRZ 23:21Z 2.8 t T/D 22:55 25 nm, F-PLN 181 nm), codes read as colours; a recording's probe and MCDU lines on its clock; changes for the pop-ups (30 s, the newest of each, none for the state as found), the strip's .nl/.nx")
+          : fail(`gate feed: deck ${JSON.stringify({ ok, popOk, texts, kept, fi, fc, fd, ff, all, a, later, n: pages.length, rec: [rec.samples.length, rec.probes, rec.mcdu.length] })}`);
+      }
       // 1.13.3: the vertical speed smoothed (bumps of ±300 fpm don't twitch it), level within ±200, none on the ground
       {
         let st = core.startState();
@@ -1072,6 +1117,62 @@ async function run() {
       await xs.ctx.close();
       await sm.ctx.close();
     }
+    // 1.16: Aircraft status and Flight deck from a stand-in OFP Tower (probe + the CRZ page); without
+    // them (OFP Tower sending positions only) those sides are skipped, never shown empty
+    {
+      const crz = ["gCRZ", "sACT MODE   UTC DEST wEFOBw", "gMANAGEDw   g2321w       g2.8w", "s CI", "c15w              sTOl g(T/D)w", "s MANAGED   UTC      DIST", "g s.76lw      g2255        25w", "s", "s          DES CABIN RATE", "sc-350wFT/MNl", "sc ACTIVATEw          NEXT", "c£APPR PHASEw       PHASE>"];
+      const probe = { "L:S_OH_EXT_LT_BEACON": 1, "L:S_OH_EXT_LT_STROBE": 1, "L:S_OH_EXT_LT_NAV_LOGO": 1, "L:S_OH_EXT_LT_LANDING_BOTH": 1, "L:S_FC_FLAPS": 0, "L:S_MIP_GEAR": 0, "L:A_FC_SPEEDBRAKE": 1, "L:I_FCU_AP1": 1, "L:I_FCU_ATHR": 1, "L:S_ENG_MASTER_1": 1, "L:S_ENG_MASTER_2": 1, "TURB ENG N1:1": 84, "TURB ENG N1:2": 84, "TRANSPONDER CODE:1": 6205, "KOHLSMAN SETTING MB:1": 1013.25 };
+      const deckPage = async (view, withDeck, levelFor = 20, change = null) => {
+        const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, reducedMotion: "reduce" });
+        await ctx.addInitScript(SEED);
+        await ctx.route(/simbrief\.com\/api\/xml\.fetcher\.php/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(OFP) }));
+        const zs = (ms) => (ms % 86400000) / 1000;
+        await ctx.routeWebSocket(/localhost:47800/, (ws) => {
+          ws.send(JSON.stringify({ type: "hello", app: "OFP Tower" }));
+          if (withDeck) {
+            ws.send(JSON.stringify({ type: "probe", full: true, v: probe }));
+            ws.send(JSON.stringify({ type: "mcdu", unit: 1, text: crz, zulu: zs(Date.now()) }));
+            if (change) setTimeout(() => ws.send(JSON.stringify({ type: "probe", v: change })), 700);
+          }
+          const t0 = Date.now() - levelFor * 1000;
+          for (let i = 0; i <= levelFor; i++) ws.send(JSON.stringify({ type: "sample", lat: 36 + i * 0.01, lon: -79.5, alt: 39_000, pressAlt: 39_000, gs: 450, hdg: 40, vs: 0, onGround: false, engines: [true, true], seatbelts: false, zulu: zs(t0 + i * 1000) }));
+        });
+        const page = await ctx.newPage();
+        const errors = [];
+        page.on("pageerror", (e) => errors.push(String(e)));
+        await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&feed=link&view=${view}`, { waitUntil: "networkidle" });
+        await page.waitForTimeout(1500);
+        const text = (await page.locator(".gv-over").first().innerText().catch(() => "")).replace(/\s+/g, " ");
+        const back = await page.evaluate(() => document.querySelector(".gv-back")?.className.match(/is-(\w+)/)?.[1] ?? "front");
+        const scr = await page.evaluate(() => [...document.querySelectorAll(".gv-mcdu-scr .mc-g")].filter((e) => e.getClientRects().length > 0).length);
+        const pops = await page.locator(".gv-toast").allTextContents();
+        const strips = await page.evaluate(() => [...document.querySelectorAll(".gv-strip")].map((e) => (e.classList.contains("gv-cockpit") ? "cockpit" : /V\/S/.test(e.textContent) ? "strip+vs" : "strip")));
+        const allText = (await page.locator(".gs-frame, .screen-root").first().innerText().catch(() => "")).replace(/\s+/g, " ");
+        await ctx.close();
+        return { text, back, scr, strips, allText, pops, errors };
+      };
+      const acft = await deckPage("g6b.l.ba.bo", true);
+      const deck = await deckPage("g6b.l.bd.bo", true);
+      const small = await deckPage("g6b.s.bd.bo", true);
+      const without = await deckPage("g6b.l.bad.bo", false);
+      const mixed = await deckPage("g6b.l.bnd.bo", false);
+      // the cockpit strip: over the strip with OFP Tower's cockpit, nothing without it; level 90 s, the strip drops V/S (at 30 s it says Level)
+      const cockpit = await deckPage("cockpit~strip", true, 90);
+      const noCockpit = await deckPage("cockpit~strip", false, 30);
+      // pop-ups: a change shows beside the strip; .nx none; the cockpit as found at connect none
+      const flapsGear = { "L:S_FC_FLAPS": 1, "L:S_MIP_GEAR": 1 };
+      const popped = await deckPage("strip", true, 20, flapsGear);
+      const popOff = await deckPage("strip.nx", true, 20, flapsGear);
+      const popNone = await deckPage("pill", true, 20);
+      acft.back === "aircraft" && /BEACON ON/.test(acft.text) && /STROBE AUTO/.test(acft.text) && /LAND OFF/.test(acft.text) && /Flaps UP/.test(acft.text) && /Gear UP/.test(acft.text) && /Speedbrake RET/.test(acft.text) && /Engine 1 ON · 84%/.test(acft.text) && /Transponder 6205/.test(acft.text) && /Baro STD/.test(acft.text) &&
+      deck.back === "deck" && /Arrival · FMS 23:21Z/.test(deck.text) && /Fuel at arrival 2.8 t/.test(deck.text) && /Top of descent 22:55Z · 25 nm/.test(deck.text) && /CRZ · CI 15/.test(deck.text) && deck.scr > 0 && small.back === "deck" && small.scr === 0 &&
+      without.back === "front" && mixed.back === "numbers" &&
+      popped.pops.some((x) => /Flaps 1/i.test(x)) && popped.pops.some((x) => /Gear DOWN/i.test(x)) && popOff.pops.length === 0 && popNone.pops.length === 0 &&
+      cockpit.strips.join() === "cockpit,strip" && /BEACON ON STROBE AUTO NAV ON/.test(cockpit.allText) && /FLAPS UP/i.test(cockpit.allText) && /AP1/.test(cockpit.allText) && noCockpit.strips.join() === "strip+vs" && /V\/S Level/i.test(noCockpit.allText) &&
+      ![acft, deck, small, without, mixed, cockpit, noCockpit].some((x) => x.errors.length)
+        ? pass("gate views: Aircraft status (lights as switches, flaps, gear, speedbrake, engines, transponder, baro), Flight deck (AP/A/THR, arrival 23:21Z, 2.8 t, T/D 22:55Z 25 nm, the CRZ page in its colours; a small corner without the screen) and the Cockpit strip from OFP Tower; without its data they're skipped; level a minute, the strip drops V/S; a cockpit change pops up beside the strip (Flaps 1, Gear DOWN), not with .nx nor for the state as found")
+        : fail(`gate views: deck ${JSON.stringify({ acft: [acft.back, acft.text.slice(0, 200)], deck: [deck.back, deck.text.slice(0, 200), deck.scr], small: [small.back, small.scr], without: without.back, mixed: mixed.back, cockpit: [cockpit.strips, cockpit.allText.slice(0, 200)], noCockpit: [noCockpit.strips, noCockpit.allText.slice(0, 160)], pops: [popped.pops, popOff.pops, popNone.pops], errors: [acft, deck, small, without, mixed, cockpit, noCockpit].flatMap((x) => x.errors).slice(0, 2) })}`);
+    }
     // 1.13.3: the vertical speed on the strip and the pills, from a stand-in OFP Tower climbing at ~2,400 fpm
     {
       const vsPage = async (look) => {
@@ -1309,8 +1410,8 @@ async function run() {
     await a.page.getByRole("button", { name: "Use this rotation" }).click();
     const rotTag = await a.page.locator(".dk-stage .mono", { hasText: "⟳2" }).count();
     const url2 = decodeURIComponent(a.page.url().replace(/\+/g, " "));
-    /st=pill,pill,pill,pill~corner\.s,pill(&|$)/.test(url2) && /Be right back:frame,frame,map,frame,frame,frame/.test(url2) && /Camera:card,card,g6b\.l\.tl,card@120>strip@60,card,card/.test(url2) && dlgShot === 1 && rotTag === 1 && backsOffered.filter((x) => !/Back sides only/.test(x)).length === 3 && !backsOffered.some((x) => /Aircraft status|Flight deck/.test(x))
-      ? pass("stream panel: a preset, a layer (pill + small map corner on approach), a look picked in the editor for the climb (G6b large, top left), a rotation for the cruise (card 2 min → strip 60 s) and a renamed scene travel in the link; only the three flip sides with data are offered")
+    /st=pill,pill,pill,pill~corner\.s,pill(&|$)/.test(url2) && /Be right back:frame,frame,map,frame,frame,frame/.test(url2) && /Camera:card,card,g6b\.l\.tl,card@120>strip@60,card,card/.test(url2) && dlgShot === 1 && rotTag === 1 && backsOffered.filter((x) => !/Back sides only/.test(x)).length === 5 && backsOffered.some((x) => /Aircraft status/.test(x)) && backsOffered.some((x) => /Flight deck/.test(x))
+      ? pass("stream panel: a preset, a layer (pill + small map corner on approach), a look picked in the editor for the climb (G6b large, top left), a rotation for the cruise (card 2 min → strip 60 s) and a renamed scene travel in the link; all five flip sides offered (1.16: Aircraft status and Flight deck have data now)")
       : fail(`stream panel: url ${url2} rotTag ${rotTag} backs ${JSON.stringify(backsOffered)}`);
     // the preview is the screen: the same scene at the same stage draws the same look
     await a.page.getByRole("tab", { name: "Any other scene" }).click();

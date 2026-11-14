@@ -28,7 +28,7 @@ import {
 } from "@/lib/board/looks";
 import { viewStage, type FlightState, type ViewStage } from "@/lib/feed/core";
 import type { FlightFeed } from "@/lib/feed/useFlightFeed";
-import { GateViewScreen, MiniScreen, sampleLive } from "./GateViews";
+import { GateViewScreen, MiniScreen, sampleDeck, sampleLive } from "./GateViews";
 import { useShownStep } from "./useShownStep";
 import { cx, radioKeys, roving } from "../ui";
 import type { GateWx } from "./GateScreen";
@@ -150,6 +150,8 @@ export function ScenesPreview({
   const isNow = pv == null;
   const isLive = isNow && !!feed.state;
   const pvLive = isNow ? feed.state : samples[pvStage];
+  // 1.16: the cockpit at another stage: an example (the live one comes from OFP Tower)
+  const pvDeck = useMemo(() => sampleDeck(pvStage, flight), [pvStage, flight]);
   const sceneName = scene === OTHER ? null : gate.scenes[scene][0];
   const step = useShownStep({ view: "auto", stages: gate.stages, scenes: gate.scenes, hold: pvStage }, pvLive, sceneName, feed.plan, now);
   const pvTurns = cur[pvStage];
@@ -219,7 +221,7 @@ export function ScenesPreview({
       )}
 
       <div className="gs-frame dk-screen" id="gs-preview">
-        <GateViewScreen flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={pvLive} source={isLive ? feed.using : "link"} trail={isLive ? feed.trail : []} plan={feed.plan} summary={feed.summary} step={step} back={pvFlip && pvBack != null ? pvBack : undefined} />
+        <GateViewScreen flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={pvLive} source={isLive ? feed.using : "link"} trail={isLive ? feed.trail : []} plan={feed.plan} summary={feed.summary} probe={isNow ? feed.probe : pvDeck.probe} mcdu={isNow ? feed.mcdu : pvDeck.mcdu} events={isNow ? feed.events : pvDeck.events} step={step} back={pvFlip && pvBack != null ? pvBack : undefined} />
       </div>
       <div className="dk-under">
         <p className="muted small dk-caption">
@@ -449,6 +451,8 @@ function LookEditor({
   const [group, setGroup] = useState(() => groupOf(first(stages[stage])[0].v));
   const [back, setBack] = useState<number | null>(null);
   const [mine, setMine] = useState<MyLook[]>(readMyLooks);
+  // the editor's previews: an example cockpit at this stage
+  const deck = useMemo(() => sampleDeck(stage, flight), [stage, flight]);
   useEffect(() => {
     const d = ref.current;
     if (d && !d.open) d.showModal();
@@ -577,7 +581,7 @@ function LookEditor({
             const others = draft.filter((_, i) => i !== layer);
             return (
               <button type="button" key={v} className={`st-opt${cur.v === v ? " is-on" : ""}`} aria-pressed={cur.v === v} onClick={() => pick(v)}>
-                <MiniScreen view={layer === 0 ? [l as Look, ...others] : [...others.slice(0, layer), l as Look, ...others.slice(layer)]} flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={samples[stage]} source="link" trail={[]} plan={plan} />
+                <MiniScreen view={layer === 0 ? [l as Look, ...others] : [...others.slice(0, layer), l as Look, ...others.slice(layer)]} flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={samples[stage]} source="link" trail={[]} plan={plan} probe={deck.probe} mcdu={deck.mcdu} events={deck.events} />
                 <span className="st-look-name">
                   <b>{VIEW_INFO[v].name}</b>
                   <span className="mono">{VIEW_INFO[v].code}</span>
@@ -605,7 +609,7 @@ function LookEditor({
                         setLayer(0);
                       }}
                     >
-                      <MiniScreen view={ls} flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={samples[stage]} source="link" trail={[]} plan={plan} />
+                      <MiniScreen view={ls} flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={samples[stage]} source="link" trail={[]} plan={plan} probe={deck.probe} mcdu={deck.mcdu} events={deck.events} />
                       <span className="st-look-name">
                         <b>{m.name}</b>
                         <span className="mono">{turnsCodes(mt)}</span>
@@ -631,7 +635,7 @@ function LookEditor({
         </div>
 
         <div className="st-side">
-          <MiniScreen view={draft} back={info.flip ? (back ?? -1) : -1} flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={samples[stage]} source="link" trail={[]} plan={plan} />
+          <MiniScreen view={draft} back={info.flip ? (back ?? -1) : -1} flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={samples[stage]} source="link" trail={[]} plan={plan} probe={deck.probe} mcdu={deck.mcdu} events={deck.events} />
           <p className="st-side-name">
             <b>{lookName(cur)}</b> <span className="mono">{info.code}</span>
             <br />
@@ -722,6 +726,25 @@ function LookEditor({
                 <small>A small lit sign while it’s on in the aircraft.</small>
               </span>
             </label>
+          )}
+          {SHOWS_VS.includes(cur.v) && (
+            <div className="st-field">
+              <span className="ctl-label" id="st-notify">Cockpit changes pop up</span>
+              <div className="seg" role="radiogroup" aria-labelledby="st-notify">
+                {(
+                  [
+                    ["r", "Right"],
+                    ["l", "Left"],
+                    ["off", "Off"],
+                  ] as const
+                ).map(([k, n]) => (
+                  <button type="button" role="radio" key={k} aria-checked={cur.notify === k} className="seg-btn" onClick={() => setCur({ notify: k })}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <small className="muted">Flaps, gear, lights, spoilers, autobrake, AP and A/THR, engines, APU, baro, squawk: a change shows for 30 s, then the look is as it was. From OFP Tower (Fenix).</small>
+            </div>
           )}
           {SHOWS_VS.includes(cur.v) && (
             <label className="st-check">

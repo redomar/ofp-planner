@@ -127,6 +127,21 @@ On connect OFP Tower sends, in this order: `hello`, `plan`, `track`, `summary`, 
 
   Read by `toSummary`. The board keeps the last ending in this PC's browser storage (`ofp-planner:ending`, for its route, 24 h), so the ending screen still shows it after a refresh with OFP Tower closed.
 
+## The cockpit and the MCDU (1.16, to build in OFP Tower)
+
+The board's "Aircraft status" and "Flight deck" sides and the Cockpit strip read two more messages. OFP Tower already writes both into every recording (`probe.py`); it has to publish them on the link too. The board reads them in `src/lib/feed/deck.ts`; recordings with these lines already play them back.
+
+- **`{"type":"probe","v":{"<name>":value,…},"full":bool}`**: the probe's values, the same names and values as the recording's probe line. Live: only the values that changed, at the probe's pace (every 5 s), `full` false. **On connect**, after `summary`: every value kept so far in one message with `"full":true` (the board starts over from it). Keep the merged values for the OFP Tower session, like the track.
+- **`{"type":"mcdu","unit":1|2,"title":"…","text":["row",…],"zulu":sec}`**: an MCDU page as shown, rows exactly as the Fenix gives them (lower-case letters are the colour and size codes: keep them, the board draws the colours). `xml` isn't needed on the link. Live: when a page is written to the recording. **On connect**: the last page of each unit.
+- Fields the board uses (all optional; a value that isn't there shows as "—"):
+  - lights: `L:S_OH_EXT_LT_BEACON`, `_STROBE` (0 OFF, 1 AUTO, 2 ON), `_NAV_LOGO`, `_LANDING_BOTH` / `_L` / `_R` (0 RETRACT, 1 OFF, 2 ON), `_NOSE` (0 OFF, 1 TAXI, 2 T.O), `_RWY_TURNOFF`;
+  - configuration: `L:S_FC_FLAPS` (0–4), `L:S_MIP_GEAR` (or `GEAR HANDLE POSITION`), `GEAR TOTAL PCT EXTENDED`, `L:A_FC_SPEEDBRAKE` (0 armed, 1 retracted, to 3 full), `L:I_MIP_AUTOBRAKE_LO_L` / `_MED_L` / `_MAX_L`;
+  - autoflight: `L:I_FCU_AP1`, `L:I_FCU_AP2`, `L:I_FCU_ATHR`;
+  - engines and power: `L:S_ENG_MASTER_1` / `_2`, `TURB ENG N1:1` / `:2`, `L:S_ENG_MODE`, `L:S_OH_ELEC_APU_MASTER`, `L:S_OH_PNEUMATIC_APU_BLEED`, `EXTERNAL POWER AVAILABLE:1`;
+  - other: `TRANSPONDER CODE:1`, `L:S_XPDR_OPERATION`, `KOHLSMAN SETTING MB:1`, `PRESSURIZATION CABIN ALTITUDE`, `TOTAL WEIGHT` (lb).
+- MCDU pages the board reads figures from (by their text, codes stripped): PERF (TAKE OFF, CLB, CRZ, DES, APPR) for UTC DEST, EFOB, CI, T/D and the managed speed; F-PLN for the DEST row and (T/D); INIT FUEL PREDICTION for trip, block, TOW, LW and extra. PROG and FUEL PRED in flight are shown as they are; their figures come once a flight has them.
+- Without these messages (OFP Tower from before, another aircraft) the sides and the strip are skipped, never shown empty.
+
 ## Aircraft profiles
 
 Some aircraft keep systems in their own variables, so the default SimVars can be wrong. A profile maps a field to an L:var for aircraft whose `TITLE` contains a given string. The first match wins; with no match, the defaults apply. Shape, as the recorder's `profiles.json`:

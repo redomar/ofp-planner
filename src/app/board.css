@@ -2666,7 +2666,8 @@ html.screen-mode body > :not(.screen-root) {
 }
 .st-dlg[open] {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  /* header, the rotation bar (1.14), the layers, the body (scrolls), the footer */
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
 }
 .st-dlg::backdrop {
   background: rgb(12 18 28 / 0.55);
@@ -3707,4 +3708,275 @@ html.screen-mode body > :not(.screen-root) {
 .dk-stage-look .st-glyph {
   flex: none;
   width: 44px;
+}
+
+/* ---------- 1.16: Aircraft status and Flight deck (OFP Tower, Fenix) ---------- */
+.gv-lamps {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: calc(var(--u) * 0.4);
+  margin-bottom: calc(var(--u) * 0.8);
+}
+.gv-lamp {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--u) * 0.1);
+  padding: calc(var(--u) * 0.35) 0;
+  border-radius: calc(var(--u) * 0.35);
+  border: calc(var(--u) * 0.1) solid color-mix(in srgb, var(--gs-ink) 25%, transparent);
+  font-family: var(--font-cond);
+  text-align: center;
+  line-height: 1.1;
+}
+.gv-lamp b {
+  font-size: calc(var(--u) * 0.95);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.gv-lamp small {
+  font-size: calc(var(--u) * 0.95);
+  opacity: 0.8;
+}
+/* a lit switch: the cockpit's own white-on-dark, in any airline's colours */
+.gv-lamp.is-on {
+  background: #101310;
+  border-color: #101310;
+  color: #f2f2f2;
+}
+.gv-lamp.is-on small {
+  color: #3be07c;
+  opacity: 1;
+}
+.gv-lamp.is-none {
+  opacity: 0.55;
+}
+.gv-fmas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(var(--u) * 0.5);
+  margin-bottom: calc(var(--u) * 0.8);
+}
+.gv-fma {
+  padding: calc(var(--u) * 0.2) calc(var(--u) * 0.7);
+  border-radius: calc(var(--u) * 0.3);
+  border: calc(var(--u) * 0.12) solid color-mix(in srgb, var(--gs-ink) 30%, transparent);
+  font-family: var(--font-cond);
+  font-size: calc(var(--u) * 1.15);
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  opacity: 0.7;
+}
+.gv-fma.is-on {
+  background: #101310;
+  border-color: #101310;
+  color: #3be07c;
+  opacity: 1;
+}
+.gv-fma.is-none {
+  opacity: 0.45;
+}
+.gv-fma-x {
+  margin-left: auto;
+  font-size: calc(var(--u) * 1.1);
+  font-weight: 600;
+}
+.gv-deck {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: calc(var(--u) * 1);
+  align-items: start;
+}
+.gv-deck .gv-fms {
+  grid-template-columns: 1fr;
+}
+/* the MCDU page as the Fenix shows it, in its colours */
+.gv-mcdu-scr {
+  padding: calc(var(--u) * 0.5) calc(var(--u) * 0.6);
+  border-radius: calc(var(--u) * 0.4);
+  background: #0c0f0d;
+  border: calc(var(--u) * 0.15) solid #2b2f2c;
+  color: #f2f2f2;
+  font-size: calc(var(--u) * 0.82);
+  line-height: 1.25;
+  white-space: pre;
+}
+.gv-mcdu-l {
+  min-height: 1.25em;
+}
+.gv-mcdu-scr .mc-s {
+  font-size: 0.82em;
+}
+.mc-w {
+  color: #f2f2f2;
+}
+.mc-c {
+  color: #3fd0ff;
+}
+.mc-g {
+  color: #3be07c;
+}
+.mc-a {
+  color: #ffb02e;
+}
+.mc-y {
+  color: #fff04a;
+}
+.mc-m {
+  color: #ff5fd6;
+}
+/* small corners: the figures, without the MCDU screen */
+.gv-over:is([data-size="xs"], [data-size="s"]) .gv-mcdu-scr {
+  display: none;
+}
+.gv-over:is([data-size="xs"], [data-size="s"]) .gv-deck {
+  grid-template-columns: 1fr;
+}
+/* 1.16: the cockpit strip, a bar like the strip: the lights, the configuration, the autopilot */
+.gv-cockpit {
+  grid-template-columns: auto minmax(0, 1.6fr);
+}
+.gv-cockpit .gv-lamps {
+  margin: 0;
+  align-self: center;
+}
+.gv-cockpit .gv-fmas {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  margin: 0;
+}
+/* the switches take the room they need, not the whole bar */
+.gv-cockpit .gv-lamps {
+  grid-template-columns: repeat(6, auto);
+  justify-content: start;
+}
+.gv-cockpit .gv-lamp {
+  padding: calc(var(--u) * 0.35) calc(var(--u) * 0.7);
+}
+/* small and extra small: never under the 14 px a viewer reads (0.75cqw at 1080p) */
+.gv-over:is([data-size="xs"], [data-size="s"]) .gv-cockpit :is(.gv-lamp b, .gv-lamp small, .gv-fma) {
+  font-size: max(0.75cqw, calc(var(--u) * 0.95));
+}
+/* extra small: a lit switch is its dark box, the word goes */
+.gv-over[data-size="xs"] .gv-cockpit .gv-lamp small {
+  display: none;
+}
+.gv-over[data-size="xs"] .gv-cockpit .gv-strip-id small {
+  font-size: var(--xs-label);
+}
+/* two bars on one edge: the cockpit strip stacks next to the other strip instead of over it
+   (the strip's height at each size, at 1080p: M 6.6cqw, S 4.8cqw, XS 3.7cqw) */
+.gv-stack:has(.gv-over[data-pos^="b"][data-size="m"] .gv-strip:not(.gv-cockpit)) .gv-over[data-pos^="b"] .gv-cockpit {
+  bottom: 9.6cqw;
+}
+.gv-stack:has(.gv-over[data-pos^="b"][data-size="l"] .gv-strip:not(.gv-cockpit)) .gv-over[data-pos^="b"] .gv-cockpit {
+  bottom: 12.4cqw;
+}
+.gv-stack:has(.gv-over[data-pos^="b"][data-size="s"] .gv-strip:not(.gv-cockpit)) .gv-over[data-pos^="b"] .gv-cockpit {
+  bottom: 7.2cqw;
+}
+.gv-stack:has(.gv-over[data-pos^="b"][data-size="xs"] .gv-strip:not(.gv-cockpit)) .gv-over[data-pos^="b"] .gv-cockpit {
+  bottom: 5.6cqw;
+}
+.gv-stack:has(.gv-over[data-pos^="t"][data-size="m"] .gv-strip:not(.gv-cockpit)) .gv-over[data-pos^="t"] .gv-cockpit {
+  top: 9.4cqw;
+}
+.gv-stack:has(.gv-over[data-pos^="t"][data-size="l"] .gv-strip:not(.gv-cockpit)) .gv-over[data-pos^="t"] .gv-cockpit {
+  top: 12.2cqw;
+}
+.gv-stack:has(.gv-over[data-pos^="t"][data-size="s"] .gv-strip:not(.gv-cockpit)) .gv-over[data-pos^="t"] .gv-cockpit {
+  top: 7cqw;
+}
+.gv-stack:has(.gv-over[data-pos^="t"][data-size="xs"] .gv-strip:not(.gv-cockpit)) .gv-over[data-pos^="t"] .gv-cockpit {
+  top: 5.4cqw;
+}
+
+/* ---------- 1.16: cockpit changes pop up beside the strip or the pill for 30 s ---------- */
+.gv-toasts {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 0.5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /* never under 14 px at 1080p */
+  font-size: max(0.75cqw, calc(var(--u) * 1.3));
+  /* beside the bar on its edge: under a top bar or pill, over a bottom one (the bar's height at each size) */
+  top: calc(var(--u) * 7.2);
+}
+.gv-toasts[data-side="r"] {
+  right: calc(var(--u) * 2);
+  align-items: flex-end;
+}
+.gv-toasts[data-side="l"] {
+  left: calc(var(--u) * 2);
+  align-items: flex-start;
+}
+.gv-over[data-pos^="b"] .gv-toasts {
+  top: auto;
+  bottom: calc(var(--u) * 7.2);
+  flex-direction: column-reverse;
+}
+.gv-over[data-pos^="m"] .gv-toasts {
+  top: auto;
+  bottom: calc(50% + var(--u) * 5);
+}
+/* the strip is taller than the pill */
+.gv-over:has(.gv-strip) .gv-toasts {
+  top: calc(var(--u) * 10);
+}
+.gv-over[data-pos^="b"]:has(.gv-strip) .gv-toasts {
+  top: auto;
+  bottom: calc(var(--u) * 10);
+}
+.gv-over[data-size="xs"]:has(.gv-strip) .gv-toasts {
+  top: 5.6cqw;
+}
+.gv-over[data-size="xs"][data-pos^="b"]:has(.gv-strip) .gv-toasts {
+  top: auto;
+  bottom: 5.6cqw;
+}
+.gv-toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.45em 0.9em;
+  border-radius: 999px;
+  background: #101310;
+  color: #f2f2f2;
+  font-family: var(--font-cond);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  box-shadow: 0 calc(var(--u) * 0.3) calc(var(--u) * 1.2) rgb(0 0 0 / 0.35);
+  animation: gv-toast 0.35s ease-out;
+}
+.gv-toast i {
+  width: 0.55em;
+  height: 0.55em;
+  border-radius: 50%;
+  background: #f2f2f2;
+}
+.gv-toast.is-on i {
+  background: #3be07c;
+}
+.gv-toast.is-off i {
+  background: #8a8f8a;
+}
+.gv-toast.is-info i {
+  background: #3fd0ff;
+}
+@keyframes gv-toast {
+  from {
+    opacity: 0;
+    transform: translateY(0.4em);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gv-toast {
+    animation: none;
+  }
 }

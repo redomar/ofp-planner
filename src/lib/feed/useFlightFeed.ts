@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { aircraftStatus, keepEvents, keepPages, mcduPage, mergeProbe, statusEvents, type DeckEvent, type McduPage, type ProbeValues } from "./deck";
 import { fitToRoute, mergeTrail, startState, step, type FeedSample, type FeedSource, type FlightContext, type FlightPlan, type FlightState, type FlightSummary } from "./core";
 import { LINK_PORT, linkSource, replaySource, vatsimSource, type FeedStatus } from "./sources";
 
@@ -61,6 +62,11 @@ export interface FlightFeed {
   planAt: number | null;
   /** 1.13, OFP Tower: its summary of the flight (times, landing, fuel, …). */
   summary: FlightSummary | null;
+  /** 1.16, OFP Tower (Fenix): the cockpit's values so far, and the MCDU pages seen (newest of each). */
+  probe: ProbeValues | null;
+  mcdu: McduPage[];
+  /** 1.16: cockpit changes, for the strip's and pills' pop-ups (on the readings' clock). */
+  events: DeckEvent[];
 }
 
 /**
@@ -152,6 +158,26 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<s
       });
     };
     const onSummary = (sum: FlightSummary) => put({ summary: sum });
+    let probe: ProbeValues | null = null;
+    let pages: McduPage[] = [];
+    let events: DeckEvent[] = [];
+    const onProbe = (v: Record<string, unknown>, full: boolean) => {
+      const before = probe ? aircraftStatus(probe) : null;
+      probe = mergeProbe(full ? null : probe, v);
+      // a change pops up (not the state as found: a page opened mid-flight, OFP Tower's full set on connect)
+      if (before && !full && probe) {
+        const t = st.last?.t ?? Date.now();
+        const add = statusEvents(before, aircraftStatus(probe), t);
+        if (add.length) events = keepEvents(events, add, t);
+      }
+      put({ probe, events });
+    };
+    const onMcdu = (unit: number, rows: unknown, t: number) => {
+      const pg = mcduPage(unit, t, rows);
+      if (!pg) return;
+      pages = keepPages(pages, pg);
+      put({ mcdu: pages });
+    };
     const onTrack = (pts: { t: number; lat: number; lon: number }[]) => {
       const merged = mergeTrail(
         trail.map(([lon, lat], i) => ({ t: trailT[i], lon, lat })),
@@ -162,11 +188,11 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<s
       trailAt = trailT[trailT.length - 1] ?? 0;
       put({ trail });
     };
-    if (source === "replay" && rec) return replaySource(rec, rate, { onSample: take("replay"), onStatus: said("replay") }, at * 60_000, fitTo);
+    if (source === "replay" && rec) return replaySource(rec, rate, { onSample: take("replay"), onStatus: said("replay"), onProbe, onMcdu }, at * 60_000, fitTo);
     if (source === "vatsim" && who) return vatsimSource(who, { onSample: take("vatsim"), onStatus: said("vatsim"), onPlan: onVatsimPlan });
-    if (source === "link") return linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan, onSummary, onTrack });
+    if (source === "link") return linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan, onSummary, onTrack, onProbe, onMcdu });
     if (source === "auto") {
-      const stops = [linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan, onSummary, onTrack })];
+      const stops = [linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan, onSummary, onTrack, onProbe, onMcdu })];
       if (who) stops.push(vatsimSource(who, { onSample: take("vatsim"), onStatus: said("vatsim"), onPlan: onVatsimPlan }));
       return () => stops.forEach((x) => x());
     }
@@ -174,4 +200,4 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<s
   return feed.key === key ? feed : NO_FEED;
 }
 
-const NO_FEED: FlightFeed = { state: null, status: null, using: "clock", link: null, vatsim: null, trail: [], plan: null, planAt: null, summary: null };
+const NO_FEED: FlightFeed = { state: null, status: null, using: "clock", link: null, vatsim: null, trail: [], plan: null, planAt: null, summary: null, probe: null, mcdu: [], events: [] };
