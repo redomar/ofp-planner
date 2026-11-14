@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.16.0 — 2026-11-14
+
+- **Aircraft status** (a flip card's side): the lights as cockpit switches (beacon, strobe, nav, landing, nose, runway turn-off), flaps, gear, speedbrake, autobrake, both engines with N1, APU and its bleed, the transponder code, the baro (STD or the QNH), the cabin altitude.
+- **Flight deck** (a flip card's side): AP1, AP2 and A/THR, the FMS phase and cost index, its arrival time, fuel at arrival, the top of descent (time and distance) and the managed speed, and the MCDU page itself in its own colours (PERF, F-PLN, PROG, FUEL PRED, whichever was opened last). Before departure: trip, block, take-off and landing weights from INIT FUEL PREDICTION. A small corner shows the figures without the MCDU screen.
+- **Cockpit strip** (new look, G4c, in Strips and pills): the lights as switches, flaps, gear, speedbrake, autobrake and the autopilot in one bar. Top, middle or bottom, in four sizes; on the same edge as the strip it stacks next to it instead of over it (`cockpit~strip`, `cockpit.s.bc~strip.s`). Extra small keeps the switch names readable and drops their ON/OFF words (a lit switch is its dark box).
+- **Cockpit changes pop up** beside the strip and the pills: flaps, gear, lights, spoilers, autobrake, AP and A/THR, engines, APU, baro and squawk, for 30 s, then the look is as it was. "Cockpit changes pop up: Right / Left / Off" in the look editor (`.nl` left, `.nx` off; right by default). Nothing pops up for the cockpit as found (a page opened mid-flight).
+- These come from OFP Tower with a Fenix (the cockpit's own switch values, as a real flight showed them). Without them (OFP Tower not running, an older OFP Tower, another aircraft) the two sides and the strip are skipped, never shown empty. Recordings made since the probe went in play them back.
+- **The strip drops its V/S tile** once the aircraft has been level for a minute; it comes back when it climbs or descends.
+- Fixed: in the look editor, the layer tabs could slide under the list of views (since 1.14's rotation bar) and "+ Add a layer" couldn't be clicked.
+
 ## 1.15.0 — 2026-11-13
 
 Board → Gate screen is one desk: one preview, and the questions on the right in order (which flight, what is written on it, where it goes). Every feature stays; nothing changes for the links in OBS or for OFP Tower.

@@ -83,6 +83,9 @@ export interface Recording {
   title: string | null;
   atcId: string | null;
   samples: FeedSample[];
+  /** 1.16: the probe's lines (changed values) and the MCDU pages seen, on the samples' clock. */
+  probes: { t: number; v: Record<string, unknown> }[];
+  mcdu: { t: number; unit: number; rows: unknown }[];
 }
 
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -301,7 +304,27 @@ export function parseRecording(text: string): Recording {
     const s = toSample(r, z != null ? day + wraps * 86_400_000 + Math.round(z * 1000) : (num(r.t) ?? 0), version);
     if (s) samples.push(s);
   }
-  return { version, title: typeof head.title === "string" ? head.title : null, atcId: typeof head.atcId === "string" ? head.atcId : null, samples };
+  // the probe and MCDU lines, on the same clock (they carry the sim zulu of the next sample)
+  const probes: Recording["probes"] = [];
+  const mcdu: Recording["mcdu"] = [];
+  let z0 = -1;
+  let w0 = 0;
+  for (const l of lines.slice(1)) {
+    let r: Record<string, unknown>;
+    try {
+      r = JSON.parse(l);
+    } catch {
+      continue;
+    }
+    const z = num(r.zulu);
+    if (z != null && z0 >= 0 && z < z0 - 43_200) w0++;
+    if (z != null) z0 = z;
+    if (r.type !== "probe" && r.type !== "mcdu") continue;
+    const t = z != null ? day + w0 * 86_400_000 + Math.round(z * 1000) : (num(r.t) ?? 0);
+    if (r.type === "probe" && r.v && typeof r.v === "object") probes.push({ t, v: r.v as Record<string, unknown> });
+    if (r.type === "mcdu") mcdu.push({ t, unit: num(r.unit) ?? 1, rows: r.text });
+  }
+  return { version, title: typeof head.title === "string" ? head.title : null, atcId: typeof head.atcId === "string" ? head.atcId : null, samples, probes, mcdu };
 }
 
 /* ---------- the phase detector ---------- */
@@ -442,6 +465,8 @@ export interface FlightState {
   vsAt: number | null;
   /** 1.14: reached the cruise (level near the planned level, or descending): the climb is over. */
   cruised: boolean;
+  /** 1.16: since when the smoothed vertical speed reads Level (ms); null while climbing or descending. */
+  levelSince: number | null;
   /** 1.14: after landing, when the seatbelt sign went off (ms); null while it's on. */
   beltsOffAt: number | null;
 }
@@ -450,6 +475,8 @@ export interface FlightState {
 export const VS_SMOOTH_MS = 10_000;
 /** Within this (ft/min) it reads "Level". */
 export const VS_LEVEL = 200;
+/** 1.16: level this long, the strip drops its V/S tile (back when it climbs or descends). */
+export const VS_HIDE_MS = 60_000;
 
 /** One reading into the smoothed vertical speed (an exponential average, time constant VS_SMOOTH_MS). */
 export function smoothVs(avg: number | null, at: number | null, vs: number | null, t: number): number | null {
@@ -492,6 +519,7 @@ export const startState = (): FlightState => ({
   vsAt: null,
   cruised: false,
   beltsOffAt: null,
+  levelSince: null,
 });
 
 const R_NM = 3440.065;
@@ -731,6 +759,7 @@ export function step(prev: FlightState, s: FeedSample, ctx: FlightContext = {}):
   // the vertical speed as shown: smoothed in the air, none on the ground
   st.vsAvg = ground ? null : smoothVs(prev.vsAvg, prev.vsAt, s.vs, s.t);
   st.vsAt = ground ? null : s.vs != null ? s.t : prev.vsAt;
+  st.levelSince = st.vsAvg != null && Math.abs(st.vsAvg) < VS_LEVEL ? (prev.levelSince ?? s.t) : null;
   if (phase !== prev.phase || prev.last == null) st.entered = { ...prev.entered, [phase]: prev.entered[phase] ?? s.t };
   st.phase = phase;
   st.stage = STAGE_OF[phase];

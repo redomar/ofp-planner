@@ -8,8 +8,9 @@ import { MIN } from "@/lib/board/board";
 import type { GateFlight, GateState } from "@/lib/board/gate";
 import { goTarget } from "@/lib/board/countdown";
 import { ENDING_KEY, endStats, landingFeel, readEnding, routeKey, type EndingRecord } from "@/lib/board/ending";
-import { BACKS, layers, layersTo, shownBacks, stepAt, turnsFrom, turnsOf, turnsTo, VIEW_INFO, type Layers, type Look, type LookBack, type ShownView, type Turns } from "@/lib/board/looks";
-import { bearing, distNm, fmsArrival, routeBefore, steadyTime, landingText, levelFt, phaseLabel, utcAt, wentAround, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState, type FlightSummary, vsText } from "@/lib/feed/core";
+import { BACKS, layers, layersTo, SHOWS_VS, shownBacks, stepAt, turnsFrom, turnsOf, turnsTo, VIEW_INFO, type Layers, type Look, type LookBack, type ShownView, type Turns } from "@/lib/board/looks";
+import { aircraftStatus, deckPage, fmsFigures, mcduPage, mcduRuns, showEvents, type AircraftStatus, type DeckEvent, type FmsFigures, type Light, type McduPage, type ProbeValues } from "@/lib/feed/deck";
+import { bearing, distNm, fmsArrival, routeBefore, steadyTime, landingText, levelFt, phaseLabel, utcAt, wentAround, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState, type FlightSummary, vsText, VS_HIDE_MS } from "@/lib/feed/core";
 import { useOutlines } from "@/lib/outlines";
 import { useTerrain } from "@/lib/terrain";
 import { baseLayers, mapRadius } from "../RouteMap";
@@ -178,7 +179,8 @@ export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null,
     flown,
     pos: { lat: s.lat, lon: s.lon },
     hdg: s.hdg,
-    vs: air ? vsText(live.vsAvg ?? s.vs) : null,
+    // 1.16: level for a minute, nothing to say (the strip drops the tile)
+    vs: air && !(live.levelSince != null && s.t - live.levelSince >= VS_HIDE_MS) ? vsText(live.vsAvg ?? s.vs) : null,
   };
 }
 
@@ -783,7 +785,7 @@ function Timeline({ f, ahead, td, facts, now }: { f: GateFlight; ahead: RouteAhe
 }
 
 /** The back side of a flip card. */
-function BackSide({ back, f, facts, live, plan, ahead, td, dest }: { back: LookBack; f: GateFlight; facts: LiveFacts; live: FlightState | null; plan: FlightPlan | null; ahead: RouteAhead | null; td: { nm: number; min: number } | null; dest: string }) {
+function BackSide({ back, f, facts, live, plan, ahead, td, dest, probe, mcdu }: { back: LookBack; f: GateFlight; facts: LiveFacts; live: FlightState | null; plan: FlightPlan | null; ahead: RouteAhead | null; td: { nm: number; min: number } | null; dest: string; probe?: ProbeValues | null; mcdu?: McduPage[] | null }) {
   const s = live?.last ?? null;
   const n0 = ahead?.next[0];
   const top = (title: string) => (
@@ -794,6 +796,11 @@ function BackSide({ back, f, facts, live, plan, ahead, td, dest }: { back: LookB
       <small>{facts.status}</small>
     </div>
   );
+  if (back === "aircraft") return <AircraftSide a={aircraftStatus(probe ?? null)} top={top("aircraft status")} />;
+  if (back === "deck") {
+    const pages = mcdu ?? [];
+    return <DeckSide a={aircraftStatus(probe ?? null)} fms={fmsFigures(pages)} pg={deckPage(pages)} top={top("flight deck")} />;
+  }
   if (back === "plan") {
     const rows = ahead?.next.slice(0, 7) ?? [];
     const tdAt = td ? rows.findIndex((x) => x.nm > td.nm) : -1;
@@ -939,6 +946,222 @@ function BackSide({ back, f, facts, live, plan, ahead, td, dest }: { back: LookB
   );
 }
 
+/* ---------- 1.16: the aircraft and the flight deck (OFP Tower, Fenix) ---------- */
+
+const LIGHT_WORD: Record<Light, string> = { off: "OFF", on: "ON", auto: "AUTO", taxi: "TAXI", to: "T.O", retracted: "RETR" };
+
+function Lamp({ k, v }: { k: string; v: boolean | Light | null }) {
+  const lit = v === true || (typeof v === "string" && v !== "off" && v !== "retracted");
+  return (
+    <span className={`gv-lamp${lit ? " is-on" : ""}${v == null ? " is-none" : ""}`}>
+      <b>{k}</b>
+      <small>{v == null ? "—" : typeof v === "string" ? LIGHT_WORD[v] : v ? "ON" : "OFF"}</small>
+    </span>
+  );
+}
+
+const sbText = (a: AircraftStatus) => (a.speedbrake == null ? null : a.speedbrake === "armed" ? "ARMED" : a.speedbrake === "retracted" ? "RET" : `${a.speedbrake}%`);
+const flapsText = (a: AircraftStatus) => (a.flaps == null ? null : a.flaps === "UP" ? "UP" : `CONF ${a.flaps}`);
+const gearText = (a: AircraftStatus) => (a.gear == null ? null : a.gear === "moving" ? "IN TRANSIT" : a.gear.toUpperCase());
+
+function Lamps({ a }: { a: AircraftStatus }) {
+  return (
+    <div className="gv-lamps" aria-label="Exterior lights">
+      <Lamp k="BEACON" v={a.lights.beacon} />
+      <Lamp k="STROBE" v={a.lights.strobe} />
+      <Lamp k="NAV" v={a.lights.nav} />
+      <Lamp k="LAND" v={a.lights.landing} />
+      <Lamp k="NOSE" v={a.lights.nose} />
+      <Lamp k="TURN OFF" v={a.lights.turnoff} />
+    </div>
+  );
+}
+
+const fmaBox = (k: string, v: boolean | null) => <span className={`gv-fma${v ? " is-on" : ""}${v == null ? " is-none" : ""}`}>{k}</span>;
+
+function AircraftSide({ a, top }: { a: AircraftStatus; top: ReactNode }) {
+  const sb = sbText(a);
+  const eng = (i: 0 | 1) => (a.engines[i] == null ? "—" : a.engines[i] ? `ON${a.n1[i] != null ? ` · ${a.n1[i]}%` : ""}` : "OFF");
+  return (
+    <>
+      {top}
+      <Lamps a={a} />
+      <dl className="gv-kv gv-acft mono">
+        <div>
+          <dt>Flaps</dt>
+          <dd>{flapsText(a) ?? "—"}</dd>
+        </div>
+        <div>
+          <dt>Gear</dt>
+          <dd>{gearText(a) ?? "—"}</dd>
+        </div>
+        <div>
+          <dt>Speedbrake</dt>
+          <dd>{sb ?? "—"}</dd>
+        </div>
+        <div>
+          <dt>Autobrake</dt>
+          <dd>{a.autobrake == null ? "—" : a.autobrake === "off" ? "OFF" : a.autobrake}</dd>
+        </div>
+        <div>
+          <dt>Engine 1</dt>
+          <dd>{eng(0)}</dd>
+        </div>
+        <div>
+          <dt>Engine 2</dt>
+          <dd>{eng(1)}</dd>
+        </div>
+        <div>
+          <dt>APU</dt>
+          <dd>{a.apu == null ? "—" : a.apu ? `ON${a.apuBleed ? " · BLEED" : ""}` : "OFF"}</dd>
+        </div>
+        <div>
+          <dt>Transponder</dt>
+          <dd>{a.xpdrCode ?? "—"}{a.xpdrOn != null ? (a.xpdrOn ? "" : " · STBY") : ""}</dd>
+        </div>
+        <div>
+          <dt>Baro</dt>
+          <dd>{a.baro == null ? "—" : a.baro === "STD" ? "STD" : `${a.baro} hPa`}</dd>
+        </div>
+        <div>
+          <dt>Cabin</dt>
+          <dd>{a.cabinAltFt != null ? `${a.cabinAltFt.toLocaleString("en-GB")} ft` : "—"}</dd>
+        </div>
+      </dl>
+    </>
+  );
+}
+
+function Mcdu({ pg }: { pg: McduPage }) {
+  return (
+    <div className="gv-mcdu-scr mono" role="img" aria-label={`MCDU ${pg.unit}: ${pg.title}`}>
+      {pg.rows.map((r, i) => (
+        <div key={i} className="gv-mcdu-l">
+          {mcduRuns(r).map((x, j) => (
+            <span key={j} className={`mc-${x.colour}${x.small ? " mc-s" : ""}`}>
+              {x.text}
+            </span>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DeckSide({ a, fms, pg, top }: { a: AircraftStatus; fms: FmsFigures; pg: McduPage | null; top: ReactNode }) {
+  const box = fmaBox;
+  const before = fms.utcDest == null && fms.trip != null;
+  return (
+    <>
+      {top}
+      <div className="gv-fmas" aria-label="Autoflight">
+        {box("AP1", a.ap1)}
+        {box("AP2", a.ap2)}
+        {box("A/THR", a.athr)}
+        <span className="gv-fma-x mono">{fms.phase ? `${fms.phase}${fms.costIndex != null ? ` · CI ${fms.costIndex}` : ""}` : fms.costIndex != null ? `CI ${fms.costIndex}` : ""}</span>
+      </div>
+      <div className="gv-deck">
+        <dl className="gv-kv gv-fms mono">
+          {before ? (
+            <>
+              <div>
+                <dt>Trip</dt>
+                <dd>{fms.trip != null ? `${fms.trip.toFixed(1)} t${fms.tripTime ? ` · ${fms.tripTime}` : ""}` : "—"}</dd>
+              </div>
+              <div>
+                <dt>Block</dt>
+                <dd>{fms.block != null ? `${fms.block.toFixed(1)} t` : "—"}</dd>
+              </div>
+              <div>
+                <dt>Take-off weight</dt>
+                <dd>{fms.tow != null ? `${fms.tow.toFixed(1)} t` : "—"}</dd>
+              </div>
+              <div>
+                <dt>Landing weight</dt>
+                <dd>{fms.lw != null ? `${fms.lw.toFixed(1)} t` : "—"}</dd>
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <dt>Arrival · FMS</dt>
+                <dd>{fms.utcDest ? `${fms.utcDest}Z` : "—"}</dd>
+              </div>
+              <div>
+                <dt>Fuel at arrival</dt>
+                <dd>{fms.efob != null ? `${fms.efob.toFixed(1)} t` : "—"}</dd>
+              </div>
+              <div>
+                <dt>Top of descent</dt>
+                <dd>{fms.tdUtc ? `${fms.tdUtc}Z${fms.tdNm != null ? ` · ${Math.round(fms.tdNm)} nm` : ""}` : "—"}</dd>
+              </div>
+              <div>
+                <dt>Speed · managed</dt>
+                <dd>{fms.managed ?? "—"}</dd>
+              </div>
+            </>
+          )}
+        </dl>
+        {pg && <Mcdu pg={pg} />}
+      </div>
+    </>
+  );
+}
+
+/** Which of the cockpit's sides have something to show (a side without data is skipped, not shown empty). */
+export function deckHas(probe: ProbeValues | null | undefined, mcdu: McduPage[] | null | undefined): Partial<Record<LookBack, boolean>> {
+  const a = aircraftStatus(probe ?? null);
+  return { aircraft: a.any, deck: !!mcdu?.length || a.ap1 != null || a.athr != null };
+}
+
+/**
+ * An example cockpit for a stage, for the previews of stages the aircraft isn't at (and the look
+ * editor): as the A319 was on EICK → EGBB, 13 Nov 2026.
+ */
+export function sampleDeck(stage: ViewStage, f: GateFlight): { probe: ProbeValues; mcdu: McduPage[]; events: DeckEvent[] } {
+  const ground = stage === "ready" || stage === "arrived";
+  const fly = stage === "climb" || stage === "cruise";
+  const appr = stage === "approaching";
+  const probe: ProbeValues = {
+    "L:S_OH_EXT_LT_BEACON": stage === "arrived" ? 0 : 1,
+    "L:S_OH_EXT_LT_STROBE": ground ? 0 : stage === "taxi" ? 1 : fly ? 1 : 2,
+    "L:S_OH_EXT_LT_NAV_LOGO": 1,
+    "L:S_OH_EXT_LT_LANDING_BOTH": stage === "cruise" || ground ? 0 : stage === "taxi" ? 1 : 2,
+    "L:S_OH_EXT_LT_NOSE": ground ? 0 : stage === "cruise" ? 0 : stage === "taxi" ? 1 : 2,
+    "L:S_OH_EXT_LT_RWY_TURNOFF": appr || stage === "taxi" ? 1 : 0,
+    "L:S_FC_FLAPS": appr ? 3 : stage === "taxi" ? 1 : 0,
+    "L:S_MIP_GEAR": fly ? 0 : 1,
+    "L:A_FC_SPEEDBRAKE": appr || stage === "taxi" ? 0 : 1,
+    "L:I_MIP_AUTOBRAKE_MED_L": appr ? 1 : 0,
+    "L:I_MIP_AUTOBRAKE_MAX_L": stage === "taxi" ? 1 : 0,
+    "L:I_FCU_AP1": fly ? 1 : 0,
+    "L:I_FCU_AP2": appr ? 1 : 0,
+    "L:I_FCU_ATHR": fly || appr ? 1 : 0,
+    "L:S_ENG_MASTER_1": ground ? 0 : 1,
+    "L:S_ENG_MASTER_2": ground ? 0 : 1,
+    "TURB ENG N1:1": ground ? 0 : stage === "taxi" ? 20 : appr ? 46 : 82,
+    "TURB ENG N1:2": ground ? 0 : stage === "taxi" ? 20 : appr ? 46 : 82,
+    "L:S_OH_ELEC_APU_MASTER": ground ? 1 : 0,
+    "L:S_OH_PNEUMATIC_APU_BLEED": ground ? 1 : 0,
+    "TRANSPONDER CODE:1": 6205,
+    "L:S_XPDR_OPERATION": ground ? 0 : 1,
+    "KOHLSMAN SETTING MB:1": fly ? 1013.25 : 1019,
+    "PRESSURIZATION CABIN ALTITUDE": stage === "cruise" ? 6000 : stage === "climb" ? 3500 : 460,
+  };
+  const t = Date.now();
+  const id = f.callsign ?? f.flightNo.replace(/\s/g, "");
+  const dest = f.to.icao;
+  const rows = ground
+    ? ["INIT FUEL PREDICTION £¢", "sTAXI           ZFW/ZFWCG", "cs0.2lw          c 53.2/w c27.9w", "sTRIP/TIME          BLOCK", "gs  1.8l/s0047lw           c4.6w", "sRTE RSV/%", "c  0.6/s5.0lw", "sALTN/TIME      TOW/   LW", "cs0.9lw/gs0020lw    gs57.6lw/ gs55.8lw", "sFINAL/TIME     TRIP WIND", "c  c1.0csc/0028clw         csHDl000w", "sMIN DEST FOB  EXTRA/TIME", "sc1.9wl         gs  0.1/0002lw"]
+    : ["gCRZ", "sACT MODE   UTC DEST wEFOBw", "gMANAGEDw   g2321w       g2.8w", "s CI", "c15w              sTOl g(T/D)w", "s MANAGED   UTC      DIST", "g s.76lw      g2255        25w", "s", "s          DES CABIN RATE", "sc-350wFT/MNl", "sc ACTIVATEw          NEXT", "c£APPR PHASEw       PHASE>"];
+  const pg = mcduPage(1, t, rows)!;
+  const fpl = mcduPage(1, t - 1000, [`sFROMl          s${id}l £¢`, "s DEST    UTC  DIST  EFOB", `${dest}    s2320l   s181   2.8l`]);
+  // a change to show the pop-up in the previews
+  const ev: Record<ViewStage, [string, string, DeckEvent["tone"]]> = { ready: ["light:beacon", "Beacon ON", "on"], taxi: ["flaps", "Flaps 1", "on"], climb: ["gear", "Gear UP", "off"], cruise: ["baro", "Baro STD", "info"], approaching: ["gear", "Gear DOWN", "on"], arrived: ["eng1", "Engine 1 OFF", "off"] };
+  const [key, text, tone] = ev[stage];
+  return { probe, mcdu: ground ? [pg] : [fpl!, pg], events: [{ key, text, tone, t }] };
+}
+
 function McduTd({ td, t, crz }: { td: { nm: number; min: number }; t: number; crz: number | null }) {
   return (
     <div className="gv-mcdu-r is-td" role="row">
@@ -988,6 +1211,11 @@ export interface ViewProps {
   plan?: FlightPlan | null;
   /** 1.13, OFP Tower: its summary of the flight, for the ending screen. */
   summary?: FlightSummary | null;
+  /** 1.16, OFP Tower (Fenix): the cockpit's values and the MCDU pages, for the Aircraft status and Flight deck sides. */
+  probe?: ProbeValues | null;
+  mcdu?: McduPage[] | null;
+  /** 1.16: cockpit changes, popping up on the strip and the pills. */
+  events?: DeckEvent[] | null;
 }
 
 /**
@@ -1022,8 +1250,9 @@ export function GateViewScreen(p: ViewProps & { back?: number | null; step?: { l
 
 /** One look: a view at its size and corner. `back` shows a flip card's back side (that index) instead of following its timer. */
 function LookScreen(p: ViewProps & { look: Look; back?: number | null; stepFrom?: number | null }) {
-  // 1.15: back sides without data yet aren't shown (their codes still read)
-  const lk = VIEW_INFO[p.look.v].flip ? { ...p.look, backs: shownBacks(p.look.backs) } : p.look;
+  // 1.15: back sides without data yet aren't shown (their codes still read); 1.16: nor the cockpit's
+  // sides while OFP Tower (Fenix) isn't sending them (a preview asked for a side shows it anyway)
+  const lk = VIEW_INFO[p.look.v].flip ? { ...p.look, backs: shownBacks(p.look.backs, p.back != null ? {} : deckHas(p.probe, p.mcdu)) } : p.look;
   const view = lk.v;
   if (view === "full") return <GateScreen flight={p.flight} state={p.state} now={p.now} wx={p.wx} live={p.live} source={SOURCE[p.source]} plan={p.plan ?? null} belt={lk.belt} />;
   if (view === "countdown") {
@@ -1070,7 +1299,7 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null; stepFrom?
       return (
         <div className="gv gv-over" style={style} {...at} role="region" aria-label={`${label}: ${BACKS.find((b) => b.k === back)?.name}`}>
           <div className={`gv-back gv-turn is-${back}`} key={`b${side}`}>
-            <BackSide back={back} f={f} facts={facts} live={p.live} plan={p.plan ?? null} ahead={ahd} td={td} dest={dest} />
+            <BackSide back={back} f={f} facts={facts} live={p.live} plan={p.plan ?? null} ahead={ahd} td={td} dest={dest} probe={p.probe} mcdu={p.mcdu} />
           </div>
         </div>
       );
@@ -1282,6 +1511,45 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null; stepFrom?
     );
   }
 
+  // 1.16: a cockpit change pops up beside the strip or the pill for 30 s (flaps, gear, lights, AP…)
+  const pops = SHOWS_VS.includes(v2) && lk.notify !== "off" ? showEvents(p.events, p.live?.last?.t ?? p.now) : [];
+  const toasts = pops.length ? (
+    <ul className="gv-toasts" data-side={lk.notify} aria-label="Changes in the cockpit">
+      {pops.map((e) => (
+        <li key={`${e.key}${e.t}`} className={`gv-toast is-${e.tone}`}>
+          <i aria-hidden="true" />
+          {e.text}
+        </li>
+      ))}
+    </ul>
+  ) : null;
+
+  // 1.16: the cockpit as a strip (OFP Tower, Fenix); nothing at all while it isn't sending
+  if (v2 === "cockpit") {
+    const a = aircraftStatus(p.probe ?? null);
+    if (!a.any) return null;
+    return (
+      <div className="gv gv-over" style={style} {...at} role="region" aria-label={`${label}: the cockpit`}>
+        <div className="gv-strip gv-cockpit">
+          <div className="gv-strip-id">
+            <b className="mono">{f.flightNo}</b>
+            <small>Cockpit</small>
+          </div>
+          <Lamps a={a} />
+          <Tile k="Flaps" v={flapsText(a)} />
+          <Tile k="Gear" v={gearText(a)} />
+          <Tile k="Speedbrake" v={sbText(a)} />
+          <Tile k="Autobrake" v={a.autobrake == null ? null : a.autobrake === "off" ? "OFF" : a.autobrake} />
+          <div className="gv-fmas">
+            {fmaBox("AP1", a.ap1)}
+            {fmaBox("AP2", a.ap2)}
+            {fmaBox("A/THR", a.athr)}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (v2 === "strip") {
     return (
       <div className="gv gv-over" style={style} {...at} role="region" aria-label={label}>
@@ -1296,12 +1564,13 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null; stepFrom?
           <Progress f={f} facts={facts} showToGo={false} />
           <Tile k="Level" v={facts.alt} />
           <Tile k="Speed" v={facts.gs} unit="kt" />
-          {lk.vs && <Tile k="V/S" v={facts.vs?.text ?? null} unit={facts.vs && facts.vs.dir !== "level" ? "fpm" : undefined} />}
+          {lk.vs && facts.vs && <Tile k="V/S" v={facts.vs.text} unit={facts.vs.dir !== "level" ? "fpm" : undefined} />}
           <div className={`gv-strip-st gs-${facts.tone}`} aria-live="polite">
             <small>{facts.minLeft != null ? `${facts.status} · landing in` : facts.status}</small>
             <b className="mono">{facts.minLeft != null ? mins(facts.minLeft) : (facts.line ?? facts.status)}</b>
           </div>
         </div>
+        {toasts}
       </div>
     );
   }
@@ -1326,11 +1595,13 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null; stepFrom?
           {lk.belt && <Belt live={p.live} />}
           <b className={`gv-line-phase gs-${facts.tone}`}>{facts.status}</b>
         </div>
+        {toasts}
       </div>
     );
   }
   return (
     <div className="gv gv-over" style={style} {...at} role="region" aria-label={label}>
+      {v2 === "pill" && toasts}
       {v2 === "pill" ? (
         <div className="gv-pill mono" aria-live="polite">
           <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -1546,6 +1817,8 @@ export function sampleLive(f: GateFlight, stage: ViewStage, now: number): Flight
     cruised: stage === "cruise" || stage === "approaching",
     vsAvg: air ? last.vs : null,
     vsAt: air ? t : null,
+    // in the cruise the strip has been level a while: no V/S tile
+    levelSince: stage === "cruise" ? t - 5 * MIN : null,
     airborne: stage !== "ready" && stage !== "taxi",
     stamps: {
       out,

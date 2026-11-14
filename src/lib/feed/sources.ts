@@ -16,6 +16,9 @@ export interface SourceHandlers {
   /** 1.13, OFP Tower: the flight's numbers, and the track flown before this page connected. */
   onSummary?: (s: FlightSummary) => void;
   onTrack?: (points: { t: number; lat: number; lon: number; alt: number | null }[]) => void;
+  /** 1.16, OFP Tower (Fenix): cockpit values (changed ones, or all with `full`), and an MCDU page as shown. */
+  onProbe?: (v: Record<string, unknown>, full: boolean) => void;
+  onMcdu?: (unit: number, rows: unknown, t: number) => void;
 }
 
 /* ---------- a recorded flight ---------- */
@@ -37,16 +40,28 @@ export function replaySource(path: string, rate: number, h: SourceHandlers, hold
   fetch(url, { signal: ctl.signal })
     .then((r) => (r.ok ? r.text() : Promise.reject(new Error(`Recording not found (${r.status})`))))
     .then((text) => {
-      const parsed = parseRecording(text).samples;
+      const rec = parseRecording(text);
+      const parsed = rec.samples;
       const samples = fit ? fit(parsed) : parsed;
       if (!samples.length) throw new Error("The recording has no readings");
       const t0 = samples[0].t + hold;
       let i = Math.max(0, samples.findIndex((s) => s.t >= t0));
+      // the cockpit and the MCDU pages up to each reading go with it (a fitted recording keeps its times)
+      let pi = 0;
+      let mi = 0;
+      const upTo = (t: number) => {
+        for (; pi < rec.probes.length && rec.probes[pi].t <= t; pi++) h.onProbe?.(rec.probes[pi].v, false);
+        for (; mi < rec.mcdu.length && rec.mcdu[mi].t <= t; mi++) h.onMcdu?.(rec.mcdu[mi].unit, rec.mcdu[mi].rows, rec.mcdu[mi].t);
+      };
       // readings before the starting point still go through, at once, so the stamps are right
-      for (let k = 0; k < i; k++) h.onSample(samples[k]);
+      for (let k = 0; k < i; k++) {
+        upTo(parsed[k]?.t ?? samples[k].t);
+        h.onSample(samples[k]);
+      }
       h.onStatus({ state: "live", text: `Recorded flight, ${rate}× speed` });
       const next = () => {
         if (stopped) return;
+        upTo(parsed[i]?.t ?? samples[i].t);
         h.onSample(samples[i]);
         i++;
         if (i >= samples.length) return h.onStatus({ state: "ended", text: "End of the recorded flight" });
@@ -200,6 +215,15 @@ export function linkSource(port: number, h: SourceHandlers): () => void {
       if (m.type === "track") {
         const pts = toTrack(m, Date.now());
         if (pts.length) h.onTrack?.(pts);
+        return;
+      }
+      if (m.type === "probe") {
+        if (m.v && typeof m.v === "object") h.onProbe?.(m.v as Record<string, unknown>, m.full === true);
+        return;
+      }
+      if (m.type === "mcdu") {
+        const z = typeof m.zulu === "number" ? zuluMs(m.zulu, Date.now()) : Date.now();
+        h.onMcdu?.(typeof m.unit === "number" ? m.unit : 1, m.text, z);
         return;
       }
       if (m.type !== "sample") return;
