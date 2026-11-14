@@ -384,11 +384,17 @@ def main():
                         break
                     p["zulu"] = rec["zulu"]
                     f.write(json.dumps(p) + "\n")
+                    if link and p.get("type") == "mcdu":
+                        link.publish_mcdu(p)             # live too (rows with their colour codes, no xml)
                 f.write(json.dumps(rec) + "\n")
                 if probe_log and lines % PROBE_EVERY_S == 0:
+                    fresh = sv.fresh                     # the probe batch must not change the sample's count
                     pl = probe_log.line(t_ms, rec["zulu"], sv.fetch(PROBE_VARS))
+                    sv.fresh = fresh
                     if pl:
                         f.write(json.dumps(pl) + "\n")
+                        if link:
+                            link.publish_probe(pl["v"])  # live too: only the values that changed
                 f.flush()
                 if link:
                     link.publish(rec)

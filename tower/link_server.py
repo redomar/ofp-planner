@@ -148,6 +148,11 @@ class LinkServer:
         self._summary_msg = None       # last summary sent
         self._summary_key = None
         self._summary_sent_at = 0.0
+        # Cockpit state for late joiners: every probe value seen this session (name -> last value)
+        # and the last page per MCDU. Kept across a new flight on purpose: the recorder only sends
+        # values that change, so clearing them would leave a fresh board blank until each switch moves.
+        self._probe = {}
+        self._mcdu = {}                # unit -> message text
         try:   # the last Stream-panel settings survive a restart
             with open(self._settings_file, encoding="utf-8") as f:
                 txt = f.read()
@@ -188,7 +193,9 @@ class LinkServer:
         with self._track_lock:
             track_msg = self._track.message()
             summary_msg = self._summary.message()
-            for extra in (self._plan_msg, track_msg, summary_msg, self._settings_msg):
+            probe_msg = json.dumps({"type": "probe", "v": self._probe, "full": True}) if self._probe else None
+            mcdu_msgs = [self._mcdu[u] for u in sorted(self._mcdu)]
+            for extra in (self._plan_msg, track_msg, summary_msg, probe_msg, *mcdu_msgs, self._settings_msg):
                 if extra:
                     try:
                         ws.send(extra)
@@ -259,6 +266,25 @@ class LinkServer:
             self._summary.add(rec)
             self._enqueue(json.dumps({"type": "sample", **rec}))
             self._send_summary()
+
+    def publish_probe(self, values):
+        """Changed cockpit values (same v as the recording's probe line)."""
+        if not values:
+            return
+        with self._track_lock:
+            self._probe.update(values)
+            self._enqueue(json.dumps({"type": "probe", "v": values, "full": False}))
+
+    def publish_mcdu(self, line):
+        """An MCDU page as recorded, without the xml: rows keep the Fenix colour/size codes."""
+        unit = line.get("unit")
+        if unit not in (1, 2):
+            return
+        msg = json.dumps({"type": "mcdu", "unit": unit, "title": line.get("title"),
+                          "text": line.get("text") or [], "zulu": line.get("zulu")})
+        with self._track_lock:
+            self._mcdu[unit] = msg
+            self._enqueue(msg)
 
     def _send_summary(self, every=SUMMARY_EVERY_S):
         """Event fields (times, runways, landing...) go out at once; running figures every 10 s."""
