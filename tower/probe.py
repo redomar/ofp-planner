@@ -108,7 +108,9 @@ def page_text(display_xml):
 
 def page_title(rows):
     for r in rows:
-        s = re.sub(r"[^A-Z0-9/ \-]", " ", r.upper()).strip()
+        # Fenix marks font/colour with lowercase letters inside the text (s l c g w a ...);
+        # real MCDU text is all capitals, so drop them before reading the title.
+        s = re.sub(r"[^A-Z0-9/ \-()]", " ", re.sub(r"[a-z]", "", r)).strip()
         s = re.sub(r"\s+", " ", s)
         if len(s) >= 3:
             return s[:30]

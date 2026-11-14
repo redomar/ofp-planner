@@ -27,6 +27,7 @@ def drain(ws, secs):
 A = connect(f"ws://127.0.0.1:{PORT}", additional_headers=ORIGIN, open_timeout=5)
 B = connect(f"ws://[::1]:{PORT}", additional_headers=ORIGIN, open_timeout=5)
 print("A hello:", json.loads(A.recv(timeout=3))["type"], "| B hello:", json.loads(B.recv(timeout=3))["type"])
+drain(A, 0.5); drain(B, 0.5)       # the rest of the connect backlog (summary, settings...) isn't relay traffic
 
 relay = json.dumps({"type": "relay", "channel": "stream", "msg": {"kind": "settings", "q": "st=strip,pill,pill,full&sc=BRB:frame&late=0"}})
 A.send(relay)

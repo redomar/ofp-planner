@@ -29,7 +29,7 @@ def fly(fs, start, end, alt=34000, gs=440, ff=2400):
     for i in range(start, end):
         fs.add(s(i, onGround=False, alt=alt, pressAlt=alt, agl=alt, gs=gs, ffKgH=ff))
 
-PLAN = {"origin": "LHBP", "destination": "LIMC", "flightNumber": "WMT5PL", "originRunway": "13L", "destinationRunway": "35R"}
+PLAN = {"origin": "LHBP", "destination": "LIMC", "flightNumber": "TST123", "originRunway": "13L", "destinationRunway": "35R"}
 
 # --- normal flight with a bounce
 fs = FlightSummary({"title": "FenixA320 IAE WF", "atcId": "G-ABCD"})
@@ -48,7 +48,7 @@ for i in range(300, 330): fs.add(s(i, gs=0))           # comes to rest at 300
 fs.add(s(330, gs=0, engines=[False, True]))
 fs.add(s(331, gs=0, engines=[False, False]))           # in
 d = fs.data()
-check("flight", d["flight"] == {"origin": "LHBP", "destination": "LIMC", "flightNumber": "WMT5PL",
+check("flight", d["flight"] == {"origin": "LHBP", "destination": "LIMC", "flightNumber": "TST123",
                                 "callsign": None, "reg": "G-ABCD", "aircraft": "A320"}, d["flight"])
 check("times", d["times"] == {"out": T0 + 2000, "off": T0 + 4000, "on": T0 + 200000, "in": T0 + 300000}, d["times"])
 check("runways", d["runways"] == {"departure": "13L", "arrival": "35L"}, d["runways"])
