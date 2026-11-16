@@ -733,8 +733,15 @@ async function run() {
         const L = (o) => JSON.stringify(o);
         const rp = core.parseRecording([L({ v: 2, kind: "ofp-recording", started: 1e12 }), L({ t: 1, zulu: 100, lat: 64, lon: -22, alt: 100 }), L({ t: 2, zulu: 101, lat: 64.5, lon: -22, alt: 4500, replay: true }), L({ type: "probe", zulu: 102, v: { "L:S_FC_FLAPS": 3 } }), L({ t: 3, zulu: 103, lat: 64, lon: -22, alt: 100 }), L({ type: "probe", zulu: 104, v: { "L:S_FC_FLAPS": 0 } })].join("\n"));
         const replayOk = rp.samples.length === 2 && rp.samples.every((x) => x.alt < 1000) && rp.probes.length === 2 && rp.probes[0].quiet === true && !rp.probes[1].quiet;
+        // EKCH → EGBB (16 Nov evening): F-PLN page B (the callsign alone as its title), CRZ's T/D far out, APPR's VAPP
+        const fplB = P(["sTST123l £¢", "s         UTC  SPD/ALT", "gHON     wg 2025w g    gl lg FL120w", "s DEST    UTC  DIST  EFOB", "EGBB33  s2031l   s 45   2.6l"]);
+        const crz2 = F(["gCRZ", "sACT MODE   UTC DEST wEFOBw", "gMANAGEDw   g2031w       g2.6w", "s CI", "c47w              sTOl g(T/D)w", "s MANAGED   UTC      DIST", "g s.79lw      g2007       378w"]);
+        const appr2 = F(["sDESTl     APPR", "s QNH    FLP RETR  FINAL", "c[  ]     wwF=wg138w    gILS33w", "s TEMP   SLT RETR   BARO", "c[ ]°     wwS=wg181w       c[ ]w", "sMAG WIND   CLEAN  RADIO", "c115°/13  wO=g207w       c[ ]w", "sTRANS FL       LDG CONF", "csFL065lw             csCONF3l*w", "s VAPP      VLS", "sc135wl        g131w     cFULL w"]);
+        const eveOk =
+          fplB.kind === "fpln" && dk.pageFigures(fplB).destNm === 45 && dk.pageFigures(fplB).utcDest === "20:31" && P(["DATA INDEX", "s DEST"]).kind === "other" &&
+          crz2.tdUtc === "20:07" && crz2.tdNm === 378 && crz2.managed === ".79" && crz2.costIndex === 47 && appr2.vapp === 135 && appr2.vls === 131 && appr2.approach === "ILS33";
         const ok =
-          replayOk &&
+          replayOk && eveOk &&
           kinds === "prog,prog,fuelpred,perf,perf,perf,perf" && P(appr).title === "DEST APPR" &&
           cp.phase === "CRZ" && cp.crzFl === "FL380" && cp.optFl === "FL380" && cp.recMaxFl === "FL390" && cp.toFix === undefined &&
           dp.phase === "DES" && dp.crzFl === null && dp.vdev === 4440 && dp.toFix === "BIKF10" && dp.toNm === 101 &&
@@ -746,8 +753,8 @@ async function run() {
           late === "Arrival · FMS=20:40Z|Fuel at arrival=2.8 t|Approach=ILS22L · FULL · 131 kt|Next=BIKF10 · 101 nm" &&
           ground === "Trip=1.8 t · 00:47|Block=4.6 t|V1 / VR / V2=149 / 149 / 149|Take-off=Rwy 26 · Flaps 1 · Flex 68°";
         ok
-          ? pass("gate feed: PROG (CRUISE FL380/opt FL380/max FL390; DESCENT VDEV +4440, BIKF10 101 nm), FUEL PRED (20:40Z, 2.8 t, FOB 4.0, GW 58.2), TAKE OFF (149/149/149, Flex 68°, Rwy 26), CLB (CI 5, 250), APPR (ILS22L, VAPP 131); the Flight deck's figures follow the phase; the sim's replay (OFP Tower's flag) left out of a recording, its cockpit lines quiet")
-          : fail(`gate feed: deck pages ${JSON.stringify({ replayOk, rp: [rp.samples.length, rp.probes], kinds, cp, dp, fp, groundFp, to, cl, ap, g, cruise, late, ground })}`);
+          ? pass("gate feed: PROG (CRUISE FL380/opt FL380/max FL390; DESCENT VDEV +4440, BIKF10 101 nm), FUEL PRED (20:40Z, 2.8 t, FOB 4.0, GW 58.2), TAKE OFF (149/149/149, Flex 68°, Rwy 26), CLB (CI 5, 250), APPR (ILS22L, VAPP 131); the Flight deck's figures follow the phase; the sim's replay (OFP Tower's flag) left out of a recording, its cockpit lines quiet; F-PLN page B by its callsign title")
+          : fail(`gate feed: deck pages ${JSON.stringify({ eveOk, fplB: fplB.kind, crz2, appr2, replayOk, rp: [rp.samples.length, rp.probes], kinds, cp, dp, fp, groundFp, to, cl, ap, g, cruise, late, ground })}`);
       }
       // 1.13.3: the vertical speed smoothed (bumps of ±300 fpm don't twitch it), level within ±200, none on the ground
       {

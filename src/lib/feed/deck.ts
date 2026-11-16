@@ -199,7 +199,8 @@ export function mcduPage(unit: number, t: number, rows: unknown): McduPage | nul
             ? "fuelpred"
             : /^(CLB|CRZ|DES|TO|GA)?\s*PROG?\b/.test(title) || /\bPROG\b/.test(title)
               ? "prog"
-              : /^FROM\b/.test(title) && /\bDEST\b/.test(all)
+              : // F-PLN: page A's title is "FROM TST123"; scrolled on, page B's is the callsign alone
+                (/^FROM\b/.test(title) || /^[A-Z0-9]{3,8}$/.test(title)) && /\bDEST\b/.test(all)
                 ? "fpln"
                 : "other";
   return { unit: unit === 2 ? 2 : 1, t, rows: r, kind, title: title.slice(0, 30) };

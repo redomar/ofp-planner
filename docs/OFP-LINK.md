@@ -144,7 +144,7 @@ The board's "Aircraft status" and "Flight deck" sides, the Cockpit strip and the
   - PROG (title = the active phase written out, then the flight number: PREFLIGHT, TAKE OFF, CLIMB, CRUISE, DESCENT, APPROACH, GO AROUND, DONE): the phase, CRZ / OPT / REC MAX levels, VDEV, the bearing/distance TO a fix. It is told apart by `<REPORT` and `BRG /DIST`, because "GO AROUND TST123" reads like a PERF title.
   - PERF: TAKE OFF (`TAKE OFF RWY 26`): V1/VR/V2, flex, flaps; CLB, CRZ, DES: UTC DEST, EFOB, CI, T/D, the managed speed; APPR (`DEST APPR`): FINAL, VAPP, VLS, landing flaps; GO AROUND: nothing. A PERF page gives the phase only when it shows ACT MODE, so opening PERF APPR in the cruise doesn't make it the approach.
   - FUEL PRED: the destination's UTC (in flight; on the ground the column is TIME, elapsed, and isn't used) and EFOB, FOB, GW, extra.
-  - F-PLN: the DEST row and (T/D). INIT FUEL PREDICTION: trip, block, TOW, LW and extra.
+  - F-PLN (title "FROM TST123", or the callsign alone once scrolled to page B): the DEST row and (T/D). INIT FUEL PREDICTION: trip, block, TOW, LW and extra.
   - The Flight deck shows four of these by phase (`deckRows`): on the ground trip, block, V-speeds and take-off; in climb and cruise arrival, fuel at arrival, T/D, managed speed (then levels, FOB); in descent and approach arrival, fuel, the approach and the next fix (then VDEV).
   - Fenix's "SIMULATOR CONTROL" (an MCDU2 menu) is an "other" page and is never chosen for the deck.
 - Without these messages (OFP Tower from before, another aircraft) the sides and the strip are skipped, never shown empty.
