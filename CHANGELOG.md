@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.16.2 — 2026-11-16
+
+- Fixed: the Flight deck read F-PLN only on its first page. Scrolled on, the page's title is the callsign alone (no FROM), and it was treated as some other page. Now both count, for the arrival time and the distance to go.
+
 ## 1.16.1 — 2026-11-16
 
 - **The Flight deck reads the rest of the MCDU**, from pages the Fenix showed on two flights:
