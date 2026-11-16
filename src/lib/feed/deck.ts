@@ -187,17 +187,21 @@ export function mcduPage(unit: number, t: number, rows: unknown): McduPage | nul
   const plain = r.map(mcduPlain);
   const title = (plain[0] ?? "").replace(/[<>]/g, "").replace(/\s+/g, " ").trim();
   const all = plain.join("\n");
-  const kind: McduKind = /^(TAKE OFF|CLB|CRZ|DES|APPR|GO AROUND)\b/.test(title)
-    ? "perf"
-    : /^INIT FUEL PREDICTION/.test(title)
-      ? "initfuel"
-      : /^FUEL PRED/.test(title)
-        ? "fuelpred"
-        : /^(CLB|CRZ|DES|TO|GA)?\s*PROG?\b/.test(title) || /\bPROG\b/.test(title) || /REPORT/.test(all) && /BRG \/DIST/.test(all)
-          ? "prog"
-          : /^FROM\b/.test(title) && /\bDEST\b/.test(all)
-            ? "fpln"
-            : "other";
+  // PROG first: its title is the phase ("CRUISE TST123", "GO AROUND TST123"), which can read like a PERF page's
+  const kind: McduKind =
+    /REPORT/.test(all) && /BRG \/DIST/.test(all)
+      ? "prog"
+      : /^(TAKE OFF|CLB|CRZ|DES|(DEST )?APPR|GO AROUND)\b/.test(title)
+        ? "perf"
+        : /^INIT FUEL PREDICTION/.test(title)
+          ? "initfuel"
+          : /^FUEL PRED/.test(title)
+            ? "fuelpred"
+            : /^(CLB|CRZ|DES|TO|GA)?\s*PROG?\b/.test(title) || /\bPROG\b/.test(title)
+              ? "prog"
+              : /^FROM\b/.test(title) && /\bDEST\b/.test(all)
+                ? "fpln"
+                : "other";
   return { unit: unit === 2 ? 2 : 1, t, rows: r, kind, title: title.slice(0, 30) };
 }
 
@@ -208,6 +212,13 @@ const toNum = (s: string | undefined) => {
   return Number.isFinite(x) ? x : null;
 };
 const tokens = (s: string) => s.trim().split(/\s+/).filter(Boolean);
+const speed = (s: string | undefined) => (s && /^\d{2,3}$/.test(s) ? Number(s) : null);
+const flOf = (s: string | undefined) => (s && /^FL\d{3}$/.test(s) ? s : null);
+
+/** A PERF page's name: "TAKE OFF", "CLB", "CRZ", "DES", "APPR", "GO AROUND". */
+export const perfName = (title: string) => (/^TAKE OFF/.test(title) ? "TAKE OFF" : /^GO AROUND/.test(title) ? "GO AROUND" : /^(DEST )?APPR/.test(title) ? "APPR" : title.split(" ")[0]);
+/** PROG's title is the active phase, written out; the FMA's short names. */
+const PROG_PHASE: Record<string, string> = { PREFLIGHT: "PRE", "TAKE OFF": "T/O", TAKEOFF: "T/O", CLIMB: "CLB", CRUISE: "CRZ", DESCENT: "DES", APPROACH: "APPR", "GO AROUND": "GA", DONE: "DONE" };
 
 /** What the FMS says about the flight, from whichever pages have been seen. */
 export interface FmsFigures {
@@ -231,11 +242,34 @@ export interface FmsFigures {
   tow: number | null;
   lw: number | null;
   extra: number | null;
+  /** PROG: cruise, optimum and recommended maximum levels ("FL380"). */
+  crzFl: string | null;
+  optFl: string | null;
+  recMaxFl: string | null;
+  /** PROG in descent: vertical deviation (ft, + = high) and the bearing/distance to a fix. */
+  vdev: number | null;
+  toFix: string | null;
+  toNm: number | null;
+  /** FUEL PRED: fuel on board and gross weight (t). */
+  fob: number | null;
+  gw: number | null;
+  /** PERF TAKE OFF: the V-speeds (kt), flex temperature, runway and flaps. */
+  v1: number | null;
+  vr: number | null;
+  v2: number | null;
+  flex: number | null;
+  toRwy: string | null;
+  toFlaps: string | null;
+  /** PERF APPR: the approach ("ILS22L"), VAPP and VLS (kt), landing flaps ("FULL", "CONF3"). */
+  approach: string | null;
+  vapp: number | null;
+  vls: number | null;
+  ldgConf: string | null;
   /** When the newest of these was read (ms). */
   at: number | null;
 }
 
-const EMPTY: FmsFigures = { phase: null, utcDest: null, efob: null, costIndex: null, tdUtc: null, tdNm: null, managed: null, destNm: null, trip: null, tripTime: null, block: null, tow: null, lw: null, extra: null, at: null };
+const EMPTY: FmsFigures = { phase: null, utcDest: null, efob: null, costIndex: null, tdUtc: null, tdNm: null, managed: null, destNm: null, trip: null, tripTime: null, block: null, tow: null, lw: null, extra: null, crzFl: null, optFl: null, recMaxFl: null, vdev: null, toFix: null, toNm: null, fob: null, gw: null, v1: null, vr: null, v2: null, flex: null, toRwy: null, toFlaps: null, approach: null, vapp: null, vls: null, ldgConf: null, at: null };
 
 /** The figures from one page (only those it carries). */
 export function pageFigures(pg: McduPage): Partial<FmsFigures> {
@@ -246,7 +280,26 @@ export function pageFigures(pg: McduPage): Partial<FmsFigures> {
     return i >= 0 && i + 1 < p.length ? tokens(p[i + 1]) : null;
   };
   if (pg.kind === "perf") {
-    out.phase = pg.title.split(" ")[0];
+    const name = perfName(pg.title);
+    // the active phase only from the page that says so (looking at PERF APPR in cruise isn't the approach)
+    if (p.some((x) => /ACT MODE/.test(x))) out.phase = name;
+    if (name === "TAKE OFF") {
+      out.toRwy = /RWY\s+(\S+)/.exec(pg.title)?.[1] ?? null;
+      out.v1 = speed(after(/^\s*V1\b/)?.[0]);
+      out.vr = speed(after(/^\s*VR\b/)?.[0]);
+      out.v2 = speed(after(/^\s*V2\b/)?.[0]);
+      const fx = /^(\d{1,2})°$/.exec(after(/FLEX TO TEMP/)?.at(-1) ?? "");
+      if (fx) out.flex = Number(fx[1]);
+      const fl = /^([1-3])\//.exec(after(/FLAPS\/THS/)?.at(-1) ?? "");
+      if (fl) out.toFlaps = fl[1];
+    } else if (name === "APPR") {
+      const fin = after(/FINAL\s*$/)?.at(-1);
+      if (fin && /^[A-Z]{2,5}\d{2}[LRC]?(-[A-Z])?$/.test(fin)) out.approach = fin;
+      const va = after(/^\s*VAPP\b/);
+      out.vapp = speed(va?.[0]);
+      out.vls = speed(va?.[1]);
+      if (va?.[2] && /^(FULL|CONF3)$/.test(va[2])) out.ldgConf = va[2];
+    }
     const d = after(/UTC DEST/);
     if (d && d.length >= 3) {
       out.utcDest = hhmm(d[1]);
@@ -263,7 +316,8 @@ export function pageFigures(pg: McduPage): Partial<FmsFigures> {
         out.tdNm = toNum(td[2]);
       }
     } else {
-      const m = after(/^\s*MANAGED\s*$/);
+      // the label row is indented; CLB's ACT MODE value "MANAGED" sits alone on its row, flush left
+      const m = after(/^\s+MANAGED\s*$/);
       if (m?.[0]) out.managed = m[0];
     }
   } else if (pg.kind === "fpln") {
@@ -276,6 +330,29 @@ export function pageFigures(pg: McduPage): Partial<FmsFigures> {
     const tdRow = p.find((x) => /\(T\/D\)/.test(x));
     const tdT = tdRow ? tokens(tdRow.replace("(T/D)", "")).find((x) => /^\d{4}$/.test(x)) : undefined;
     if (tdT) out.tdUtc = hhmm(tdT);
+  } else if (pg.kind === "prog") {
+    const ph = PROG_PHASE[pg.title.replace(/\s+\S+$/, "")] ?? PROG_PHASE[pg.title];
+    if (ph) out.phase = ph;
+    const lv = after(/CRZ\s+OPT\s+REC MAX/);
+    if (lv) [out.crzFl, out.optFl, out.recMaxFl] = [flOf(lv[0]), flOf(lv[1]), flOf(lv[2])];
+    const vd = p.map((x) => /VDEV=\s*([+-])\s*(\d+)/.exec(x)).find(Boolean);
+    if (vd) out.vdev = Number(vd[1] + vd[2]);
+    const to = after(/BRG \/DIST/)?.join(" ").match(/(\d{1,3})°\s*\/\s*(\d+(?:\.\d+)?)\s+TO\s+([A-Z0-9]+)/);
+    if (to) [out.toNm, out.toFix] = [Number(to[2]), to[3]];
+  } else if (pg.kind === "fuelpred") {
+    // in flight the column is UTC; before engine start it's TIME (elapsed), not an arrival
+    const head = p.find((x) => /^\s*AT\s+(UTC|TIME)\s+EFOB/.test(x));
+    const d = after(/^\s*AT\s+(UTC|TIME)\s+EFOB/);
+    if (d && d.length >= 3) {
+      if (head && /UTC/.test(head)) out.utcDest = hhmm(d[1]);
+      out.efob = toNum(d[2]);
+    }
+    const fob = after(/ALTN\s*\/TIME\s+FOB/)?.at(-1)?.split("/")[0];
+    out.fob = toNum(fob);
+    const gw = after(/GW\/\s*CG/)?.join(" ").match(/(\d+\.\d)\/\s*\d+\.\d\s*$/);
+    if (gw) out.gw = Number(gw[1]);
+    const ex = after(/EXTRA\/TIME/);
+    if (ex?.length) out.extra = toNum(ex.at(-1)?.split("/")[0]);
   } else if (pg.kind === "initfuel") {
     const tr = after(/TRIP\/TIME/);
     if (tr) {
@@ -313,9 +390,59 @@ export function fmsFigures(pages: McduPage[]): FmsFigures {
   return out;
 }
 
+/** One line of the Flight deck's figures. */
+export interface DeckRow {
+  k: string;
+  v: string | null;
+}
+const t1 = (x: number | null) => (x != null ? `${x.toFixed(1)} t` : null);
+const join = (...xs: (string | null | false | undefined)[]) => xs.filter(Boolean).join(" · ") || null;
+
+/**
+ * Four figures for the Flight deck, for where the flight is: before departure the fuel and the
+ * take-off; in the climb and cruise the arrival, fuel and top of descent; in the descent the
+ * approach and the next fix. Missing ones show as a dash, but a figure that is known wins over one
+ * that isn't.
+ */
+export function deckRows(f: FmsFigures): DeckRow[] {
+  const ground = f.phase === "PRE" || f.phase === "T/O" || (f.phase == null && f.utcDest == null && (f.trip != null || f.v1 != null));
+  const late = f.phase === "DES" || f.phase === "APPR" || f.phase === "GA" || f.phase === "DONE";
+  const speeds = f.v1 != null || f.vr != null || f.v2 != null ? [f.v1, f.vr, f.v2].map((x) => x ?? "—").join(" / ") : null;
+  const list: DeckRow[] = ground
+    ? [
+        { k: "Trip", v: f.trip != null ? join(t1(f.trip), f.tripTime) : null },
+        { k: "Block", v: t1(f.block) },
+        { k: "V1 / VR / V2", v: speeds },
+        { k: "Take-off", v: join(f.toRwy && `Rwy ${f.toRwy}`, f.toFlaps && `Flaps ${f.toFlaps}`, f.flex != null && `Flex ${f.flex}°`) },
+        { k: "Take-off weight", v: t1(f.tow) },
+        { k: "Landing weight", v: t1(f.lw) },
+      ]
+    : late
+      ? [
+          { k: "Arrival · FMS", v: f.utcDest ? `${f.utcDest}Z` : null },
+          { k: "Fuel at arrival", v: t1(f.efob) },
+          { k: "Approach", v: join(f.approach, f.ldgConf === "CONF3" ? "Flaps 3" : f.ldgConf, f.vapp != null && `${f.vapp} kt`) },
+          { k: "Next", v: f.toFix ? join(f.toFix, f.toNm != null && `${Math.round(f.toNm)} nm`) : null },
+          { k: "Vertical deviation", v: f.vdev != null ? `${f.vdev > 0 ? "+" : f.vdev < 0 ? "−" : ""}${Math.abs(f.vdev).toLocaleString("en-GB")} ft` : null },
+          { k: "Speed · managed", v: f.managed },
+        ]
+      : [
+          { k: "Arrival · FMS", v: f.utcDest ? `${f.utcDest}Z` : null },
+          { k: "Fuel at arrival", v: t1(f.efob) },
+          { k: "Top of descent", v: f.tdUtc ? join(`${f.tdUtc}Z`, f.tdNm != null && `${Math.round(f.tdNm)} nm`) : null },
+          { k: "Speed · managed", v: f.managed },
+          { k: "Levels", v: f.crzFl || f.optFl || f.recMaxFl ? join(f.crzFl, f.optFl && `opt ${f.optFl}`, f.recMaxFl && `max ${f.recMaxFl}`) : null },
+          { k: "Fuel on board", v: t1(f.fob) },
+        ];
+  // the first four known, then dashes in the order above
+  const known = list.filter((r) => r.v != null).slice(0, 4);
+  const pick = new Set([...known, ...list.filter((r) => r.v == null)].slice(0, 4));
+  return list.filter((r) => pick.has(r));
+}
+
 /** Keeps the newest page of each kind and unit (and the last "other" page), at most a dozen. */
 export function keepPages(pages: McduPage[], pg: McduPage): McduPage[] {
-  const key = (x: McduPage) => `${x.unit}:${x.kind === "other" ? "other" : x.kind === "perf" ? `perf:${x.title.split(" ")[0]}` : x.kind}`;
+  const key = (x: McduPage) => `${x.unit}:${x.kind === "other" ? "other" : x.kind === "perf" ? `perf:${perfName(x.title)}` : x.kind}`;
   return [...pages.filter((x) => key(x) !== key(pg)), pg].sort((a, b) => a.t - b.t).slice(-12);
 }
 

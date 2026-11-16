@@ -84,7 +84,8 @@ export interface Recording {
   atcId: string | null;
   samples: FeedSample[];
   /** 1.16: the probe's lines (changed values) and the MCDU pages seen, on the samples' clock. */
-  probes: { t: number; v: Record<string, unknown> }[];
+  /** `quiet`: read during the sim's replay (kept, so the cockpit stays right, but no pop-ups). */
+  probes: { t: number; v: Record<string, unknown>; quiet?: boolean }[];
   mcdu: { t: number; unit: number; rows: unknown }[];
 }
 
@@ -301,6 +302,8 @@ export function parseRecording(text: string): Recording {
     const z = num(r.zulu);
     if (z != null && lastZ >= 0 && z < lastZ - 43_200) wraps++;
     if (z != null) lastZ = z;
+    // 1.16.1: OFP Tower marks the sim's replay (watching a landing again); it isn't flying
+    if (r.replay === true) continue;
     const s = toSample(r, z != null ? day + wraps * 86_400_000 + Math.round(z * 1000) : (num(r.t) ?? 0), version);
     if (s) samples.push(s);
   }
@@ -309,6 +312,7 @@ export function parseRecording(text: string): Recording {
   const mcdu: Recording["mcdu"] = [];
   let z0 = -1;
   let w0 = 0;
+  let inReplay = false;
   for (const l of lines.slice(1)) {
     let r: Record<string, unknown>;
     try {
@@ -319,9 +323,10 @@ export function parseRecording(text: string): Recording {
     const z = num(r.zulu);
     if (z != null && z0 >= 0 && z < z0 - 43_200) w0++;
     if (z != null) z0 = z;
+    if (r.type == null) inReplay = r.replay === true;
     if (r.type !== "probe" && r.type !== "mcdu") continue;
     const t = z != null ? day + w0 * 86_400_000 + Math.round(z * 1000) : (num(r.t) ?? 0);
-    if (r.type === "probe" && r.v && typeof r.v === "object") probes.push({ t, v: r.v as Record<string, unknown> });
+    if (r.type === "probe" && r.v && typeof r.v === "object") probes.push({ t, v: r.v as Record<string, unknown>, ...(inReplay ? { quiet: true } : {}) });
     if (r.type === "mcdu") mcdu.push({ t, unit: num(r.unit) ?? 1, rows: r.text });
   }
   return { version, title: typeof head.title === "string" ? head.title : null, atcId: typeof head.atcId === "string" ? head.atcId : null, samples, probes, mcdu };

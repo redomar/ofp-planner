@@ -708,6 +708,47 @@ async function run() {
           ? pass("gate feed: the cockpit from the probe (lights, flaps, gear, speedbrake, autobrake, AP/ATHR, engines, transponder, baro, weight) and the FMS from the MCDU (INIT FUEL PRED 1.8 t/00:47, CRZ 23:21Z 2.8 t T/D 22:55 25 nm, F-PLN 181 nm), codes read as colours; a recording's probe and MCDU lines on its clock; changes for the pop-ups (30 s, the newest of each, none for the state as found), the strip's .nl/.nx")
           : fail(`gate feed: deck ${JSON.stringify({ ok, popOk, texts, kept, fi, fc, fd, ff, all, a, later, n: pages.length, rec: [rec.samples.length, rec.probes, rec.mcdu.length] })}`);
       }
+      // 1.16.1: the rest of the MCDU pages, as the Fenix showed them on EETN → EKCH (15 Nov) and EKCH → BIKF (16 Nov):
+      // PROG (its title is the active phase), FUEL PRED in flight, PERF TAKE OFF / CLB / APPR / GO AROUND
+      {
+        const dk = await import(join(process.cwd(), "src/lib/feed/deck.ts"));
+        const crzProg = ["gCRUISE    wTST123", "s CRZ      OPT    REC MAX", "cFL380w    gFL380w    mFL390w", "s", "<REPORT", "s", "s  BRG /DIST", "---° /---.- sTOs c[      ]wsl", "s PREDICTIVE", "<GPS         gGPS PRIMARYw", "sREQUIRED ACCUR ESTIMATED", "sc2.0wNMl   gHIGHs     0.08NMlw"];
+        const desProg = ["gDESCENT   wTST123", "s CRZ      OPT    REC MAX", "-----    -----    mFL390w", "s", "<REPORT    sVDEV= lg+4440wsFTl", "s", "s  BRG /DIST", "ssg 284° wssg/101.0wsl   sTOl cBIKF10w", "s PREDICTIVE", "<GPS         gGPS PRIMARYw", "sREQUIRED ACCUR ESTIMATED", "sc2.0wNMl   gHIGHs     0.08NMlw"];
+        const fuelPred = ["FUEL PRED", "s AT        UTC      EFOB", "gEKCHw      g2040w       g2.8w", "s", "gEKAHw      ----       g1.8w", "sRTE RSV/%      ZFW/ZFWCG", "g  s0.0/0.0lw    c 54.2/w c30.4w", "sALTN /TIME     FOB", "c1.0w/----     cs4.0l/sFF+FQlw", "sFINAL/TIME      GW/   CG", "c  c1.0csc/0028clw   gs 58.2/lw gs29.3lw", "sMIN DEST FOB  EXTRA/TIME", "sc2.0wl         gs  0.8/0023lw"];
+        const takeOff = ["TAKE OFF RWY g26", "s V1  FLP RETR", "c149     wF=g142w", "s VR  SLT RETR  TO SHIFT", "c149     wS=g186w   [sMl]c[  ]*w", "s V2     CLEAN  FLAPS/THS", "c149     wO=g206w    c1/DN0.1w", "sTRANS ALT   FLEX TO TEMP", "c7000w                 c68°w", "sTHR RED/ACC  ENG OUT ACC", "c 1500/1500w          cs1640lw", "s                   NEXT", "PHASE>"];
+        const clb = ["gCLB", "sACT MODE", "gMANAGEDw", "s CI", "c5w           sPRED TO lc7000w", "s MANAGED", "g s250lw      g1246wg         9w", "s", "s gsEXPEDITElw g1246wg         7w", "<T/O PHASE", "sc ACTIVATEw          NEXT", "c£APPR PHASEw       PHASE>"];
+        const appr = ["sDESTl     APPR", "s QNH    FLP RETR  FINAL", "c[  ]     wwF=wg138w    gILS22Lw", "s TEMP   SLT RETR   BARO", "c[ ]°     wwS=wg181w       c[ ]w", "sMAG WIND   CLEAN  RADIO", "c[ ]°/[ ] wO=g199w       c[ ]w", "sTRANS FL       LDG CONF", "csFL055lw             csCONF3l*w", "s VAPP      VLS", "sc131wl        g126w     cFULL w", "s PREV              NEXT", "<PHASE            PHASE>"];
+        const ga = ["GO AROUND", "s        FLP RETR", "F=g138w", "s        SLT RETR", "S=g181w", "s           CLEAN", "O=g199w", "s", "sTHR RED/ACC  ENG OUT ACC", "c s1010l/s1010lw          cs1510lw", "s PREV", "<PHASE"];
+        const P = (r, t = 1) => dk.mcduPage(1, t, r);
+        const F = (r) => dk.pageFigures(P(r));
+        const [cp, dp, fp, to, cl, ap, g] = [F(crzProg), F(desProg), F(fuelPred), F(takeOff), F(clb), F(appr), F(ga)];
+        const kinds = [crzProg, desProg, fuelPred, takeOff, clb, appr, ga].map((r) => P(r).kind).join();
+        const groundFp = F(fuelPred.map((x, i) => (i === 1 ? "s AT       TIME      EFOB" : i === 2 ? "gEKCHw      g0303w       g2.8w" : x)));
+        const rowsOf = (...rs) => dk.deckRows(dk.fmsFigures(rs.map((r, i) => P(r, i + 1)))).map((r) => `${r.k}=${r.v ?? "—"}`).join("|");
+        // looking at PERF APPR in the cruise isn't the approach: the phase is PROG's
+        const cruise = rowsOf(crzProg, fuelPred, appr);
+        const late = rowsOf(fuelPred, appr, desProg);
+        const ground = rowsOf(["INIT FUEL PREDICTION £¢", "sTRIP/TIME          BLOCK", "gs  1.8l/s0047lw           c4.6w"], takeOff);
+        // OFP Tower's replay flag: those samples aren't flown; a probe line during one is kept but quiet
+        const L = (o) => JSON.stringify(o);
+        const rp = core.parseRecording([L({ v: 2, kind: "ofp-recording", started: 1e12 }), L({ t: 1, zulu: 100, lat: 64, lon: -22, alt: 100 }), L({ t: 2, zulu: 101, lat: 64.5, lon: -22, alt: 4500, replay: true }), L({ type: "probe", zulu: 102, v: { "L:S_FC_FLAPS": 3 } }), L({ t: 3, zulu: 103, lat: 64, lon: -22, alt: 100 }), L({ type: "probe", zulu: 104, v: { "L:S_FC_FLAPS": 0 } })].join("\n"));
+        const replayOk = rp.samples.length === 2 && rp.samples.every((x) => x.alt < 1000) && rp.probes.length === 2 && rp.probes[0].quiet === true && !rp.probes[1].quiet;
+        const ok =
+          replayOk &&
+          kinds === "prog,prog,fuelpred,perf,perf,perf,perf" && P(appr).title === "DEST APPR" &&
+          cp.phase === "CRZ" && cp.crzFl === "FL380" && cp.optFl === "FL380" && cp.recMaxFl === "FL390" && cp.toFix === undefined &&
+          dp.phase === "DES" && dp.crzFl === null && dp.vdev === 4440 && dp.toFix === "BIKF10" && dp.toNm === 101 &&
+          fp.utcDest === "20:40" && fp.efob === 2.8 && fp.fob === 4 && fp.gw === 58.2 && fp.extra === 0.8 && groundFp.utcDest === undefined && groundFp.efob === 2.8 &&
+          to.toRwy === "26" && to.v1 === 149 && to.vr === 149 && to.v2 === 149 && to.flex === 68 && to.toFlaps === "1" && to.phase === undefined &&
+          cl.phase === "CLB" && cl.costIndex === 5 && cl.managed === "250" &&
+          ap.approach === "ILS22L" && ap.vapp === 131 && ap.vls === 126 && ap.ldgConf === "FULL" && ap.phase === undefined && Object.keys(g).length === 0 &&
+          cruise === "Arrival · FMS=20:40Z|Fuel at arrival=2.8 t|Levels=FL380 · opt FL380 · max FL390|Fuel on board=4.0 t" &&
+          late === "Arrival · FMS=20:40Z|Fuel at arrival=2.8 t|Approach=ILS22L · FULL · 131 kt|Next=BIKF10 · 101 nm" &&
+          ground === "Trip=1.8 t · 00:47|Block=4.6 t|V1 / VR / V2=149 / 149 / 149|Take-off=Rwy 26 · Flaps 1 · Flex 68°";
+        ok
+          ? pass("gate feed: PROG (CRUISE FL380/opt FL380/max FL390; DESCENT VDEV +4440, BIKF10 101 nm), FUEL PRED (20:40Z, 2.8 t, FOB 4.0, GW 58.2), TAKE OFF (149/149/149, Flex 68°, Rwy 26), CLB (CI 5, 250), APPR (ILS22L, VAPP 131); the Flight deck's figures follow the phase; the sim's replay (OFP Tower's flag) left out of a recording, its cockpit lines quiet")
+          : fail(`gate feed: deck pages ${JSON.stringify({ replayOk, rp: [rp.samples.length, rp.probes], kinds, cp, dp, fp, groundFp, to, cl, ap, g, cruise, late, ground })}`);
+      }
       // 1.13.3: the vertical speed smoothed (bumps of ±300 fpm don't twitch it), level within ±200, none on the ground
       {
         let st = core.startState();

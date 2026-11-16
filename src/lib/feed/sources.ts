@@ -17,7 +17,8 @@ export interface SourceHandlers {
   onSummary?: (s: FlightSummary) => void;
   onTrack?: (points: { t: number; lat: number; lon: number; alt: number | null }[]) => void;
   /** 1.16, OFP Tower (Fenix): cockpit values (changed ones, or all with `full`), and an MCDU page as shown. */
-  onProbe?: (v: Record<string, unknown>, full: boolean) => void;
+  /** `quiet`: during the sim's replay (1.16.1): keep the values, pop nothing up. */
+  onProbe?: (v: Record<string, unknown>, full: boolean, quiet?: boolean) => void;
   onMcdu?: (unit: number, rows: unknown, t: number) => void;
 }
 
@@ -50,7 +51,7 @@ export function replaySource(path: string, rate: number, h: SourceHandlers, hold
       let pi = 0;
       let mi = 0;
       const upTo = (t: number) => {
-        for (; pi < rec.probes.length && rec.probes[pi].t <= t; pi++) h.onProbe?.(rec.probes[pi].v, false);
+        for (; pi < rec.probes.length && rec.probes[pi].t <= t; pi++) h.onProbe?.(rec.probes[pi].v, false, rec.probes[pi].quiet);
         for (; mi < rec.mcdu.length && rec.mcdu[mi].t <= t; mi++) h.onMcdu?.(rec.mcdu[mi].unit, rec.mcdu[mi].rows, rec.mcdu[mi].t);
       };
       // readings before the starting point still go through, at once, so the stamps are right
@@ -183,6 +184,7 @@ export function linkSource(port: number, h: SourceHandlers): () => void {
   let ws: WebSocket | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let wait = 2000;
+  let inReplay = false;
   const open = () => {
     if (stopped) return;
     h.onStatus({ state: "connecting", text: "Looking for OFP Tower on this PC" });
@@ -218,7 +220,7 @@ export function linkSource(port: number, h: SourceHandlers): () => void {
         return;
       }
       if (m.type === "probe") {
-        if (m.v && typeof m.v === "object") h.onProbe?.(m.v as Record<string, unknown>, m.full === true);
+        if (m.v && typeof m.v === "object") h.onProbe?.(m.v as Record<string, unknown>, m.full === true, inReplay);
         return;
       }
       if (m.type === "mcdu") {
@@ -227,6 +229,9 @@ export function linkSource(port: number, h: SourceHandlers): () => void {
         return;
       }
       if (m.type !== "sample") return;
+      // 1.16.1: the sim's replay (watching a landing again) isn't flying: the map, the stages and the pop-ups wait
+      inReplay = m.replay === true;
+      if (inReplay) return;
       const z = typeof m.zulu === "number" ? m.zulu : null;
       const now = Date.now();
       // sim time of day → today's date, or yesterday's just after midnight
