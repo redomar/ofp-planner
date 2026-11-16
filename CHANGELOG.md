@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.16.1 — 2026-11-16
+
+- **The Flight deck reads the rest of the MCDU**, from pages the Fenix showed on two flights:
+  - PROG: the real phase, cruise / optimum / max levels, the vertical deviation and the distance to the next fix;
+  - FUEL PRED in flight: arrival time, fuel at arrival, fuel on board;
+  - PERF TAKE OFF: V1/VR/V2, runway, flaps, flex;
+  - PERF APPR: the approach, landing flaps, VAPP;
+  - CLB: the managed speed.
+- **Its four figures follow the phase:**
+  - on the ground: trip, block, V-speeds and the take-off;
+  - in the climb and cruise: arrival, fuel at arrival, top of descent, speed (or levels and fuel on board);
+  - in the descent and approach: arrival, fuel, the approach and the next fix.
+- Fixed:
+  - opening PERF APPR in the cruise no longer says the flight is on the approach;
+  - DEST APPR is now read as a PERF page.
+- **The sim's replay is left out.** Watching your landing again in the sim no longer moves the map, starts a "new flight" or pops up flaps and gear on the stream. This needs the next OFP Tower, which marks replayed readings; recordings with the mark play back without the replay.
+- The look editor's previews show the take-off page for Taxi and the descent's PROG and APPR for Approaching.
+
 ## 1.16.0 — 2026-11-14
 
 - **Aircraft status** (a flip card's side): the lights as cockpit switches (beacon, strobe, nav, landing, nose, runway turn-off), flaps, gear, speedbrake, autobrake, both engines with N1, APU and its bleed, the transponder code, the baro (STD or the QNH), the cabin altitude.

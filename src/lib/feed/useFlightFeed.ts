@@ -161,11 +161,12 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<s
     let probe: ProbeValues | null = null;
     let pages: McduPage[] = [];
     let events: DeckEvent[] = [];
-    const onProbe = (v: Record<string, unknown>, full: boolean) => {
+    const onProbe = (v: Record<string, unknown>, full: boolean, quiet = false) => {
       const before = probe ? aircraftStatus(probe) : null;
       probe = mergeProbe(full ? null : probe, v);
       // a change pops up (not the state as found: a page opened mid-flight, OFP Tower's full set on connect)
-      if (before && !full && probe) {
+      // nor during the sim's replay (the replayed cockpit's changes aren't news)
+      if (before && !full && !quiet && probe) {
         const t = st.last?.t ?? Date.now();
         const add = statusEvents(before, aircraftStatus(probe), t);
         if (add.length) events = keepEvents(events, add, t);

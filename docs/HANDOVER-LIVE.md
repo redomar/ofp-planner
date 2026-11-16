@@ -4,7 +4,7 @@ Written on 2026-11-11 by the two Claude sessions that built it: the Mac session 
 
 ## 1. Where things stand
 
-The live site is <https://plans.massorbit.co.uk>. The latest release is **1.16.0**. All releases are signed tags with GitHub releases, made from `main` through PRs.
+The live site is <https://plans.massorbit.co.uk>. The latest release is **1.16.1**. All releases are signed tags with GitHub releases, made from `main` through PRs.
 
 | Version | What | PR |
 |---|---|---|
@@ -24,7 +24,8 @@ The live site is <https://plans.massorbit.co.uk>. The latest release is **1.16.0
 | 1.13.1–1.13.2 | Countdown skips an off-block over 3 h gone; the Logbook entry from an FMS flight takes OFP Tower's reg, no made-up STD/STA | #54, #56 |
 | 1.14.0 | **Vertical speed** on the strip and pills (smoothed 10 s, Level ±200, `.nvs` off); **Climb and Cruise stages** (6 in `st=`, 5 and 4 still read; `hold=flying` = cruise); **Arrived** on engines + seatbelt sign off, or 2 min after the sign; **rotations** per stage (`a@240>b|c@30>d@120`, also in `view=`), flip cards' backs only (`.bo`), preset "Pills, map now and then" | #57 |
 | 1.15.0 | **One desk** (Board → Gate screen, plan in `docs/GATE-PAGE-PLAN.md`): one preview with scene tabs and a stage strip, the flight in one line with a pinned source (`fs=`), controls folded by when, Send to OBS with the open screens (`who`/`here` relay) and one copy per link; `bye`, `fs`, `anf`, `who` relayed (`sv=2`); airline names kept per airline (`anf=`); unready flip sides hidden | #58 |
-| 1.16.0 | **Aircraft status** and **Flight deck** flip sides and the **Cockpit strip** (G4c) from OFP Tower's `probe` and `mcdu` messages (`src/lib/feed/deck.ts`; skipped without them); recordings' probe/mcdu lines played back; the strip drops V/S after a minute level | this release |
+| 1.16.0 | **Aircraft status** and **Flight deck** flip sides and the **Cockpit strip** (G4c) from OFP Tower's `probe` and `mcdu` messages (`src/lib/feed/deck.ts`; skipped without them); recordings' probe/mcdu lines played back; the strip drops V/S after a minute level | PR #60 |
+| 1.16.1 | The Flight deck reads PROG, FUEL PRED, PERF TAKE OFF/CLB/APPR (pages captured 15–16 Nov); its four figures follow the phase (`deckRows`); a PERF page sets the phase only with ACT MODE; samples marked `replay` (OFP Tower, the sim's replay) skipped, probes during one kept but quiet | this release |
 
 **Naming:** "OFP Tower" is the user-facing name, the owner's choice on 2026-11-11. In code and protocol the old name stays: `feed=link`, `linkSource`, `"app":"ofp-link"`, port 47800, `docs/OFP-LINK.md`, and the PC folder `ofp-link-recorder`. Rename both sides together or not at all.
 
@@ -50,7 +51,7 @@ MSFS 2024 (Fenix A320 family) ──SimConnect──▶ OFP Tower (Python, sim P
 | `src/lib/feed/useFlightFeed.ts` | `feedFromParams` (`feed=`, `rec=`, `rate=`, `at=`, `who=`, `port=`), the hook, `feed=auto` priority, trail, plan. |
 | `src/lib/feed/relay.ts` | Settings relay through OFP Tower (`sendRelay`, `useRelay`). |
 | `src/lib/feed/obs.ts` | OBS scene name (`window.obsstudio`). |
-| `src/lib/feed/deck.ts` | 1.16: the cockpit (`aircraftStatus` from the probe's Fenix fields) and the MCDU (`mcduRuns` colour codes, `mcduPage`, `pageFigures`/`fmsFigures`, `deckPage`). Imports nothing (verify loads it). |
+| `src/lib/feed/deck.ts` | 1.16: the cockpit (`aircraftStatus` from the probe's Fenix fields) and the MCDU (`mcduRuns` colour codes, `mcduPage`, `pageFigures`/`fmsFigures`, `deckPage`, `deckRows`). Imports nothing (verify loads it). |
 | `src/lib/feed/toLog.ts`, `logFields.ts` | Arrived flight to a Logbook entry; the fields (reg from OFP Tower's summary, no STD/STA for an FMS flight) are standalone so verify loads them. |
 | `src/lib/board/looks.ts` | 1.12 looks: a view + size, corner, flip back sides and timings, seatbelt; tokens (`card.s.bl`, `g6b.l.tl.bnp.e240`), layers joined by `~`; `VIEW_INFO`, `VIEW_GROUPS`, `BACKS`. 1.14 rotations: `Turns` (steps of alternatives with seconds), `turnsFrom`/`turnsTo` (`>` `|` `@`), `stepAt`. |
 | `src/lib/board/gate.ts` | `GateState` and URL params: `view` ("auto" or a look token), `st` (6 stages of look or rotation tokens: ready, taxi, climb, cruise, approaching, arrived; written as 5 or 4 while they read the same, and those still read), `sc` (`Name:look` or `Name:a,b,c,d,e,f`), `hold`, `PRESETS`, `fromSnapshot`, `fromOfp`, `fromPlan` (FMS flight, `timing:"none"`). |

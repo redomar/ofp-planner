@@ -91,6 +91,7 @@ None needed for the readings. Reserved for the relay (below) and for the Stream 
 - **Once a second**, steady (the recorder holds 1,000 ms ± 25).
 - **Ten times a second** for `vs` and `onGround` while airborne below 200 ft above ground (`PLANE ALT ABOVE GROUND MINUS CG`). `landingRate` is `vs` at the last airborne poll, at most 0.1 s before contact. Only the once-a-second readings go to the page, plus the touchdown reading itself.
 - **Sim time, not wall time.** At 4× sim rate a minute of flight takes 15 s. The page and the replay use `zulu`, so the times stamped (OUT, OFF, ON, IN) are the sim's.
+- **The sim's replay** (watching a landing again) is marked `"replay": true` on each sample, in the file and on the link. OFP Tower's `ReplayGuard`, from 16 Nov, starts a replay at a jump of more than 0.3 nm that is also more than 3× what the ground speed could cover plus 0.2 nm (dt on the sim clock, so sim rate isn't a jump). It ends the replay on a jump back to the spot before it, or after 2 min on the ground with no jump. The summary and the track leave replays out. The page (1.16.1) skips those samples (no map, stage or stamp moves) and still takes `probe`/`mcdu` during one, so the cockpit is right afterwards, but pops nothing up. A recording's replay samples are skipped the same way. Recordings from before the flag still carry their replays.
 
 ### Landing rate
 
@@ -139,7 +140,13 @@ The board's "Aircraft status" and "Flight deck" sides, the Cockpit strip and the
   - autoflight: `L:I_FCU_AP1`, `L:I_FCU_AP2`, `L:I_FCU_ATHR`;
   - engines and power: `L:S_ENG_MASTER_1` / `_2`, `TURB ENG N1:1` / `:2`, `L:S_ENG_MODE`, `L:S_OH_ELEC_APU_MASTER`, `L:S_OH_PNEUMATIC_APU_BLEED`, `EXTERNAL POWER AVAILABLE:1`;
   - other: `TRANSPONDER CODE:1`, `L:S_XPDR_OPERATION`, `KOHLSMAN SETTING MB:1`, `PRESSURIZATION CABIN ALTITUDE`, `TOTAL WEIGHT` (lb).
-- MCDU pages the board reads figures from (by their text, codes stripped): PERF (TAKE OFF, CLB, CRZ, DES, APPR) for UTC DEST, EFOB, CI, T/D and the managed speed; F-PLN for the DEST row and (T/D); INIT FUEL PREDICTION for trip, block, TOW, LW and extra. PROG and FUEL PRED in flight are shown as they are; their figures come once a flight has them.
+- MCDU pages the board reads figures from (by their text, codes stripped; captured on A320 flights 13–16 Nov):
+  - PROG (title = the active phase written out, then the flight number: PREFLIGHT, TAKE OFF, CLIMB, CRUISE, DESCENT, APPROACH, GO AROUND, DONE): the phase, CRZ / OPT / REC MAX levels, VDEV, the bearing/distance TO a fix. It is told apart by `<REPORT` and `BRG /DIST`, because "GO AROUND TST123" reads like a PERF title.
+  - PERF: TAKE OFF (`TAKE OFF RWY 26`): V1/VR/V2, flex, flaps; CLB, CRZ, DES: UTC DEST, EFOB, CI, T/D, the managed speed; APPR (`DEST APPR`): FINAL, VAPP, VLS, landing flaps; GO AROUND: nothing. A PERF page gives the phase only when it shows ACT MODE, so opening PERF APPR in the cruise doesn't make it the approach.
+  - FUEL PRED: the destination's UTC (in flight; on the ground the column is TIME, elapsed, and isn't used) and EFOB, FOB, GW, extra.
+  - F-PLN: the DEST row and (T/D). INIT FUEL PREDICTION: trip, block, TOW, LW and extra.
+  - The Flight deck shows four of these by phase (`deckRows`): on the ground trip, block, V-speeds and take-off; in climb and cruise arrival, fuel at arrival, T/D, managed speed (then levels, FOB); in descent and approach arrival, fuel, the approach and the next fix (then VDEV).
+  - Fenix's "SIMULATOR CONTROL" (an MCDU2 menu) is an "other" page and is never chosen for the deck.
 - Without these messages (OFP Tower from before, another aircraft) the sides and the strip are skipped, never shown empty.
 
 ## Aircraft profiles

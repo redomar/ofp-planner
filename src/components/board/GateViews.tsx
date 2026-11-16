@@ -9,7 +9,7 @@ import type { GateFlight, GateState } from "@/lib/board/gate";
 import { goTarget } from "@/lib/board/countdown";
 import { ENDING_KEY, endStats, landingFeel, readEnding, routeKey, type EndingRecord } from "@/lib/board/ending";
 import { BACKS, layers, layersTo, SHOWS_VS, shownBacks, stepAt, turnsFrom, turnsOf, turnsTo, VIEW_INFO, type Layers, type Look, type LookBack, type ShownView, type Turns } from "@/lib/board/looks";
-import { aircraftStatus, deckPage, fmsFigures, mcduPage, mcduRuns, showEvents, type AircraftStatus, type DeckEvent, type FmsFigures, type Light, type McduPage, type ProbeValues } from "@/lib/feed/deck";
+import { aircraftStatus, deckPage, deckRows, fmsFigures, mcduPage, mcduRuns, showEvents, type AircraftStatus, type DeckEvent, type FmsFigures, type Light, type McduPage, type ProbeValues } from "@/lib/feed/deck";
 import { bearing, distNm, fmsArrival, routeBefore, steadyTime, landingText, levelFt, phaseLabel, utcAt, wentAround, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState, type FlightSummary, vsText, VS_HIDE_MS } from "@/lib/feed/core";
 import { useOutlines } from "@/lib/outlines";
 import { useTerrain } from "@/lib/terrain";
@@ -1050,7 +1050,6 @@ function Mcdu({ pg }: { pg: McduPage }) {
 
 function DeckSide({ a, fms, pg, top }: { a: AircraftStatus; fms: FmsFigures; pg: McduPage | null; top: ReactNode }) {
   const box = fmaBox;
-  const before = fms.utcDest == null && fms.trip != null;
   return (
     <>
       {top}
@@ -1062,45 +1061,12 @@ function DeckSide({ a, fms, pg, top }: { a: AircraftStatus; fms: FmsFigures; pg:
       </div>
       <div className="gv-deck">
         <dl className="gv-kv gv-fms mono">
-          {before ? (
-            <>
-              <div>
-                <dt>Trip</dt>
-                <dd>{fms.trip != null ? `${fms.trip.toFixed(1)} t${fms.tripTime ? ` · ${fms.tripTime}` : ""}` : "—"}</dd>
-              </div>
-              <div>
-                <dt>Block</dt>
-                <dd>{fms.block != null ? `${fms.block.toFixed(1)} t` : "—"}</dd>
-              </div>
-              <div>
-                <dt>Take-off weight</dt>
-                <dd>{fms.tow != null ? `${fms.tow.toFixed(1)} t` : "—"}</dd>
-              </div>
-              <div>
-                <dt>Landing weight</dt>
-                <dd>{fms.lw != null ? `${fms.lw.toFixed(1)} t` : "—"}</dd>
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <dt>Arrival · FMS</dt>
-                <dd>{fms.utcDest ? `${fms.utcDest}Z` : "—"}</dd>
-              </div>
-              <div>
-                <dt>Fuel at arrival</dt>
-                <dd>{fms.efob != null ? `${fms.efob.toFixed(1)} t` : "—"}</dd>
-              </div>
-              <div>
-                <dt>Top of descent</dt>
-                <dd>{fms.tdUtc ? `${fms.tdUtc}Z${fms.tdNm != null ? ` · ${Math.round(fms.tdNm)} nm` : ""}` : "—"}</dd>
-              </div>
-              <div>
-                <dt>Speed · managed</dt>
-                <dd>{fms.managed ?? "—"}</dd>
-              </div>
-            </>
-          )}
+          {deckRows(fms).map((r) => (
+            <div key={r.k}>
+              <dt>{r.k}</dt>
+              <dd>{r.v ?? "—"}</dd>
+            </div>
+          ))}
         </dl>
         {pg && <Mcdu pg={pg} />}
       </div>
@@ -1152,15 +1118,22 @@ export function sampleDeck(stage: ViewStage, f: GateFlight): { probe: ProbeValue
   const id = f.callsign ?? f.flightNo.replace(/\s/g, "");
   const dest = f.to.icao;
   const rows = ground
-    ? ["INIT FUEL PREDICTION £¢", "sTAXI           ZFW/ZFWCG", "cs0.2lw          c 53.2/w c27.9w", "sTRIP/TIME          BLOCK", "gs  1.8l/s0047lw           c4.6w", "sRTE RSV/%", "c  0.6/s5.0lw", "sALTN/TIME      TOW/   LW", "cs0.9lw/gs0020lw    gs57.6lw/ gs55.8lw", "sFINAL/TIME     TRIP WIND", "c  c1.0csc/0028clw         csHDl000w", "sMIN DEST FOB  EXTRA/TIME", "sc1.9wl         gs  0.1/0002lw"]
+    ? INIT_ROWS
     : ["gCRZ", "sACT MODE   UTC DEST wEFOBw", "gMANAGEDw   g2321w       g2.8w", "s CI", "c15w              sTOl g(T/D)w", "s MANAGED   UTC      DIST", "g s.76lw      g2255        25w", "s", "s          DES CABIN RATE", "sc-350wFT/MNl", "sc ACTIVATEw          NEXT", "c£APPR PHASEw       PHASE>"];
   const pg = mcduPage(1, t, rows)!;
   const fpl = mcduPage(1, t - 1000, [`sFROMl          s${id}l £¢`, "s DEST    UTC  DIST  EFOB", `${dest}    s2320l   s181   2.8l`]);
+  // taxi: the take-off page; approaching: PROG in the descent and PERF APPR (as on EKCH → BIKF, 16 Nov)
+  const takeoff = mcduPage(1, t, ["TAKE OFF RWY g27", "s V1  FLP RETR", "c142     wF=g142w", "s VR  SLT RETR  TO SHIFT", "c143     wS=g186w   [sMl]c[  ]*w", "s V2     CLEAN  FLAPS/THS", "c146     wO=g206w    c1/UP0.4w", "sTRANS ALT   FLEX TO TEMP", "c6000w                 c58°w", "sTHR RED/ACC  ENG OUT ACC", "c 1500/1500w          cs1640lw", "s                   NEXT", "PHASE>"]);
+  const prog = mcduPage(1, t, [`gDESCENT   w${id}`, "s CRZ      OPT    REC MAX", "-----    -----    mFL390w", "s", "<REPORT    sVDEV= lg+ 190wsFTl", "s", "s  BRG /DIST", `ssg  83° wssg/10.5wsl    sTOl c${dest}27w`, "s PREDICTIVE", "<GPS         gGPS PRIMARYw", "sREQUIRED ACCUR ESTIMATED", "sc0.5wNMl   gHIGHs     0.08NMlw"]);
+  const apprPg = mcduPage(1, t - 2000, ["sDESTl     APPR", "s QNH    FLP RETR  FINAL", "c1019     wwF=wg138w    gILS27w", "s TEMP   SLT RETR   BARO", "c 8°     wwS=wg181w       c[ ]w", "sMAG WIND   CLEAN  RADIO", "c250°/12  wO=g199w       c[ ]w", "sTRANS FL       LDG CONF", "csFL055lw             csCONF3l*w", "s VAPP      VLS", "sc131wl        g126w     cFULL w", "s PREV              NEXT", "<PHASE            PHASE>"]);
   // a change to show the pop-up in the previews
   const ev: Record<ViewStage, [string, string, DeckEvent["tone"]]> = { ready: ["light:beacon", "Beacon ON", "on"], taxi: ["flaps", "Flaps 1", "on"], climb: ["gear", "Gear UP", "off"], cruise: ["baro", "Baro STD", "info"], approaching: ["gear", "Gear DOWN", "on"], arrived: ["eng1", "Engine 1 OFF", "off"] };
   const [key, text, tone] = ev[stage];
-  return { probe, mcdu: ground ? [pg] : [fpl!, pg], events: [{ key, text, tone, t }] };
+  const mcdu = ground ? [pg] : stage === "taxi" ? [mcduPage(1, t - 1000, INIT_ROWS)!, takeoff!] : appr ? [fpl!, apprPg!, prog!] : [fpl!, pg];
+  return { probe, mcdu, events: [{ key, text, tone, t }] };
 }
+
+const INIT_ROWS = ["INIT FUEL PREDICTION £¢", "sTAXI           ZFW/ZFWCG", "cs0.2lw          c 53.2/w c27.9w", "sTRIP/TIME          BLOCK", "gs  1.8l/s0047lw           c4.6w", "sRTE RSV/%", "c  0.6/s5.0lw", "sALTN/TIME      TOW/   LW", "cs0.9lw/gs0020lw    gs57.6lw/ gs55.8lw", "sFINAL/TIME     TRIP WIND", "c  c1.0csc/0028clw         csHDl000w", "sMIN DEST FOB  EXTRA/TIME", "sc1.9wl         gs  0.1/0002lw"];
 
 function McduTd({ td, t, crz }: { td: { nm: number; min: number }; t: number; crz: number | null }) {
   return (
