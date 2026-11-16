@@ -265,6 +265,8 @@ def main():
     # Automatic read-only probe for "Aircraft status" / "Flight deck" (see probe.py)
     from probe import ProbeLog, PROBE_VARS, PROBE_EVERY_S, start_mcdu_thread
     probe_log = None if args.no_probe else ProbeLog()
+    from replay import ReplayGuard
+    replay_guard = ReplayGuard()
     if probe_log and profile and profile.get("name") == "Fenix":
         start_mcdu_thread(plan_q)            # MCDU pages go into the recording with the plan lines
 
@@ -374,6 +376,8 @@ def main():
                 rec["g"] = num(d[BASE["g"]], 2)
                 if raw:
                     rec["raw"] = raw
+                if replay_guard.check(rec):
+                    rec["replay"] = True                  # sim replay / slew: not part of the flight
 
                 # Plan lines: {"type":"plan","t":<ms when read>,"zulu":<sim zulu of the next sample>, ...plan}
                 # Readers tell them apart from samples by "type" (samples have none).

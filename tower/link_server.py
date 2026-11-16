@@ -81,6 +81,8 @@ class TrackLog:
             return
         if abs(lat) < 1e-4 and abs(lon) < 1e-4:     # sim still loading: no real position
             return
+        if rec.get("replay"):                        # the sim's replay (see replay.py)
+            return
         on_ground = rec.get("onGround")
         if self._on_ground is False and on_ground is True:
             if not self._landed:

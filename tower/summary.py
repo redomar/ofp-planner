@@ -85,6 +85,8 @@ class FlightSummary:
         t, lat, lon = rec.get("t"), rec.get("lat"), rec.get("lon")
         if t is None or lat is None or lon is None or (abs(lat) < 1e-4 and abs(lon) < 1e-4):
             return                                  # sim still loading: no real position
+        if rec.get("replay"):
+            return                                  # the sim's replay (see replay.py), not flying
         on_ground, gs, fob = rec.get("onGround"), rec.get("gs") or 0, rec.get("fobKg")
         engines = rec.get("engines")
         prev = self._on_ground

@@ -29,11 +29,22 @@ for path in sys.argv[1:]:
                 o["_file"] = path.split("\\")[-1]
                 rows.append(o)
 rows.sort(key=lambda r: r["t"])
+# The sim's replay (reviewing a landing etc.) is not part of the flight. Newer recordings mark it;
+# older ones are checked the same way OFP Tower does it now.
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from replay import ReplayGuard
+_g = ReplayGuard()
+flags = [_g.check(r) or bool(r.get("replay")) for r in rows]
+replayed = [r for r, f in zip(rows, flags) if f]
+rows = [r for r, f in zip(rows, flags) if not f]
 print("FILES")
 for name, h in headers:
     n = sum(1 for r in rows if r["_file"] == name)
     print(f"  {name}: v{h['v']} {h['title']} {h['atcId']} profile={h['profile']} samples={n}")
 print(f"  unreadable lines: {bad}")
+if replayed:
+    print(f"  sim replay left out: {len(replayed)} samples, {hm(replayed[0]['t'])} -> {hm(replayed[-1]['t'])}")
 print(f"  span: {hm(rows[0]['t'])} -> {hm(rows[-1]['t'])} ({(rows[-1]['t'] - rows[0]['t']) / 60000:.0f} min)")
 
 # gaps
