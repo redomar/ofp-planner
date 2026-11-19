@@ -185,6 +185,17 @@ Rules:
 
 Correct on the Fenix with the defaults: position, altitudes, speeds, heading, vertical speed, on ground, the latched touchdown rate, engines, beacon, doors (`EXIT OPEN:0` and `:3` went 0 → 100 at the gate).
 
+iniBuilds A350 (`"match": "a350"`, its TITLE reads "A350-900 (Default Cabin)"). Confirmed on 2026-11-18. Its sign switches are 3-position, the other way round from the Fenix: 0 ON, 1 AUTO, 2 OFF.
+
+| Field | L:var | Values |
+|---|---|---|
+| `seatbelts` | `L:INI_SEATBELTS_ON` | the sign the cabin sees (the aircraft resolves AUTO): 0 off, 1 on. The switch is `L:INI_SEATBELTS_SWITCH`. |
+| `noSmoking` | `L:INI_NO_SMOKING_SWITCH` | 0 on, 1 auto, 2 off (the switch position, like the Fenix's) |
+
+Beacon, park brake, doors (`INTERACTIVE POINT OPEN:0`, 0 → 1), the lights and the engines read right from the standard SimVars. No `emerExitLt` yet.
+
+The A350 has no MCDU, plan or cockpit feed: the Fenix gateway is Fenix-only, and the sim's GPS flight plan is empty. The probe still reads the 81 Fenix fields (they come back as 0) plus 37 of the A350's own `L:INI_*` candidates (`PROFILE_PROBE_VARS` in `probe.py`). Only the signs are confirmed so far. The board (1.16.3) reads the probe's cockpit only when the hello's `profile` is the Fenix, or absent (an older OFP Tower). So on an A350, Aircraft status, Flight deck and the Cockpit strip are skipped, while position, stages, the summary and the landing all work.
+
 ## Recording
 
 Every flight is written to `%USERPROFILE%\Documents\OFP Tower\recordings\<UTC yyyymmdd-hhmmss>.jsonl`. It starts when SimConnect connects, or when the aircraft changes, and ends when the sim closes or the aircraft has been at the gate with the engines off for 10 minutes.
