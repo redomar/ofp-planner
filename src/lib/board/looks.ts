@@ -99,7 +99,7 @@ export const VIEW_INFO: Record<ShownView, ViewInfo> = {
   strip: { name: "Strip", code: "G4", note: "One bar along the bottom or the top.", kind: "bar", pos: "bc" },
   pill: { name: "Pill", code: "G5", note: "Flight, route and time to go in one line.", kind: "pill", pos: "tl" },
   line: { name: "Pill with phase", code: "G5b", note: "The pill with the phase in its own colour.", kind: "pill", pos: "tl" },
-  cockpit: { name: "Cockpit strip", code: "G4c", note: "The lights as switches, flaps, gear, speedbrake, autobrake and the autopilot, in one bar; layer it with another look. From OFP Tower (Fenix); hidden while it isn't sending.", kind: "bar", pos: "tc", noBelt: true },
+  cockpit: { name: "Cockpit strip", code: "G4c", note: "The lights as switches, flaps, gear, speedbrake, autobrake and the autopilot, in one bar; layer it with another look. From OFP Tower (Fenix, A350); hidden while it isn't sending.", kind: "bar", pos: "tc", noBelt: true },
   countdown: { name: "Countdown", code: "G8", note: "The gate screen with a big countdown to the stream's start.", kind: "screen", pos: "tl", noBelt: true },
   ending: { name: "Ending screen", code: "G9", note: "A window for the game, the flight's numbers and the route flown, a sign-off.", kind: "screen", pos: "tl", noBelt: true },
 };
@@ -117,8 +117,8 @@ export const BACKS: { k: LookBack; name: string; note: string; ready: boolean; n
   { k: "numbers", name: "By the numbers", note: "Distance and time to the next fix, the descent and landing; fuel, wind, drift.", ready: true },
   { k: "plan", name: "The FMS plan", note: "The next fixes in the MCDU's colours, constraints and V-speeds.", ready: true },
   { k: "route", name: "The whole route", note: "Every fix on one line, where you are, the trip's times.", ready: true },
-  { k: "aircraft", name: "Aircraft status", note: "Lights, flaps, gear, speedbrake, autobrake, engines, APU, transponder, baro. From OFP Tower (Fenix); skipped while it isn't sending.", ready: true },
-  { k: "deck", name: "Flight deck", note: "Autopilot and autothrust, the FMS's arrival time, fuel at arrival, top of descent, and the MCDU page in its colours. From OFP Tower (Fenix); skipped while it isn't sending.", ready: true },
+  { k: "aircraft", name: "Aircraft status", note: "Lights, flaps, gear, speedbrake, autobrake, engines, APU, transponder, baro. From OFP Tower (Fenix, A350); skipped while it isn't sending.", ready: true },
+  { k: "deck", name: "Flight deck", note: "Autopilot and autothrust, the FMS's arrival time, fuel at arrival, top of descent, and the MCDU page in its colours. From OFP Tower (Fenix; the A350 gives the autopilot only); skipped while it isn't sending.", ready: true },
 ];
 
 /**

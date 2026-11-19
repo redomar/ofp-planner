@@ -4,7 +4,7 @@ Written on 2026-11-11 by the two Claude sessions that built it: the Mac session 
 
 ## 1. Where things stand
 
-The live site is <https://plans.massorbit.co.uk>. The latest release is **1.16.4**. All releases are signed tags with GitHub releases, made from `main` through PRs.
+The live site is <https://plans.massorbit.co.uk>. The latest release is **1.16.5**. All releases are signed tags with GitHub releases, made from `main` through PRs.
 
 | Version | What | PR |
 |---|---|---|
@@ -28,7 +28,8 @@ The live site is <https://plans.massorbit.co.uk>. The latest release is **1.16.4
 | 1.16.1 | The Flight deck reads PROG, FUEL PRED, PERF TAKE OFF/CLB/APPR (pages captured 15–16 Nov); its four figures follow the phase (`deckRows`); a PERF page sets the phase only with ACT MODE; samples marked `replay` (OFP Tower, the sim's replay) skipped, probes during one kept but quiet | PR #63 |
 | 1.16.2 | F-PLN page B (title = the callsign alone) read as F-PLN | PR #64 |
 | 1.16.3 | OFP Tower's hello drops the earlier probe, MCDU pages, pop-ups and plan (planAt kept unless the route changes); the probe is read only for a Fenix profile (or none sent: older OFP Tower), so an A350 doesn't show Fenix L:vars at 0 | PR #66 |
-| 1.16.4 | Next.js 16.4.3 → 16.4.6 (security advisories in `'use cache'`, not used here; the build had begun stopping on them) | this release |
+| 1.16.4 | Next.js 16.4.3 → 16.4.6 (security advisories in `'use cache'`, not used here; the build had begun stopping on them) | PR #67 |
+| 1.16.5 | The iniBuilds A350's cockpit (`a350Status`: L:INI_ lights, AP/ATHR, spoilers, autobrake, APU, GPU, brakes °C, seatbelts and chocks pop-ups; standard flaps/gear/squawk); OFP Tower probe.py with the A350 light fields | this release |
 
 **Naming:** "OFP Tower" is the user-facing name, the owner's choice on 2026-11-11. In code and protocol the old name stays: `feed=link`, `linkSource`, `"app":"ofp-link"`, port 47800, `docs/OFP-LINK.md`, and the PC folder `ofp-link-recorder`. Rename both sides together or not at all.
 

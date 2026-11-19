@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { aircraftStatus, keepEvents, keepPages, mcduPage, mergeProbe, statusEvents, type DeckEvent, type McduPage, type ProbeValues } from "./deck";
+import { aircraftStatus, isA350Probe, keepEvents, keepPages, mcduPage, mergeProbe, statusEvents, type DeckEvent, type McduPage, type ProbeValues } from "./deck";
 import { fitToRoute, mergeTrail, startState, step, type FeedSample, type FeedSource, type FlightContext, type FlightPlan, type FlightState, type FlightSummary } from "./core";
 import { LINK_PORT, linkSource, replaySource, vatsimSource, type FeedStatus } from "./sources";
 
@@ -124,6 +124,11 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<s
       }
       const path = trail;
       put({ state: now, using: from, trail: path });
+      // 1.16.5: the A350 has no engine master value; the sample's running engines go into its cockpit
+      if (probe && isA350Probe(probe) && s.engines && s.engines.length >= 2) {
+        const v = { "GENERAL ENG COMBUSTION:1": s.engines[0] ? 1 : 0, "GENERAL ENG COMBUSTION:2": s.engines[1] ? 1 : 0 };
+        if (Object.entries(v).some(([k, x]) => probe![k] !== x)) onProbe(v, false);
+      }
     };
     const said = (from: "link" | "vatsim" | "replay") => (status: FeedStatus) => put(from === "replay" ? { status } : { [from]: status, status });
     const fitTo = fit && c0.from && c0.to ? (x: FeedSample[]) => fitToRoute(x, c0.from!, c0.to!) : undefined;
@@ -166,11 +171,11 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<s
     let probe: ProbeValues | null = null;
     let pages: McduPage[] = [];
     let events: DeckEvent[] = [];
-    // the probe's cockpit fields are the Fenix's L:vars: another aircraft (the iniBuilds A350) reads them as 0,
-    // which would say beacon off and gear up; so only a Fenix's (or an OFP Tower from before profiles were sent)
-    let fenixCockpit = true;
+    // the probe's cockpit fields are read for a Fenix (its L:vars) and the iniBuilds A350 (its L:INI_ ones,
+    // 1.16.5); any other aircraft reads the Fenix's as 0, which would say beacon off and gear up
+    let knownCockpit = true;
     const onProbe = (v: Record<string, unknown>, full: boolean, quiet = false) => {
-      if (!fenixCockpit) return;
+      if (!knownCockpit) return;
       const before = probe ? aircraftStatus(probe) : null;
       probe = mergeProbe(full ? null : probe, v);
       // a change pops up (not the state as found: a page opened mid-flight, OFP Tower's full set on connect)
@@ -191,7 +196,7 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<s
     // OFP Tower (re)connected: it resends what it holds right after, so drop what an earlier run sent
     // (a Fenix's cockpit and pages on a screen left open into an A350 flight)
     const onHello = (profile: string | null | undefined) => {
-      fenixCockpit = profile === undefined || (profile != null && /fenix/i.test(profile));
+      knownCockpit = profile === undefined || (profile != null && /fenix|a350/i.test(profile));
       probe = null;
       pages = [];
       events = [];

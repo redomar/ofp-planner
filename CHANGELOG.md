@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.16.5 — 2026-11-19
+
+- **The iniBuilds A350's cockpit.** Aircraft status, the Flight deck's AP/A/THR and the Cockpit strip now work for the A350, from its own values as checked on its first flight (LSGG → LSZH, 19 Nov):
+  - the lights by switch position (strobe AUTO, nose T.O/TAXI), flaps, gear and squawk;
+  - AP1, AP2 and A/THR; spoilers armed or the speedbrake lever; autobrake armed;
+  - the APU, ground power, and the brake temperature (in place of the cabin altitude).
+- New pop-ups: Seatbelts ON/OFF and Chocks IN/OFF.
+- The engines come from the sample's engine-running flag (to the second), since the A350 has no engine master value; N1 above 15 % is the fallback.
+- Other aircraft are still skipped, as in 1.16.3.
+- OFP Tower reads the A350's light switches (nose, nav, beacon, landing, wing) instead of three that never moved.
+
 ## 1.16.4 — 2026-11-19
 
 - Next.js 16.4.3 → 16.4.6, for two moderate advisories in its `'use cache'` caching (GHSA-mfr8-8qww-v76h, GHSA-vc7v-qv4w-wrv8). The site is a static export and doesn't use that caching, so it wasn't exposed, but the build had started refusing to run on the old version. Nothing else changes.

@@ -694,6 +694,25 @@ async function run() {
           later.flaps === "UP" && later.gear === "up" && later.speedbrake === 70 && later.baro === "STD" && later.lights.strobe === "auto" && none.any === false && none.flaps === null &&
           pages.length === 2 && pages.at(-1).title === "CRZ" && pages.at(-1).t === 3 && dk.deckPage(pages)?.title === "CRZ" &&
           rec.samples.length === 2 && rec.probes.length === 1 && rec.probes[0].t === rec.samples[1].t && rec.mcdu.length === 1 && rec.mcdu[0].unit === 1;
+        // 1.16.5: the iniBuilds A350 (LSGG → LSZH, 19 Nov 2026): its L:INI_ fields and the standard ones; the Fenix's read 0
+        {
+          const zero = Object.fromEntries(Object.keys(probe).filter((x) => x.startsWith("L:")).map((x) => [x, 0]));
+          const appr = { ...zero, "LIGHT BEACON": 1, "LIGHT STROBE": 1, "LIGHT NAV": 1, "LIGHT LANDING": 1, "LIGHT TAXI": 0, "FLAPS HANDLE INDEX": 4, "GEAR HANDLE POSITION": 1, "GEAR TOTAL PCT EXTENDED": 1, "AUTOPILOT MASTER": 0, "SPOILERS ARMED": 0, "L:INI_SPOILERS_ARMED": 1, "L:INI_SPOILERS_HANDLE_POSITION": 0, "L:INI_AUTOBRAKE_ARMED": 1, "L:INI_ap1_on": 1, "L:INI_ap2_on": 1, "L:INI_ATHR_LIGHT": 1, "TURB ENG N1:1": 34.4, "TURB ENG N1:2": 33.9, "L:INI_APU_MASTER_SWITCH": 0, "L:INI_GPU_AVAIL": 0, "L:INI_CHOCKS_ENABLED": 0, "L:INI_SEATBELTS_ON": 1, "L:INI_GEAR1_WHEEL0_BRAKE_TEMP": 100, "L:INI_GEAR2_WHEEL0_BRAKE_TEMP": 86, "TRANSPONDER CODE:1": 1000 };
+          const x = dk.aircraftStatus(appr);
+          const gate = dk.aircraftStatus(dk.mergeProbe(appr, { "FLAPS HANDLE INDEX": 0, "L:INI_SPOILERS_ARMED": 0, "L:INI_SPOILERS_HANDLE_POSITION": 0.4, "L:INI_AUTOBRAKE_ARMED": 0, "L:INI_ap1_on": 0, "L:INI_ap2_on": 0, "TURB ENG N1:1": 2, "TURB ENG N1:2": 18, "GENERAL ENG COMBUSTION:2": 0, "L:INI_APU_MASTER_SWITCH": 1, "L:INI_SEATBELTS_ON": 0, "L:INI_CHOCKS_ENABLED": 1, "L:INI_GEAR1_WHEEL0_BRAKE_TEMP": 368, "L:INI_GEAR2_WHEEL0_BRAKE_TEMP": 354 }));
+          const ev = dk.statusEvents(x, gate, 1).map((e) => e.text).join("|");
+          // the switch positions (0 ON, 1 AUTO, 2 OFF; nose 0 T.O, 1 TAXI, 2 OFF) over the standard lit/unlit
+          const sw = dk.aircraftStatus({ ...appr, "L:INI_LIGHTS_STROBE": 1, "L:INI_LIGHTS_NOSE": 0, "L:INI_LIGHTS_NAV": 2, "L:INI_LIGHTS_BEACON": 0, "L:INI_LIGHTS_LANDING": 1 }).lights;
+          const swOk = sw.strobe === "auto" && sw.nose === "to" && sw.nav === false && sw.beacon === false && sw.landing === "on";
+          const a350Ok =
+            dk.isA350Probe(appr) && !dk.isA350Probe(probe) && x.flaps === "FULL" && x.gear === "down" && x.speedbrake === "armed" && x.autobrake === "ARMED" && x.ap1 && x.ap2 && x.athr && x.engines.join() === "true,true" && x.lights.beacon && x.lights.landing === "on" && x.lights.nose === "off" && x.lights.turnoff === null && x.brakesC === 100 && x.seatbelts === true && x.chocks === false && x.xpdrCode === "1000" && x.engMode === null &&
+            gate.flaps === "UP" && gate.speedbrake === 40 && gate.autobrake === "off" && gate.engines.join() === "false,false" && gate.apu === true && gate.brakesC === 368 &&
+            /Seatbelts OFF/.test(ev) && /Chocks IN/.test(ev) && /AP1 OFF/.test(ev) && /Autobrake OFF/.test(ev) && /APU ON/.test(ev) && /Engine 1 OFF/.test(ev) && /Engine 2 OFF/.test(ev) &&
+            a.brakesC === null && a.seatbelts === null && swOk;
+          a350Ok
+            ? pass("gate feed: the iniBuilds A350's cockpit from its L:INI_ fields (AP1/AP2, A/THR, spoilers and autobrake armed, APU, chocks, seatbelts, brakes 100 → 368 °C) and the standard lights, flaps, gear and squawk; the Fenix's L:vars at 0 aren't read")
+            : fail(`gate feed: A350 ${JSON.stringify({ x, gate, ev, sw })}`);
+        }
         // pop-ups: what changed (not what was unknown before), 30 s, the newest of each kind; the look's option in links
         const evs = dk.statusEvents(a, later, 5000);
         const texts = evs.map((e) => e.text).join("|");
@@ -1236,9 +1255,9 @@ async function run() {
             ws.send(JSON.stringify({ type: "probe", full: true, v: probe }));
             ws.send(JSON.stringify({ type: "mcdu", unit: 1, text: crz, zulu: zs(Date.now()) }));
           } else {
-            // the A350 reads the Fenix's L:vars as 0 (and has its own): not a cockpit to show
-            ws.send(JSON.stringify({ type: "probe", full: true, v: { ...Object.fromEntries(Object.keys(probe).map((x) => [x, 0])), "L:INI_SEATBELTS_ON": 0 } }));
-            setTimeout(() => ws.send(JSON.stringify({ type: "probe", v: { "L:S_MIP_GEAR": 1, "L:S_FC_FLAPS": 2 } })), 500);
+            // the A350 reads the Fenix's L:vars as 0 and has its own (1.16.5): its cockpit replaces the Fenix's
+            ws.send(JSON.stringify({ type: "probe", full: true, v: { ...Object.fromEntries(Object.keys(probe).map((x) => [x, 0])), "L:INI_SEATBELTS_ON": 0, "L:INI_ap1_on": 1, "FLAPS HANDLE INDEX": 2, "GEAR HANDLE POSITION": 0, "LIGHT BEACON": 1 } }));
+            setTimeout(() => ws.send(JSON.stringify({ type: "probe", v: { "L:S_MIP_GEAR": 1, "L:S_FC_FLAPS": 4 } })), 500);
           }
           const t0 = Date.now() - 20_000;
           for (let i = 0; i <= 20; i++) ws.send(JSON.stringify({ type: "sample", lat: 36 + i * 0.01, lon: -79.5, alt: 39_000, pressAlt: 39_000, gs: 450, hdg: 40, vs: 0, onGround: false, engines: [true, true], seatbelts: false, zulu: zs(t0 + i * 1000) }));
@@ -1249,13 +1268,14 @@ async function run() {
         page.on("pageerror", (e) => errors.push(String(e)));
         await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&feed=link&view=cockpit~strip`, { waitUntil: "networkidle" });
         await page.waitForTimeout(1500);
-        const before = await page.locator(".gv-cockpit").count();
-        await page.waitForFunction(() => !document.querySelector(".gv-cockpit"), null, { timeout: 15_000 }).catch(() => {});
-        const after = await page.locator(".gv-cockpit").count();
+        const before = await page.locator(".gv-cockpit").innerText().catch(() => "");
+        await page.waitForFunction(() => /CONF\s*2/i.test(document.querySelector(".gv-cockpit")?.textContent ?? ""), null, { timeout: 15_000 }).catch(() => {});
+        await page.waitForTimeout(1000);
+        const after = await page.locator(".gv-cockpit").innerText().catch(() => "");
         const strip = await page.locator(".gv-strip").count();
         await ctx.close();
-        before === 1 && after === 0 && strip >= 1 && conns >= 2 && !errors.length
-          ? pass("gate views: OFP Tower back for an A350: the Fenix's cockpit strip from before goes and the A350's probe (Fenix L:vars at 0) isn't shown; the strip stays")
+        /FLAPS\s*UP/i.test(before) && /CONF\s*2/i.test(after) && /GEAR\s*UP/i.test(after) && !/FULL/i.test(after) && strip >= 2 && conns >= 2 && !errors.length
+          ? pass("gate views: OFP Tower back for an A350: the Fenix's cockpit strip from before is replaced by the A350's (flaps 2, gear up from its own fields; the Fenix L:vars it reads as 0, and a later Fenix flaps value, aren't used)")
           : fail(`gate views: tower restart ${JSON.stringify({ before, after, strip, conns, errors: errors.slice(0, 2) })}`);
       }
     }
