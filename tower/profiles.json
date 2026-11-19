@@ -10,6 +10,15 @@
         "noSmoking":  { "var": "L:S_OH_SIGNS_SMOKING",  "unit": "number", "type": "enum", "values": { "0": "off", "1": "auto", "2": "on" }, "confirmed": true },
         "emerExitLt": { "var": "L:S_OH_INT_LT_EMER",    "unit": "number", "type": "enum", "values": { "0": "off", "1": "arm",  "2": "on" }, "confirmed": true }
       }
+    },
+    {
+      "name": "iniBuilds A350",
+      "match": "a350",
+      "_comment": "Sign switches are 3-position, the other way round from the Fenix: 0 = ON, 1 = AUTO, 2 = OFF (confirmed 2026-11-18: all at 2 with the owner seeing OFF; flipped 2-1-0-1-2). seatbelts uses L:INI_SEATBELTS_ON, the sign the cabin actually sees (AUTO resolved by the aircraft; owner found it in dev mode: switch AUTO at the gate = 0). Same pairs exist for L:INI_NO_SMOKING_ON and L:INI_SIGNS_NO_MOBILE / L:INI_NO_PORTABLE_DEVICES_ON (no board field). Beacon, park brake, doors and lights read fine from the standard SimVars.",
+      "vars": {
+        "seatbelts":  { "var": "L:INI_SEATBELTS_ON",      "unit": "number", "type": "bool", "confirmed": true },
+        "noSmoking":  { "var": "L:INI_NO_SMOKING_SWITCH", "unit": "number", "type": "enum", "values": { "0": "on", "1": "auto", "2": "off" }, "confirmed": true }
+      }
     }
   ]
 }

@@ -263,8 +263,9 @@ def main():
         if profile and profile.get("name") == "Fenix":
             start_fenix_plan_thread(link, plan_q=plan_q)
     # Automatic read-only probe for "Aircraft status" / "Flight deck" (see probe.py)
-    from probe import ProbeLog, PROBE_VARS, PROBE_EVERY_S, start_mcdu_thread
+    from probe import ProbeLog, PROBE_EVERY_S, start_mcdu_thread, probe_vars_for
     probe_log = None if args.no_probe else ProbeLog()
+    probe_vars = probe_vars_for(profile["name"] if profile else None)   # + the aircraft's own extras
     from replay import ReplayGuard
     replay_guard = ReplayGuard()
     if probe_log and profile and profile.get("name") == "Fenix":
@@ -393,7 +394,7 @@ def main():
                 f.write(json.dumps(rec) + "\n")
                 if probe_log and lines % PROBE_EVERY_S == 0:
                     fresh = sv.fresh                     # the probe batch must not change the sample's count
-                    pl = probe_log.line(t_ms, rec["zulu"], sv.fetch(PROBE_VARS))
+                    pl = probe_log.line(t_ms, rec["zulu"], sv.fetch(probe_vars))
                     sv.fresh = fresh
                     if pl:
                         f.write(json.dumps(pl) + "\n")

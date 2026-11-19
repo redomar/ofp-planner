@@ -60,6 +60,26 @@ PROBE_VARS = [
     ("L:N_ELEC_VOLT_BAT1", "number"), ("L:S_CHRONO_ET", "number"),
 ]
 
+# Extra candidates per profile (profiles.json "name"), read on top of PROBE_VARS. Names come from
+# the aircraft's plain-text cockpit files; values seen at the gate on 2026-11-18 noted where useful.
+PROFILE_PROBE_VARS = {
+    "iniBuilds A350": [(f"L:INI_{n}", "number") for n in (
+        "SEATBELTS_SWITCH", "SEATBELTS_ON", "NO_SMOKING_SWITCH", "NO_SMOKING_ON",
+        "SIGNS_NO_MOBILE", "NO_PORTABLE_DEVICES_ON", "EMER_EXIT_SWITCH",
+        "GEAR1_WHEEL0_BRAKE_TEMP", "GEAR2_WHEEL0_BRAKE_TEMP",          # deg C (26 cold)
+        "AUTOBRAKE_ARMED", "SPOILERS_ARMED", "SPOILERS_HANDLE_POSITION",
+        "ap1_on", "ap2_on", "AUTOTHROTTLE_ARMED", "ATHR_LIGHT",
+        "APU_AVAILABLE", "APU_N1", "APU_MASTER_SWITCH", "GPU_AVAIL", "GPU1_SWITCH", "CHOCKS_ENABLED",
+        "MASTER_WARNING_CAPT_TOP", "MASTER_CAUTION_CAPT_TOP", "ATC_MSG_LIGHT",
+        "ENG_ANTI_ICE1_STATE", "ENG_ANTI_ICE2_STATE", "WING_ANTI_ICE1_STATE",
+        "LIGHTS_LOGO", "LIGHTS_STROBE", "LIGHTS_BEACON_SWITCH", "TAXI_LEFT", "TAXI_RIGHT",
+        "SURV_ROW_ROP", "tcas_mode", "XPDR_SYS", "ECAM_ACTIVE_PAGE")],
+}
+
+
+def probe_vars_for(profile_name):
+    return PROBE_VARS + PROFILE_PROBE_VARS.get(profile_name, [])
+
 
 def _round(v):
     if v is None:
