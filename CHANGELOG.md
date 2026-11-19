@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.16.4 — 2026-11-19
+
+- Next.js 16.4.3 → 16.4.6, for two moderate advisories in its `'use cache'` caching (GHSA-mfr8-8qww-v76h, GHSA-vc7v-qv4w-wrv8). The site is a static export and doesn't use that caching, so it wasn't exposed, but the build had started refusing to run on the old version. Nothing else changes.
+
 ## 1.16.3 — 2026-11-19
 
 - **Only a Fenix's cockpit is read.** OFP Tower reads the Fenix's switches for every aircraft. On another aircraft (the A350, or one with no profile) they come back as 0, which would have shown "Beacon OFF, Gear UP" and popped up changes. The board now takes them only when OFP Tower says the aircraft is a Fenix (or is older and doesn't say). The A350's own values wait until their meanings are confirmed.
