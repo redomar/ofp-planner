@@ -42,7 +42,8 @@ export interface AircraftStatus {
   gear: "down" | "up" | "moving" | null;
   /** "armed", "retracted", or deployed (0–100 %). */
   speedbrake: "armed" | "retracted" | number | null;
-  autobrake: "LO" | "MED" | "MAX" | "off" | null;
+  /** "ARMED": the A350 says armed, not the setting. */
+  autobrake: "LO" | "MED" | "MAX" | "ARMED" | "off" | null;
   ap1: boolean | null;
   ap2: boolean | null;
   athr: boolean | null;
@@ -60,6 +61,10 @@ export interface AircraftStatus {
   baro: "STD" | number | null;
   cabinAltFt: number | null;
   weightKg: number | null;
+  /** 1.16.5, A350: the hotter main-gear brake (°C), the seatbelt sign lit, the chocks in. */
+  brakesC: number | null;
+  seatbelts: boolean | null;
+  chocks: boolean | null;
   /** Anything at all from the cockpit. */
   any: boolean;
 }
@@ -69,9 +74,13 @@ const LAND: Record<number, Light> = { 0: "retracted", 1: "off", 2: "on" };
 const NOSE: Record<number, Light> = { 0: "off", 1: "taxi", 2: "to" };
 const FLAPS = ["UP", "1", "2", "3", "FULL"];
 
+/** The probe is an iniBuilds A350's (OFP Tower sends its L:INI_ fields only for that profile). */
+export const isA350Probe = (v: ProbeValues | null) => !!v && Object.keys(v).some((k) => k.startsWith("L:INI_"));
+
 /** The cockpit as the probe last saw it. */
 export function aircraftStatus(v: ProbeValues | null): AircraftStatus {
   const p = v ?? {};
+  if (isA350Probe(p)) return a350Status(p);
   const pick = <T>(k: string, m: Record<number, T>) => {
     const x = num(p, k);
     return x == null ? null : (m[Math.round(x)] ?? null);
@@ -122,7 +131,85 @@ export function aircraftStatus(v: ProbeValues | null): AircraftStatus {
     baro: kohl == null ? null : Math.abs(kohl - 1013.25) < 0.6 ? "STD" : Math.round(kohl),
     cabinAltFt: num(p, "PRESSURIZATION CABIN ALTITUDE") != null ? Math.round(num(p, "PRESSURIZATION CABIN ALTITUDE")! / 10) * 10 : null,
     weightKg: lb != null && lb > 1000 ? Math.round((lb * 0.45359237) / 100) * 100 : null,
+    brakesC: null,
+    seatbelts: null,
+    chocks: null,
     any: Object.keys(p).length > 0,
+  };
+}
+
+/**
+ * 1.16.5: the iniBuilds A350, from its L:INI_ fields and the standard ones that move with it, as
+ * its first flight showed them (LSGG → LSZH, 19 Nov 2026). The Fenix L:vars read 0 there and
+ * AUTOPILOT MASTER, AUTOTHROTTLE ACTIVE and SPOILERS ARMED never move, so none of those are read.
+ */
+const A350_3: Record<number, Light> = { 0: "on", 1: "auto", 2: "off" };
+const A350_NOSE: Record<number, Light> = { 0: "to", 1: "taxi", 2: "off" };
+
+function a350Status(p: ProbeValues): AircraftStatus {
+  const bool = (k: string): Light | null => {
+    const x = on(p, k);
+    return x == null ? null : x ? "on" : "off";
+  };
+  const fl = num(p, "FLAPS HANDLE INDEX");
+  const gearH = num(p, "GEAR HANDLE POSITION");
+  const gearPct = num(p, "GEAR TOTAL PCT EXTENDED");
+  const sbArmed = on(p, "L:INI_SPOILERS_ARMED");
+  const sbLever = num(p, "L:INI_SPOILERS_HANDLE_POSITION");
+  const ab = on(p, "L:INI_AUTOBRAKE_ARMED");
+  const xcode = num(p, "TRANSPONDER CODE:1");
+  const kohl = num(p, "KOHLSMAN SETTING MB:1");
+  const lb = num(p, "TOTAL WEIGHT");
+  const cab = num(p, "PRESSURIZATION CABIN ALTITUDE");
+  const n1 = (k: string) => {
+    const x = num(p, k);
+    return x == null ? null : Math.round(x);
+  };
+  const n1s: [number | null, number | null] = [n1("TURB ENG N1:1"), n1("TURB ENG N1:2")];
+  const temps = [num(p, "L:INI_GEAR1_WHEEL0_BRAKE_TEMP"), num(p, "L:INI_GEAR2_WHEEL0_BRAKE_TEMP")].filter((x): x is number => x != null);
+  const taxi = on(p, "LIGHT TAXI");
+  // the switches (L:INI_LIGHTS_*, mapped by the owner in dev mode) first; the standard lit/unlit ones if absent
+  const sw = <T>(k: string, m: Record<number, T>) => {
+    const x = num(p, k);
+    return x == null ? null : (m[Math.round(x)] ?? null);
+  };
+  const navSw = num(p, "L:INI_LIGHTS_NAV");
+  return {
+    lights: {
+      beacon: on(p, "L:INI_LIGHTS_BEACON") ?? on(p, "LIGHT BEACON"),
+      strobe: sw("L:INI_LIGHTS_STROBE", A350_3) ?? bool("LIGHT STROBE"),
+      // NAV1 / NAV2 / OFF
+      nav: navSw != null ? Math.round(navSw) !== 2 : on(p, "LIGHT NAV"),
+      landing: (num(p, "L:INI_LIGHTS_LANDING") != null ? bool("L:INI_LIGHTS_LANDING") : null) ?? bool("LIGHT LANDING"),
+      nose: sw("L:INI_LIGHTS_NOSE", A350_NOSE) ?? (taxi == null ? null : taxi ? "taxi" : "off"),
+      // the A350 has no runway turn-off lights
+      turnoff: null,
+    },
+    flaps: fl != null ? (FLAPS[Math.max(0, Math.min(4, Math.round(fl)))] ?? null) : null,
+    gear: gearPct != null && gearPct > 0.02 && gearPct < 0.98 ? "moving" : gearH == null ? null : gearH > 0.5 ? "down" : "up",
+    // the lever: 0 in, 1 full
+    speedbrake: sbArmed ? "armed" : sbLever == null ? (sbArmed == null ? null : "retracted") : sbLever < 0.05 ? "retracted" : Math.min(100, Math.round(sbLever * 100)),
+    autobrake: ab == null ? null : ab ? "ARMED" : "off",
+    ap1: on(p, "L:INI_ap1_on"),
+    ap2: on(p, "L:INI_ap2_on"),
+    athr: on(p, "L:INI_ATHR_LIGHT"),
+    // no engine master field: the samples' GENERAL ENG COMBUSTION (put in by the feed, exact to the second),
+    // else N1 (ground idle 20 %; it lags start by 20–35 s and a cut by ~5 s)
+    engines: [0, 1].map((i) => on(p, `GENERAL ENG COMBUSTION:${i + 1}`) ?? (n1s[i] == null ? null : n1s[i]! > 15)) as [boolean | null, boolean | null],
+    n1: n1s,
+    engMode: null,
+    apu: on(p, "L:INI_APU_MASTER_SWITCH"),
+    apuBleed: null,
+    extPower: on(p, "L:INI_GPU_AVAIL"),
+    xpdrCode: xcode != null && xcode >= 0 && xcode <= 7777 ? String(Math.round(xcode)).padStart(4, "0") : null,
+    xpdrOn: null,
+    baro: kohl == null ? null : Math.abs(kohl - 1013.25) < 0.6 ? "STD" : Math.round(kohl),
+    cabinAltFt: cab != null ? Math.round(cab / 10) * 10 : null,
+    weightKg: lb != null && lb > 1000 ? Math.round((lb * 0.45359237) / 100) * 100 : null,
+    brakesC: temps.length ? Math.round(Math.max(...temps)) : null,
+    seatbelts: on(p, "L:INI_SEATBELTS_ON"),
+    chocks: on(p, "L:INI_CHOCKS_ENABLED"),
+    any: true,
   };
 }
 
@@ -496,6 +583,8 @@ export function statusEvents(a: AircraftStatus, b: AircraftStatus, t: number): D
   add("eng1", a.engines[0], b.engines[0], `Engine 1 ${onOff(b.engines[0])}`, b.engines[0] ? "on" : "off");
   add("eng2", a.engines[1], b.engines[1], `Engine 2 ${onOff(b.engines[1])}`, b.engines[1] ? "on" : "off");
   add("apu", a.apu, b.apu, `APU ${onOff(b.apu)}`, b.apu ? "on" : "off");
+  add("seatbelts", a.seatbelts, b.seatbelts, `Seatbelts ${onOff(b.seatbelts)}`, b.seatbelts ? "on" : "off");
+  add("chocks", a.chocks, b.chocks, b.chocks ? "Chocks IN" : "Chocks OFF", b.chocks ? "on" : "off");
   add("baro", a.baro, b.baro, b.baro === "STD" ? "Baro STD" : `QNH ${b.baro}`, "info");
   add("squawk", a.xpdrCode, b.xpdrCode, `Squawk ${b.xpdrCode}`, "info");
   return out;

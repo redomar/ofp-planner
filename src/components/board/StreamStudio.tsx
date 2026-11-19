@@ -743,7 +743,7 @@ function LookEditor({
                   </button>
                 ))}
               </div>
-              <small className="muted">Flaps, gear, lights, spoilers, autobrake, AP and A/THR, engines, APU, baro, squawk: a change shows for 30 s, then the look is as it was. From OFP Tower (Fenix).</small>
+              <small className="muted">Flaps, gear, lights, spoilers, autobrake, AP and A/THR, engines, APU, baro, squawk: a change shows for 30 s, then the look is as it was. From OFP Tower (Fenix, A350).</small>
             </div>
           )}
           {SHOWS_VS.includes(cur.v) && (

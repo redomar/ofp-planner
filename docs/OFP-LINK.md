@@ -194,7 +194,27 @@ iniBuilds A350 (`"match": "a350"`, its TITLE reads "A350-900 (Default Cabin)"). 
 
 Beacon, park brake, doors (`INTERACTIVE POINT OPEN:0`, 0 → 1), the lights and the engines read right from the standard SimVars. No `emerExitLt` yet.
 
-The A350 has no MCDU, plan or cockpit feed: the Fenix gateway is Fenix-only, and the sim's GPS flight plan is empty. The probe still reads the 81 Fenix fields (they come back as 0) plus 37 of the A350's own `L:INI_*` candidates (`PROFILE_PROBE_VARS` in `probe.py`). Only the signs are confirmed so far. The board (1.16.3) reads the probe's cockpit only when the hello's `profile` is the Fenix, or absent (an older OFP Tower). So on an A350, Aircraft status, Flight deck and the Cockpit strip are skipped, while position, stages, the summary and the landing all work.
+The A350 has no MCDU or plan feed: the Fenix gateway is Fenix-only, and the sim's GPS flight plan is empty. The probe reads the 81 Fenix fields (they come back as 0; the standard SimVars among them work) plus 39 of the A350's own `L:INI_*` fields (`PROFILE_PROBE_VARS` in `probe.py`), checked against its first flight (LSGG → LSZH, 19 Nov 2026) and the owner's dev-mode mapping of the lights (17 Nov).
+
+From 1.16.5 the board reads an A350's cockpit (`a350Status` in `deck.ts`, chosen when the probe has `L:INI_` fields; the hello's profile must be a Fenix or an A350):
+
+| Board | A350 field | Values |
+|---|---|---|
+| Strobe, logo | `L:INI_LIGHTS_STROBE`, `L:INI_LIGHTS_LOGO` | 0 ON, 1 AUTO, 2 OFF (iniBuilds' own list says otherwise; the sim shows this) |
+| Nose | `L:INI_LIGHTS_NOSE` | 0 T.O, 1 TAXI, 2 OFF |
+| Nav | `L:INI_LIGHTS_NAV` | 0 NAV1, 1 NAV2, 2 OFF |
+| Beacon, landing, wing | `L:INI_LIGHTS_BEACON`, `_LANDING`, `_WING` | 0 OFF, 1 ON |
+| (lights, fallback) | `LIGHT STROBE/LANDING/TAXI/NAV/BEACON` | lit or not; used when the switch field isn't there |
+| Flaps, gear, squawk | `FLAPS HANDLE INDEX` (0–4), `GEAR HANDLE POSITION`, `TRANSPONDER CODE:1` | standard |
+| AP1, AP2, A/THR | `L:INI_ap1_on`, `L:INI_ap2_on`, `L:INI_ATHR_LIGHT` | 1 engaged (`L:INI_AUTOTHROTTLE_ARMED` is armed, blue) |
+| Spoilers | `L:INI_SPOILERS_ARMED`, `L:INI_SPOILERS_HANDLE_POSITION` | armed; lever 0 in to 1 full |
+| Autobrake | `L:INI_AUTOBRAKE_ARMED` | armed or not (no setting) |
+| APU, ext power | `L:INI_APU_MASTER_SWITCH`, `L:INI_GPU_AVAIL` | 1 on (`L:INI_APU_AVAILABLE`, `L:INI_APU_N1` %) |
+| Brakes | `L:INI_GEAR1/2_WHEEL0_BRAKE_TEMP` | °C; the hotter shown (peaked 368 °C 12 min after landing) |
+| Seatbelts, chocks | `L:INI_SEATBELTS_ON`, `L:INI_CHOCKS_ENABLED` | pop-ups; chocks and GPU went 1 → 0 together at pushback |
+| Engines | the samples' `engines` (GENERAL ENG COMBUSTION), else `TURB ENG N1:1/2` | running; N1 above 15 % only as the fallback (idle 20 %, lags by 20–35 s) |
+
+Not read: `AUTOPILOT MASTER`, `AUTOTHROTTLE ACTIVE`, `SPOILERS ARMED` (never move on the A350), `L:INI_tcas_mode`, `L:INI_XPDR_SYS`, `L:INI_SURV_ROW_ROP`, `L:INI_GPU1_SWITCH` (never moved). Seen and kept for later: master warning/caution (`L:INI_MASTER_*_CAPT_TOP`), engine anti-ice, `L:INI_ATC_MSG_LIGHT`, `L:INI_ECAM_ACTIVE_PAGE` (probably 1 ENG, 9 APU, 10 F/CTL, 11 DOOR, 12 WHEEL, 13 CRUISE). An autoland shows as AP1 + AP2 staying on through touchdown.
 
 ## Recording
 

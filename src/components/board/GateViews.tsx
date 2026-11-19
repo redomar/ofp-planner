@@ -1023,10 +1023,17 @@ function AircraftSide({ a, top }: { a: AircraftStatus; top: ReactNode }) {
           <dt>Baro</dt>
           <dd>{a.baro == null ? "—" : a.baro === "STD" ? "STD" : `${a.baro} hPa`}</dd>
         </div>
-        <div>
-          <dt>Cabin</dt>
-          <dd>{a.cabinAltFt != null ? `${a.cabinAltFt.toLocaleString("en-GB")} ft` : "—"}</dd>
-        </div>
+        {a.brakesC != null ? (
+          <div>
+            <dt>Brakes</dt>
+            <dd>{a.brakesC} °C</dd>
+          </div>
+        ) : (
+          <div>
+            <dt>Cabin</dt>
+            <dd>{a.cabinAltFt != null ? `${a.cabinAltFt.toLocaleString("en-GB")} ft` : "—"}</dd>
+          </div>
+        )}
       </dl>
     </>
   );
