@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.16.3 — 2026-11-19
+
+- **Only a Fenix's cockpit is read.** OFP Tower reads the Fenix's switches for every aircraft. On another aircraft (the A350, or one with no profile) they come back as 0, which would have shown "Beacon OFF, Gear UP" and popped up changes. The board now takes them only when OFP Tower says the aircraft is a Fenix (or is older and doesn't say). The A350's own values wait until their meanings are confirmed.
+- **OFP Tower restarted for another aircraft** (the iniBuilds A350 profile, which has no cockpit, MCDU or FMS plan feed): a screen left open since a Fenix flight drops that flight's cockpit, MCDU pages, pop-ups and FMS plan when OFP Tower connects again, instead of showing them on the new flight. The Aircraft status and Flight deck sides and the Cockpit strip are skipped until data comes; position, stages, the summary and the landing work as before. A Fenix gets its cockpit back at once (OFP Tower resends it), and its flight keeps its departure time across a reconnect.
+
 ## 1.16.2 — 2026-11-16
 
 - Fixed: the Flight deck read F-PLN only on its first page. Scrolled on, the page's title is the callsign alone (no FROM), and it was treated as some other page. Now both count, for the arrival time and the distance to go.

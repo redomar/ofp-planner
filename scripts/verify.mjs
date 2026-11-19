@@ -732,7 +732,8 @@ async function run() {
         // OFP Tower's replay flag: those samples aren't flown; a probe line during one is kept but quiet
         const L = (o) => JSON.stringify(o);
         const rp = core.parseRecording([L({ v: 2, kind: "ofp-recording", started: 1e12 }), L({ t: 1, zulu: 100, lat: 64, lon: -22, alt: 100 }), L({ t: 2, zulu: 101, lat: 64.5, lon: -22, alt: 4500, replay: true }), L({ type: "probe", zulu: 102, v: { "L:S_FC_FLAPS": 3 } }), L({ t: 3, zulu: 103, lat: 64, lon: -22, alt: 100 }), L({ type: "probe", zulu: 104, v: { "L:S_FC_FLAPS": 0 } })].join("\n"));
-        const replayOk = rp.samples.length === 2 && rp.samples.every((x) => x.alt < 1000) && rp.probes.length === 2 && rp.probes[0].quiet === true && !rp.probes[1].quiet;
+        const prof = (h) => core.parseRecording([L({ v: 2, kind: "ofp-recording", started: 1e12, ...h }), L({ t: 1, zulu: 100, lat: 64, lon: -22, alt: 100 })].join("\n")).profile;
+        const replayOk = prof({ profile: "iniBuilds A350" }) === "iniBuilds A350" && prof({ profile: null }) === null && prof({}) === undefined && rp.samples.length === 2 && rp.samples.every((x) => x.alt < 1000) && rp.probes.length === 2 && rp.probes[0].quiet === true && !rp.probes[1].quiet;
         // EKCH → EGBB (16 Nov evening): F-PLN page B (the callsign alone as its title), CRZ's T/D far out, APPR's VAPP
         const fplB = P(["sTST123l £¢", "s         UTC  SPD/ALT", "gHON     wg 2025w g    gl lg FL120w", "s DEST    UTC  DIST  EFOB", "EGBB33  s2031l   s 45   2.6l"]);
         const crz2 = F(["gCRZ", "sACT MODE   UTC DEST wEFOBw", "gMANAGEDw   g2031w       g2.6w", "s CI", "c47w              sTOl g(T/D)w", "s MANAGED   UTC      DIST", "g s.79lw      g2007       378w"]);
@@ -1220,6 +1221,43 @@ async function run() {
       ![acft, deck, small, without, mixed, cockpit, noCockpit].some((x) => x.errors.length)
         ? pass("gate views: Aircraft status (lights as switches, flaps, gear, speedbrake, engines, transponder, baro), Flight deck (AP/A/THR, arrival 23:21Z, 2.8 t, T/D 22:55Z 25 nm, the CRZ page in its colours; a small corner without the screen) and the Cockpit strip from OFP Tower; without its data they're skipped; level a minute, the strip drops V/S; a cockpit change pops up beside the strip (Flaps 1, Gear DOWN), not with .nx nor for the state as found")
         : fail(`gate views: deck ${JSON.stringify({ acft: [acft.back, acft.text.slice(0, 200)], deck: [deck.back, deck.text.slice(0, 200), deck.scr], small: [small.back, small.scr], without: without.back, mixed: mixed.back, cockpit: [cockpit.strips, cockpit.allText.slice(0, 200)], noCockpit: [noCockpit.strips, noCockpit.allText.slice(0, 160)], pops: [popped.pops, popOff.pops, popNone.pops], errors: [acft, deck, small, without, mixed, cockpit, noCockpit].flatMap((x) => x.errors).slice(0, 2) })}`);
+      // 1.16.3: OFP Tower restarted for another aircraft (an iniBuilds A350: no probe, MCDU or plan). A screen left open
+      // since the Fenix flight drops that cockpit on the new hello, so the strip isn't stale
+      {
+        const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, reducedMotion: "reduce" });
+        await ctx.addInitScript(SEED);
+        await ctx.route(/simbrief\.com\/api\/xml\.fetcher\.php/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(OFP) }));
+        const zs = (ms) => (ms % 86400000) / 1000;
+        let conns = 0;
+        await ctx.routeWebSocket(/localhost:47800/, (ws) => {
+          const n = ++conns;
+          ws.send(JSON.stringify({ type: "hello", app: "ofp-link", profile: n === 1 ? "Fenix" : "iniBuilds A350" }));
+          if (n === 1) {
+            ws.send(JSON.stringify({ type: "probe", full: true, v: probe }));
+            ws.send(JSON.stringify({ type: "mcdu", unit: 1, text: crz, zulu: zs(Date.now()) }));
+          } else {
+            // the A350 reads the Fenix's L:vars as 0 (and has its own): not a cockpit to show
+            ws.send(JSON.stringify({ type: "probe", full: true, v: { ...Object.fromEntries(Object.keys(probe).map((x) => [x, 0])), "L:INI_SEATBELTS_ON": 0 } }));
+            setTimeout(() => ws.send(JSON.stringify({ type: "probe", v: { "L:S_MIP_GEAR": 1, "L:S_FC_FLAPS": 2 } })), 500);
+          }
+          const t0 = Date.now() - 20_000;
+          for (let i = 0; i <= 20; i++) ws.send(JSON.stringify({ type: "sample", lat: 36 + i * 0.01, lon: -79.5, alt: 39_000, pressAlt: 39_000, gs: 450, hdg: 40, vs: 0, onGround: false, engines: [true, true], seatbelts: false, zulu: zs(t0 + i * 1000) }));
+          if (n === 1) setTimeout(() => ws.close().catch(() => {}), 2500);
+        });
+        const page = await ctx.newPage();
+        const errors = [];
+        page.on("pageerror", (e) => errors.push(String(e)));
+        await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&feed=link&view=cockpit~strip`, { waitUntil: "networkidle" });
+        await page.waitForTimeout(1500);
+        const before = await page.locator(".gv-cockpit").count();
+        await page.waitForFunction(() => !document.querySelector(".gv-cockpit"), null, { timeout: 15_000 }).catch(() => {});
+        const after = await page.locator(".gv-cockpit").count();
+        const strip = await page.locator(".gv-strip").count();
+        await ctx.close();
+        before === 1 && after === 0 && strip >= 1 && conns >= 2 && !errors.length
+          ? pass("gate views: OFP Tower back for an A350: the Fenix's cockpit strip from before goes and the A350's probe (Fenix L:vars at 0) isn't shown; the strip stays")
+          : fail(`gate views: tower restart ${JSON.stringify({ before, after, strip, conns, errors: errors.slice(0, 2) })}`);
+      }
     }
     // 1.13.3: the vertical speed on the strip and the pills, from a stand-in OFP Tower climbing at ~2,400 fpm
     {

@@ -82,6 +82,8 @@ export interface Recording {
   version: number;
   title: string | null;
   atcId: string | null;
+  /** OFP Tower's aircraft profile ("Fenix", "iniBuilds A350"); null = none matched; undefined = a recording from before it. */
+  profile: string | null | undefined;
   samples: FeedSample[];
   /** 1.16: the probe's lines (changed values) and the MCDU pages seen, on the samples' clock. */
   /** `quiet`: read during the sim's replay (kept, so the cockpit stays right, but no pop-ups). */
@@ -329,7 +331,7 @@ export function parseRecording(text: string): Recording {
     if (r.type === "probe" && r.v && typeof r.v === "object") probes.push({ t, v: r.v as Record<string, unknown>, ...(inReplay ? { quiet: true } : {}) });
     if (r.type === "mcdu") mcdu.push({ t, unit: num(r.unit) ?? 1, rows: r.text });
   }
-  return { version, title: typeof head.title === "string" ? head.title : null, atcId: typeof head.atcId === "string" ? head.atcId : null, samples, probes, mcdu };
+  return { version, title: typeof head.title === "string" ? head.title : null, atcId: typeof head.atcId === "string" ? head.atcId : null, profile: typeof head.profile === "string" ? head.profile.slice(0, 40) : head.profile === null ? null : undefined, samples, probes, mcdu };
 }
 
 /* ---------- the phase detector ---------- */

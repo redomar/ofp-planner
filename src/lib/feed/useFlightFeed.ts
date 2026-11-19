@@ -146,22 +146,31 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<s
         const base = f.key === k ? f : { ...NO_FEED, key: k };
         return { ...base, key: k, plan: p, planAt: base.planAt ?? Date.now() };
       });
+    // the route of OFP Tower's last plan: a different one is a new flight (new time seen)
+    let planRoute = "";
     const onPlan = (p: FlightPlan) => {
       linkPlan = true;
+      const route = `${p.origin}-${p.destination}`;
+      const newRoute = planRoute !== "" && route !== planRoute;
+      planRoute = route;
       const first = p.legs.find((l) => !l.missed);
       const last = [...p.legs].reverse().find((l) => !l.missed);
       planCruise = p.cruiseFt;
       planCtx = first && last ? { from: { lat: first.lat, lon: first.lon }, to: { lat: last.lat, lon: last.lon } } : {};
       setFeed((f) => {
         const base = f.key === k ? f : { ...NO_FEED, key: k };
-        return { ...base, key: k, plan: p, planAt: base.planAt ?? Date.now() };
+        return { ...base, key: k, plan: p, planAt: newRoute ? Date.now() : (base.planAt ?? Date.now()) };
       });
     };
     const onSummary = (sum: FlightSummary) => put({ summary: sum });
     let probe: ProbeValues | null = null;
     let pages: McduPage[] = [];
     let events: DeckEvent[] = [];
+    // the probe's cockpit fields are the Fenix's L:vars: another aircraft (the iniBuilds A350) reads them as 0,
+    // which would say beacon off and gear up; so only a Fenix's (or an OFP Tower from before profiles were sent)
+    let fenixCockpit = true;
     const onProbe = (v: Record<string, unknown>, full: boolean, quiet = false) => {
+      if (!fenixCockpit) return;
       const before = probe ? aircraftStatus(probe) : null;
       probe = mergeProbe(full ? null : probe, v);
       // a change pops up (not the state as found: a page opened mid-flight, OFP Tower's full set on connect)
@@ -179,6 +188,20 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<s
       pages = keepPages(pages, pg);
       put({ mcdu: pages });
     };
+    // OFP Tower (re)connected: it resends what it holds right after, so drop what an earlier run sent
+    // (a Fenix's cockpit and pages on a screen left open into an A350 flight)
+    const onHello = (profile: string | null | undefined) => {
+      fenixCockpit = profile === undefined || (profile != null && /fenix/i.test(profile));
+      probe = null;
+      pages = [];
+      events = [];
+      linkPlan = false;
+      vatsimKey = "";
+      planCruise = null;
+      planCtx = {};
+      // planAt stays: it is the FMS flight's departure time, and the same plan comes straight back
+      put({ probe: null, mcdu: [], events: [], plan: null });
+    };
     const onTrack = (pts: { t: number; lat: number; lon: number }[]) => {
       const merged = mergeTrail(
         trail.map(([lon, lat], i) => ({ t: trailT[i], lon, lat })),
@@ -189,11 +212,11 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<s
       trailAt = trailT[trailT.length - 1] ?? 0;
       put({ trail });
     };
-    if (source === "replay" && rec) return replaySource(rec, rate, { onSample: take("replay"), onStatus: said("replay"), onProbe, onMcdu }, at * 60_000, fitTo);
+    if (source === "replay" && rec) return replaySource(rec, rate, { onSample: take("replay"), onStatus: said("replay"), onProbe, onMcdu, onHello }, at * 60_000, fitTo);
     if (source === "vatsim" && who) return vatsimSource(who, { onSample: take("vatsim"), onStatus: said("vatsim"), onPlan: onVatsimPlan });
-    if (source === "link") return linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan, onSummary, onTrack, onProbe, onMcdu });
+    if (source === "link") return linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan, onSummary, onTrack, onProbe, onMcdu, onHello });
     if (source === "auto") {
-      const stops = [linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan, onSummary, onTrack, onProbe, onMcdu })];
+      const stops = [linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan, onSummary, onTrack, onProbe, onMcdu, onHello })];
       if (who) stops.push(vatsimSource(who, { onSample: take("vatsim"), onStatus: said("vatsim"), onPlan: onVatsimPlan }));
       return () => stops.forEach((x) => x());
     }
