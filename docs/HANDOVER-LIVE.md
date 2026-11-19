@@ -4,7 +4,7 @@ Written on 2026-11-11 by the two Claude sessions that built it: the Mac session 
 
 ## 1. Where things stand
 
-The live site is <https://plans.massorbit.co.uk>. The latest release is **1.16.2**. All releases are signed tags with GitHub releases, made from `main` through PRs.
+The live site is <https://plans.massorbit.co.uk>. The latest release is **1.16.3**. All releases are signed tags with GitHub releases, made from `main` through PRs.
 
 | Version | What | PR |
 |---|---|---|
@@ -26,7 +26,8 @@ The live site is <https://plans.massorbit.co.uk>. The latest release is **1.16.2
 | 1.15.0 | **One desk** (Board → Gate screen, plan in `docs/GATE-PAGE-PLAN.md`): one preview with scene tabs and a stage strip, the flight in one line with a pinned source (`fs=`), controls folded by when, Send to OBS with the open screens (`who`/`here` relay) and one copy per link; `bye`, `fs`, `anf`, `who` relayed (`sv=2`); airline names kept per airline (`anf=`); unready flip sides hidden | #58 |
 | 1.16.0 | **Aircraft status** and **Flight deck** flip sides and the **Cockpit strip** (G4c) from OFP Tower's `probe` and `mcdu` messages (`src/lib/feed/deck.ts`; skipped without them); recordings' probe/mcdu lines played back; the strip drops V/S after a minute level | PR #60 |
 | 1.16.1 | The Flight deck reads PROG, FUEL PRED, PERF TAKE OFF/CLB/APPR (pages captured 15–16 Nov); its four figures follow the phase (`deckRows`); a PERF page sets the phase only with ACT MODE; samples marked `replay` (OFP Tower, the sim's replay) skipped, probes during one kept but quiet | PR #63 |
-| 1.16.2 | F-PLN page B (title = the callsign alone) read as F-PLN | this release |
+| 1.16.2 | F-PLN page B (title = the callsign alone) read as F-PLN | PR #64 |
+| 1.16.3 | OFP Tower's hello drops the earlier probe, MCDU pages, pop-ups and plan (planAt kept unless the route changes); the probe is read only for a Fenix profile (or none sent: older OFP Tower), so an A350 doesn't show Fenix L:vars at 0 | this release |
 
 **Naming:** "OFP Tower" is the user-facing name, the owner's choice on 2026-11-11. In code and protocol the old name stays: `feed=link`, `linkSource`, `"app":"ofp-link"`, port 47800, `docs/OFP-LINK.md`, and the PC folder `ofp-link-recorder`. Rename both sides together or not at all.
 
