@@ -19,6 +19,11 @@ export interface SourceHandlers {
   /** 1.16, OFP Tower (Fenix): cockpit values (changed ones, or all with `full`), and an MCDU page as shown. */
   /** `quiet`: during the sim's replay (1.16.1): keep the values, pop nothing up. */
   onProbe?: (v: Record<string, unknown>, full: boolean, quiet?: boolean) => void;
+  /**
+   * 1.16.3, OFP Tower: a connection began (its hello). Everything it holds follows at once, so what
+   * an earlier connection sent (another aircraft's cockpit and MCDU, its FMS plan) is dropped.
+   */
+  onHello?: (profile: string | null | undefined) => void;
   onMcdu?: (unit: number, rows: unknown, t: number) => void;
 }
 
@@ -42,6 +47,7 @@ export function replaySource(path: string, rate: number, h: SourceHandlers, hold
     .then((r) => (r.ok ? r.text() : Promise.reject(new Error(`Recording not found (${r.status})`))))
     .then((text) => {
       const rec = parseRecording(text);
+      h.onHello?.(rec.profile);
       const parsed = rec.samples;
       const samples = fit ? fit(parsed) : parsed;
       if (!samples.length) throw new Error("The recording has no readings");
@@ -202,6 +208,12 @@ export function linkSource(port: number, h: SourceHandlers): () => void {
       try {
         m = JSON.parse(String(e.data));
       } catch {
+        return;
+      }
+      if (m.type === "hello") {
+        inReplay = false;
+        // profile: the aircraft's name; null = no profile matched; absent = an OFP Tower from before it sent one
+        h.onHello?.(typeof m.profile === "string" ? m.profile.slice(0, 40) : m.profile === null ? null : undefined);
         return;
       }
       if (m.type === "plan") {
