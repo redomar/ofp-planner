@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.16.6 — 2026-11-22
+
+- Fixed: after a DIR TO, the map could draw the route on from a point hundreds of miles away. On EZY889 (LXGB → GCTS) the Fenix's FROM leg became "IN-BND", placed on the new course extended 500 nm back over the Pyrenees, and a line ran north over Spain. The map now leaves out an inbound leg over 50 nm from the next fix, and the next fix stays the active one.
+- Fixed: when a leg without a real position was left out of the FMS plan, the active leg could point one fix too far on.
+
 ## 1.16.5 — 2026-11-19
 
 - **The iniBuilds A350's cockpit.** Aircraft status, the Flight deck's AP/A/THR and the Cockpit strip now work for the A350, from its own values as checked on its first flight (LSGG → LSZH, 19 Nov):

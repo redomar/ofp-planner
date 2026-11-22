@@ -226,11 +226,19 @@ export function toPlan(m: Record<string, unknown>): FlightPlan | null {
   // clock time; it turns UTC at the Takeoff phase
   const elapsed = /^pre.?flight$/i.test(txt(m.phase, 24) ?? "");
   const legs: PlanLeg[] = [];
-  for (const raw of Array.isArray(m.legs) ? m.legs.slice(0, 200) : []) {
-    const l = raw as Record<string, unknown>;
+  const rawLegs = (Array.isArray(m.legs) ? m.legs.slice(0, 200) : []) as Record<string, unknown>[];
+  // each sent leg's index here (legs left out map to the next one kept), for `active`
+  const at: number[] = [];
+  for (const [i, l] of rawLegs.entries()) {
     const lat = num(l.lat);
     const lon = num(l.lon);
+    at[i] = legs.length;
     if (lat == null || lon == null || !realPos(lat, lon)) continue;
+    // 1.16.6: after a DIR TO the Fenix's FROM leg can be "IN-BND" (kind Inbound), placed on the new course
+    // extended back hundreds of miles (EZY889, 22 Nov: in the Pyrenees, 500 nm before TNR). Not a place
+    // the route goes: left out when it is over 50 nm from the next leg.
+    const nx = rawLegs[i + 1];
+    if (/inbound/i.test(String(l.kind ?? "")) && nx && num(nx.lat) != null && num(nx.lon) != null && distNm({ lat, lon }, { lat: num(nx.lat)!, lon: num(nx.lon)! }) > 50) continue;
     const a = l.altConstraint as Record<string, unknown> | undefined;
     const ft = a ? num(a.alt) : null;
     const type = a?.type === "atOrAbove" || a?.type === "atOrBelow" ? a.type : "at";
@@ -259,7 +267,11 @@ export function toPlan(m: Record<string, unknown>): FlightPlan | null {
     cruiseFt: num(m.cruiseLevel),
     phase: txt(m.phase, 24),
     legs,
-    active: activeOf(m.active, legs.length),
+    active: ((a) => {
+      if (!a || legs.length === rawLegs.length) return a;
+      const to = at[a.to];
+      return to == null || to >= legs.length ? null : { from: Math.min(at[a.from] ?? 0, Math.max(0, to - 1)), to };
+    })(activeOf(m.active, rawLegs.length)),
     vSpeeds: vSpeedsOf(m.vSpeeds),
     runways: (Array.isArray(m.runways) ? m.runways.slice(0, 4) : []).flatMap((raw) => {
       const r = raw as Record<string, Record<string, unknown> | unknown>;
