@@ -587,13 +587,15 @@ async function run() {
         const ib = (lat, lon) => core.toPlan({ origin: "LXGB", destination: "GCTS", active: { from: 0, to: 1 }, legs: [{ id: "IN-BND", kind: "Inbound", via: "DCT", lat, lon, passed: true }, { id: "TNR", lat: 35.7246, lon: -5.9183 }, { id: "BAROK", lat: 33.5, lon: -8.6 }, { id: "GCTS", lat: 28.0445, lon: -16.5725 }] });
         const far = ib(42.737099, -0.075489);
         const near = ib(35.9, -5.7);
+        // OFP Tower 1.16.7 puts it where the aircraft was: drawn even far from the next fix (a DIR TO 200 nm on)
+        const moved = core.toPlan({ origin: "LXGB", destination: "GCTS", active: { from: 0, to: 1 }, legs: [{ id: "IN-BND", kind: "Inbound", lat: 36.0, lon: -2.0, positionFrom: "lastPresentPosition", fmsLat: 42.737099, fmsLon: -0.075489 }, { id: "TNR", lat: 35.7246, lon: -5.9183 }] });
         const tnrNm = core.distNm({ lat: 42.737099, lon: -0.075489 }, { lat: 35.7246, lon: -5.9183 });
         const skipBad = core.toPlan({ origin: "LXGB", destination: "GCTS", active: { from: 1, to: 2 }, legs: [{ id: "A", lat: 0, lon: 0 }, { id: "B", lat: 36, lon: -5.5 }, { id: "TNR", lat: 35.7246, lon: -5.9183 }] });
         tnrNm > 450 && far?.legs.map((l) => l.id).join() === "TNR,BAROK,GCTS" && far.active?.to === 0 && far.legs[far.active.to].id === "TNR" &&
-        near?.legs[0].id === "IN-BND" && near.active?.to === 1 &&
+        near?.legs[0].id === "IN-BND" && near.active?.to === 1 && moved?.legs[0].id === "IN-BND" && moved.legs[0].lat === 36 && moved.active?.to === 1 &&
         skipBad?.legs.length === 2 && skipBad.active?.to === 1 && skipBad.legs[skipBad.active.to].id === "TNR"
-          ? pass("gate feed: a DIR TO's IN-BND leg far back along the course (EZY889: 500 nm, over the Pyrenees) is left out and the active leg still points at TNR; a close one stays; legs left out keep the active leg on the right fix")
-          : fail(`gate feed: IN-BND ${JSON.stringify({ tnrNm, far: [far?.legs.map((l) => l.id), far?.active], near: [near?.legs.map((l) => l.id), near?.active], skipBad: [skipBad?.legs.map((l) => l.id), skipBad?.active] })}`);
+          ? pass("gate feed: a DIR TO's IN-BND leg far back along the course (EZY889: 500 nm, over the Pyrenees) is left out and the active leg still points at TNR; a close one, or one OFP Tower moved to the aircraft's position, stays; legs left out keep the active leg on the right fix")
+          : fail(`gate feed: IN-BND ${JSON.stringify({ tnrNm, far: [far?.legs.map((l) => l.id), far?.active], near: [near?.legs.map((l) => l.id), near?.active], moved: [moved?.legs.map((l) => l.id), moved?.active], skipBad: [skipBad?.legs.map((l) => l.id), skipBad?.active] })}`);
       }
       // 1.12.2: the landing time is the FMS's time at the runway (EGKK → EICK at 21:25Z: the MCDU's DEST
       // line said 22:02, the distance at cruise speed 21:54); midnight wraps; no time when the route stops short

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.16.7 — 2026-11-22
+
+- OFP Tower now puts the Fenix's IN-BND leg (after a DIR TO) where the aircraft was when the DIR TO was made, like a T-P, so that leg is drawn from there. The board draws such a leg wherever it is; it still leaves out a far-off one from an older OFP Tower, as in 1.16.6. If OFP Tower saw no position first, it places the leg 30 nm before the next fix on the same course.
+
 ## 1.16.6 — 2026-11-22
 
 - Fixed: after a DIR TO, the map could draw the route on from a point hundreds of miles away. On EZY889 (LXGB → GCTS) the Fenix's FROM leg became "IN-BND", placed on the new course extended 500 nm back over the Pyrenees, and a line ran north over Spain. The map now leaves out an inbound leg over 50 nm from the next fix, and the next fix stays the active one.

@@ -236,9 +236,10 @@ export function toPlan(m: Record<string, unknown>): FlightPlan | null {
     if (lat == null || lon == null || !realPos(lat, lon)) continue;
     // 1.16.6: after a DIR TO the Fenix's FROM leg can be "IN-BND" (kind Inbound), placed on the new course
     // extended back hundreds of miles (EZY889, 22 Nov: in the Pyrenees, 500 nm before TNR). Not a place
-    // the route goes: left out when it is over 50 nm from the next leg.
+    // the route goes: left out when it is over 50 nm from the next leg. 1.16.7: OFP Tower now moves it to where
+    // the aircraft was (positionFrom set, the FMS's point in fmsLat/fmsLon); that one is drawn wherever it is.
     const nx = rawLegs[i + 1];
-    if (/inbound/i.test(String(l.kind ?? "")) && nx && num(nx.lat) != null && num(nx.lon) != null && distNm({ lat, lon }, { lat: num(nx.lat)!, lon: num(nx.lon)! }) > 50) continue;
+    if (/inbound/i.test(String(l.kind ?? "")) && typeof l.positionFrom !== "string" && nx && num(nx.lat) != null && num(nx.lon) != null && distNm({ lat, lon }, { lat: num(nx.lat)!, lon: num(nx.lon)! }) > 50) continue;
     const a = l.altConstraint as Record<string, unknown> | undefined;
     const ft = a ? num(a.alt) : null;
     const type = a?.type === "atOrAbove" || a?.type === "atOrBelow" ? a.type : "at";

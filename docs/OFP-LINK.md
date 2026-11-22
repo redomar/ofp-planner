@@ -111,6 +111,7 @@ The fast-polling path is built in the recorder prototype but **not yet tried on 
 - Each leg: `id`, `lat`, `lon`, `via`, `kind`, `flags`, `altConstraint`, `pseudo`, `missed`, `turn`. From 1.11 also `eta` ("hh:mm" UTC, the FMS's prediction) and `wind` ([deg, kt], where the FMS has one).
 - 1.11: `active: {"from":0,"to":1}`. The Fenix drops passed fixes from its plan, so `legs[0]` is the last fix passed and `legs[1]` the one flown to. The route panel (G3d) uses it. Without it, the site works out the next fix from the position.
 - 1.11: `vSpeeds: {v1, vr, v2, vapp}` (kt), read in but not shown yet.
+- 1.16.7: after a DIR TO the Fenix's FROM leg can be `IN-BND` (`kind` "Inbound"), which the Fenix places on the new course extended far back (500 nm on 22 Nov 2026). OFP Tower moves it to the last PPOS/T-P position, latched per next fix, sets `positionFrom: "lastPresentPosition"` and keeps the FMS's point as `fmsLat`/`fmsLon`. With no position seen, it places it 30 nm before the next fix on that course and sets `positionFrom: "inboundCourse"`. The site draws a leg that has `positionFrom`, and leaves out an Inbound leg without it when that leg is more than 50 nm from the next leg (from older OFP Tower versions, 1.16.6).
 
 ## The track and the summary (1.13)
 
