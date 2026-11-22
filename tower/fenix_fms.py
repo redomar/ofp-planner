@@ -287,6 +287,43 @@ def parse_constraints(display_xml):
     return {k: v["altConstraint"] for k, v in parse_fpln_page(display_xml).items() if "altConstraint" in v}
 
 
+_last_ppos = None    # (lat, lon) of the Fenix's last PPOS / T-P leg = where the aircraft was
+_inbound_fix = None  # (next fix id, (lat, lon)) latched for an IN-BND leg
+INBOUND_FALLBACK_NM = 30.0
+
+
+def fix_inbound_leg(legs):
+    """After DIR TO (radial in / abeam), the Fenix makes the FROM leg "IN-BND" (type Inbound)
+    with a made-up position far back along the inbound course (500 nm on 22 Nov 2026), which
+    the board drew as a line across Spain. Put it where the aircraft was when it appeared
+    (the last PPOS / T-P), latched like a T-P; with no position seen (OFP Tower started late),
+    pull it in to at most INBOUND_FALLBACK_NM before the next fix on the same course."""
+    global _last_ppos, _inbound_fix
+    if not legs:
+        return
+    first = legs[0]
+    if first.get("kind") != "Inbound":
+        if first.get("kind") == "PresentPosition" or first.get("id") in ("PPOS", "T-P"):
+            _last_ppos = (first["lat"], first["lon"])
+        _inbound_fix = None
+        return
+    if len(legs) < 2:
+        return
+    nxt = legs[1]
+    if _inbound_fix is None or _inbound_fix[0] != nxt["id"]:
+        if _last_ppos is not None:
+            pos, how = _last_ppos, "lastPresentPosition"
+        else:
+            d, crs = _gc(nxt["lat"], nxt["lon"], first["lat"], first["lon"])
+            pos = (first["lat"], first["lon"]) if d <= INBOUND_FALLBACK_NM else \
+                _dest_point(nxt["lat"], nxt["lon"], crs, INBOUND_FALLBACK_NM)
+            how = "inboundCourse"
+        _inbound_fix = (nxt["id"], pos, how)
+    first["fmsLat"], first["fmsLon"] = first["lat"], first["lon"]
+    first["lat"], first["lon"] = _inbound_fix[1]
+    first["positionFrom"] = _inbound_fix[2]
+
+
 def read_plan():
     global _constraint_key, _passed, _last_legs, _history_from_origin
     v = read_values()
@@ -312,6 +349,7 @@ def read_plan():
                     arr_rwy = (rt.findtext("destinationRunway") or "").strip() or None
         except ET.ParseError:
             pass
+    fix_inbound_leg(legs)
     ids = tuple(l["id"] for l in legs)
     key = (origin, dest, ids)
     old = _constraint_key
