@@ -581,6 +581,20 @@ async function run() {
       pl?.active?.to === 1 && pl.legs[1].eta === "15:09" && pl.legs[1].wind?.[0] === 250 && pl.vSpeeds?.v1 === 152 && core.toPlan({ origin: "EDDM", destination: "EGBB", active: { from: 0, to: 5 }, legs: [] })?.active === null
         ? pass("gate feed: the FMS plan's active legs, times over the fixes and V-speeds read in (an impossible active is dropped)")
         : fail(`gate feed: plan ${JSON.stringify(pl)}`);
+      // 1.16.6: EZY889 LXGB → GCTS, 22 Nov: DIR TO TNR made the FROM leg "IN-BND" (kind Inbound) 500 nm back
+      // along the course, in the Pyrenees; drawn, it ran a line north over Spain. Left out; a close one stays
+      {
+        const ib = (lat, lon) => core.toPlan({ origin: "LXGB", destination: "GCTS", active: { from: 0, to: 1 }, legs: [{ id: "IN-BND", kind: "Inbound", via: "DCT", lat, lon, passed: true }, { id: "TNR", lat: 35.7246, lon: -5.9183 }, { id: "BAROK", lat: 33.5, lon: -8.6 }, { id: "GCTS", lat: 28.0445, lon: -16.5725 }] });
+        const far = ib(42.737099, -0.075489);
+        const near = ib(35.9, -5.7);
+        const tnrNm = core.distNm({ lat: 42.737099, lon: -0.075489 }, { lat: 35.7246, lon: -5.9183 });
+        const skipBad = core.toPlan({ origin: "LXGB", destination: "GCTS", active: { from: 1, to: 2 }, legs: [{ id: "A", lat: 0, lon: 0 }, { id: "B", lat: 36, lon: -5.5 }, { id: "TNR", lat: 35.7246, lon: -5.9183 }] });
+        tnrNm > 450 && far?.legs.map((l) => l.id).join() === "TNR,BAROK,GCTS" && far.active?.to === 0 && far.legs[far.active.to].id === "TNR" &&
+        near?.legs[0].id === "IN-BND" && near.active?.to === 1 &&
+        skipBad?.legs.length === 2 && skipBad.active?.to === 1 && skipBad.legs[skipBad.active.to].id === "TNR"
+          ? pass("gate feed: a DIR TO's IN-BND leg far back along the course (EZY889: 500 nm, over the Pyrenees) is left out and the active leg still points at TNR; a close one stays; legs left out keep the active leg on the right fix")
+          : fail(`gate feed: IN-BND ${JSON.stringify({ tnrNm, far: [far?.legs.map((l) => l.id), far?.active], near: [near?.legs.map((l) => l.id), near?.active], skipBad: [skipBad?.legs.map((l) => l.id), skipBad?.active] })}`);
+      }
       // 1.12.2: the landing time is the FMS's time at the runway (EGKK → EICK at 21:25Z: the MCDU's DEST
       // line said 22:02, the distance at cruise speed 21:54); midnight wraps; no time when the route stops short
       {
