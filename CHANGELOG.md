@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.17.2 — 2026-11-24
+
+- Fixed: a screen that first sees the aircraft already parked at its destination (OFP Tower started after the flight, or a page opened then) showed the flight as boarding. It now counts the flight as arrived: the gate screen's arrived stage and looks, and ON BLOCKS on the departures board. No times are made up for a flight it didn't see, and the Board doesn't offer to log it.
+
 ## 1.17.1 — 2026-11-24
 
 - **Sim traffic on the departures board.** OFP Tower now sends the aircraft around the airport and its stands:

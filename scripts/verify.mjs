@@ -631,6 +631,17 @@ async function run() {
           ? pass("gate feed: traffic: VATSIM (gate from the stand it's on, taxiing, the filed time, a prefile; ones gone and others' left out), IVAO's own states and times, OFP Tower's sim aircraft (the sim's gate, AI states, SkyNet), one row per callsign with a network over the sim, the board's window in time order (untimed last), its airport by where the aircraft sits")
           : fail(`gate feed: traffic ${JSON.stringify({ all: all.map((r) => [r.callsign, r.src, r.side, r.status, r.gate, r.t && hm(r.t)]), deps: deps.map((r) => r.callsign) })}`);
       }
+      // 1.17.2: the first reading already parked at the destination (OFP Tower started after the flight): over, not
+      // boarding, and no times made up; parked at the origin it's still boarding; a flight seen landing gets its IN
+      {
+        const ctx = { from: { lat: 60.2, lon: 11.08, elev: 681 }, to: { lat: 55.618, lon: 12.656, elev: 17 } };
+        const park = (lat, lon, i) => core.toSample({ lat, lon, alt: 20, gs: 0, onGround: true, engines: [false, false], parkBrake: true, doors: [100, 0, 0, 0] }, 1e12 + i * 1000);
+        const atDest = core.detectAll([0, 1, 2].map((i) => park(55.62791, 12.646174, i)), ctx).at(-1);
+        const atOrigin = core.detectAll([0, 1].map((i) => park(60.19, 11.1, i)), ctx).at(-1);
+        atDest.stage === "arrived" && atDest.phase === "gate" && atDest.stamps.in == null && atDest.stamps.on == null && atOrigin.stage === "ready" && atOrigin.phase === "boarding"
+          ? pass("gate feed: a feed that starts parked at the destination is arrived (no IN or ON made up); parked at the origin it's boarding")
+          : fail(`gate feed: joined at the gate ${JSON.stringify({ dest: [atDest.stage, atDest.phase, atDest.stamps], origin: [atOrigin.stage, atOrigin.phase] })}`);
+      }
       // 1.16.6: EZY889 LXGB → GCTS, 22 Nov: DIR TO TNR made the FROM leg "IN-BND" (kind Inbound) 500 nm back
       // along the course, in the Pyrenees; drawn, it ran a line north over Spain. Left out; a close one stays
       {
@@ -1438,6 +1449,36 @@ async function run() {
       at("BAW178") >= 0 && at("BAW178") < at("DAL400") && at("DAL400") < at("JBU1234") && at("AAL100") < 0 && /ON BLOCKS/.test(row("HBIOO")) && /--:--/.test(row("HBIOO")) && !errors.length
         ? pass("gate views: OFP Tower's traffic at the destination where the aircraft is parked (no take-off seen): the board is JFK's, SkyNet and SI aircraft with gates from the stands they sit on, a timed departure before the untimed, moving before parked, an arrival left out, the flight ON BLOCKS")
         : fail(`gate views: tower traffic ${JSON.stringify({ text: text.slice(0, 160), rows, errors: errors.slice(0, 2) })}`);
+    }
+    // 1.17.2: the case the PC saw (24 Nov): SimBrief ENGM → EKCH, feed=auto, the Fenix still holding the
+    // morning's plan, the aircraft parked at Copenhagen after OFP Tower restarted (no take-off seen): Copenhagen's board
+    {
+      const ofp = { ...OFP, origin: { icao_code: "ENGM", pos_lat: "60.1939", pos_long: "11.1004", name: "OSLO GARDERMOEN" }, destination: { icao_code: "EKCH", pos_lat: "55.6179", pos_long: "12.6560", name: "KASTRUP" }, atc: { callsign: "SAS87F" }, general: { ...OFP.general, icao_airline: "SAS", flight_number: "87F" }, navlog: { fix: [] } };
+      const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, reducedMotion: "reduce" });
+      await ctx.addInitScript(SEED);
+      await ctx.route(/simbrief\.com\/api\/xml\.fetcher\.php/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(ofp) }));
+      await ctx.route(/data\.vatsim\.net|api\.ivao\.aero/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: "{}" }));
+      const zs = (ms) => (ms % 86400000) / 1000;
+      const t0 = Date.now();
+      await ctx.routeWebSocket(/localhost:47800/, (ws) => {
+        ws.send(JSON.stringify({ type: "hello", app: "ofp-link", profile: "Fenix" }));
+        // as OFP Tower sent it: no plan (the FMS cleared after landing), an empty summary, then a reading
+        ws.send(JSON.stringify({ type: "summary", v: 1, flight: { origin: null, destination: null, flightNumber: null, callsign: null, reg: "G-ABCD", aircraft: "A320" }, times: { out: null, off: null, on: null, in: null }, complete: false }));
+        for (let i = 0; i <= 6; i++) ws.send(JSON.stringify({ type: "sample", t: t0 - (6 - i) * 1000, zulu: zs(t0 - (6 - i) * 1000), lat: 55.62791, lon: 12.646174, alt: 20.4, pressAlt: -326, indAlt: -333, agl: 9.2, gs: 0, hdg: 297.4, vs: 0, onGround: true, engines: [false, false], beacon: false, doors: [100, 0, 0, 0], hdgMag: 292.4, ias: 3, parkBrake: true, seatbelts: false, noSmoking: "off" }));
+        ws.send(JSON.stringify({ type: "stands", airport: "EKCH", stands: [{ name: "B3", lat: 55.6285, lon: 12.6470, radius: 23 }] }));
+        ws.send(JSON.stringify({ type: "traffic", airport: "EKCH", aircraft: [{ callsign: "SAS1424", src: "SI", lat: 55.6285, lon: 12.647, alt: 17, gs: 0, onGround: true, type: "A20N" }] }));
+      });
+      const page = await ctx.newPage();
+      const errors = [];
+      page.on("pageerror", (e) => errors.push(String(e)));
+      await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&feed=auto&view=fids`, { waitUntil: "networkidle" });
+      await page.waitForFunction(() => /SAS1424/.test(document.querySelector(".tv-fids")?.textContent ?? ""), null, { timeout: 10_000 }).catch(() => {});
+      await page.waitForTimeout(500);
+      const text = ((await page.locator(".tv-fids").innerText().catch(() => "")) || "").replace(/\s+/g, " ");
+      await ctx.close();
+      /DEPARTURES · COPENHAGEN/i.test(text) && /SAS1424/.test(text) && /B3/.test(text) && /ON BLOCKS/.test(text) && !/BOARDING/.test(text) && !errors.length
+        ? pass("gate views: parked at Copenhagen after an Oslo → Copenhagen flight (OFP Tower restarted, the FMS's plan from the morning, feed=auto): Copenhagen's board with OFP Tower's traffic, the flight ON BLOCKS")
+        : fail(`gate views: parked at the destination ${JSON.stringify({ text: text.slice(0, 300), errors: errors.slice(0, 2) })}`);
     }
     // 1.13.3: the vertical speed on the strip and the pills, from a stand-in OFP Tower climbing at ~2,400 fpm
     {

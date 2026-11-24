@@ -523,7 +523,8 @@ export function BoardApp() {
 
   // at the gate (a live flight, not a rehearsal): one click writes its times to the Logbook
   const arrivedLog = useMemo(
-    () => (!screen && !rehearse && flight && live.state?.stage === "arrived" ? logFromFeed(flight, live.state, live.using, gate.reg || null, live.summary) : null),
+    // (not for a feed that only joined at the gate afterwards: it saw none of the flight)
+    () => (!screen && !rehearse && flight && live.state?.stage === "arrived" && (live.state.stamps.off != null || live.state.stamps.on != null || live.summary?.on != null) ? logFromFeed(flight, live.state, live.using, gate.reg || null, live.summary) : null),
     [screen, rehearse, flight, live.state, live.using, gate.reg, live.summary],
   );
 
