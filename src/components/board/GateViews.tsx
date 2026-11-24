@@ -15,6 +15,8 @@ import { useOutlines } from "@/lib/outlines";
 import { useTerrain } from "@/lib/terrain";
 import { baseLayers, mapRadius } from "../RouteMap";
 import { GateScreen, localClock, PLANE, screenNow, WxPicto, type GateWx } from "./GateScreen";
+import { ConnectionsCard, DeparturesBoard } from "./TrafficViews";
+import type { Stand } from "@/lib/feed/traffic";
 
 /**
  * The view on screen. A fixed &view= is that view. view=auto: an OBS scene named in the rules
@@ -1196,6 +1198,11 @@ export interface ViewProps {
   mcdu?: McduPage[] | null;
   /** 1.16: cockpit changes, popping up on the strip and the pills. */
   events?: DeckEvent[] | null;
+  /** 1.17, OFP Tower: the sim's aircraft near an airport, and its stands (the traffic views). */
+  towerTraffic?: Record<string, unknown> | null;
+  stands?: { airport: string; stands: Stand[] } | null;
+  /** A preview: the traffic views show example traffic and fetch nothing. */
+  preview?: boolean;
 }
 
 /**
@@ -1242,6 +1249,10 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null; stepFrom?
     return <GateScreen flight={p.flight} state={p.state} now={p.now} wx={p.wx} live={null} plan={p.plan ?? null} belt={false} countdown={at} />;
   }
   if (view === "ending") return <EndingView {...p} />;
+  if (view === "fids" || view === "conn") {
+    const T = view === "fids" ? DeparturesBoard : ConnectionsCard;
+    return <T f={p.flight} live={p.live} now={p.now} arrives={liveFacts(p.flight, p.state, p.live, p.now, p.plan ?? null).arrives} look={lk} towerTraffic={p.towerTraffic} stands={p.stands} preview={p.preview} />;
+  }
   const at = { "data-size": lk.size, "data-pos": lk.pos } as Record<string, string>;
   const f = p.flight;
   const bg = routeColor(f.brand);
@@ -1830,7 +1841,7 @@ export function MiniScreen({ view, back = -1, ...p }: Omit<ViewProps, "state"> &
   return (
     <div ref={ref} className="sp-mini" aria-hidden="true">
       <div className="gs-frame sp-mini-in" style={{ transform: `scale(${k})` }}>
-        <GateViewScreen {...p} back={back} state={{ ...p.state, view: typeof view === "string" ? view : layersTo(view) }} />
+        <GateViewScreen {...p} preview back={back} state={{ ...p.state, view: typeof view === "string" ? view : layersTo(view) }} />
       </div>
     </div>
   );

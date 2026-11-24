@@ -150,6 +150,22 @@ The board's "Aircraft status" and "Flight deck" sides, the Cockpit strip and the
   - Fenix's "SIMULATOR CONTROL" (an MCDU2 menu) is an "other" page and is never chosen for the deck.
 - Without these messages (OFP Tower from before, another aircraft) the sides and the strip are skipped, never shown empty.
 
+## Traffic and stands (1.17)
+
+For the departures board (G10) and the connections card (G10b). The page reads VATSIM and IVAO itself. OFP Tower adds what only the sim (and the PC) can see. Research: `docs/design/fids/SOURCES.md`. Read by `fromTower` and `standsFrom` (`src/lib/feed/traffic.ts`). **Not sent by OFP Tower yet.**
+
+- **`{"type":"traffic","airport":"LEMD","aircraft":[…]}`**: the aircraft around the airport (about 100 nm), every 10–15 s, the whole list each time. Each entry, every field optional except `callsign`:
+  - `callsign`: "IBE3166" (ATC AIRLINE + FLIGHT NUMBER as a code, else ATC ID; for SayIntentions tracker pilots, `flight_icao`);
+  - `from`, `to`: ICAO (AI TRAFFIC FROMAIRPORT / TOAIRPORT, or the tracker's origin / destination);
+  - `etd`, `eta`: UTC epoch seconds (AI TRAFFIC ETD / ETA turned into real time);
+  - `parking`: AI TRAFFIC ASSIGNED PARKING as the sim gives it ("Gate J 46, RAMP lrg (18m)"; the page reads "J46");
+  - `state`: AI TRAFFIC STATE ("sleep", "push back 1", "taxi out", "landing", …);
+  - `lat`, `lon`, `alt` (ft), `gs` (kt), `onGround` (bool), `type` (ICAO type);
+  - `src`: "AI" (MSFS traffic; the default), "SI" (SayIntentions traffic, e.g. an object id seen in `L:SIAI_*_REF`, or an SI user from the tracker who isn't SkyNet), "SKY" (a SkyNet simmer: `skynet_enabled` 1 on the tracker).
+  - Never personal fields: no names, user ids, e-mail, API keys (SI's `flightJSON` and the tracker carry them).
+- **`{"type":"stands","airport":"LEMD","stands":[{"name":"J46","lat":…,"lon":…,"radius":18}, …]}`**: the airport's parking places from the scenery (Facilities API `TAXI_PARKING`; `radius` in metres). Sent once per airport, and again on connect. The page puts an aircraft on the ground at the stand it sits on (VATSIM and IVAO have no gates).
+- On the board, a network's row wins over the same callsign in the sim, keeping the sim's gate when the network has none. A hello drops both messages; OFP Tower resends them.
+
 ## Aircraft profiles
 
 Some aircraft keep systems in their own variables, so the default SimVars can be wrong. A profile maps a field to an L:var for aircraft whose `TITLE` contains a given string. The first match wins; with no match, the defaults apply. Shape, as the recorder's `profiles.json`:

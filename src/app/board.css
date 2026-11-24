@@ -3980,3 +3980,162 @@ html.screen-mode body > :not(.screen-root) {
     animation: none;
   }
 }
+
+/* ---------- 1.17: traffic views: G10 departures board, G10b connections card ---------- */
+
+.tv-src {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(var(--u) * 1.9);
+  min-width: calc(var(--u) * 4.2);
+  padding: 0 calc(var(--u) * 0.5);
+  border-radius: calc(var(--u) * 0.35);
+  font: 700 calc(var(--u) * 1.05) / 1 var(--font-mono);
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: #4a5263;
+}
+.tv-src.is-SI {
+  background: #7b3fe4;
+}
+.tv-src.is-SKY {
+  background: transparent;
+  box-shadow: inset 0 0 0 calc(var(--u) * 0.15) #a77bff;
+  color: #c9adff;
+}
+.tv-src.is-VAT {
+  background: #1d9a5b;
+}
+.tv-src.is-IVAO {
+  background: #1f5fd1;
+}
+.tv-src.is-you {
+  background: #3ee07a;
+  color: #05301a;
+}
+
+/* G10: the dot-matrix board, full screen */
+.tv-fids {
+  --u: 1cqw;
+  background: #11141a;
+  padding: calc(var(--u) * 2) calc(var(--u) * 2.4);
+  color: #f4c430;
+  font-family: var(--f-dot), var(--font-mono);
+}
+.tv-fids-hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: calc(var(--u) * 2.7);
+  letter-spacing: 0.12em;
+  margin-bottom: calc(var(--u) * 0.9);
+}
+.tv-fids-hd small {
+  color: #9aa3b2;
+  font-size: calc(var(--u) * 2);
+}
+.tv-fids-r {
+  display: grid;
+  grid-template-columns: calc(var(--u) * 5) calc(var(--u) * 11.6) calc(var(--u) * 22) calc(var(--u) * 14.5) calc(var(--u) * 6.4) calc(var(--u) * 5.8) minmax(0, 1fr);
+  gap: calc(var(--u) * 0.9);
+  align-items: center;
+  height: calc(var(--u) * 4.9);
+  border-top: calc(var(--u) * 0.18) solid #1d222b;
+}
+.tv-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(var(--u) * 2.9);
+  border-radius: calc(var(--u) * 0.4);
+  font: 700 calc(var(--u) * 1.4) / 1 var(--font-cond);
+  letter-spacing: 0.04em;
+  overflow: hidden;
+}
+.tv-dot {
+  font-size: calc(var(--u) * 2.75);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  overflow: hidden;
+  line-height: 1.3;
+  /* the unlit dots behind the characters */
+  background-image: radial-gradient(circle, #232833 32%, transparent 36%);
+  background-size: calc(var(--u) * 0.8) calc(var(--u) * 0.8);
+}
+.tv-w {
+  color: #f2f2f2;
+}
+.tv-gate {
+  text-align: center;
+}
+.tv-fids-r.is-me .tv-dot {
+  color: #3ee07a;
+}
+.tv-fids-note {
+  margin: calc(var(--u) * 2) 0 0;
+  color: #9aa3b2;
+  font: 500 calc(var(--u) * 1.6) / 1.3 var(--font-sans);
+}
+
+/* G10b: the connections card, over the sim */
+.gv-card.tv-conn {
+  width: calc(var(--u) * 34);
+  background: rgb(12 15 21 / 0.9);
+  color: #fff;
+  border-left: none;
+  border-radius: calc(var(--u) * 1.2);
+  padding: calc(var(--u) * 1.3) calc(var(--u) * 1.5);
+  gap: 0;
+}
+.tv-conn-hd {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: calc(var(--u) * 0.7);
+}
+.tv-conn-hd b {
+  font: 700 calc(var(--u) * 1.75) / 1.2 var(--font-sans);
+}
+.tv-conn-hd span {
+  font: 500 calc(var(--u) * 1.15) var(--font-mono);
+  opacity: 0.7;
+}
+.tv-conn-me {
+  background: #11301f;
+  color: #6df0a2;
+  border-radius: calc(var(--u) * 0.6);
+  padding: calc(var(--u) * 0.55) calc(var(--u) * 0.8);
+  font: 600 calc(var(--u) * 1.25) / 1.3 var(--font-sans);
+  margin-bottom: calc(var(--u) * 0.6);
+}
+.tv-conn-r {
+  display: grid;
+  grid-template-columns: calc(var(--u) * 0.6) calc(var(--u) * 5.2) minmax(0, 1fr) calc(var(--u) * 3.8) auto;
+  gap: calc(var(--u) * 0.75);
+  align-items: center;
+  height: calc(var(--u) * 3.3);
+  font-size: calc(var(--u) * 1.35);
+}
+.tv-conn-r i {
+  height: calc(var(--u) * 2.1);
+  border-radius: calc(var(--u) * 0.25);
+}
+.tv-conn-r .mono {
+  font-weight: 600;
+}
+.tv-conn-d {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tv-conn-r .tv-src {
+  height: calc(var(--u) * 1.65);
+  min-width: calc(var(--u) * 3.6);
+  font-size: calc(var(--u) * 0.9);
+}
+.tv-conn-note {
+  font-size: calc(var(--u) * 1.2);
+  opacity: 0.7;
+  padding-top: calc(var(--u) * 0.5);
+}

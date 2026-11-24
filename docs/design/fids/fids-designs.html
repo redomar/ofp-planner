@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>FIDS designs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Space+Grotesk:wght@500;700&display=block" rel="stylesheet">
+<style>
+  :root { --W: 1100px; --H: 680px; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0b0d12; color: #e8e8e8; font-family: Inter, system-ui, sans-serif; }
+  #sheet { width: calc(var(--W) * 3 + 4 * 40px); padding: 40px; }
+  header.sheet { display: flex; align-items: baseline; gap: 28px; margin: 0 0 30px; }
+  header.sheet h1 { font: 700 46px "Space Grotesk"; margin: 0; letter-spacing: -0.01em; }
+  header.sheet p { margin: 0; font-size: 22px; color: #9aa3b2; }
+  .legend { display: flex; gap: 14px; align-items: center; margin-left: auto; font-size: 18px; color: #9aa3b2; }
+  .grid { display: grid; grid-template-columns: repeat(3, var(--W)); gap: 40px; }
+  .cell { width: var(--W); }
+  .cap { display: flex; gap: 14px; align-items: baseline; margin: 0 0 12px; }
+  .cap b { font: 700 26px "Space Grotesk"; color: #fff; }
+  .cap span { font-size: 18px; color: #8b93a3; }
+  .cap i { font-style: normal; font: 700 22px "JetBrains Mono"; color: #ffb800; }
+  .panel { width: var(--W); height: var(--H); overflow: hidden; position: relative; border-radius: 10px; }
+
+  /* source badges */
+  .src { display: inline-flex; align-items: center; justify-content: center; height: 24px; min-width: 52px; padding: 0 8px; border-radius: 5px; font: 700 14px "JetBrains Mono"; letter-spacing: 0.04em; color: #fff; }
+  .src.AI { background: #4a5263; }
+  .src.SI { background: #7b3fe4; }
+  .src.SKY { background: transparent; box-shadow: inset 0 0 0 2px #a77bff; color: #c9adff; }
+  .src.VAT { background: #1d9a5b; }
+  .src.IVAO { background: #1f5fd1; }
+  .chip { display: inline-flex; align-items: center; justify-content: center; width: 54px; height: 30px; border-radius: 5px; font: 700 16px "Barlow Condensed"; letter-spacing: 0.04em; }
+
+  /* 1 dot-matrix */
+  .p1 { background: #11141a; padding: 18px 22px; font-family: DotGothic16, monospace; }
+  .p1 .hd { display: flex; justify-content: space-between; color: #f4c430; font-size: 30px; letter-spacing: 0.12em; margin-bottom: 10px; }
+  .p1 .hd small { color: #9aa3b2; font-size: 22px; }
+  .p1 .r { display: grid; grid-template-columns: 64px 118px 270px 164px 76px 70px 1fr; align-items: center; height: 56px; border-top: 2px solid #1d222b; gap: 10px; }
+  .p1 .t { color: #f4c430; font-size: 31px; letter-spacing: 0.14em; white-space: nowrap; overflow: hidden;
+    background-image: radial-gradient(circle, #232833 32%, transparent 36%); background-size: 9px 9px; }
+  .p1 .w { color: #f2f2f2; }
+  .p1 .me .t { color: #3ee07a; }
+  .p1 .gate { text-align: center; }
+
+  /* 2 split-flap */
+  .p2 { background: #1a1a1a; padding: 20px 22px; font-family: "Barlow Condensed", sans-serif; }
+  .p2 .hd { color: #fff; font: 700 34px "Barlow Condensed"; letter-spacing: 0.1em; margin-bottom: 12px; display: flex; gap: 18px; align-items: center; }
+  .p2 .hd em { font-style: normal; background: #fff; color: #111; padding: 0 10px; border-radius: 3px; }
+  .p2 .r { display: flex; align-items: center; gap: 10px; height: 60px; }
+  .p2 .flaps { display: flex; gap: 3px; }
+  .p2 .f { width: 22px; height: 44px; background: linear-gradient(#2f2f2f 0 49%, #0e0e0e 49% 51%, #262626 51%); color: #f5f5f5; border-radius: 3px;
+    font: 600 30px/44px "Barlow Condensed"; text-align: center; box-shadow: 0 2px 0 #000; }
+  .p2 .me .f { color: #ffd54a; }
+  .p2 .stripe { width: 8px; height: 44px; border-radius: 2px; }
+  .p2 .srcf { width: 54px; height: 44px; border-radius: 3px; font: 700 18px/44px "JetBrains Mono"; text-align: center; color: #fff; }
+
+  /* 3 blue LCD */
+  .p3 { background: #0a2a6b; font-family: Inter, sans-serif; }
+  .p3 .hd { display: flex; align-items: center; gap: 20px; padding: 18px 24px; background: #06204f; }
+  .p3 .hd b { font-size: 34px; color: #ffd200; letter-spacing: -0.01em; }
+  .p3 .hd span { font-size: 20px; color: #a9c1ee; }
+  .p3 .hd time { margin-left: auto; font: 700 30px "JetBrains Mono"; color: #fff; }
+  .p3 .th, .p3 .r { display: grid; grid-template-columns: 90px 70px 290px 150px 110px 90px 1fr; align-items: center; padding: 0 24px; gap: 10px; }
+  .p3 .th { height: 40px; font-size: 15px; color: #a9c1ee; text-transform: uppercase; letter-spacing: 0.08em; }
+  .p3 .r { height: 54px; font-size: 23px; color: #fff; }
+  .p3 .r:nth-child(odd) { background: rgba(255,255,255,0.05); }
+  .p3 .r .tm { font: 700 23px "JetBrains Mono"; }
+  .p3 .r .st { color: #ffd200; font-weight: 600; }
+  .p3 .r.me { background: #ffd200; color: #06204f; }
+  .p3 .r.me .st { color: #06204f; }
+  .p3 .gt { font: 700 23px "JetBrains Mono"; }
+
+  /* 4 black & yellow */
+  .p4 { background: #000; font-family: "Barlow Condensed", sans-serif; padding: 0; }
+  .p4 .hd { display: flex; align-items: center; height: 84px; padding: 0 26px; background: #ffd400; color: #000; gap: 20px; }
+  .p4 .hd b { font: 700 46px "Barlow Condensed"; letter-spacing: 0.02em; }
+  .p4 .hd span { font: 600 24px "Barlow Condensed"; }
+  .p4 .hd time { margin-left: auto; font: 700 40px "Barlow Condensed"; }
+  .p4 .r { display: grid; grid-template-columns: 96px 360px 170px 100px 80px 1fr; align-items: center; height: 58px; padding: 0 26px; border-bottom: 1px solid #222; gap: 12px; font: 600 30px "Barlow Condensed"; color: #fff; }
+  .p4 .r .tm { color: #ffd400; }
+  .p4 .r .st { color: #ffd400; }
+  .p4 .r .st.go { color: #ff5a4a; }
+  .p4 .r.me { background: #13321f; }
+  .p4 .r.me .tm, .p4 .r.me .st { color: #49e38a; }
+  .p4 .al { display: flex; align-items: center; gap: 12px; }
+  .p4 .al i { width: 6px; height: 34px; border-radius: 2px; }
+
+  /* 5 dark glass */
+  .p5 { background: radial-gradient(1200px 600px at 20% 10%, #3e5a7a, transparent), radial-gradient(900px 500px at 90% 90%, #6b3f2a, transparent), #1a2230; }
+  .p5 .glass { position: absolute; inset: 36px 60px; border-radius: 22px; background: rgba(14,18,26,0.62); backdrop-filter: blur(18px); border: 1px solid rgba(255,255,255,0.14); box-shadow: 0 30px 80px rgba(0,0,0,0.45); padding: 26px 30px; }
+  .p5 .hd { display: flex; align-items: baseline; gap: 16px; margin-bottom: 14px; }
+  .p5 .hd b { font: 700 30px "Space Grotesk"; }
+  .p5 .hd span { color: #9fb0c6; font-size: 19px; }
+  .p5 .r { display: grid; grid-template-columns: 6px 84px 1fr 130px 80px 70px 170px; align-items: center; gap: 16px; height: 58px; border-radius: 12px; padding: 0 14px 0 0; font-size: 21px; }
+  .p5 .r + .r { margin-top: 6px; }
+  .p5 .r > i { height: 100%; border-radius: 12px 0 0 12px; }
+  .p5 .r .tm { font: 700 22px "JetBrains Mono"; }
+  .p5 .r .d { font-weight: 600; }
+  .p5 .r .d small { display: block; font-size: 14px; color: #9fb0c6; font-weight: 400; }
+  .p5 .r .st { font-size: 17px; font-weight: 600; text-align: right; }
+  .p5 .r.me { background: rgba(62,224,122,0.16); box-shadow: inset 0 0 0 1px rgba(62,224,122,0.5); }
+  .p5 .gt { font: 700 22px "JetBrains Mono"; color: #fff; }
+
+  /* 6 ticker strip */
+  .p6 { background: linear-gradient(160deg, #24364f, #0d1522 60%), #111; }
+  .p6 .scene { position: absolute; inset: 0; background:
+      linear-gradient(transparent 55%, rgba(0,0,0,0.5)),
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.03) 0 2px, transparent 2px 120px); }
+  .p6 .tag { position: absolute; top: 30px; left: 34px; font: 600 18px Inter; color: #9fb0c6; }
+  .p6 .strip { position: absolute; left: 0; right: 0; bottom: 60px; height: 132px; background: rgba(8,10,14,0.88); border-top: 3px solid #ffb800; display: flex; align-items: stretch; }
+  .p6 .lab { width: 230px; background: #ffb800; color: #111; padding: 18px 20px; display: flex; flex-direction: column; justify-content: center; }
+  .p6 .lab b { font: 700 28px "Barlow Condensed"; letter-spacing: 0.04em; line-height: 1; }
+  .p6 .lab span { font: 600 18px "Barlow Condensed"; margin-top: 6px; }
+  .p6 .cards { display: flex; gap: 14px; padding: 16px; overflow: hidden; }
+  .p6 .c { width: 236px; flex: none; border-radius: 10px; background: #161b24; padding: 12px 14px; display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; border-left: 6px solid; }
+  .p6 .c .tm { font: 700 24px "JetBrains Mono"; }
+  .p6 .c .d { grid-column: 1 / -1; font: 600 21px "Barlow Condensed"; letter-spacing: 0.03em; white-space: nowrap; overflow: hidden; }
+  .p6 .c .m { font-size: 15px; color: #9fb0c6; }
+  .p6 .c.me { background: #11301f; }
+  .p6 .note { position: absolute; left: 34px; bottom: 18px; font-size: 16px; color: #7f8aa0; }
+
+  /* 7 split dep/arr */
+  .p7 { background: #0f1218; display: grid; grid-template-columns: 1fr 1fr; }
+  .p7 .side { padding: 18px 18px; }
+  .p7 .side + .side { border-left: 2px solid #232937; }
+  .p7 .hd { display: flex; align-items: center; gap: 12px; font: 700 28px "Barlow Condensed"; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .p7 .hd svg { width: 30px; height: 30px; }
+  .p7 .dep .hd { color: #ffb800; } .p7 .arr .hd { color: #4cc3ff; }
+  .p7 .r { display: grid; grid-template-columns: 62px 54px 1fr 58px 56px; align-items: center; gap: 8px; height: 48px; border-top: 1px solid #1f2430; font-size: 18px; }
+  .p7 .r .tm { font: 700 19px "JetBrains Mono"; }
+  .p7 .r .d { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+  .p7 .r .d small { display: block; font-size: 13px; color: #8b93a3; font-weight: 500; }
+  .p7 .r .gt { font: 700 18px "JetBrains Mono"; text-align: center; }
+  .p7 .r.me { background: rgba(62,224,122,0.14); }
+  .p7 .r .src { min-width: 48px; font-size: 12px; height: 22px; padding: 0 5px; }
+  .p7 .r .chip { width: 46px; height: 26px; font-size: 14px; }
+  .p7 .you { margin: 8px 0 6px; padding: 8px 10px; border-radius: 8px; background: #3ee07a; color: #072; font: 700 17px Inter; color: #05301a; }
+
+  /* 8 map + list */
+  .p8 { background: #0e1520; display: grid; grid-template-columns: 560px 1fr; }
+  .p8 svg { width: 560px; height: 680px; display: block; }
+  .p8 .list { padding: 22px 22px 22px 6px; }
+  .p8 .hd { font: 700 26px "Space Grotesk"; margin-bottom: 4px; }
+  .p8 .sub { color: #8b93a3; font-size: 16px; margin-bottom: 12px; }
+  .p8 .r { display: grid; grid-template-columns: 30px 62px 1fr 56px 56px; align-items: center; gap: 8px; height: 50px; border-top: 1px solid #1f2a3a; font-size: 18px; }
+  .p8 .r .n { width: 26px; height: 26px; border-radius: 50%; font: 700 14px/26px Inter; text-align: center; color: #fff; }
+  .p8 .r .tm { font: 700 18px "JetBrains Mono"; }
+  .p8 .r .d { font-weight: 600; white-space: nowrap; overflow: hidden; }
+  .p8 .r .d small { display: block; color: #8b93a3; font-size: 13px; font-weight: 500; }
+  .p8 .r .gt { font: 700 18px "JetBrains Mono"; }
+  .p8 .r .src { min-width: 48px; font-size: 12px; }
+
+  /* 9 descent cards */
+  .p9 { background: linear-gradient(180deg, #8fb6dd 0%, #d7c3a3 55%, #6d6a5c 56%, #4c4d44 100%); }
+  .p9 .card { position: absolute; width: 430px; border-radius: 16px; padding: 16px 18px; box-shadow: 0 20px 50px rgba(0,0,0,0.35); }
+  .p9 .dark { left: 40px; top: 40px; background: rgba(12,15,21,0.9); color: #fff; }
+  .p9 .light { right: 40px; top: 40px; background: rgba(255,255,255,0.95); color: #111; }
+  .p9 .card .hd { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .p9 .card .hd b { font: 700 21px "Space Grotesk"; }
+  .p9 .card .hd span { font-size: 14px; opacity: 0.7; }
+  .p9 .card .land { font: 600 15px Inter; padding: 7px 10px; border-radius: 8px; margin-bottom: 8px; }
+  .p9 .dark .land { background: #11301f; color: #6df0a2; }
+  .p9 .light .land { background: #e7f8ee; color: #0d6b38; }
+  .p9 .card .r { display: grid; grid-template-columns: 8px 54px 1fr 44px 46px; align-items: center; gap: 9px; height: 40px; font-size: 16px; }
+  .p9 .card .r i { height: 26px; border-radius: 3px; }
+  .p9 .card .r .tm { font: 700 16px "JetBrains Mono"; }
+  .p9 .card .r .gt { font: 700 16px "JetBrains Mono"; text-align: center; }
+  .p9 .card .r .src { min-width: 44px; height: 20px; font-size: 11px; padding: 0 4px; }
+  .p9 .light .src.AI { background: #6b7385; }
+  .p9 .pill { position: absolute; left: 40px; bottom: 40px; display: flex; gap: 10px; align-items: center; background: rgba(12,15,21,0.88); border-radius: 999px; padding: 10px 18px 10px 10px; color: #fff; font: 600 18px Inter; }
+  .p9 .pill b { background: #ffb800; color: #111; border-radius: 999px; padding: 4px 12px; font: 700 16px "Barlow Condensed"; letter-spacing: 0.05em; }
+  .p9 .tagline { position: absolute; right: 40px; bottom: 44px; color: #fff; font-size: 15px; text-shadow: 0 1px 2px #000; }
+
+  /* 10 gate wall */
+  .p10 { background: #0d1117; padding: 20px 22px; }
+  .p10 .hd { display: flex; align-items: baseline; gap: 14px; margin-bottom: 14px; }
+  .p10 .hd b { font: 700 28px "Space Grotesk"; }
+  .p10 .hd span { color: #8b93a3; font-size: 17px; }
+  .p10 .gates { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .p10 .g { height: 146px; border-radius: 10px; background: #161c26; padding: 10px 12px; position: relative; overflow: hidden; }
+  .p10 .g .band { position: absolute; left: 0; top: 0; bottom: 0; width: 6px; }
+  .p10 .g .gn { font: 700 22px "JetBrains Mono"; color: #8b93a3; }
+  .p10 .g .fl { font: 700 22px "Barlow Condensed"; letter-spacing: 0.03em; margin-top: 2px; }
+  .p10 .g .d { font-size: 15px; color: #c9d1de; white-space: nowrap; overflow: hidden; }
+  .p10 .g .bt { position: absolute; left: 12px; right: 12px; bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+  .p10 .g .bt .tm { font: 700 18px "JetBrains Mono"; }
+  .p10 .g.free { background: repeating-linear-gradient(135deg, #12161e 0 10px, #151a23 10px 20px); }
+  .p10 .g.free .fl { color: #5c6578; }
+  .p10 .g.me { background: #11301f; box-shadow: inset 0 0 0 2px #3ee07a; }
+  .p10 .g .src { min-width: 44px; height: 20px; font-size: 11px; padding: 0 4px; }
+  .p10 .g .cd { font: 600 12px Inter; color: #ffb800; white-space: nowrap; }
+  .p10 .g .tmx { display: flex; flex-direction: column; line-height: 1.1; }
+
+  /* 11 timeline */
+  .p11 { background: #0f131a; padding: 20px 22px; }
+  .p11 .hd { display: flex; align-items: baseline; gap: 14px; margin-bottom: 10px; }
+  .p11 .hd b { font: 700 28px "Space Grotesk"; }
+  .p11 .hd span { color: #8b93a3; font-size: 17px; }
+  .p11 svg { display: block; }
+
+  /* 12 network columns */
+  .p12 { background: #0e1117; padding: 18px 18px; }
+  .p12 .hd { display: flex; align-items: baseline; gap: 14px; margin-bottom: 12px; }
+  .p12 .hd b { font: 700 28px "Space Grotesk"; }
+  .p12 .hd span { color: #8b93a3; font-size: 17px; }
+  .p12 .cols { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .p12 .col { background: #151a23; border-radius: 12px; padding: 12px; height: 560px; }
+  .p12 .col h3 { margin: 0 0 4px; display: flex; align-items: center; gap: 10px; font: 700 20px "Space Grotesk"; }
+  .p12 .col .n { color: #8b93a3; font-size: 14px; margin-bottom: 10px; }
+  .p12 .it { display: grid; grid-template-columns: 6px 1fr auto; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid #222a37; }
+  .p12 .it i { height: 34px; border-radius: 2px; }
+  .p12 .it b { font: 700 17px "Barlow Condensed"; letter-spacing: 0.03em; }
+  .p12 .it small { display: block; color: #8b93a3; font-size: 13px; }
+  .p12 .it .tm { font: 700 15px "JetBrains Mono"; text-align: right; }
+  .p12 .it .tm small { font: 600 12px Inter; color: #ffb800; }
+  .p12 .it.me { background: rgba(62,224,122,0.12); border-radius: 6px; }
+</style>
+</head>
+<body>
+<div id="sheet">
+  <header class="sheet">
+    <h1>Departures and arrivals board: 12 designs</h1>
+    <p>Sample: TST123 (G-ABCD) EGBB → LEMD, landing 06:42 · made-up flights, real airline colours from the site's data</p>
+    <div class="legend"><span class="src AI">AI</span>MSFS AI <span class="src SI">SI</span>SayIntentions <span class="src SKY">SKY</span>SI SkyNet simmer <span class="src VAT">VAT</span>VATSIM <span class="src IVAO">IVAO</span>IVAO</div>
+  </header>
+  <div class="grid" id="grid"></div>
+</div>
+<script>
+const AL = {
+  IBE: ["IB", "#D7192D", "#FFCC00", "Iberia"], AEA: ["UX", "#0A2C79", "#B5975A", "Air Europa"], EZY: ["U2", "#FF6600", "#FFFFFF", "easyJet"],
+  RYR: ["FR", "#073590", "#F1C933", "Ryanair"], VLG: ["VY", "#FFCC00", "#4D4D4F", "Vueling"], BAW: ["BA", "#075AAA", "#FFFFFF", "British Airways"],
+  AFR: ["AF", "#002157", "#FFFFFF", "Air France"], KLM: ["KL", "#00A1DE", "#FFFFFF", "KLM"], DLH: ["LH", "#05164D", "#F9BA00", "Lufthansa"],
+  TAP: ["TP", "#ED1C24", "#FFFFFF", "TAP"], IBB: ["NT", "#00843D", "#FFFFFF", "Binter"], WZZ: ["W6", "#C6007E", "#FFFFFF", "Wizz Air"],
+  NOZ: ["DY", "#D81939", "#FFFFFF", "Norwegian"], UAE: ["EK", "#D71921", "#FFFFFF", "Emirates"], QTR: ["QR", "#5C0632", "#FFFFFF", "Qatar"],
+  SWR: ["LX", "#E2001A", "#FFFFFF", "SWISS"], ITY: ["AZ", "#00296B", "#FFFFFF", "ITA"], TST: ["TS", "#3ee07a", "#05301a", "Your flight"],
+};
+// departures from LEMD around the landing (06:42)
+const DEP = [
+  { t: "06:15", d: "PARIS CDG", f: "AFR1301", a: "AFR", g: "K82", s: "DEPARTED", src: "AI" },
+  { t: "06:25", d: "LONDON LHR", f: "IBE3166", a: "IBE", g: "J46", s: "TAXIING", src: "VAT" },
+  { t: "06:30", d: "LISBON", f: "TAP1015", a: "TAP", g: "H19", s: "PUSHBACK", src: "SI" },
+  { t: "06:35", d: "TENERIFE N", f: "IBB2871", a: "IBB", g: "J50", s: "FINAL CALL", src: "AI" },
+  { t: "06:40", d: "BRUSSELS", f: "VLG7721", a: "VLG", g: "K90", s: "BOARDING", src: "SKY" },
+  { t: "06:50", d: "AMSTERDAM", f: "KLM1700", a: "KLM", g: "H22", s: "BOARDING", src: "IVAO" },
+  { t: "07:05", d: "MUNICH", f: "DLH1803", a: "DLH", g: "K88", s: "GATE OPEN", src: "AI" },
+  { t: "07:10", d: "DUBAI", f: "UAE142", a: "UAE", g: "S30", s: "GATE OPEN", src: "VAT" },
+  { t: "07:20", d: "BIRMINGHAM", f: "EZY7340", a: "EZY", g: "M12", s: "ON TIME", src: "SI" },
+  { t: "07:25", d: "PALMA", f: "AEA6001", a: "AEA", g: "J41", s: "DELAYED 07:50", src: "AI" },
+  { t: "07:35", d: "ROME FCO", f: "ITY053", a: "ITY", g: "H24", s: "ON TIME", src: "IVAO" },
+];
+// arrivals at LEMD, the owner's among them
+const ARR = [
+  { t: "06:20", d: "LONDON LGW", f: "EZY8467", a: "EZY", g: "M14", s: "LANDED", src: "AI" },
+  { t: "06:30", d: "FRANKFURT", f: "DLH1112", a: "DLH", g: "K86", s: "LANDED", src: "VAT" },
+  { t: "06:38", d: "ZURICH", f: "SWR2014", a: "SWR", g: "K84", s: "FINAL", src: "SI" },
+  { t: "06:42", d: "BIRMINGHAM", f: "TST123", a: "TST", g: "J44", s: "APPROACH", src: "YOU", me: true },
+  { t: "06:50", d: "LAS PALMAS", f: "IBE3821", a: "IBE", g: "J52", s: "DESCENDING", src: "AI" },
+  { t: "06:55", d: "DOHA", f: "QTR149", a: "QTR", g: "S26", s: "EN ROUTE", src: "IVAO" },
+  { t: "07:05", d: "BUDAPEST", f: "WZZ2347", a: "WZZ", g: "M18", s: "EN ROUTE", src: "SKY" },
+  { t: "07:15", d: "OSLO", f: "NOZ1718", a: "NOZ", g: "M20", s: "EN ROUTE", src: "AI" },
+];
+// the owner's own row in the departures-style lists
+const ME = ARR.find((r) => r.me);
+const DEPME = [...DEP.slice(0, 5), { ...ME, d: "← BIRMINGHAM", s: "LANDS 06:42" }, ...DEP.slice(5)];
+
+const tc = (x) => x.split(" ").map((w) => (w.length <= 3 && w !== "LAS" && w !== "DE" ? w : w[0] + w.slice(1).toLowerCase())).join(" ");
+const chip = (a, h) => { const x = AL[a]; return `<span class="chip" style="background:${x[1]};color:${x[2]};${h ? `height:${h}px` : ""}">${x[0]}</span>`; };
+const src = (s) => s === "YOU" ? `<span class="src" style="background:#3ee07a;color:#05301a">YOU</span>` : `<span class="src ${s}">${s}</span>`;
+const SRCBG = { AI: "#4a5263", SI: "#7b3fe4", SKY: "#5b3a9a", VAT: "#1d9a5b", IVAO: "#1f5fd1", YOU: "#3ee07a" };
+const col = (a) => AL[a][1];
+
+const designs = [];
+const add = (title, note, tag, html) => designs.push({ title, note, tag, html });
+
+/* 1 */
+add("Classic dot matrix", "As the stream's board today, plus gate and source. Dim dots in the empty cells.", "1",
+  `<div class="panel p1"><div class="hd"><span>DEPARTURES · MADRID</span><small>06:44</small></div>` +
+  DEPME.slice(0, 10).map((r) => `<div class="r${r.me ? " me" : ""}">${chip(r.a, 34)}<span class="t w">${r.t}</span><span class="t">${r.d.replace("← ", "")}</span><span class="t">${r.f.slice(0, 3)}<span class="w">${r.f.slice(3)}</span></span><span class="t gate w">${r.g}</span>${src(r.src)}<span class="t">${r.s.replace("LANDS 06:42", "LANDING").slice(0, 10)}</span></div>`).join("") + `</div>`);
+
+/* 2 */
+const flaps = (txt, n) => `<span class="flaps">${txt.padEnd(n).slice(0, n).split("").map((c) => `<span class="f">${c === " " ? "&nbsp;" : c}</span>`).join("")}</span>`;
+add("Split-flap (Solari)", "Mechanical flaps with a seam; source on its own coloured flap.", "2",
+  `<div class="panel p2"><div class="hd"><em>DEP</em>MADRID-BARAJAS · CONNECTIONS</div>` +
+  DEPME.slice(0, 10).map((r) => `<div class="r${r.me ? " me" : ""}"><span class="stripe" style="background:${col(r.a)}"></span>${flaps(r.t.replace(":", ""), 4)}${flaps(r.d.replace("← ", ""), 10)}${flaps(r.f, 7)}${flaps(r.g, 3)}<span class="srcf" style="background:${SRCBG[r.src]};${r.src === "YOU" ? "color:#05301a" : ""}">${r.src}</span>${flaps(r.s.replace("LANDS 06:42", "ARRIVING"), 10)}</div>`).join("") + `</div>`);
+
+/* 3 */
+add("Terminal LCD, blue", "Airport screen style: column headings, zebra rows, your row in yellow.", "3",
+  `<div class="panel p3"><div class="hd"><b>Departures</b><span>Madrid T4 · next 60 min</span><time>06:44</time></div>
+   <div class="th"><span>Time</span><span></span><span>Destination</span><span>Flight</span><span>Gate</span><span>Source</span><span>Status</span></div>` +
+  DEPME.slice(0, 10).map((r) => `<div class="r${r.me ? " me" : ""}"><span class="tm">${r.t}</span>${chip(r.a)}<span>${r.d.replace("← ", "from ")}</span><span class="tm">${r.f}</span><span class="gt">${r.g}</span>${src(r.src)}<span class="st">${r.s}</span></div>`).join("") + `</div>`);
+
+/* 4 */
+add("Black and yellow", "Bold condensed type, yellow bar; airline colour as a thin tab.", "4",
+  `<div class="panel p4"><div class="hd"><b>DEPARTURES</b><span>MADRID · T4 / T4S</span><time>06:44</time></div>` +
+  DEPME.slice(0, 10).map((r) => `<div class="r${r.me ? " me" : ""}"><span class="tm">${r.t}</span><span class="al"><i style="background:${col(r.a)}"></i>${r.d.replace("← ", "")}</span><span>${r.f}</span><span>${r.g}</span>${src(r.src)}<span class="st${/FINAL|DELAY/.test(r.s) ? " go" : ""}">${r.s}</span></div>`).join("") + `</div>`);
+
+/* 5 */
+add("Dark glass overlay", "A translucent card over the sim; two-line destination with airline name.", "5",
+  `<div class="panel p5"><div class="glass"><div class="hd"><b>Connections at Madrid</b><span>after you land 06:42 · gates nearest J44 first</span></div>` +
+  [DEP[3], DEP[4], ME, DEP[5], DEP[6], DEP[8], DEP[9], DEP[10]].map((r) => `<div class="r${r.me ? " me" : ""}"><i style="background:${col(r.a)}"></i><span class="tm">${r.t}</span><span class="d">${r.me ? "You · from Birmingham" : tc(r.d)}<small>${AL[r.a][3]} · ${r.f}</small></span><span class="gt">${r.g}</span>${src(r.src)}<span></span><span class="st" style="color:${r.me ? "#6df0a2" : /FINAL|DELAY/.test(r.s) ? "#ff7a6b" : "#ffd27a"}">${r.me ? "Landing" : r.s[0] + r.s.slice(1).toLowerCase()}</span></div>`).join("") + `</div></div>`);
+
+/* 6 */
+add("Stream ticker strip", "A lower-third that scrolls through the next departures; sits over any scene.", "6",
+  `<div class="panel p6"><div class="scene"></div><div class="tag">(any stream scene)</div><div class="strip"><div class="lab"><b>CONNECTIONS</b><span>MADRID · you land 06:42</span></div><div class="cards">` +
+  [DEP[3], DEP[4], DEP[5], DEP[6], DEP[7]].map((r) => `<div class="c" style="border-color:${col(r.a)}"><span class="tm">${r.t}</span>${src(r.src)}<span class="d">${r.d}</span><span class="m">${r.f} · gate ${r.g}</span><span class="m" style="text-align:right;color:#ffd27a">${r.s}</span></div>`).join("") +
+  `</div></div><div class="note">Scrolls left; your flight's card pinned first while descending.</div></div>`);
+
+/* 7 */
+const plane = (rot) => `<svg viewBox="0 0 24 24" style="transform:rotate(${rot}deg)"><path fill="currentColor" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>`;
+const r7 = (r) => `<div class="r${r.me ? " me" : ""}"><span class="tm">${r.t}</span>${chip(r.a)}<span class="d">${r.d.replace("← ", "")}<small>${r.f} · ${r.s}</small></span><span class="gt">${r.g}</span>${src(r.src)}</div>`;
+add("Departures and arrivals split", "Both lists at once; your arrival marked, the departures after it.", "7",
+  `<div class="panel p7"><div class="side arr"><div class="hd">${plane(135)}ARRIVALS</div>${ARR.map(r7).join("")}</div>
+   <div class="side dep"><div class="hd">${plane(45)}DEPARTURES</div>${DEP.slice(0, 4).map(r7).join("")}<div class="you">▲ before you · after you ▼</div>${DEP.slice(4, 10).map(r7).join("")}</div></div>`);
+
+/* 8 */
+const gatesXY = { J41: [150, 150], J44: [190, 190], J46: [230, 230], J50: [270, 270], J52: [310, 310], K82: [330, 120], K84: [360, 150], K86: [390, 180], K88: [420, 210], K90: [450, 240], H19: [120, 420], H22: [160, 450], H24: [200, 480], M12: [380, 470], M14: [410, 500], M18: [440, 530], M20: [470, 560], S26: [90, 600], S30: [130, 630] };
+const mapRows = [DEP[3], DEP[4], DEP[5], DEP[6], DEP[7], DEP[8], DEP[9], DEP[10], ARR[4], ARR[6]];
+add("Apron map and list", "Gates on a stylised apron, numbered to the list; your gate and taxi path in green.", "8",
+  `<div class="panel p8"><svg viewBox="0 0 560 680">
+    <rect width="560" height="680" fill="#0b121c"/>
+    <path d="M40 40 L520 640" stroke="#1b2636" stroke-width="40"/>
+    <path d="M100 120 L330 350" stroke="#2a3a52" stroke-width="22" stroke-linecap="round"/><text x="70" y="108" fill="#5d6f8a" font-family="Inter" font-size="16" font-weight="700">T4 J</text>
+    <path d="M300 90 L480 270" stroke="#2a3a52" stroke-width="22" stroke-linecap="round"/><text x="300" y="78" fill="#5d6f8a" font-family="Inter" font-size="16" font-weight="700">T4 K</text>
+    <path d="M90 390 L230 510" stroke="#2a3a52" stroke-width="22" stroke-linecap="round"/><text x="60" y="380" fill="#5d6f8a" font-family="Inter" font-size="16" font-weight="700">T4 H</text>
+    <path d="M350 440 L500 590" stroke="#2a3a52" stroke-width="22" stroke-linecap="round"/><text x="350" y="428" fill="#5d6f8a" font-family="Inter" font-size="16" font-weight="700">T4S M</text>
+    <path d="M60 580 L160 660" stroke="#2a3a52" stroke-width="22" stroke-linecap="round"/><text x="40" y="570" fill="#5d6f8a" font-family="Inter" font-size="16" font-weight="700">T4S S</text>
+    <path d="M530 660 C 470 600, 330 420, 190 190" fill="none" stroke="#3ee07a" stroke-width="4" stroke-dasharray="10 8"/>
+    <circle cx="190" cy="190" r="16" fill="none" stroke="#3ee07a" stroke-width="4"/>
+    ${mapRows.map((r, i) => { const [x, y] = gatesXY[r.g]; return `<circle cx="${x}" cy="${y}" r="13" fill="${col(r.a)}" stroke="#0b121c" stroke-width="3"/><text x="${x}" y="${y + 5}" fill="#fff" font-family="Inter" font-size="13" font-weight="700" text-anchor="middle">${i + 1}</text>`; }).join("")}
+    <text x="210" y="186" fill="#3ee07a" font-family="JetBrains Mono" font-size="16" font-weight="700">J44 · YOU</text>
+    <g transform="translate(520 640) rotate(-45)" color="#3ee07a">${plane(0).replace("<svg", "<svg x='-16' y='-16' width='32' height='32'")}</g>
+  </svg><div class="list"><div class="hd">Madrid, around your gate</div><div class="sub">J44 · landing 06:42 · gates within 10 min walk first</div>` +
+  mapRows.map((r, i) => `<div class="r"><span class="n" style="background:${col(r.a)}">${i + 1}</span><span class="tm">${r.t}</span><span class="d">${r.d}<small>${r.f} · ${r.s.toLowerCase()}</small></span><span class="gt">${r.g}</span>${src(r.src)}</div>`).join("") + `</div></div>`);
+
+/* 9 */
+const r9 = (r) => `<div class="r"><i style="background:${col(r.a)}"></i><span class="tm">${r.t}</span><span>${tc(r.d)}</span><span class="gt">${r.g}</span>${src(r.src)}</div>`;
+add("Compact descent cards", "Small corner cards for the descent, dark or light; a one-line pill version.", "9",
+  `<div class="panel p9">
+    <div class="card dark"><div class="hd"><b>Connections · MAD</b><span>next 60 min</span></div><div class="land">You land 06:42 · gate J44 · 4 departures from J</div>${[DEP[3], DEP[4], DEP[5], DEP[6], DEP[8], DEP[9]].map(r9).join("")}</div>
+    <div class="card light"><div class="hd"><b>Arriving at Madrid</b><span>06:44</span></div><div class="land">TST123 · 06:42 · J44</div>${[ARR[2], ARR[4], ARR[5], ARR[6], ARR[7]].map(r9).join("")}</div>
+    <div class="pill"><b>NEXT FROM MAD</b>06:50 KL1700 Amsterdam · H22 · boarding</div>
+    <div class="tagline">(over the sim view)</div>
+  </div>`);
+
+/* 10 */
+const wall = ["J40", "J41", "J42", "J43", "J44", "J45", "J46", "J47", "J48", "J49", "J50", "J51", "J52", "J53", "J54"];
+const atGate = { J41: DEP[9], J44: ME, J46: DEP[1], J50: DEP[3], J52: ARR[4], J47: { t: "07:40", d: "SEVILLE", f: "IBE3104", a: "IBE", s: "GATE OPEN", src: "IVAO" }, J43: { t: "07:55", d: "BARCELONA", f: "VLG1003", a: "VLG", s: "SCHEDULED", src: "AI" }, J48: { t: "08:05", d: "GENEVA", f: "SWR2015", a: "SWR", s: "SCHEDULED", src: "SI" }, J53: { t: "07:30", d: "VALENCIA", f: "AEA4022", a: "AEA", s: "BOARDING", src: "SKY" } };
+const cd = { J41: "in 41 min", J46: "taxiing", J50: "in 6 min", J52: "arrives 06:50", J47: "in 56 min", J43: "in 71 min", J48: "in 81 min", J53: "in 46 min" };
+add("Gate wall", "Every gate on your pier: who's there, when it goes, and from which network.", "10",
+  `<div class="panel p10"><div class="hd"><b>Pier J, Madrid T4</b><span>you park at J44 · 06:44 now</span></div><div class="gates">` +
+  wall.map((g) => { const r = atGate[g]; if (!r) return `<div class="g free"><div class="gn">${g}</div><div class="fl">free</div></div>`;
+    return `<div class="g${r.me ? " me" : ""}"><span class="band" style="background:${col(r.a)}"></span><div class="gn">${g}</div><div class="fl">${r.me ? "TST123 · YOU" : r.f}</div><div class="d">${r.me ? "from Birmingham" : (r === ARR[4] ? "from " : "to ") + tc(r.d)}</div><div class="bt"><span class="tmx"><span class="tm">${r.t}</span><span class="cd">${r.me ? "on blocks ~06:49" : cd[g] ?? ""}</span></span>${src(r.src)}</div></div>`; }).join("") + `</div></div>`);
+
+/* 11 */
+{
+  const x0 = 120, x1 = 1040, t0 = 6 * 60, t1 = 7 * 60 + 40;
+  const X = (hm) => { const [h, m] = hm.split(":").map(Number); return x0 + ((h * 60 + m - t0) / (t1 - t0)) * (x1 - x0); };
+  const rows = [...ARR.filter((r) => !r.me).slice(0, 5).map((r) => ({ ...r, k: "arr" })), ...DEP.slice(1, 11).map((r) => ({ ...r, k: "dep" }))].sort((a, b) => a.g.localeCompare(b.g)).slice(0, 13);
+  const H = 40, y0 = 46;
+  let svg = `<svg width="1056" height="600" viewBox="0 0 1056 600">`;
+  for (let m = t0; m <= t1; m += 10) { const x = x0 + ((m - t0) / (t1 - t0)) * (x1 - x0); svg += `<line x1="${x}" x2="${x}" y1="30" y2="${y0 + rows.length * H}" stroke="#1d2430"/><text x="${x}" y="22" fill="#6d778a" font-family="JetBrains Mono" font-size="14" text-anchor="middle">${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}</text>`; }
+  rows.forEach((r, i) => { const y = y0 + i * H; const x = X(r.t);
+    svg += `<text x="10" y="${y + 25}" fill="#c9d1de" font-family="JetBrains Mono" font-size="16" font-weight="700">${r.g}</text>`;
+    const label = `${r.k === "dep" ? "↗" : "↘"} ${r.f} ${r.k === "dep" ? "to " : "from "}${tc(r.d.split(" ")[0])}`;
+    const w = label.length * 8.6 + 18; const bx = r.k === "dep" ? x - w : x;
+    svg += `<rect x="${bx}" y="${y + 6}" width="${w}" height="26" rx="6" fill="${col(r.a)}" opacity="0.92"/><text x="${bx + 9}" y="${y + 24}" fill="${AL[r.a][2]}" font-family="Barlow Condensed" font-size="17" font-weight="700">${label}</text>`;
+    const sx = r.k === "dep" ? bx - 50 : bx + w + 6;
+    svg += `<rect x="${sx}" y="${y + 9}" width="44" height="20" rx="4" fill="${SRCBG[r.src]}"/><text x="${sx + 22}" y="${y + 23}" fill="#fff" font-family="JetBrains Mono" font-size="11" font-weight="700" text-anchor="middle">${r.src}</text>`; });
+  const xm = X("06:42");
+  svg += `<line x1="${xm}" x2="${xm}" y1="30" y2="${y0 + rows.length * H}" stroke="#3ee07a" stroke-width="3"/><rect x="${xm - 70}" y="${y0 + rows.length * H + 8}" width="140" height="30" rx="15" fill="#3ee07a"/><text x="${xm}" y="${y0 + rows.length * H + 29}" fill="#05301a" font-family="Inter" font-size="15" font-weight="700" text-anchor="middle">YOU LAND 06:42</text>`;
+  const xn = X("06:44");
+  svg += `<line x1="${xn}" x2="${xn}" y1="30" y2="${y0 + rows.length * H}" stroke="#ffb800" stroke-dasharray="4 4"/>`;
+  svg += `</svg>`;
+  add("Gate timeline", "Movements by gate over the next hour; arrivals ↘ and departures ↗ either side of your landing.", "11",
+    `<div class="panel p11"><div class="hd"><b>Madrid · before and after you</b><span>by gate · 06:00–07:40</span></div>${svg}</div>`);
+}
+
+/* 12 */
+const nets = [
+  { k: "AI", name: "MSFS AI", n: "9 movements · from SimConnect" },
+  { k: "SI", name: "SayIntentions", n: "4 movements · 1 SkyNet simmer" },
+  { k: "VAT", name: "VATSIM", n: "3 movements · live pilots" },
+  { k: "IVAO", name: "IVAO", n: "3 movements · live pilots" },
+];
+const all = [...DEP.map((r) => ({ ...r, k: "dep" })), ...ARR.filter((r) => !r.me).map((r) => ({ ...r, k: "arr" }))];
+add("By network", "One column per source, so it's clear what's AI and what's people; SkyNet simmers marked.", "12",
+  `<div class="panel p12"><div class="hd"><b>Who's around Madrid</b><span>06:00–07:40 · TST123 lands 06:42 at J44</span></div><div class="cols">` +
+  nets.map((n) => `<div class="col"><h3>${src(n.k)}${n.name}</h3><div class="n">${n.n}</div>` +
+    all.filter((r) => r.src === n.k || (n.k === "SI" && r.src === "SKY")).slice(0, 9).map((r) => `<div class="it"><i style="background:${col(r.a)}"></i><span><b>${r.k === "dep" ? "↗" : "↘"} ${r.f}${r.src === "SKY" ? ` <span class="src SKY" style="height:18px;min-width:0;font-size:10px;padding:0 4px">SKY</span>` : ""}</b><small>${r.k === "dep" ? "to" : "from"} ${tc(r.d)} · ${r.g}</small></span><span class="tm">${r.t}<small>${r.s.toLowerCase()}</small></span></div>`).join("") + `</div>`).join("") + `</div></div>`);
+
+document.getElementById("grid").innerHTML = designs.map((d) => `<div class="cell"><div class="cap"><i>${d.tag.padStart(2, "0")}</i><b>${d.title}</b><span>${d.note}</span></div>${d.html}</div>`).join("");
+</script>
+</body>
+</html>

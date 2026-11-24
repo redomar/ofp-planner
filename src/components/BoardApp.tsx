@@ -49,6 +49,7 @@ import { KEYS, readJSON } from "@/lib/storage";
 import { namedFlight } from "@/lib/board/naming";
 import { ENDING_KEY, endingRecord } from "@/lib/board/ending";
 import { localClock, zoneLabel, type GateWx } from "./board/GateScreen";
+import { TrafficPlaces } from "./board/TrafficViews";
 import { cx, radioKeys, roving } from "./ui";
 
 type Tab = "airport" | "gate";
@@ -576,6 +577,9 @@ export function BoardApp() {
 
   /* ---------- screen only (stream source / popup) ---------- */
 
+  // 1.17: the traffic views' airport names and airline colours (every airline, not only the loaded ones)
+  const places = { airports: airports ?? null, airlines: manifest?.airlines ?? [] };
+
   // 1.14: a stage that rotates turns through its steps from when the stage (or scene) began
   const shownStep = useShownStep(gate, live.state, obsScene, live.plan, now);
   // the views drawn over the sim are transparent outside their panels, like the overlay switch
@@ -584,16 +588,18 @@ export function BoardApp() {
   if (screen) {
     if (!ready) return null;
     return createPortal(
-      <div className={cx("screen-root", overSim && "is-overlay")}>
+      <TrafficPlaces.Provider value={places}>
+        <div className={cx("screen-root", overSim && "is-overlay")}>
         <ScreenModeClass overlay={overSim} />
         <div className="gs-frame">
           {flight ? (
-            <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} trail={live.trail} plan={live.plan} summary={live.summary} probe={live.probe} mcdu={live.mcdu} events={live.events} step={shownStep} />
+            <GateViewScreen flight={flight} state={shownGate} now={now} wx={gateWx} live={live.state} source={live.using} scene={obsScene} trail={live.trail} plan={live.plan} summary={live.summary} probe={live.probe} mcdu={live.mcdu} events={live.events} towerTraffic={live.traffic} stands={live.stands} step={shownStep} />
           ) : (
             <p className="screen-wait">{ofp?.error ? `SimBrief: ${ofp.error}` : "Loading the flight…"}</p>
           )}
         </div>
-      </div>,
+        </div>
+      </TrafficPlaces.Provider>,
       document.body,
     );
   }
@@ -631,7 +637,7 @@ export function BoardApp() {
     );
 
   return (
-    <>
+    <TrafficPlaces.Provider value={places}>
       <TopBar />
       <StatusLine progress={ready && ap && tab === "airport" && !loadErr ? data.progress : null}>{status}</StatusLine>
       <main className="board">
@@ -815,7 +821,7 @@ export function BoardApp() {
           </div>
         </section>
       </main>
-    </>
+    </TrafficPlaces.Provider>
   );
 }
 
