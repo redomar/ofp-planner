@@ -649,6 +649,9 @@ function forwards(prev: FeedSample | null, s: FeedSample) {
  * One step of the detector: the state after this reading. Pure, so a recorded flight run through
  * it gives the same phases and stamps every time.
  */
+/** Within this of the destination, a first reading on the ground means the flight is over (nm). */
+const ARRIVED_NM = 5;
+
 export function step(prev: FlightState, s: FeedSample, ctx: FlightContext = {}): FlightState {
   const st: FlightState = { ...prev, stamps: { ...prev.stamps }, last: s };
   const ground = grounded(s, ctx);
@@ -656,6 +659,13 @@ export function step(prev: FlightState, s: FeedSample, ctx: FlightContext = {}):
   const enginesOff = enginesKnown && s.engines!.every((e) => !e);
   const moving = s.gs >= RULE.moving;
   let phase = prev.phase;
+  // 1.17.2: the first reading already on the ground at the destination (OFP Tower started at the gate
+  // after the flight, a page opened then): the flight is over, not about to board. No times are made
+  // up for it (out, off, on and in stay unknown).
+  if (!prev.last && ground && ctx.to && distNm(s, ctx.to) < ARRIVED_NM && !(ctx.from && distNm(s, ctx.from) < ARRIVED_NM)) {
+    st.airborne = true;
+    phase = moving ? "taxiIn" : "gate";
+  }
 
   // The landing is the FIRST contact: a bounce can put the aircraft back in the air on the reading
   // that has the touchdown rate, so the change to on-ground may only come with the second contact.
@@ -740,7 +750,8 @@ export function step(prev: FlightState, s: FeedSample, ctx: FlightContext = {}):
         phase = s.t - st.parkedSince >= RULE.parkedFor ? "gate" : "taxiIn";
       }
     }
-    if (phase === "gate" && st.stamps.in == null) st.stamps.in = s.t;
+    // (a feed that joined at the gate after the flight saw no arrival: no IN time)
+    if (phase === "gate" && st.stamps.in == null && (st.stamps.on != null || st.stamps.off != null)) st.stamps.in = s.t;
   } else {
     // before take-off
     if (s.doors?.some((d) => d > 5) && !moving) st.doorsSeenOpen = true;
