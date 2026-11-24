@@ -25,6 +25,9 @@ export interface SourceHandlers {
    */
   onHello?: (profile: string | null | undefined) => void;
   onMcdu?: (unit: number, rows: unknown, t: number) => void;
+  /** 1.17, OFP Tower: the aircraft in the sim around an airport, and that airport's stands (raw; read in traffic.ts). */
+  onTraffic?: (m: Record<string, unknown>) => void;
+  onStands?: (m: Record<string, unknown>) => void;
 }
 
 /* ---------- a recorded flight ---------- */
@@ -233,6 +236,14 @@ export function linkSource(port: number, h: SourceHandlers): () => void {
       }
       if (m.type === "probe") {
         if (m.v && typeof m.v === "object") h.onProbe?.(m.v as Record<string, unknown>, m.full === true, inReplay);
+        return;
+      }
+      if (m.type === "traffic") {
+        h.onTraffic?.(m);
+        return;
+      }
+      if (m.type === "stands") {
+        h.onStands?.(m);
         return;
       }
       if (m.type === "mcdu") {

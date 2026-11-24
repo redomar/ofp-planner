@@ -221,7 +221,7 @@ export function ScenesPreview({
       )}
 
       <div className="gs-frame dk-screen" id="gs-preview">
-        <GateViewScreen flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={pvLive} source={isLive ? feed.using : "link"} trail={isLive ? feed.trail : []} plan={feed.plan} summary={feed.summary} probe={isNow ? feed.probe : pvDeck.probe} mcdu={isNow ? feed.mcdu : pvDeck.mcdu} events={isNow ? feed.events : pvDeck.events} step={step} back={pvFlip && pvBack != null ? pvBack : undefined} />
+        <GateViewScreen flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={pvLive} source={isLive ? feed.using : "link"} trail={isLive ? feed.trail : []} plan={feed.plan} summary={feed.summary} probe={isNow ? feed.probe : pvDeck.probe} mcdu={isNow ? feed.mcdu : pvDeck.mcdu} events={isNow ? feed.events : pvDeck.events} towerTraffic={feed.traffic} stands={feed.stands} preview={!isLive} step={step} back={pvFlip && pvBack != null ? pvBack : undefined} />
       </div>
       <div className="dk-under">
         <p className="muted small dk-caption">

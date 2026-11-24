@@ -34,6 +34,8 @@ export const VIEWS = [
   "cockpit",
   "countdown",
   "ending",
+  "fids",
+  "conn",
 ] as const;
 export type ShownView = (typeof VIEWS)[number];
 export const isView = (v: string): v is ShownView => (VIEWS as readonly string[]).includes(v);
@@ -102,6 +104,8 @@ export const VIEW_INFO: Record<ShownView, ViewInfo> = {
   cockpit: { name: "Cockpit strip", code: "G4c", note: "The lights as switches, flaps, gear, speedbrake, autobrake and the autopilot, in one bar; layer it with another look. From OFP Tower (Fenix, A350); hidden while it isn't sending.", kind: "bar", pos: "tc", noBelt: true },
   countdown: { name: "Countdown", code: "G8", note: "The gate screen with a big countdown to the stream's start.", kind: "screen", pos: "tl", noBelt: true },
   ending: { name: "Ending screen", code: "G9", note: "A window for the game, the flight's numbers and the route flown, a sign-off.", kind: "screen", pos: "tl", noBelt: true },
+  fids: { name: "Departures board", code: "G10", note: "The airport's dot-matrix board: the next departures with gates, and where each is from (MSFS AI, SayIntentions, SkyNet, VATSIM, IVAO); the stream's flight in green, marked LIVE. The origin until take-off, then the destination.", kind: "screen", pos: "tl", noBelt: true },
+  conn: { name: "Connections card", code: "G10b", note: "A small card with the next departures where you are: the origin before take-off, the destination after.", kind: "box", pos: "tl", noBelt: true },
 };
 
 /** The picker's groups. */
@@ -111,6 +115,7 @@ export const VIEW_GROUPS: { k: string; name: string; views: ShownView[] }[] = [
   { k: "cards", name: "Cards", views: ["card", "g7a1", "g7a2", "g7a3", "g7b"] },
   { k: "bars", name: "Strips and pills", views: ["strip", "pill", "line", "cockpit"] },
   { k: "ends", name: "Start and end", views: ["countdown", "ending"] },
+  { k: "traffic", name: "Traffic", views: ["fids", "conn"] },
 ];
 
 export const BACKS: { k: LookBack; name: string; note: string; ready: boolean; needs?: string }[] = [

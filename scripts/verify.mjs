@@ -581,6 +581,51 @@ async function run() {
       pl?.active?.to === 1 && pl.legs[1].eta === "15:09" && pl.legs[1].wind?.[0] === 250 && pl.vSpeeds?.v1 === 152 && core.toPlan({ origin: "EDDM", destination: "EGBB", active: { from: 0, to: 5 }, legs: [] })?.active === null
         ? pass("gate feed: the FMS plan's active legs, times over the fixes and V-speeds read in (an impossible active is dropped)")
         : fail(`gate feed: plan ${JSON.stringify(pl)}`);
+      // 1.17: traffic for the departures board: VATSIM, IVAO and OFP Tower's sim aircraft, merged by callsign
+      {
+        const tr = await import(join(process.cwd(), "src/lib/feed/traffic.ts"));
+        const ap = { icao: "LEMD", lat: 40.4719, lon: -3.5626, elevFt: 1998 };
+        const now = Date.UTC(2026, 10, 24, 6, 44);
+        const stands = [{ name: "J44", lat: 40.4900, lon: -3.5930, radius: 20 }, { name: "J46", lat: 40.4905, lon: -3.5935, radius: 20 }];
+        const vat = tr.fromVatsim({
+          pilots: [
+            { callsign: "IBE3166", latitude: 40.4905, longitude: -3.5935, altitude: 2000, groundspeed: 0, flight_plan: { departure: "LEMD", arrival: "EGLL", aircraft_short: "A321", deptime: "0655", enroute_time: "0215" } },
+            { callsign: "TAP1015", latitude: 40.47, longitude: -3.57, altitude: 2000, groundspeed: 14, flight_plan: { departure: "LEMD", arrival: "LPPT", deptime: "0640" } },
+            { callsign: "DLH1112", latitude: 41.2, longitude: -3.0, altitude: 9000, groundspeed: 250, flight_plan: { departure: "EDDF", arrival: "LEMD", deptime: "0430", enroute_time: "0220" } },
+            { callsign: "RYR1", latitude: 50, longitude: 0, altitude: 36000, groundspeed: 450, flight_plan: { departure: "LEMD", arrival: "EGSS", deptime: "0300" } },
+            { callsign: "XXX9", latitude: 0, longitude: 0, altitude: 0, groundspeed: 0, flight_plan: { departure: "EGLL", arrival: "EDDF" } },
+          ],
+          prefiles: [{ callsign: "UAE142", flight_plan: { departure: "LEMD", arrival: "OMDB", deptime: "0710" } }],
+        }, ap, now, stands);
+        const iv = tr.fromIvao({ clients: { pilots: [
+          { callsign: "KLM1700", lastTrack: { latitude: 40.48, longitude: -3.58, altitude: 2000, groundSpeed: 0, onGround: true, state: "Boarding" }, flightPlan: { departureId: "LEMD", arrivalId: "EHAM", departureTime: 24600, aircraft: { icaoCode: "B738" } } },
+          { callsign: "IBE3166", lastTrack: { latitude: 40.4905, longitude: -3.5935, onGround: true, state: "Boarding" }, flightPlan: { departureId: "LEMD", arrivalId: "EGLL", departureTime: 25000 } },
+        ] } }, ap, now, stands);
+        const tw = tr.fromTower({ type: "traffic", airport: "LEMD", aircraft: [
+          { callsign: "AEA6001", from: "LEMD", to: "LEPA", etd: now / 1000 + 2400, parking: "Gate J 41, RAMP lrg (18m)", state: "sleep", lat: 40.49, lon: -3.59, onGround: true },
+          { callsign: "VLG7721", to: "EBBR", from: "LEMD", state: "push back 1", onGround: true, src: "SKY" },
+          { callsign: "IBE3166", from: "LEMD", to: "EGLL", parking: "Gate J 46", onGround: true, state: "preflight support" },
+          { callsign: "SWR2014", from: "LSZH", to: "LEMD", state: "landing", lat: 40.40, lon: -3.50, gs: 140 },
+        ] }, ap, now, stands);
+        const all = tr.mergeTraffic(vat, iv, tw);
+        const by = Object.fromEntries(all.map((r) => [r.callsign, r]));
+        const deps = tr.boardRows(all, "dep", now - 15 * 60_000, now + 120 * 60_000, now, 10);
+        const hm = (t) => new Date(t).toISOString().slice(11, 16);
+        const ok =
+          by.IBE3166?.src === "VAT" && by.IBE3166.gate === "J46" && by.IBE3166.status === "AT GATE" && hm(by.IBE3166.t) === "06:55" &&
+          by.TAP1015?.status === "TAXIING" && by.DLH1112?.side === "arr" && by.DLH1112.status === "EN ROUTE" && by.DLH1112.t > now &&
+          !by.RYR1 && !by.XXX9 && by.UAE142?.status === "SCHEDULED" && hm(by.UAE142.t) === "07:10" &&
+          by.KLM1700?.src === "IVAO" && by.KLM1700.status === "BOARDING" && hm(by.KLM1700.t) === "06:50" && by.KLM1700.type === "B738" &&
+          by.AEA6001?.src === "AI" && by.AEA6001.gate === "J41" && !by.AEA6001.snapped && by.AEA6001.status === "AT GATE" &&
+          by.VLG7721?.src === "SKY" && by.VLG7721.status === "PUSHBACK" && by.SWR2014?.status === "APPROACH" &&
+          tr.parkingName("Gate G 4, RAMP lrg (18m)") === "G4" && tr.parkingName("Parking 12") === "12" && tr.parkingName("RAMP GA small") === null &&
+          deps.every((r) => r.side === "dep") && deps[0].callsign === "TAP1015" && deps.map((r) => r.callsign).join() === "TAP1015,KLM1700,IBE3166,UAE142,AEA6001,VLG7721".split(",").sort((a, b) => (by[a].t ?? now) - (by[b].t ?? now) || a.localeCompare(b)).join() &&
+          tr.airlineOf("EZY7340", [{ icao: "EZY", operators: ["EZY", "EJU"] }])?.icao === "EZY" && tr.airlineOf("EJU12", [{ icao: "EZY", operators: ["EZY", "EJU"] }])?.icao === "EZY" && tr.airlineOf("GABCD", [{ icao: "GAB" }]) === null &&
+          tr.fromTower({ airport: "EGLL", aircraft: [{ callsign: "X1", from: "LEMD" }] }, ap, now).length === 0;
+        ok
+          ? pass("gate feed: traffic: VATSIM (gate from the stand it's on, taxiing, the filed time, a prefile; ones gone and others' left out), IVAO's own states and times, OFP Tower's sim aircraft (the sim's gate, AI states, SkyNet), one row per callsign with a network over the sim, the board's window in time order")
+          : fail(`gate feed: traffic ${JSON.stringify({ all: all.map((r) => [r.callsign, r.src, r.side, r.status, r.gate, r.t && hm(r.t)]), deps: deps.map((r) => r.callsign) })}`);
+      }
       // 1.16.6: EZY889 LXGB → GCTS, 22 Nov: DIR TO TNR made the FROM leg "IN-BND" (kind Inbound) 500 nm back
       // along the course, in the Pyrenees; drawn, it ran a line north over Spain. Left out; a close one stays
       {
@@ -1294,6 +1339,62 @@ async function run() {
           ? pass("gate views: OFP Tower back for an A350: the Fenix's cockpit strip from before is replaced by the A350's (flaps 2, gear up from its own fields; the Fenix L:vars it reads as 0, and a later Fenix flaps value, aren't used)")
           : fail(`gate views: tower restart ${JSON.stringify({ before, after, strip, conns, errors: errors.slice(0, 2) })}`);
       }
+    }
+    // 1.17: the departures board (G10) and the connections card (G10b) at KCLT, from stand-in VATSIM and IVAO feeds
+    {
+      const hhmm = (ms) => new Date(ms).toISOString().slice(11, 16).replace(":", "");
+      const t0 = Date.now();
+      const feeds = { vat: 0, ivao: 0 };
+      const runView = async (view, shot) => {
+        const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, reducedMotion: "reduce" });
+        await ctx.addInitScript(SEED);
+        await ctx.route(/simbrief\.com\/api\/xml\.fetcher\.php/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(OFP) }));
+        await ctx.route(/data\.vatsim\.net/, (r) => (feeds.vat++, r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({
+          pilots: [
+            { callsign: "AAL1907", latitude: 35.2205, longitude: -80.9445, altitude: 750, groundspeed: 0, flight_plan: { departure: "KCLT", arrival: "KMIA", aircraft_short: "A321", deptime: hhmm(t0 + 25 * 60_000) } },
+            { callsign: "DAL2210", latitude: 35.21, longitude: -80.94, altitude: 750, groundspeed: 16, flight_plan: { departure: "KCLT", arrival: "KATL", deptime: hhmm(t0 + 5 * 60_000) } },
+            { callsign: "BAW228", latitude: 36.5, longitude: -79, altitude: 12000, groundspeed: 300, flight_plan: { departure: "EGLL", arrival: "KCLT", deptime: "1000" } },
+          ],
+          prefiles: [{ callsign: "AAL2440", flight_plan: { departure: "KCLT", arrival: "EGLL", deptime: hhmm(t0 + 70 * 60_000) } }],
+        }) })));
+        await ctx.route(/api\.ivao\.aero/, (r) => (feeds.ivao++, r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ clients: { pilots: [
+          { callsign: "UAL455", lastTrack: { latitude: 35.219, longitude: -80.946, altitude: 750, groundSpeed: 0, onGround: true, state: "Boarding" }, flightPlan: { departureId: "KCLT", arrivalId: "KDEN", departureTime: Math.round(((t0 + 40 * 60_000) % 86_400_000) / 1000), aircraft: { icaoCode: "B739" } } },
+        ] } }) })));
+        const page = await ctx.newPage();
+        const errors = [];
+        page.on("pageerror", (e) => errors.push(String(e)));
+        await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&view=${view}`, { waitUntil: "networkidle" });
+        await page.waitForFunction(() => /DAL2210|DAL/.test(document.querySelector(".tv-fids, .tv-conn")?.textContent ?? ""), null, { timeout: 15_000 }).catch(() => {});
+        await page.waitForTimeout(600);
+        const text = ((await page.locator(".tv-fids, .tv-conn").first().innerText().catch(() => "")) || "").replace(/\s+/g, " ");
+        const rows = await page.locator(view === "fids" ? ".tv-fids-r" : ".tv-conn-r").count();
+        const me = await page.locator(".tv-fids-r.is-me").count();
+        const srcs = await page.locator(".tv-src").allInnerTexts();
+        if (process.env.SHOT_DIR) await page.screenshot({ path: join(process.env.SHOT_DIR, `${shot}.png`) });
+        await ctx.close();
+        return { text, rows, me, srcs, errors };
+      };
+      const fids = await runView("fids", "fids");
+      const conn = await runView("conn.l", "conn");
+      const order = ["DAL2210", "AAL1907", "UAL455", "AAL2440"].map((c) => fids.text.indexOf(c));
+      const quiet = await (async () => {
+        const before = { ...feeds };
+        const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+        await ctx.addInitScript(SEED);
+        await ctx.route(/simbrief\.com\/api\/xml\.fetcher\.php/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(OFP) }));
+        await ctx.route(/data\.vatsim\.net|api\.ivao\.aero/, (r) => (r.request().url().includes("ivao") ? feeds.ivao++ : feeds.vat++, r.fulfill({ status: 200, contentType: "application/json", body: "{}" })));
+        const page = await ctx.newPage();
+        await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&view=strip`, { waitUntil: "networkidle" });
+        await page.waitForTimeout(800);
+        await ctx.close();
+        return feeds.vat === before.vat && feeds.ivao === before.ivao;
+      })();
+      /DEPARTURES · CHARLOTTE/i.test(fids.text) && fids.me === 1 && fids.rows === 5 && order.every((x, i) => x >= 0 && (i === 0 || x > order[i - 1])) && !/BAW228/.test(fids.text) &&
+      /TAXIING/.test(fids.text) && /BOARDING/.test(fids.text) && /SCHEDULED/.test(fids.text) && /KATL/.test(fids.text) && /LONDON/.test(fids.text) && fids.srcs.includes("VAT") && fids.srcs.includes("IVAO") && fids.srcs.includes("LIVE") && !/\bYOU\b/.test(fids.text) &&
+      /Departures · KCLT/.test(conn.text) && /HBIOO departs/.test(conn.text) && conn.rows === 4 && /KATL/.test(conn.text) && /London/.test(conn.text) &&
+      quiet && !fids.errors.length && !conn.errors.length
+        ? pass("gate views: the departures board (G10) and connections card (G10b) at the origin: VATSIM and IVAO departures in time order with their status and source, the flight in green among them, the arrival left out; the feeds are only fetched while one of them is on screen")
+        : fail(`gate views: traffic ${JSON.stringify({ fids: [fids.text.slice(0, 400), fids.rows, fids.me, fids.srcs, order], conn: [conn.text.slice(0, 300), conn.rows], quiet, errors: [...fids.errors, ...conn.errors].slice(0, 2) })}`);
     }
     // 1.13.3: the vertical speed on the strip and the pills, from a stand-in OFP Tower climbing at ~2,400 fpm
     {

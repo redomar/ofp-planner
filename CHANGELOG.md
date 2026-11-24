@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.17.0 — 2026-11-24
+
+- **Departures board (G10)**, a new full-screen look in Stream → Traffic: the airport's dot-matrix board with the next departures. Each row has the airline's colour chip, time, destination, flight, gate, status, and where the flight is from: VATSIM, IVAO, MSFS AI, SayIntentions or a SkyNet simmer. The stream's own flight is in green, marked LIVE. It shows the origin until take-off, then the destination: the connections after landing.
+- **Connections card (G10b)**: the same departures as a small card over the sim, any size and corner, with when the flight departs or lands.
+- VATSIM and IVAO are read straight from their public feeds (read only), and only while one of these looks is on screen.
+  - VATSIM: status from position and speed (at the gate, taxiing, departed), the filed time, and flights filed but not yet connected.
+  - IVAO: its own status words and times.
+- MSFS AI, SayIntentions traffic, SkyNet simmers and gates come from OFP Tower once it sends them (`traffic` and `stands` messages, in docs/OFP-LINK.md). Until then, gates show "--".
+- The Stream panel's previews show example traffic.
+
 ## 1.16.7 — 2026-11-22
 
 - OFP Tower now puts the Fenix's IN-BND leg (after a DIR TO) where the aircraft was when the DIR TO was made, like a T-P, so that leg is drawn from there. The board draws such a leg wherever it is; it still leaves out a far-off one from an older OFP Tower, as in 1.16.6. If OFP Tower saw no position first, it places the leg 30 nm before the next fix on the same course.

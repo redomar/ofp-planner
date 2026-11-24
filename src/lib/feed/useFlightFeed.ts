@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { standsFrom, type Stand } from "./traffic";
 import { aircraftStatus, isA350Probe, keepEvents, keepPages, mcduPage, mergeProbe, statusEvents, type DeckEvent, type McduPage, type ProbeValues } from "./deck";
 import { fitToRoute, mergeTrail, startState, step, type FeedSample, type FeedSource, type FlightContext, type FlightPlan, type FlightState, type FlightSummary } from "./core";
 import { LINK_PORT, linkSource, replaySource, vatsimSource, type FeedStatus } from "./sources";
@@ -67,6 +68,9 @@ export interface FlightFeed {
   mcdu: McduPage[];
   /** 1.16: cockpit changes, for the strip's and pills' pop-ups (on the readings' clock). */
   events: DeckEvent[];
+  /** 1.17, OFP Tower: its latest `traffic` message (the sim's aircraft near an airport) and the stands it sent. */
+  traffic: Record<string, unknown> | null;
+  stands: { airport: string; stands: Stand[] } | null;
 }
 
 /**
@@ -205,7 +209,12 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<s
       planCruise = null;
       planCtx = {};
       // planAt stays: it is the FMS flight's departure time, and the same plan comes straight back
-      put({ probe: null, mcdu: [], events: [], plan: null });
+      put({ probe: null, mcdu: [], events: [], plan: null, traffic: null, stands: null });
+    };
+    const onTraffic = (m: Record<string, unknown>) => put({ traffic: m });
+    const onStands = (m: Record<string, unknown>) => {
+      const sd = standsFrom(m);
+      if (sd) put({ stands: sd });
     };
     const onTrack = (pts: { t: number; lat: number; lon: number }[]) => {
       const merged = mergeTrail(
@@ -219,9 +228,9 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<s
     };
     if (source === "replay" && rec) return replaySource(rec, rate, { onSample: take("replay"), onStatus: said("replay"), onProbe, onMcdu, onHello }, at * 60_000, fitTo);
     if (source === "vatsim" && who) return vatsimSource(who, { onSample: take("vatsim"), onStatus: said("vatsim"), onPlan: onVatsimPlan });
-    if (source === "link") return linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan, onSummary, onTrack, onProbe, onMcdu, onHello });
+    if (source === "link") return linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan, onSummary, onTrack, onProbe, onMcdu, onHello, onTraffic, onStands });
     if (source === "auto") {
-      const stops = [linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan, onSummary, onTrack, onProbe, onMcdu, onHello })];
+      const stops = [linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan, onSummary, onTrack, onProbe, onMcdu, onHello, onTraffic, onStands })];
       if (who) stops.push(vatsimSource(who, { onSample: take("vatsim"), onStatus: said("vatsim"), onPlan: onVatsimPlan }));
       return () => stops.forEach((x) => x());
     }
@@ -229,4 +238,4 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<s
   return feed.key === key ? feed : NO_FEED;
 }
 
-const NO_FEED: FlightFeed = { state: null, status: null, using: "clock", link: null, vatsim: null, trail: [], plan: null, planAt: null, summary: null, probe: null, mcdu: [], events: [] };
+const NO_FEED: FlightFeed = { state: null, status: null, using: "clock", link: null, vatsim: null, trail: [], plan: null, planAt: null, summary: null, probe: null, mcdu: [], events: [], traffic: null, stands: null };

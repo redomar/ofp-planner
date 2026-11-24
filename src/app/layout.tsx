@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Barlow_Condensed, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import { Barlow_Condensed, DotGothic16, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
 import "./globals.css";
 import { SiteFooter } from "@/components/SiteFooter";
 import { TooltipLayer } from "@/components/TooltipLayer";
@@ -9,6 +9,8 @@ import { THEME_KEY } from "@/lib/keys";
 const sans = IBM_Plex_Sans({ variable: "--f-sans", subsets: ["latin"], weight: ["400", "500", "600"] });
 const cond = Barlow_Condensed({ variable: "--f-cond", subsets: ["latin"], weight: ["500", "600", "700"] });
 const mono = IBM_Plex_Mono({ variable: "--f-mono", subsets: ["latin"], weight: ["400", "500", "600"] });
+// 1.17: the departures board's dot matrix (only that view uses it, so it isn't preloaded)
+const dot = DotGothic16({ variable: "--f-dot", subsets: ["latin"], weight: "400", preload: false });
 
 export const metadata: Metadata = {
   title: "OFP Planner",
@@ -26,7 +28,7 @@ const themeScript = `try{var t=localStorage.getItem(${JSON.stringify(THEME_KEY)}
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${sans.variable} ${cond.variable} ${mono.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${sans.variable} ${cond.variable} ${mono.variable} ${dot.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <script dangerouslySetInnerHTML={{ __html: collapseBootScript }} />
