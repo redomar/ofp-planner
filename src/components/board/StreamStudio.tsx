@@ -11,6 +11,8 @@ import {
   MAX_LAYERS,
   MAX_STEPS,
   SHOWS_VS,
+  TRAFFIC_STYLES,
+  TRAFFIC_VIEWS,
   SIZES,
   STEP_DEFAULT_S,
   STEP_MAX_S,
@@ -726,6 +728,32 @@ function LookEditor({
                 <small>A small lit sign while it’s on in the aircraft.</small>
               </span>
             </label>
+          )}
+          {TRAFFIC_VIEWS.includes(cur.v) && (
+            <div className="st-field">
+              <span className="ctl-label" id="st-tside">Shows</span>
+              <div className="seg" role="radiogroup" aria-labelledby="st-tside">
+                {(
+                  [
+                    ["dep", "Departures"],
+                    ["arr", "Arrivals"],
+                  ] as const
+                ).map(([k, n]) => (
+                  <button type="button" role="radio" key={k} aria-checked={cur.side === k} className="seg-btn" onClick={() => setCur({ side: k })}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <span className="ctl-label" id="st-tstyle">Style</span>
+              <div className="seg" role="radiogroup" aria-labelledby="st-tstyle">
+                {TRAFFIC_STYLES.map(({ k, name }) => (
+                  <button type="button" role="radio" key={k} aria-checked={cur.style === k} className="seg-btn" onClick={() => setCur({ style: k })}>
+                    {name}
+                  </button>
+                ))}
+              </div>
+              <small className="muted">The airport you’re at: the origin until take-off, then the destination (departures there are your connections). From VATSIM and IVAO, and the sim’s traffic with OFP Tower.</small>
+            </div>
           )}
           {SHOWS_VS.includes(cur.v) && (
             <div className="st-field">

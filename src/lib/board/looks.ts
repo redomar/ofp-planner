@@ -36,9 +36,19 @@ export const VIEWS = [
   "ending",
   "fids",
   "conn",
+  "fidsw",
 ] as const;
 export type ShownView = (typeof VIEWS)[number];
 export const isView = (v: string): v is ShownView => (VIEWS as readonly string[]).includes(v);
+
+/** 1.17.3: the traffic looks (departures or arrivals, in a style). */
+export const TRAFFIC_VIEWS: ShownView[] = ["fids", "conn", "fidsw"];
+export type TrafficStyle = "brand" | "dot" | "flap";
+export const TRAFFIC_STYLES: { k: TrafficStyle; name: string }[] = [
+  { k: "brand", name: "Airline" },
+  { k: "dot", name: "Dot matrix" },
+  { k: "flap", name: "Split-flap" },
+];
 
 /** The looks that can show the vertical speed. */
 export const SHOWS_VS: ShownView[] = ["strip", "pill", "line"];
@@ -67,6 +77,9 @@ export interface Look {
   only: boolean;
   /** 1.16, strip and pills: cockpit changes (flaps, gear, lights, AP…) pop up for 30 s on this side. */
   notify: "r" | "l" | "off";
+  /** 1.17.3, traffic looks: departures or arrivals, and the board's style. */
+  side: "dep" | "arr";
+  style: TrafficStyle;
 }
 
 export type ViewKind = "screen" | "box" | "bar" | "pill";
@@ -104,8 +117,9 @@ export const VIEW_INFO: Record<ShownView, ViewInfo> = {
   cockpit: { name: "Cockpit strip", code: "G4c", note: "The lights as switches, flaps, gear, speedbrake, autobrake and the autopilot, in one bar; layer it with another look. From OFP Tower (Fenix, A350); hidden while it isn't sending.", kind: "bar", pos: "tc", noBelt: true },
   countdown: { name: "Countdown", code: "G8", note: "The gate screen with a big countdown to the stream's start.", kind: "screen", pos: "tl", noBelt: true },
   ending: { name: "Ending screen", code: "G9", note: "A window for the game, the flight's numbers and the route flown, a sign-off.", kind: "screen", pos: "tl", noBelt: true },
-  fids: { name: "Departures board", code: "G10", note: "The airport's dot-matrix board: the next departures with gates, and where each is from (MSFS AI, SayIntentions, SkyNet, VATSIM, IVAO); the stream's flight in green, marked LIVE. The origin until take-off, then the destination.", kind: "screen", pos: "tl", noBelt: true },
-  conn: { name: "Connections card", code: "G10b", note: "A small card with the next departures where you are: the origin before take-off, the destination after.", kind: "box", pos: "tl", noBelt: true },
+  fids: { name: "Departures board", code: "G10", note: "The airport's board, full screen: the next departures (or arrivals) with gates, and where each is from (MSFS AI, SayIntentions, SkyNet, VATSIM, IVAO); the stream's flight in green, marked LIVE. The origin until take-off, then the destination.", kind: "screen", pos: "tl", noBelt: true },
+  conn: { name: "Departures card", code: "G10b", note: "A small card with the next departures (or arrivals) where you are: the origin before take-off, the destination after.", kind: "box", pos: "tl", noBelt: true },
+  fidsw: { name: "Board with window", code: "G10c", note: "A window for the game on the left, the airport's departures or arrivals on the right, like the ending screen. The origin until take-off, then the destination.", kind: "screen", pos: "tl", noBelt: true },
 };
 
 /** The picker's groups. */
@@ -115,7 +129,7 @@ export const VIEW_GROUPS: { k: string; name: string; views: ShownView[] }[] = [
   { k: "cards", name: "Cards", views: ["card", "g7a1", "g7a2", "g7a3", "g7b"] },
   { k: "bars", name: "Strips and pills", views: ["strip", "pill", "line", "cockpit"] },
   { k: "ends", name: "Start and end", views: ["countdown", "ending"] },
-  { k: "traffic", name: "Traffic", views: ["fids", "conn"] },
+  { k: "traffic", name: "Traffic", views: ["fids", "conn", "fidsw"] },
 ];
 
 export const BACKS: { k: LookBack; name: string; note: string; ready: boolean; needs?: string }[] = [
@@ -141,7 +155,7 @@ export const SIZES: { k: LookSize; name: string }[] = [
 
 export function look(v: ShownView, p: Partial<Omit<Look, "v">> = {}): Look {
   const i = VIEW_INFO[v];
-  return { v, size: "m", pos: i.pos, backs: i.flip ? ["numbers", "plan"] : [], every: 180, hold: 45, belt: !i.noBelt, vs: true, only: false, notify: "r", ...p };
+  return { v, size: "m", pos: i.pos, backs: i.flip ? ["numbers", "plan"] : [], every: 180, hold: 45, belt: !i.noBelt, vs: true, only: false, notify: "r", side: "dep", style: v === "fids" ? "dot" : "brand", ...p };
 }
 
 /** A token as a look; null when its view isn't one. Unknown parts are skipped. */
@@ -152,6 +166,8 @@ export function lookFrom(token: string): Look | null {
   for (const p of parts) {
     if (p === "xs" || p === "s" || p === "m" || p === "l") l.size = p;
     else if ((POSITIONS as string[]).includes(p)) l.pos = p as LookPos;
+    // 1.17.3: the traffic looks' style ("air", the airline's colours; "brand" would read as back sides)
+    else if (p === "air" || p === "dot" || p === "flap") l.style = p === "air" ? "brand" : p;
     else if (/^b[nprad]{1,5}$/.test(p)) {
       const bs = [...p.slice(1)].map((c) => (Object.keys(BACK_CODE) as LookBack[]).find((k) => BACK_CODE[k] === c)!);
       l.backs = [...new Set(bs)];
@@ -164,6 +180,7 @@ export function lookFrom(token: string): Look | null {
     else if (p === "nl") l.notify = "l";
     else if (p === "nr") l.notify = "r";
     else if (p === "nx") l.notify = "off";
+    else if (p === "arr" || p === "dep") l.side = p;
   }
   return l;
 }
@@ -175,7 +192,11 @@ export function lookTo(l: Look): string {
   if (l.size !== d.size) out.push(l.size);
   if (l.pos !== d.pos && VIEW_INFO[l.v].kind !== "screen") out.push(l.pos);
   if (VIEW_INFO[l.v].flip) {
-    if (l.backs.join() !== d.backs.join() && l.backs.length) out.push(`b${l.backs.map((b) => BACK_CODE[b]).join("")}`);
+    if (l.backs.join() !== d.backs.join() && l.backs.length) {
+      // 1.17.3: the route side alone is "brr": "br" is the bottom-right corner
+      const code = `b${l.backs.map((b) => BACK_CODE[b]).join("")}`;
+      out.push(code === "br" ? "brr" : code);
+    }
     if (l.every !== d.every) out.push(`e${l.every}`);
     if (l.hold !== d.hold) out.push(`h${l.hold}`);
     if (l.only) out.push("bo");
@@ -183,6 +204,10 @@ export function lookTo(l: Look): string {
   if (l.belt !== d.belt) out.push(l.belt ? "wb" : "nb");
   if (!l.vs && SHOWS_VS.includes(l.v)) out.push("nvs");
   if (l.notify !== "r" && SHOWS_VS.includes(l.v)) out.push(l.notify === "l" ? "nl" : "nx");
+  if (TRAFFIC_VIEWS.includes(l.v)) {
+    if (l.side !== d.side) out.push(l.side);
+    if (l.style !== d.style) out.push(l.style === "brand" ? "air" : l.style);
+  }
   return out.join(".");
 }
 
@@ -201,7 +226,7 @@ export const layersTo = (ls: Layers) => ls.map(lookTo).join("~");
 export const sameLayers = (a: Layers, b: Layers) => layersTo(a) === layersTo(b);
 export const layers = (v: ShownView, p: Partial<Omit<Look, "v">> = {}): Layers => [look(v, p)];
 /** Drawn over the sim: every layer floats (nothing paints the whole screen). */
-export const overSim = (ls: Layers) => ls.every((l) => VIEW_INFO[l.v].kind !== "screen" || l.v === "frame" || l.v === "mapwin" || l.v === "ending");
+export const overSim = (ls: Layers) => ls.every((l) => VIEW_INFO[l.v].kind !== "screen" || l.v === "frame" || l.v === "mapwin" || l.v === "ending" || l.v === "fidsw");
 
 /* ---------- 1.14: rotations ---------- */
 

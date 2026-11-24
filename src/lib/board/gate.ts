@@ -8,7 +8,7 @@ import type { Airport, FlightRow } from "../data/load";
 import { blockTime, flightNo, gcNm } from "../data/flight";
 import { MIN, taxiOf, type PhaseKey } from "./board";
 import type { FlightPlan, PlanLeg, ViewStage } from "../feed/core";
-import { layers, turnsFrom, turnsOf, turnsTo, type Layers, type ShownView, type Turns } from "./looks";
+import { layers, lookFrom, turnsFrom, turnsOf, turnsTo, type Layers, type ShownView, type Turns } from "./looks";
 import { goParam } from "./countdown";
 
 export interface GateState {
@@ -54,6 +54,13 @@ export interface GateState {
   scenes: SceneRule[];
   /** Hold the screen on this stage whatever the aircraft does (when the detection gets it wrong). */
   hold: ViewStage | null;
+  /**
+   * 1.17.3: a look put on the stream by hand for a while ("Show on stream"), over what the stage
+   * shows (a card or strip) or instead of it (a full screen): its token, and until when (ms; null =
+   * until hidden). Relayed with the other settings, so OBS shows it too.
+   */
+  show: string | null;
+  showUntil: number | null;
   /**
    * 1.13: the countdown to the stream's start (view "countdown"), as written in the URL: "5m" from
    * when the page loaded, "19:30" (this PC's time) or "19:30Z", "std-30" from the flight's off-block;
@@ -143,6 +150,8 @@ export const EMPTY_GATE: GateState = {
   stages: DEFAULT_STAGES,
   scenes: DEFAULT_SCENES,
   hold: null,
+  show: null,
+  showUntil: null,
   go: null,
   goFrom: 0,
   bye: "",
@@ -242,6 +251,7 @@ export function gateFromParams(q: URLSearchParams, now: number): GateState {
     stages: stagesFrom(q.get("st")),
     scenes: scenesFrom(q.get("sc")),
     hold: holdFrom(q.get("hold")),
+    ...showFrom(q.get("show")),
     go: goParam(q.get("go")),
     goFrom: now,
     bye: text(q.get("bye"), 140),
@@ -250,6 +260,15 @@ export function gateFromParams(q: URLSearchParams, now: number): GateState {
   };
 }
 
+
+/** "show=conn.arr!1795545797": the look, then until when in epoch seconds ("!0" or none: until hidden). */
+function showFrom(v: string | null): Pick<GateState, "show" | "showUntil"> {
+  const [tok, until] = (v ?? "").split("!");
+  if (!tok || !lookFrom(tok)) return { show: null, showUntil: null };
+  const u = Number(until);
+  return { show: tok.slice(0, 60), showUntil: Number.isFinite(u) && u > 0 ? u * 1000 : null };
+}
+const showTo = (g: Pick<GateState, "show" | "showUntil">) => (g.show ? `${g.show}!${g.showUntil != null ? Math.round(g.showUntil / 1000) : 0}` : null);
 
 export function gateToParams(g: GateState, now: number, extra: Record<string, string | null> = {}): URLSearchParams {
   const q = new URLSearchParams();
@@ -276,6 +295,7 @@ export function gateToParams(g: GateState, now: number, extra: Record<string, st
   const sc = scenesTo(g.scenes);
   set("sc", sc !== scenesTo(DEFAULT_SCENES) && (sc || "-"));
   set("hold", g.hold);
+  set("show", showTo(g));
   set("go", g.go);
   set("bye", g.bye);
   set("fs", g.fs);
@@ -308,12 +328,14 @@ export function streamSettingsQuery(g: GateState, who: string | null = null): st
   if ((g.an || g.ac) && g.anf) q.set("anf", g.anf);
   if (g.bye) q.set("bye", g.bye);
   if (g.fs) q.set("fs", g.fs);
+  const show = showTo(g);
+  if (show) q.set("show", show);
   // the VATSIM callsign the board uses (a watched pilot, or the owner's own for the position)
   if (who) q.set("who", who);
   return q.toString();
 }
 
-export type StreamSettings = Pick<GateState, "stages" | "scenes" | "hold" | "delay" | "cancelled" | "gate" | "oldGate" | "reg" | "an" | "ac" | "msg" | "rotate"> & Partial<Pick<GateState, "bye" | "fs" | "anf">>;
+export type StreamSettings = Pick<GateState, "stages" | "scenes" | "hold" | "delay" | "cancelled" | "gate" | "oldGate" | "reg" | "an" | "ac" | "msg" | "rotate"> & Partial<Pick<GateState, "bye" | "fs" | "anf" | "show" | "showUntil">>;
 
 /** A relayed settings query, or null when it isn't complete (no stage table: an old, empty or partial message). */
 export function streamSettingsFrom(q: string, now: number): StreamSettings | null {
@@ -321,7 +343,7 @@ export function streamSettingsFrom(q: string, now: number): StreamSettings | nul
   if (!p.get("st") || !p.get("sc")) return null;
   const s = gateFromParams(p, now);
   const base = { stages: s.stages, scenes: s.scenes, hold: s.hold, delay: s.delay, cancelled: s.cancelled, gate: s.gate, oldGate: s.oldGate, reg: s.reg, an: s.an, ac: s.ac, msg: s.msg, rotate: s.rotate };
-  return p.get("sv") === "2" ? { ...base, bye: s.bye, fs: s.fs, anf: s.anf } : base;
+  return p.get("sv") === "2" ? { ...base, bye: s.bye, fs: s.fs, anf: s.anf, show: s.show, showUntil: s.showUntil } : base;
 }
 
 /* ---------- what the screen shows, from a snapshot flight or a SimBrief OFP ---------- */
@@ -474,7 +496,8 @@ export async function fetchOfp(username: string, signal?: AbortSignal): Promise<
     runway: o.plan_rwy || null,
     nm: numOr(g.gc_distance),
     generated: j.params?.time_generated ?? null,
-    route: navlogOf(j.navlog?.fix),
+    // json=v2 gives the navlog as the list of fixes itself; the older shape wraps it in { fix: [...] }
+    route: navlogOf(Array.isArray(j.navlog) ? j.navlog : j.navlog?.fix),
   };
 }
 

@@ -631,6 +631,20 @@ async function run() {
           ? pass("gate feed: traffic: VATSIM (gate from the stand it's on, taxiing, the filed time, a prefile; ones gone and others' left out), IVAO's own states and times, OFP Tower's sim aircraft (the sim's gate, AI states, SkyNet), one row per callsign with a network over the sim, the board's window in time order (untimed last), its airport by where the aircraft sits")
           : fail(`gate feed: traffic ${JSON.stringify({ all: all.map((r) => [r.callsign, r.src, r.side, r.status, r.gate, r.t && hm(r.t)]), deps: deps.map((r) => r.callsign) })}`);
       }
+      // 1.17.3: the traffic looks' options in tokens; a recording's FMS plan lines read for replays
+      {
+        const lk = await import(join(process.cwd(), "src/lib/board/looks.ts"));
+        const a = lk.lookFrom("conn.arr.flap.s.br");
+        const rec = core.parseRecording([JSON.stringify({ v: 2, kind: "ofp-recording", started: 1e12 }), JSON.stringify({ t: 1e12, zulu: 100, lat: 51, lon: 0, alt: 3000 }), JSON.stringify({ type: "plan", zulu: 100.5, origin: "ENGM", destination: "EKCH", legs: [{ id: "A", lat: 60, lon: 11 }, { id: "B", lat: 56, lon: 12 }] }), JSON.stringify({ t: 1e12 + 1000, zulu: 101, lat: 51.01, lon: 0, alt: 3000 })].join("\n"));
+        const ok =
+          a.v === "conn" && a.side === "arr" && a.style === "flap" && a.size === "s" && lk.lookTo(a) === "conn.s.br.arr.flap" &&
+          lk.lookFrom("fids").style === "dot" && lk.lookTo(lk.lookFrom("fids.dot")) === "fids" && lk.lookTo(lk.lookFrom("fids.air")) === "fids.air" && lk.lookFrom("fids.air").style === "brand" && lk.lookFrom("conn").style === "brand" && lk.lookFrom("fidsw").side === "dep" &&
+          lk.lookTo(lk.lookFrom("strip.arr")) === "strip" && lk.lookFrom("g7b.brr.bo").backs.join() === "route" && lk.lookTo(lk.lookFrom("g7b.brr.bo")) === "g7b.brr.bo" && lk.lookFrom("card.br").pos === "br" && lk.lookTo({ ...lk.look("g7b"), backs: ["route"] }) === "g7b.brr" && lk.overSim([lk.lookFrom("fidsw")]) && !lk.overSim([lk.lookFrom("fids")]) &&
+          rec.plans.length === 1 && rec.plans[0].plan.origin === "ENGM" && rec.plans[0].t > rec.samples[0].t && rec.plans[0].t <= rec.samples[1].t;
+        ok
+          ? pass("gate feed: traffic looks take departures/arrivals and a style in their tokens (dot matrix the board's own, the airline's the card's), the window board leaves the sim showing; a recording's FMS plan lines come with it, on its clock")
+          : fail(`gate feed: traffic tokens / recorded plans ${JSON.stringify({ a, to: lk.lookTo(a), plans: rec.plans })}`);
+      }
       // 1.17.2: the first reading already parked at the destination (OFP Tower started after the flight): over, not
       // boarding, and no times made up; parked at the origin it's still boarding; a flight seen landing gets its IN
       {
@@ -1151,14 +1165,13 @@ async function run() {
       times: { sched_out: "2026-11-10T18:15:00Z", est_out: "2026-11-10T18:15:00Z", sched_block: "01:50:00", taxi_out: "00:15:00" },
       aircraft: { icaocode: "A321", name: "A321-211", reg: "HB-IOO" },
       params: { time_generated: "2026-11-10T17:30:00Z" },
-      // the route, fix by fix (illustrative points on the line), for the route panel (G3d)
-      navlog: {
-        fix: [
-          { ident: "TOC", type: "ltlg", pos_lat: "36.0", pos_long: "-79.9" },
-          ...[0.15, 0.3, 0.45, 0.6, 0.75, 0.9].map((k, i) => ({ ident: `FIX${i + 1}`, type: "wpt", via_airway: i < 3 ? "J75" : "DCT", pos_lat: String(35.214 + (40.64 - 35.214) * k), pos_long: String(-80.943 + (-73.779 + 80.943) * k) })),
-          { ident: "KJFK", type: "apt", pos_lat: "40.640", pos_long: "-73.779" },
-        ],
-      },
+      // the route, fix by fix (illustrative points on the line), for the route panel (G3d). 1.17.3: as json=v2
+      // gives it, the list itself (the older { fix: [...] } shape still reads)
+      navlog: [
+        { ident: "TOC", type: "ltlg", pos_lat: "36.0", pos_long: "-79.9" },
+        ...[0.15, 0.3, 0.45, 0.6, 0.75, 0.9].map((k, i) => ({ ident: `FIX${i + 1}`, type: "wpt", via_airway: i < 3 ? "J75" : "DCT", pos_lat: String(35.214 + (40.64 - 35.214) * k), pos_long: String(-80.943 + (-73.779 + 80.943) * k) })),
+        { ident: "KJFK", type: "apt", pos_lat: "40.640", pos_long: "-73.779" },
+      ],
     };
     const views = ["full", "map", "route", "frame", "mapwin", "corner", "strip", "card", "pill", "line", "g6a1", "g6a2", "g6a3", "g6b", "g7a1", "g7a2", "g7a3", "g7b"];
     const open1 = async (view, { at = 20, width = 1920, height = 1080, until = "CRUIS" } = {}) => {
@@ -1380,11 +1393,11 @@ async function run() {
         const errors = [];
         page.on("pageerror", (e) => errors.push(String(e)));
         await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&view=${view}`, { waitUntil: "networkidle" });
-        await page.waitForFunction(() => /DAL2210|DAL/.test(document.querySelector(".tv-fids, .tv-conn")?.textContent ?? ""), null, { timeout: 15_000 }).catch(() => {});
+        await page.waitForFunction(() => /DAL2210|DAL/.test(document.querySelector(".tv-board, .tv-card")?.textContent ?? ""), null, { timeout: 15_000 }).catch(() => {});
         await page.waitForTimeout(600);
-        const text = ((await page.locator(".tv-fids, .tv-conn").first().innerText().catch(() => "")) || "").replace(/\s+/g, " ");
-        const rows = await page.locator(view === "fids" ? ".tv-fids-r" : ".tv-conn-r").count();
-        const me = await page.locator(".tv-fids-r.is-me").count();
+        const text = ((await page.locator(".tv-board, .tv-card").first().innerText().catch(() => "")) || "").replace(/\s+/g, " ");
+        const rows = await page.locator(view === "fids" ? ".tv-board .tv-r" : ".tv-card .tv-r").count();
+        const me = await page.locator(".tv-board .tv-r.is-me").count();
         const srcs = await page.locator(".tv-src").allInnerTexts();
         if (process.env.SHOT_DIR) await page.screenshot({ path: join(process.env.SHOT_DIR, `${shot}.png`) });
         await ctx.close();
@@ -1407,10 +1420,52 @@ async function run() {
       })();
       /DEPARTURES · CHARLOTTE/i.test(fids.text) && fids.me === 1 && fids.rows === 5 && order.every((x, i) => x >= 0 && (i === 0 || x > order[i - 1])) && !/BAW228/.test(fids.text) &&
       /TAXIING/.test(fids.text) && /BOARDING/.test(fids.text) && /SCHEDULED/.test(fids.text) && /KATL/.test(fids.text) && /LONDON/.test(fids.text) && fids.srcs.includes("VAT") && fids.srcs.includes("IVAO") && fids.srcs.includes("LIVE") && !/\bYOU\b/.test(fids.text) &&
-      /Departures · KCLT/.test(conn.text) && /HBIOO departs/.test(conn.text) && conn.rows === 4 && /KATL/.test(conn.text) && /London/.test(conn.text) &&
+      /Departures · .*KCLT/.test(conn.text) && /HBIOO departs/.test(conn.text) && conn.rows === 4 && /KATL/.test(conn.text) && /London/.test(conn.text) &&
       quiet && !fids.errors.length && !conn.errors.length
         ? pass("gate views: the departures board (G10) and connections card (G10b) at the origin: VATSIM and IVAO departures in time order with their status and source, the flight in green among them, the arrival left out; the feeds are only fetched while one of them is on screen")
         : fail(`gate views: traffic ${JSON.stringify({ fids: [fids.text.slice(0, 400), fids.rows, fids.me, fids.srcs, order], conn: [conn.text.slice(0, 300), conn.rows], quiet, errors: [...fids.errors, ...conn.errors].slice(0, 2) })}`);
+    }
+    // 1.17.3: the board with a window (arrivals), and "Show on stream" from the URL: a card over the strip, gone once over
+    {
+      const t0 = Date.now();
+      const zs = (ms) => (ms % 86400000) / 1000;
+      const open = async (q) => {
+        const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, reducedMotion: "reduce" });
+        await ctx.addInitScript(SEED);
+        await ctx.route(/simbrief\.com\/api\/xml\.fetcher\.php/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(OFP) }));
+        await ctx.route(/api\.ivao\.aero/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: "{}" }));
+        await ctx.route(/data\.vatsim\.net/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ pilots: [
+          { callsign: "BAW228", latitude: 37.5, longitude: -76.5, altitude: 12000, groundspeed: 300, flight_plan: { departure: "EGLL", arrival: "KJFK", deptime: "1000" } },
+          { callsign: "DAL400", latitude: 40.645, longitude: -73.78, altitude: 13, groundspeed: 14, flight_plan: { departure: "KATL", arrival: "KJFK" } },
+          { callsign: "AAL1907", latitude: 35.2205, longitude: -80.9445, altitude: 750, groundspeed: 0, flight_plan: { departure: "KCLT", arrival: "KMIA", deptime: new Date(t0 + 25 * 60_000).toISOString().slice(11, 16).replace(":", "") } },
+        ] }) }));
+        // cruising towards JFK: the board is JFK's
+        await ctx.routeWebSocket(/localhost:47800/, (ws) => {
+          ws.send(JSON.stringify({ type: "hello", app: "ofp-link", profile: "Fenix" }));
+          for (let i = 0; i <= 10; i++) ws.send(JSON.stringify({ type: "sample", lat: 39 + i * 0.01, lon: -75.5, alt: 30000, gs: 450, hdg: 40, vs: 0, onGround: false, engines: [true, true], zulu: zs(t0 - (10 - i) * 1000) }));
+        });
+        const page = await ctx.newPage();
+        const errors = [];
+        page.on("pageerror", (e) => errors.push(String(e)));
+        await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&feed=link&${q}`, { waitUntil: "networkidle" });
+        await page.waitForTimeout(2500);
+        const r = await page.evaluate(() => ({
+          win: !!document.querySelector(".tv-win .gv-window"),
+          winText: (document.querySelector(".tv-win")?.textContent ?? "").replace(/\s+/g, " "),
+          card: (document.querySelector(".tv-card")?.textContent ?? "").replace(/\s+/g, " "),
+          strip: !!document.querySelector(".gv-strip"),
+          clear: getComputedStyle(document.body).backgroundColor,
+        }));
+        await ctx.close();
+        return { ...r, errors };
+      };
+      const win = await open("view=fidsw.arr");
+      const shown = await open(`view=strip&show=conn.arr!${Math.round(t0 / 1000) + 600}`);
+      const over = await open(`view=strip&show=conn.arr!${Math.round(t0 / 1000) - 60}`);
+      win.win && /Arrivals · .*KJFK/.test(win.winText) && /DAL400/.test(win.winText) && /BAW228/.test(win.winText) && !/AAL1907/.test(win.winText) && win.clear === "rgba(0, 0, 0, 0)" &&
+      shown.strip && /Arrivals/.test(shown.card) && /BAW228/.test(shown.card) && over.strip && over.card === "" && ![win, shown, over].some((x) => x.errors.length)
+        ? pass("gate views: the board with a window (G10c) shows the destination's arrivals beside the game, the page clear around it; a card shown on the stream by hand sits over the strip until its time is up")
+        : fail(`gate views: window board / show ${JSON.stringify({ win, shown, over })}`);
     }
     // 1.17.1: OFP Tower's traffic and stands, the aircraft parked at the destination (a screen opened after
     // landing, no take-off seen): the board is the destination's, sim traffic with its sources and gates from the stands
@@ -1436,10 +1491,10 @@ async function run() {
       const errors = [];
       page.on("pageerror", (e) => errors.push(String(e)));
       await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&feed=link&view=fids`, { waitUntil: "networkidle" });
-      await page.waitForFunction(() => /JBU1234/.test(document.querySelector(".tv-fids")?.textContent ?? ""), null, { timeout: 15_000 }).catch(() => {});
+      await page.waitForFunction(() => /JBU1234/.test(document.querySelector(".tv-board")?.textContent ?? ""), null, { timeout: 15_000 }).catch(() => {});
       await page.waitForTimeout(500);
-      const text = ((await page.locator(".tv-fids").innerText().catch(() => "")) || "").replace(/\s+/g, " ");
-      const rows = await page.locator(".tv-fids-r").allInnerTexts();
+      const text = ((await page.locator(".tv-board").innerText().catch(() => "")) || "").replace(/\s+/g, " ");
+      const rows = await page.locator(".tv-board .tv-r").allInnerTexts();
       if (process.env.SHOT_DIR) await page.screenshot({ path: join(process.env.SHOT_DIR, "fids-tower.png") });
       await ctx.close();
       const at = (cs) => rows.findIndex((r) => r.includes(cs));
@@ -1472,9 +1527,9 @@ async function run() {
       const errors = [];
       page.on("pageerror", (e) => errors.push(String(e)));
       await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&feed=auto&view=fids`, { waitUntil: "networkidle" });
-      await page.waitForFunction(() => /SAS1424/.test(document.querySelector(".tv-fids")?.textContent ?? ""), null, { timeout: 10_000 }).catch(() => {});
+      await page.waitForFunction(() => /SAS1424/.test(document.querySelector(".tv-board")?.textContent ?? ""), null, { timeout: 10_000 }).catch(() => {});
       await page.waitForTimeout(500);
-      const text = ((await page.locator(".tv-fids").innerText().catch(() => "")) || "").replace(/\s+/g, " ");
+      const text = ((await page.locator(".tv-board").innerText().catch(() => "")) || "").replace(/\s+/g, " ");
       await ctx.close();
       /DEPARTURES · COPENHAGEN/i.test(text) && /SAS1424/.test(text) && /B3/.test(text) && /ON BLOCKS/.test(text) && !/BOARDING/.test(text) && !errors.length
         ? pass("gate views: parked at Copenhagen after an Oslo → Copenhagen flight (OFP Tower restarted, the FMS's plan from the morning, feed=auto): Copenhagen's board with OFP Tower's traffic, the flight ON BLOCKS")

@@ -226,7 +226,7 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<s
       trailAt = trailT[trailT.length - 1] ?? 0;
       put({ trail });
     };
-    if (source === "replay" && rec) return replaySource(rec, rate, { onSample: take("replay"), onStatus: said("replay"), onProbe, onMcdu, onHello }, at * 60_000, fitTo);
+    if (source === "replay" && rec) return replaySource(rec, rate, { onSample: take("replay"), onStatus: said("replay"), onPlan, onProbe, onMcdu, onHello }, at * 60_000, fitTo);
     if (source === "vatsim" && who) return vatsimSource(who, { onSample: take("vatsim"), onStatus: said("vatsim"), onPlan: onVatsimPlan });
     if (source === "link") return linkSource(port, { onSample: take("link"), onStatus: said("link"), onPlan, onSummary, onTrack, onProbe, onMcdu, onHello, onTraffic, onStands });
     if (source === "auto") {

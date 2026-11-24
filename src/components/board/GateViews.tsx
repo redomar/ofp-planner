@@ -8,14 +8,14 @@ import { MIN } from "@/lib/board/board";
 import type { GateFlight, GateState } from "@/lib/board/gate";
 import { goTarget } from "@/lib/board/countdown";
 import { ENDING_KEY, endStats, landingFeel, readEnding, routeKey, type EndingRecord } from "@/lib/board/ending";
-import { BACKS, layers, layersTo, SHOWS_VS, shownBacks, stepAt, turnsFrom, turnsOf, turnsTo, VIEW_INFO, type Layers, type Look, type LookBack, type ShownView, type Turns } from "@/lib/board/looks";
+import { BACKS, layers, layersTo, lookFrom, SHOWS_VS, shownBacks, stepAt, turnsFrom, turnsOf, turnsTo, VIEW_INFO, type Layers, type Look, type LookBack, type ShownView, type Turns } from "@/lib/board/looks";
 import { aircraftStatus, deckPage, deckRows, fmsFigures, mcduPage, mcduRuns, showEvents, type AircraftStatus, type DeckEvent, type FmsFigures, type Light, type McduPage, type ProbeValues } from "@/lib/feed/deck";
 import { bearing, distNm, fmsArrival, routeBefore, steadyTime, landingText, levelFt, phaseLabel, utcAt, wentAround, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState, type FlightSummary, vsText, VS_HIDE_MS } from "@/lib/feed/core";
 import { useOutlines } from "@/lib/outlines";
 import { useTerrain } from "@/lib/terrain";
 import { baseLayers, mapRadius } from "../RouteMap";
 import { GateScreen, localClock, PLANE, screenNow, WxPicto, type GateWx } from "./GateScreen";
-import { ConnectionsCard, DeparturesBoard } from "./TrafficViews";
+import { BoardWindow, ConnectionsCard, DeparturesBoard } from "./TrafficViews";
 import type { Stand } from "@/lib/feed/traffic";
 
 /**
@@ -546,7 +546,7 @@ function Status({ facts, small }: { facts: LiveFacts; small?: boolean }) {
   );
 }
 
-function Tile({ k, v, unit }: { k: string; v: ReactNode; unit?: string }) {
+function Tile({ k, v, unit }: { k: ReactNode; v: ReactNode; unit?: string }) {
   return (
     <div className="gv-tile">
       <small>{k}</small>
@@ -856,6 +856,7 @@ function BackSide({ back, f, facts, live, plan, ahead, td, dest, probe, mcdu }: 
     const W = 440;
     const xAt = (d: number) => 14 + (d / total) * (W - 28);
     const every = Math.max(1, Math.ceil(pts.length / 9));
+    const lastX: number[] = [];
     const planeX = 14 + facts.flown * (W - 28);
     // the top of descent is td.nm ahead; what's left of the line (1 − flown) is facts.toGo
     const tdX = td && facts.toGo ? 14 + Math.min(1, facts.flown + (1 - facts.flown) * (td.nm / facts.toGo)) * (W - 28) : null;
@@ -867,16 +868,23 @@ function BackSide({ back, f, facts, live, plan, ahead, td, dest, probe, mcdu }: 
         <svg className="gv-routeline" viewBox={`0 0 ${W} 74`} role="img" aria-label={`The route, ${Math.round(facts.flown * 100)}% flown`}>
           <line x1={14} y1={36} x2={W - 14} y2={36} className="is-ahead" />
           <line x1={14} y1={36} x2={planeX} y2={36} className="is-flown" />
-          {pts.map((x, i) => (
-            <g key={`${x.id}${i}`} className={x.passed ? "is-past" : undefined}>
-              <circle cx={xAt(along[i])} cy={36} r={i === 0 || i === pts.length - 1 ? 5 : 2.6} />
-              {(i % every === 0 || i === pts.length - 1) && (
-                <text x={xAt(along[i])} y={(i / every) % 2 ? 60 : 22} textAnchor="middle">
-                  {x.id}
-                </text>
-              )}
-            </g>
-          ))}
+          {pts.map((x, i) => {
+            // 1.17.3: a name only where it has room (labels alternate above and below; close fixes overlapped)
+            const lx = xAt(along[i]);
+            const row = Math.round(i / every) % 2;
+            const named = (i % every === 0 || i === pts.length - 1) && lx - (lastX[row] ?? -1e9) >= 58;
+            if (named) lastX[row] = lx;
+            return (
+              <g key={`${x.id}${i}`} className={x.passed ? "is-past" : undefined}>
+                <circle cx={lx} cy={36} r={i === 0 || i === pts.length - 1 ? 5 : 2.6} />
+                {named && (
+                  <text x={lx} y={row ? 60 : 22} textAnchor="middle">
+                    {x.id}
+                  </text>
+                )}
+              </g>
+            );
+          })}
           {tdX != null && <rect className="is-td" x={tdX - 4.5} y={31.5} width={9} height={9} />}
           <g transform={`translate(${planeX} 36) rotate(90) translate(-11 -11)`}>
             <svg width={22} height={22} viewBox="0 0 64 64" className="is-plane">
@@ -910,7 +918,15 @@ function BackSide({ back, f, facts, live, plan, ahead, td, dest, probe, mcdu }: 
       {top("by the numbers")}
       <div className="gv-counts">
         <Tile k={n0 ? `To ${n0.id}` : "Next fix"} v={n0 ? Math.round(n0.nm) : null} unit="nm" />
-        <Tile k="To descent · est" v={td ? Math.round(td.nm) : null} unit="nm" />
+        <Tile
+          k={
+            <>
+              To descent<span className="gv-xs-long"> · est</span>
+            </>
+          }
+          v={td ? Math.round(td.nm) : null}
+          unit="nm"
+        />
         <Tile k={`To ${f.to.iata ?? f.to.icao}`} v={facts.toGo} unit="nm" />
       </div>
       <div className="gv-counts-sub mono">
@@ -1209,8 +1225,17 @@ export interface ViewProps {
  * The gate screen in one of its views. Every view sits on the same 16:9 canvas (container units);
  * the views drawn over the sim leave everything outside their panels transparent.
  */
+/** The look put on the stream by hand ("Show on stream"), while it lasts. */
+export function shownNow(g: Pick<GateState, "show" | "showUntil">, now: number): Look | null {
+  if (!g.show || (g.showUntil != null && now >= g.showUntil)) return null;
+  return lookFrom(g.show);
+}
+
 export function GateViewScreen(p: ViewProps & { back?: number | null; step?: { ls: Layers; key: string; from: number } | null }) {
-  const ls = p.step?.ls ?? shownLooks(p.state, p.live, p.scene ?? null, p.plan ?? null);
+  const base = p.step?.ls ?? shownLooks(p.state, p.live, p.scene ?? null, p.plan ?? null);
+  // 1.17.3: a look put on the stream by hand: over the stage's looks (a card, a strip), or instead of them (a screen)
+  const sh = shownNow(p.state, p.now);
+  const ls: Layers = sh ? (VIEW_INFO[sh.v].kind === "screen" ? [sh] : [...base, sh]) : base;
   const from = p.step?.from ?? null;
   // 1.14: a rotation's step fades in over the one before
   const inner =
@@ -1249,8 +1274,8 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null; stepFrom?
     return <GateScreen flight={p.flight} state={p.state} now={p.now} wx={p.wx} live={null} plan={p.plan ?? null} belt={false} countdown={at} />;
   }
   if (view === "ending") return <EndingView {...p} />;
-  if (view === "fids" || view === "conn") {
-    const T = view === "fids" ? DeparturesBoard : ConnectionsCard;
+  if (view === "fids" || view === "conn" || view === "fidsw") {
+    const T = view === "fids" ? DeparturesBoard : view === "conn" ? ConnectionsCard : BoardWindow;
     return <T f={p.flight} live={p.live} now={p.now} arrives={liveFacts(p.flight, p.state, p.live, p.now, p.plan ?? null).arrives} look={lk} towerTraffic={p.towerTraffic} stands={p.stands} preview={p.preview} />;
   }
   const at = { "data-size": lk.size, "data-pos": lk.pos } as Record<string, string>;
@@ -1353,7 +1378,8 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null; stepFrom?
           )}
           <div className="gv-card-facts mono">
             <span>{facts.alt ?? "—"}</span>
-            <span>{facts.gs != null ? `${facts.gs} kt` : "—"}</span>
+            {/* 1.17.3: parked, "0 kt" says nothing and the landing's line needs the room */}
+            {!(facts.gs === 0 && p.live?.stage === "arrived") && <span>{facts.gs != null ? `${facts.gs} kt` : "—"}</span>}
             <span>{v2 === "g7a3" && sm && (sm.hdgMag ?? sm.hdg) != null && inAir ? `HDG ${deg((sm.hdgMag ?? sm.hdg)!)}` : (togo7 ?? "")}</span>
           </div>
         </div>
@@ -1429,6 +1455,12 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null; stepFrom?
             {dest}
           </div>
           {view === "map" && <div className="gv-sub">from {sameCity ? f.from.name.replace(/ Airport$/, "") : (cityName(f.from) ?? f.from.name)}{f.typeName ? ` · ${f.typeName}` : ""}</div>}
+          {/* 1.17.3: the progress line in the rail's free middle (it was empty) */}
+          {view === "map" && (
+            <div className="gv-map-prog">
+              <Progress f={f} facts={facts} />
+            </div>
+          )}
           {view === "mapwin" && <div className="gv-window" aria-hidden="true" />}
           <div className="gv-tiles">
             <Tile k="Altitude" v={facts.alt} />
@@ -1616,7 +1648,8 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null; stepFrom?
           <Progress f={f} facts={facts} showToGo={false} />
           <div className="gv-card-facts mono">
             <span>{facts.alt ?? "—"}</span>
-            <span>{facts.gs != null ? `${facts.gs} kt` : "—"}</span>
+            {/* 1.17.3: parked, "0 kt" says nothing and the landing's line needs the room */}
+            {!(facts.gs === 0 && p.live?.stage === "arrived") && <span>{facts.gs != null ? `${facts.gs} kt` : "—"}</span>}
             <span>{facts.minLeft != null ? <>{mins(facts.minLeft)}<span className="gv-xs-long"> to go</span></> : (togo ?? "")}</span>
           </div>
         </div>
