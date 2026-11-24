@@ -221,6 +221,7 @@ def main():
     ap.add_argument("--serve", action="store_true", help="also stream readings to OFP Planner (OFP Tower live link)")
     ap.add_argument("--port", type=int, default=47800, help="OFP Link port (default 47800)")
     ap.add_argument("--no-probe", action="store_true", help="don't write probe/mcdu lines")
+    ap.add_argument("--no-traffic", action="store_true", help="don't send traffic/stands for the departures board")
     args = ap.parse_args()
 
     sm = connect(args.dll)
@@ -252,6 +253,7 @@ def main():
     print(f"Aircraft: {title} | profile: {profile['name'] if profile else 'none'}", file=sys.stderr)
 
     link = None
+    traffic_ctx = {"onGround": None, "tookOff": False}   # read by the traffic thread (chosen airport)
     import queue
     plan_q = queue.Queue(maxsize=100)   # changed MCDU plans, written into the recording as "plan" lines
     if args.serve:
@@ -262,6 +264,9 @@ def main():
         link.start()
         if profile and profile.get("name") == "Fenix":
             start_fenix_plan_thread(link, plan_q=plan_q)
+        if not args.no_traffic:
+            from traffic import start_traffic_thread   # departures board: aircraft + stands around the airport
+            start_traffic_thread(link, traffic_ctx, user_ids=[atc_id])
     # Automatic read-only probe for "Aircraft status" / "Flight deck" (see probe.py)
     from probe import ProbeLog, PROBE_EVERY_S, start_mcdu_thread, probe_vars_for
     probe_log = None if args.no_probe else ProbeLog()
@@ -319,6 +324,10 @@ def main():
                 on_ground = flag(d[BASE["onGround"]])
                 vs = d[BASE["vs"]]
                 note_ground(on_ground, vs, d[BASE["gearAgl"]], d[BASE["g"]])
+                traffic_ctx["onGround"] = on_ground
+                traffic_ctx["lat"], traffic_ctx["lon"] = d[BASE["lat"]], d[BASE["lon"]]
+                if on_ground is False:
+                    traffic_ctx["tookOff"] = True        # board switches from origin to destination
 
                 tds_list = state["pendingTd"]
                 state["pendingTd"] = []

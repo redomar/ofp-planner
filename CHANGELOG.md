@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.17.1 — 2026-11-24
+
+- **Sim traffic on the departures board.** OFP Tower now sends the aircraft around the airport and its stands:
+  - SayIntentions' traffic (SI), MSFS's own (AI), and SkyNet simmers from SayIntentions' tracker (SKY);
+  - gate numbers, from the stand each aircraft on the ground sits on.
+- **The board picks the airport by where the aircraft is.** On the ground at either end of the flight, that airport. It used to show the origin when OFP Tower restarted at the gate after landing.
+- **Flights with a time come first**, in time order. Sim traffic has no schedule, so it fills the rows left over, moving aircraft first.
+- **The stream's flight, parked at the destination with no landing seen,** no longer shows a planned arrival time.
+
 ## 1.17.0 — 2026-11-24
 
 - **Departures board (G10)**, a new full-screen look in Stream → Traffic: the airport's dot-matrix board with the next departures. Each row has the airline's colour chip, time, destination, flight, gate, status, and where the flight is from: VATSIM, IVAO, MSFS AI, SayIntentions or a SkyNet simmer. The stream's own flight is in green, marked LIVE. It shows the origin until take-off, then the destination: the connections after landing.

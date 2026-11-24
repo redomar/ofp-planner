@@ -54,3 +54,10 @@ From the PC session's research brief, 2026-11-24 (live checks on the PC plus the
   - a scheduled time: AI ETD/ETA, VATSIM deptime, IVAO departureTime;
   - from/to for sim objects: only scheduled AI, or a callsign matched in a feed.
   - Designs need a "—" for these.
+
+## SAPI checked live (24 Nov 2026, at the gate at EKCH, SayIntentions running)
+
+- **`getAirport`**: `{}` (empty), with the game running at the gate. Probably needs SI's flight plan to be active; check again in flight.
+- **`getVATSIM`**: a GeoJSON `FeatureCollection` of VATSIM **controllers only**: 29 features (20 airport, 5 centre, 4 approach). Each has a polygon and `properties`: `callsign`, `position` (GND/TWR/APP/CTR), `airspace_type`, `rating`, `server`, `frequency_count`, `start_time_epoch`, `controller_id`, `id`. No pilots, so no traffic.
+- **`getParking`**: the own flight's assigned stand only: `parking.name` "D2", `type` "Gate", `terminal`, `friendlyId`, `pronouncedName` "Terminal 3 Gate D2", `sizeCategory`, `hasJetway`, `heading`, `latLngData` {lat, lng}, `allowedAirlines` (["NOZ", "SAS", …]), `id`. Useful for the LIVE row's gate; nothing for other flights.
+- So far SAPI gives nothing about other traffic or departures.

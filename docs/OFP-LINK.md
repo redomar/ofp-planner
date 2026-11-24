@@ -152,19 +152,26 @@ The board's "Aircraft status" and "Flight deck" sides, the Cockpit strip and the
 
 ## Traffic and stands (1.17)
 
-For the departures board (G10) and the connections card (G10b). The page reads VATSIM and IVAO itself. OFP Tower adds what only the sim (and the PC) can see. Research: `docs/design/fids/SOURCES.md`. Read by `fromTower` and `standsFrom` (`src/lib/feed/traffic.ts`). **Not sent by OFP Tower yet.**
+For the departures board (G10) and the connections card (G10b). The page reads VATSIM and IVAO itself. OFP Tower adds what only the sim (and the PC) can see. Research: `docs/design/fids/SOURCES.md`. Read by `fromTower` and `standsFrom` (`src/lib/feed/traffic.ts`). Sent by OFP Tower from 1.17.1 (`tower/traffic.py`; `--no-traffic` turns it off).
 
-- **`{"type":"traffic","airport":"LEMD","aircraft":[…]}`**: the aircraft around the airport (about 100 nm), every 10–15 s, the whole list each time. Each entry, every field optional except `callsign`:
-  - `callsign`: "IBE3166" (ATC AIRLINE + FLIGHT NUMBER as a code, else ATC ID; for SayIntentions tracker pilots, `flight_icao`);
-  - `from`, `to`: ICAO (AI TRAFFIC FROMAIRPORT / TOAIRPORT, or the tracker's origin / destination);
-  - `etd`, `eta`: UTC epoch seconds (AI TRAFFIC ETD / ETA turned into real time);
-  - `parking`: AI TRAFFIC ASSIGNED PARKING as the sim gives it ("Gate J 46, RAMP lrg (18m)"; the page reads "J46");
-  - `state`: AI TRAFFIC STATE ("sleep", "push back 1", "taxi out", "landing", …);
-  - `lat`, `lon`, `alt` (ft), `gs` (kt), `onGround` (bool), `type` (ICAO type);
-  - `src`: "AI" (MSFS traffic; the default), "SI" (SayIntentions traffic, e.g. an object id seen in `L:SIAI_*_REF`, or an SI user from the tracker who isn't SkyNet), "SKY" (a SkyNet simmer: `skynet_enabled` 1 on the tracker).
-  - Never personal fields: no names, user ids, e-mail, API keys (SI's `flightJSON` and the tracker carry them).
-- **`{"type":"stands","airport":"LEMD","stands":[{"name":"J46","lat":…,"lon":…,"radius":18}, …]}`**: the airport's parking places from the scenery (Facilities API `TAXI_PARKING`; `radius` in metres). Sent once per airport, and again on connect. The page puts an aircraft on the ground at the stand it sits on (VATSIM and IVAO have no gates).
+- **`{"type":"traffic","airport":"LEMD","aircraft":[…]}`**: the aircraft around the chosen airport (about 100 nm), every 10–15 s, the whole list each time.
+  - Leave out the user's own aircraft, and any aircraft without a callsign (parked statics have an empty ATC ID).
+  - Each entry: every field optional except `callsign`.
+  - `callsign`: "SAS126": the sim's ATC ID, or the tracker's `flight_icao` for SayIntentions tracker pilots.
+  - `from`, `to`: ICAO. The tracker gives `origin` / `final_destination`. MSFS's AI TRAFFIC FROMAIRPORT / TOAIRPORT are empty for SI and MSFS traffic (checked 24 Nov), so usually omitted for sim objects.
+  - `etd`, `eta`: UTC epoch seconds, when known (the AI TRAFFIC ETD / ETA turned into real time; empty in practice).
+  - `parking`: AI TRAFFIC ASSIGNED PARKING as the sim gives it ("Gate J 46, RAMP lrg (18m)"; the page reads "J46"). Empty in practice except the user's own; the page snaps to `stands` instead.
+  - `state`: AI TRAFFIC STATE ("sleep", "push back 1", "taxi out", "landing", …). Send it only when it's one of these; "STATE_WAIT_INIT_CONFIRM" says nothing, so leave it out. Without it, the page works the status out from `onGround`, `gs` and position.
+  - `lat`, `lon`; `alt` in ft above sea level (for tracker pilots their `altitude` reads negative on the ground, so send `onGround` from `altitude_agl` instead); `gs` (kt).
+  - `onGround` (bool): needed for the status and the stand. Without `from`/`to`, an aircraft on the ground counts as a departure to come, and one in the air isn't shown.
+  - `type` (ICAO type, when it looks like one: not "ATCCOM" or "$$:E17").
+  - `src`: "AI" (MSFS traffic, e.g. "Asobo PassiveAircraft"; the default), "SI" (SayIntentions traffic: TITLE starting "FSLTL", or an object id seen in `L:SIAI_*_REF`; or a tracker pilot with `skynet_enabled` 0), "SKY" (a tracker pilot with `skynet_enabled` 1).
+  - A callsign that's also on VATSIM or IVAO is matched by the page (the network wins), so send it as it is.
+  - Never personal fields: no names, user ids, e-mail, API keys (SI's `flightJSON` and the tracker carry them: drop `displayname`, `userId`, `encoded_skynet_group_code`, `si_app_version`, `mission_*`, `crisis_*`). Leave the user's own flight out of the tracker rows too (by tail number or callsign).
+- **`{"type":"stands","airport":"LEMD","stands":[{"name":"J46","lat":…,"lon":…,"radius":18}, …]}`**: the airport's parking places from the scenery (Facilities API `TAXI_PARKING`, `radius` in metres; skip VEHICLE spots). Sent once per airport, and again on connect. The page puts an aircraft on the ground at the stand it sits on (within its radius plus 15 m), since the sim, VATSIM and IVAO give no gates.
+- "The chosen airport": the flight's origin until take-off, then its destination, the same as the board.
 - On the board, a network's row wins over the same callsign in the sim, keeping the sim's gate when the network has none. A hello drops both messages; OFP Tower resends them.
+- Fetching from the PC (the tracker, every 60 s or slower): send a browser-like User-Agent. IVAO answers 403 to Python's default, and VATSIM to an unusual custom one.
 
 ## Aircraft profiles
 

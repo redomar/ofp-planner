@@ -155,6 +155,8 @@ class LinkServer:
         # values that change, so clearing them would leave a fresh board blank until each switch moves.
         self._probe = {}
         self._mcdu = {}                # unit -> message text
+        self._stands_msg = None        # chosen airport's parking places (traffic.py)
+        self._traffic_msg = None       # last aircraft list around it
         try:   # the last Stream-panel settings survive a restart
             with open(self._settings_file, encoding="utf-8") as f:
                 txt = f.read()
@@ -197,7 +199,8 @@ class LinkServer:
             summary_msg = self._summary.message()
             probe_msg = json.dumps({"type": "probe", "v": self._probe, "full": True}) if self._probe else None
             mcdu_msgs = [self._mcdu[u] for u in sorted(self._mcdu)]
-            for extra in (self._plan_msg, track_msg, summary_msg, probe_msg, *mcdu_msgs, self._settings_msg):
+            for extra in (self._plan_msg, track_msg, summary_msg, probe_msg, *mcdu_msgs, self._settings_msg,
+                          self._stands_msg, self._traffic_msg):
                 if extra:
                     try:
                         ws.send(extra)
@@ -261,6 +264,21 @@ class LinkServer:
             self._enqueue(msg)
             self._send_summary()
         return True
+
+    def set_stands(self, msg):
+        """Parking places of the chosen airport ({"type":"stands",...}); resent to every client that connects."""
+        txt = json.dumps(msg)
+        with self._track_lock:
+            if txt != self._stands_msg:
+                self._stands_msg = txt
+                self._enqueue(txt)
+
+    def set_traffic(self, msg):
+        """Aircraft around the chosen airport ({"type":"traffic",...}), the whole list each time."""
+        txt = json.dumps(msg)
+        with self._track_lock:
+            self._traffic_msg = txt
+            self._enqueue(txt)
 
     def publish(self, rec):
         with self._track_lock:
