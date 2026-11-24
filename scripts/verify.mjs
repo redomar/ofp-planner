@@ -619,11 +619,16 @@ async function run() {
           by.AEA6001?.src === "AI" && by.AEA6001.gate === "J41" && !by.AEA6001.snapped && by.AEA6001.status === "AT GATE" &&
           by.VLG7721?.src === "SKY" && by.VLG7721.status === "PUSHBACK" && by.SWR2014?.status === "APPROACH" &&
           tr.parkingName("Gate G 4, RAMP lrg (18m)") === "G4" && tr.parkingName("Parking 12") === "12" && tr.parkingName("RAMP GA small") === null &&
-          deps.every((r) => r.side === "dep") && deps[0].callsign === "TAP1015" && deps.map((r) => r.callsign).join() === "TAP1015,KLM1700,IBE3166,UAE142,AEA6001,VLG7721".split(",").sort((a, b) => (by[a].t ?? now) - (by[b].t ?? now) || a.localeCompare(b)).join() &&
+          deps.every((r) => r.side === "dep") && deps[0].callsign === "TAP1015" && deps.map((r) => r.callsign).join() === "TAP1015,KLM1700,IBE3166,UAE142,AEA6001,VLG7721" &&
+          // the board's airport: on the ground near either end, that one; otherwise the origin until take-off
+          tr.atOriginOf({ lat: 60.19, lon: 11.1 }, { lat: 55.618, lon: 12.656 }, { lat: 55.629, lon: 12.648, gs: 0, onGround: true }, "ready") === false &&
+          tr.atOriginOf({ lat: 60.19, lon: 11.1 }, { lat: 55.618, lon: 12.656 }, { lat: 60.2, lon: 11.09, gs: 0, onGround: true }, "arrived") === true &&
+          tr.atOriginOf({ lat: 60.19, lon: 11.1 }, { lat: 55.618, lon: 12.656 }, { lat: 58, lon: 12, gs: 450, onGround: false }, "flying") === false &&
+          tr.atOriginOf({ lat: 60.19, lon: 11.1 }, { lat: 55.618, lon: 12.656 }, null, null) === true &&
           tr.airlineOf("EZY7340", [{ icao: "EZY", operators: ["EZY", "EJU"] }])?.icao === "EZY" && tr.airlineOf("EJU12", [{ icao: "EZY", operators: ["EZY", "EJU"] }])?.icao === "EZY" && tr.airlineOf("GABCD", [{ icao: "GAB" }]) === null &&
           tr.fromTower({ airport: "EGLL", aircraft: [{ callsign: "X1", from: "LEMD" }] }, ap, now).length === 0;
         ok
-          ? pass("gate feed: traffic: VATSIM (gate from the stand it's on, taxiing, the filed time, a prefile; ones gone and others' left out), IVAO's own states and times, OFP Tower's sim aircraft (the sim's gate, AI states, SkyNet), one row per callsign with a network over the sim, the board's window in time order")
+          ? pass("gate feed: traffic: VATSIM (gate from the stand it's on, taxiing, the filed time, a prefile; ones gone and others' left out), IVAO's own states and times, OFP Tower's sim aircraft (the sim's gate, AI states, SkyNet), one row per callsign with a network over the sim, the board's window in time order (untimed last), its airport by where the aircraft sits")
           : fail(`gate feed: traffic ${JSON.stringify({ all: all.map((r) => [r.callsign, r.src, r.side, r.status, r.gate, r.t && hm(r.t)]), deps: deps.map((r) => r.callsign) })}`);
       }
       // 1.16.6: EZY889 LXGB → GCTS, 22 Nov: DIR TO TNR made the FROM leg "IN-BND" (kind Inbound) 500 nm back
@@ -1395,6 +1400,44 @@ async function run() {
       quiet && !fids.errors.length && !conn.errors.length
         ? pass("gate views: the departures board (G10) and connections card (G10b) at the origin: VATSIM and IVAO departures in time order with their status and source, the flight in green among them, the arrival left out; the feeds are only fetched while one of them is on screen")
         : fail(`gate views: traffic ${JSON.stringify({ fids: [fids.text.slice(0, 400), fids.rows, fids.me, fids.srcs, order], conn: [conn.text.slice(0, 300), conn.rows], quiet, errors: [...fids.errors, ...conn.errors].slice(0, 2) })}`);
+    }
+    // 1.17.1: OFP Tower's traffic and stands, the aircraft parked at the destination (a screen opened after
+    // landing, no take-off seen): the board is the destination's, sim traffic with its sources and gates from the stands
+    {
+      const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, reducedMotion: "reduce" });
+      await ctx.addInitScript(SEED);
+      await ctx.route(/simbrief\.com\/api\/xml\.fetcher\.php/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(OFP) }));
+      await ctx.route(/data\.vatsim\.net|api\.ivao\.aero/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: "{}" }));
+      const zs = (ms) => (ms % 86400000) / 1000;
+      const t0 = Date.now();
+      await ctx.routeWebSocket(/localhost:47800/, (ws) => {
+        ws.send(JSON.stringify({ type: "hello", app: "ofp-link", profile: "Fenix" }));
+        for (let i = 0; i <= 4; i++) ws.send(JSON.stringify({ type: "sample", lat: 40.6413, lon: -73.7781, alt: 13, gs: 0, hdg: 40, vs: 0, onGround: true, engines: [false, false], seatbelts: false, zulu: zs(t0 - (4 - i) * 1000) }));
+        ws.send(JSON.stringify({ type: "stands", airport: "KJFK", stands: [{ name: "B23", lat: 40.6440, lon: -73.7830, radius: 23 }, { name: "B25", lat: 40.6445, lon: -73.7835, radius: 23 }] }));
+        ws.send(JSON.stringify({ type: "traffic", airport: "KJFK", aircraft: [
+          { callsign: "JBU1234", src: "SI", lat: 40.6440, lon: -73.7830, alt: 13, gs: 0, onGround: true, type: "A320" },
+          { callsign: "DAL400", src: "SI", lat: 40.6450, lon: -73.7800, alt: 13, gs: 12, onGround: true },
+          { callsign: "BAW178", src: "SKY", lat: 40.6445, lon: -73.7835, alt: 13, gs: 0, onGround: true, from: "KJFK", to: "EGLL", etd: Math.round((t0 + 30 * 60_000) / 1000) },
+          { callsign: "AAL100", src: "AI", lat: 40.9, lon: -73.0, alt: 9000, gs: 250, onGround: false, from: "EGLL", to: "KJFK" },
+        ] }));
+      });
+      const page = await ctx.newPage();
+      const errors = [];
+      page.on("pageerror", (e) => errors.push(String(e)));
+      await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&feed=link&view=fids`, { waitUntil: "networkidle" });
+      await page.waitForFunction(() => /JBU1234/.test(document.querySelector(".tv-fids")?.textContent ?? ""), null, { timeout: 15_000 }).catch(() => {});
+      await page.waitForTimeout(500);
+      const text = ((await page.locator(".tv-fids").innerText().catch(() => "")) || "").replace(/\s+/g, " ");
+      const rows = await page.locator(".tv-fids-r").allInnerTexts();
+      if (process.env.SHOT_DIR) await page.screenshot({ path: join(process.env.SHOT_DIR, "fids-tower.png") });
+      await ctx.close();
+      const at = (cs) => rows.findIndex((r) => r.includes(cs));
+      const row = (cs) => (rows[at(cs)] ?? "").replace(/\s+/g, " ");
+      /DEPARTURES · JOHN F KENNEDY/i.test(text) && /BAW178/.test(row("BAW178")) && /B25/.test(row("BAW178")) && /SKY/.test(row("BAW178")) && /LONDON/.test(row("BAW178")) &&
+      /B23/.test(row("JBU1234")) && /AT GATE/.test(row("JBU1234")) && /SI/.test(row("JBU1234")) && /TAXIING/.test(row("DAL400")) &&
+      at("BAW178") >= 0 && at("BAW178") < at("DAL400") && at("DAL400") < at("JBU1234") && at("AAL100") < 0 && /ON BLOCKS/.test(row("HBIOO")) && /--:--/.test(row("HBIOO")) && !errors.length
+        ? pass("gate views: OFP Tower's traffic at the destination where the aircraft is parked (no take-off seen): the board is JFK's, SkyNet and SI aircraft with gates from the stands they sit on, a timed departure before the untimed, moving before parked, an arrival left out, the flight ON BLOCKS")
+        : fail(`gate views: tower traffic ${JSON.stringify({ text: text.slice(0, 160), rows, errors: errors.slice(0, 2) })}`);
     }
     // 1.13.3: the vertical speed on the strip and the pills, from a stand-in OFP Tower climbing at ~2,400 fpm
     {

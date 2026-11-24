@@ -14,7 +14,7 @@ import { textOn } from "@/lib/colors";
 import type { GateFlight } from "@/lib/board/gate";
 import type { Look } from "@/lib/board/looks";
 import type { FlightState } from "@/lib/feed/core";
-import { airlineOf, boardRows, fromIvao, fromTower, fromVatsim, mergeTraffic, type Stand, type TrafficRow, type TrafficSource, type TrafficStatus } from "@/lib/feed/traffic";
+import { airlineOf, atOriginOf, boardRows, fromIvao, fromTower, fromVatsim, mergeTraffic, type Stand, type TrafficRow, type TrafficSource, type TrafficStatus } from "@/lib/feed/traffic";
 import { useNetworkTraffic } from "@/lib/feed/useTraffic";
 import { localClock } from "./GateScreen";
 
@@ -49,19 +49,25 @@ export interface TrafficViewProps {
 type Row = TrafficRow & { me?: boolean };
 
 /** The flight is still at its origin (no feed, or not yet airborne). */
-const atOrigin = (live: FlightState | null) => !live || live.stage === "ready" || live.stage === "taxi";
+/** At the origin: see `atOriginOf` (traffic.ts). */
+const atOrigin = (f: Pick<GateFlight, "from" | "to">, live: FlightState | null) => atOriginOf(f.from, f.to, live?.last ?? null, live?.stage ?? null);
 
 function ownRow(f: GateFlight, live: FlightState | null, origin: boolean, arrives: number | null): Row {
   const ph = live?.phase;
   let status: TrafficStatus;
   if (origin) status = ph === "pushback" ? "PUSHBACK" : ph === "taxi" ? "TAXIING" : ph === "takeoff" ? "DEPARTED" : "BOARDING";
-  else status = ph === "gate" || live?.stage === "arrived" ? "ON BLOCKS" : ph === "landed" || ph === "taxiIn" ? "LANDED" : ph === "approach" || ph === "descent" ? "APPROACH" : "EN ROUTE";
+  else {
+    // on the ground at the destination (landed, or a screen opened there afterwards)
+    const parked = live?.last?.onGround === true && (live.last.gs ?? 0) < 1;
+    status = ph === "landed" || ph === "taxiIn" ? "LANDED" : ph === "gate" || live?.stage === "arrived" || parked ? "ON BLOCKS" : ph === "approach" || ph === "descent" ? "APPROACH" : "EN ROUTE";
+  }
   return {
     callsign: (f.callsign ?? f.flightNo).replace(/\s+/g, "").toUpperCase(),
     src: "AI",
     side: origin ? "dep" : "arr",
     other: origin ? f.to.icao : f.from.icao,
-    t: origin ? f.stdMs : live?.stamps.on ?? arrives,
+    // at the destination: the landing time, else the estimate (none once parked without a landing seen)
+    t: origin ? f.stdMs : (live?.stamps.on ?? (status === "ON BLOCKS" ? null : arrives)),
     gate: null,
     snapped: false,
     status,
@@ -102,7 +108,7 @@ function sampleRows(apIcao: string, base: number): TrafficRow[] {
 
 /** The rows for a traffic view, and where they're from. */
 function useBoard(p: TrafficViewProps, max: number) {
-  const origin = atOrigin(p.live);
+  const origin = atOrigin(p.f, p.live);
   const ap = origin ? p.f.from : p.f.to;
   const net = useNetworkTraffic(!p.preview);
   const me = ownRow(p.f, p.live, origin, p.arrives);

@@ -360,18 +360,40 @@ export function mergeTraffic(...lists: TrafficRow[][]): TrafficRow[] {
   return [...by.values()];
 }
 
+const MOVING = (s: TrafficStatus) => (s === "TAXIING" || s === "PUSHBACK" ? 0 : s === "BOARDING" ? 1 : 2);
+
 /**
  * The rows a board shows: one side, from `from` to `to` (rows without a time are put at `now`),
- * gone ones (departed long ago) left out, in time order, at most `max`.
+ * gone ones (departed long ago) left out, in time order and the ones without a time last, at most `max`.
  */
 export function boardRows(rows: TrafficRow[], side: "dep" | "arr", from: number, to: number, now: number, max: number, skip: (cs: string) => boolean = () => false): TrafficRow[] {
   return rows
     .filter((r) => r.side === side && !skip(r.callsign))
     .map((r) => ({ r, at: r.t ?? now }))
     .filter(({ r, at }) => at <= to && (at >= from || ["AT GATE", "BOARDING", "PUSHBACK", "TAXIING"].includes(r.status)))
-    .sort((a, b) => a.at - b.at || a.r.callsign.localeCompare(b.r.callsign))
+    // flights with a time in time order; then those without (SI's parked traffic), moving ones first
+    .sort((a, b) => (a.r.t == null ? 1 : 0) - (b.r.t == null ? 1 : 0) || (a.r.t == null ? MOVING(a.r.status) - MOVING(b.r.status) : a.at - b.at) || a.r.callsign.localeCompare(b.r.callsign))
     .slice(0, max)
     .map(({ r }) => r);
+}
+
+/**
+ * The flight is at its origin (else its destination), for the board's airport: on the ground within
+ * 5 nm of one of its airports, that one (a screen opened at the gate after landing, before any
+ * take-off was seen); otherwise the origin until take-off. OFP Tower picks its traffic's airport the same way.
+ */
+export function atOriginOf(
+  from: { lat: number; lon: number },
+  to: { lat: number; lon: number },
+  last: { lat: number; lon: number; gs: number | null; onGround: boolean | null } | null,
+  stage: string | null,
+): boolean {
+  const ground = !!last && (last.onGround ?? (last.gs != null && last.gs < 40));
+  if (last && ground) {
+    if (distNm(last, to) < 5) return false;
+    if (distNm(last, from) < 5) return true;
+  }
+  return stage == null || stage === "ready" || stage === "taxi";
 }
 
 /** The airline for a callsign: its three-letter prefix, as the brand or one of its operators. */
