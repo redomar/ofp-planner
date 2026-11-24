@@ -242,6 +242,8 @@ Not read: `AUTOPILOT MASTER`, `AUTOTHROTTLE ACTIVE`, `SPOILERS ARMED` (never mov
 
 ## Recording
 
+From 1.17.3 a replay also plays the recording's `plan` lines (the FMS plan as it changed), so rehearsals show the next fixes and the plan side. It doesn't when the recording is laid along another flight's route.
+
 Every flight is written to `%USERPROFILE%\Documents\OFP Tower\recordings\<UTC yyyymmdd-hhmmss>.jsonl`. It starts when SimConnect connects, or when the aircraft changes, and ends when the sim closes or the aircraft has been at the gate with the engines off for 10 minutes.
 
 - **Line 1, the header:**

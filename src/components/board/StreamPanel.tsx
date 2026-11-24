@@ -193,3 +193,84 @@ export function LogArrival({ entry }: { entry: LogFlight }) {
     </section>
   );
 }
+
+/* ---------- 1.17.3: show a traffic look on the stream by hand ---------- */
+
+const SHOW_FOR: [number | null, string][] = [
+  [2, "2 min"],
+  [5, "5 min"],
+  [10, "10 min"],
+  [null, "Until hidden"],
+];
+const SHOW_LOOKS: [string, string][] = [
+  ["conn", "Departures card"],
+  ["conn.arr", "Arrivals card"],
+  ["fidsw", "Board with window"],
+  ["fids", "Departures board"],
+];
+
+/**
+ * "Show on stream": the departures or arrivals for a while, at the moment you choose (starting the
+ * approach, about to leave the gate). Over a card or strip the stage shows, or instead of a screen;
+ * relayed to OBS with the other settings. The style is the look's own (Airline, Dot matrix, Split-flap).
+ */
+export function ShowNow({ gate, now, onShow }: { gate: GateState; now: number; onShow: (show: string | null, until: number | null) => void }) {
+  const [mins, setMins] = useState<number | null>(5);
+  const [style, setStyle] = useState<"" | "dot" | "flap" | "brand">("");
+  const on = gate.show && (gate.showUntil == null || now < gate.showUntil) ? gate.show : null;
+  const left = on && gate.showUntil != null ? Math.max(0, Math.round((gate.showUntil - now) / 1000)) : null;
+  const tok = (base: string) => {
+    if (!style) return base;
+    // the look's own default style needs no token: "fids" is dot matrix, the others the airline's
+    const def = base.startsWith("fids") && !base.startsWith("fidsw") ? "dot" : "brand";
+    return style === def ? base : `${base}.${style === "brand" ? "air" : style}`;
+  };
+  return (
+    <section className="sn" aria-label="Show on stream">
+      <div className="sn-head">
+        <b>Show on stream</b>
+        {on ? (
+          <span className="sn-on">
+            {SHOW_LOOKS.find(([k]) => on.replace(/\.(dot|flap|air)$/, "") === k)?.[1] ?? on}
+            {left != null ? ` · ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")} left` : " · until hidden"}
+            <button type="button" className="linkish" onClick={() => onShow(null, null)}>
+              Hide
+            </button>
+          </span>
+        ) : (
+          <span className="muted small">Departures or arrivals now, at your moment: starting the approach, leaving the gate.</span>
+        )}
+      </div>
+      <div className="sn-row">
+        {SHOW_LOOKS.map(([k, name]) => (
+          <button key={k} type="button" className="btn" aria-pressed={on != null && on.replace(/\.(dot|flap|air)$/, "") === k} onClick={() => onShow(tok(k), mins != null ? Date.now() + mins * 60_000 : null)}>
+            {name}
+          </button>
+        ))}
+      </div>
+      <div className="sn-row">
+        <div className="seg" role="radiogroup" aria-label="For how long">
+          {SHOW_FOR.map(([m, name]) => (
+            <button key={name} type="button" role="radio" aria-checked={mins === m} className="seg-btn" onClick={() => setMins(m)}>
+              {name}
+            </button>
+          ))}
+        </div>
+        <div className="seg" role="radiogroup" aria-label="Style">
+          {(
+            [
+              ["", "Look's own"],
+              ["brand", "Airline"],
+              ["dot", "Dot matrix"],
+              ["flap", "Split-flap"],
+            ] as const
+          ).map(([k, name]) => (
+            <button key={k || "own"} type="button" role="radio" aria-checked={style === k} className="seg-btn" onClick={() => setStyle(k)}>
+              {name}
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}

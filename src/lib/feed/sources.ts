@@ -59,9 +59,15 @@ export function replaySource(path: string, rate: number, h: SourceHandlers, hold
       // the cockpit and the MCDU pages up to each reading go with it (a fitted recording keeps its times)
       let pi = 0;
       let mi = 0;
+      let li = 0;
       const upTo = (t: number) => {
         for (; pi < rec.probes.length && rec.probes[pi].t <= t; pi++) h.onProbe?.(rec.probes[pi].v, false, rec.probes[pi].quiet);
         for (; mi < rec.mcdu.length && rec.mcdu[mi].t <= t; mi++) h.onMcdu?.(rec.mcdu[mi].unit, rec.mcdu[mi].rows, rec.mcdu[mi].t);
+        // 1.17.3: the FMS plan as it was then (only the latest of a run of them matters)
+        let plan: FlightPlan | null = null;
+        for (; li < rec.plans.length && rec.plans[li].t <= t; li++) plan = rec.plans[li].plan;
+        // (not for a recording laid along another flight's route: its plan is for the route it flew)
+        if (plan && samples === parsed) h.onPlan?.(plan);
       };
       // readings before the starting point still go through, at once, so the stamps are right
       for (let k = 0; k < i; k++) {

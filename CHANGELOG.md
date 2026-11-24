@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.17.3 — 2026-11-24
+
+Fixes from a review of every stream view, rendered from a real Oslo → Copenhagen flight.
+
+- **Fixed: the route from SimBrief was never read.** SimBrief's current format gives the route as a plain list, and only the older shape was read. Without an FMS plan from OFP Tower (rehearsals, the A350, before the Fenix sends one), the next fixes were missing everywhere: the cards with legs and ribbon, the route screen, "By the numbers" (NEXT FIX —) and the route back side.
+- **Fixed: rehearsals and recorded flights played without the FMS plan.** A recording's plan lines now play with it, so the plan side and the next fixes show. This doesn't apply when a recording is laid over another flight's route.
+- **Fixed: the large cockpit strip:** the light switches ran under the flaps and gear tiles.
+- **Fixed: the corner card's bottom line** wrapped after landing ("0 kt", the landing rate). It stays on one line.
+- **Fixed: the traffic looks** showed the computer's clock; they show the sim's time like the other looks.
+- **Extra small, readable:** less on it rather than smaller type.
+  - The back sides are a little wider. By the numbers keeps its three distances plus fuel at the destination and time in the air. Aircraft status keeps four lights (beacon, strobe, landing, nose) with their positions (STROBE AUTO) and flaps, gear, speedbrake and autobrake. The flight deck's AP/A/THR reach the 14 px floor.
+  - The XS cockpit strip shows each switch's position again: AUTO and ON had looked the same.
+  - The XS strip is a compact bar in the middle, not the full width with a long empty line.
+- **The traffic looks match the rest and come in three styles:**
+  - Airline (in the airline's colours, like the cards), Dot matrix or Split-flap.
+  - Each shows departures or arrivals.
+  - The card (G10b) is now the Departures card, in the card family's sizes and corners.
+  - New look: **Board with window** (G10c). The game is in a window on the left, the airport's departures or arrivals on the right, like the ending screen.
+- **Show on stream:** under the rehearsal strip, show the departures or arrivals card, the board with window or the full board when you choose, for 2, 5 or 10 minutes or until hidden. For example, when starting the approach or about to leave the gate. It goes to OBS with the other settings; a card sits over the stage's look, a screen replaces it.
+- The Moving map's side panel shows the progress line in its empty middle.
+- Fixed: a look whose only back side is the route was written as "br" in links, which is the bottom-right corner. It's written "brr" now.
+- The route side skips waypoint names that would overlap.
+
 ## 1.17.2 — 2026-11-24
 
 - Fixed: a screen that first sees the aircraft already parked at its destination (OFP Tower started after the flight, or a page opened then) showed the flight as boarding. It now counts the flight as arrived: the gate screen's arrived stage and looks, and ON BLOCKS on the departures board. No times are made up for a flight it didn't see, and the Board doesn't offer to log it.

@@ -1,37 +1,30 @@
 "use client";
 
 /**
- * 1.17: the traffic views. G10, the departures board: the stream's dot-matrix board, with the gate
- * and where each flight comes from (MSFS AI, SayIntentions, a SkyNet simmer, VATSIM, IVAO). G10b,
- * the connections card: a small card over the sim with the next departures. Both show the airport
- * the flight is at: the origin until take-off, then the destination (its connections).
+ * 1.17: the traffic looks, for the airport the flight is at (the origin until take-off, then the
+ * destination): G10, the board full screen; G10b, a card over the sim; G10c (1.17.3), the board on
+ * the right with a window for the game, like the ending screen. Each shows departures or arrivals
+ * (`look.side`) in a style (`look.style`): the airline's colours, a dot-matrix board or split-flaps.
+ * Each row: the airline's colour, the time, the other end, the flight, the gate, and where it's from
+ * (MSFS AI, SayIntentions, a SkyNet simmer, VATSIM, IVAO); the stream's own flight is marked LIVE.
  */
-import { createContext, useContext, useMemo, type CSSProperties } from "react";
+import { createContext, useContext, useMemo, type CSSProperties, type ReactNode } from "react";
 import { cityName } from "@/lib/data/flight";
 import type { Airport } from "@/lib/data/load";
 import type { AirlineInfo } from "@/lib/data/types";
-import { textOn } from "@/lib/colors";
+import { routeColor, textOn } from "@/lib/colors";
 import type { GateFlight } from "@/lib/board/gate";
-import type { Look } from "@/lib/board/looks";
+import type { Look, TrafficStyle } from "@/lib/board/looks";
 import type { FlightState } from "@/lib/feed/core";
 import { airlineOf, atOriginOf, boardRows, fromIvao, fromTower, fromVatsim, mergeTraffic, type Stand, type TrafficRow, type TrafficSource, type TrafficStatus } from "@/lib/feed/traffic";
 import { useNetworkTraffic } from "@/lib/feed/useTraffic";
 import { localClock } from "./GateScreen";
 
 /** Airports (for the other ends' names) and airlines (for the colours), from the page's data. */
-export const TrafficPlaces = createContext<{
-  airports: Map<string, Airport> | null;
-  airlines: AirlineInfo[];
-}>({ airports: null, airlines: [] });
+export const TrafficPlaces = createContext<{ airports: Map<string, Airport> | null; airlines: AirlineInfo[] }>({ airports: null, airlines: [] });
 
 const MIN = 60_000;
-const SRC_NAME: Record<TrafficSource, string> = {
-  AI: "MSFS AI",
-  SI: "SayIntentions",
-  SKY: "SkyNet simmer",
-  VAT: "VATSIM",
-  IVAO: "IVAO",
-};
+const SRC_NAME: Record<TrafficSource, string> = { AI: "MSFS AI", SI: "SayIntentions", SKY: "SkyNet simmer", VAT: "VATSIM", IVAO: "IVAO" };
 
 export interface TrafficViewProps {
   f: GateFlight;
@@ -48,7 +41,6 @@ export interface TrafficViewProps {
 
 type Row = TrafficRow & { me?: boolean };
 
-/** The flight is still at its origin (no feed, or not yet airborne). */
 /** At the origin: see `atOriginOf` (traffic.ts). */
 const atOrigin = (f: Pick<GateFlight, "from" | "to">, live: FlightState | null) => atOriginOf(f.from, f.to, live?.last ?? null, live?.stage ?? null);
 
@@ -76,45 +68,36 @@ function ownRow(f: GateFlight, live: FlightState | null, origin: boolean, arrive
   };
 }
 
-/** Example traffic for the previews: plausible departures around the flight's time at that airport. */
-function sampleRows(apIcao: string, base: number): TrafficRow[] {
-  const ex: [string, string, number, string, TrafficSource, TrafficStatus][] = [
-    ["BAW476", "EGLL", -6, "J46", "VAT", "TAXIING"],
-    ["TAP1015", "LPPT", -2, "H19", "SI", "PUSHBACK"],
-    ["IBE2871", "GCXO", 4, "J50", "AI", "BOARDING"],
-    ["VLG7721", "EBBR", 9, "K90", "SKY", "BOARDING"],
-    ["KLM1700", "EHAM", 16, "H22", "IVAO", "BOARDING"],
-    ["DLH1803", "EDDM", 31, "K88", "AI", "AT GATE"],
-    ["UAE142", "OMDB", 36, "S30", "VAT", "AT GATE"],
-    ["EZY7340", "EGBB", 46, "M12", "SI", "SCHEDULED"],
-    ["AEA6001", "LEPA", 51, "J41", "AI", "SCHEDULED"],
-    ["ITY053", "LIRF", 61, "H24", "IVAO", "SCHEDULED"],
-    ["AFR1301", "LFPG", 72, "K82", "AI", "SCHEDULED"],
+/** Example traffic for the previews: plausible movements around the flight's time at that airport. */
+function sampleRows(apIcao: string, base: number, side: "dep" | "arr"): TrafficRow[] {
+  const ex: [string, string, number, string, TrafficSource, TrafficStatus, TrafficStatus][] = [
+    ["BAW476", "EGLL", -6, "J46", "VAT", "TAXIING", "LANDED"],
+    ["TAP1015", "LPPT", -2, "H19", "SI", "PUSHBACK", "LANDED"],
+    ["IBE2871", "GCXO", 4, "J50", "AI", "BOARDING", "APPROACH"],
+    ["VLG7721", "EBBR", 9, "K90", "SKY", "BOARDING", "APPROACH"],
+    ["KLM1700", "EHAM", 16, "H22", "IVAO", "BOARDING", "APPROACH"],
+    ["DLH1803", "EDDM", 31, "K88", "AI", "AT GATE", "EN ROUTE"],
+    ["UAE142", "OMDB", 36, "S30", "VAT", "AT GATE", "EN ROUTE"],
+    ["EZY7340", "EGBB", 46, "M12", "SI", "SCHEDULED", "EN ROUTE"],
+    ["AEA6001", "LEPA", 51, "J41", "AI", "SCHEDULED", "EN ROUTE"],
+    ["ITY053", "LIRF", 61, "H24", "IVAO", "SCHEDULED", "EN ROUTE"],
+    ["AFR1301", "LFPG", 72, "K82", "AI", "SCHEDULED", "EN ROUTE"],
   ];
   return ex
-    .filter(([, to]) => to !== apIcao)
-    .map(([callsign, other, m, gate, src, status]) => ({
-      callsign,
-      src,
-      side: "dep" as const,
-      other,
-      t: Math.round((base + m * MIN) / MIN) * MIN,
-      gate,
-      snapped: src !== "AI",
-      status,
-      type: null,
-    }));
+    .filter(([, other]) => other !== apIcao)
+    .map(([callsign, other, m, gate, src, dep, arr]) => ({ callsign, src, side, other, t: Math.round((base + m * MIN) / MIN) * MIN, gate: side === "dep" || arr === "LANDED" ? gate : null, snapped: src !== "AI", status: side === "dep" ? dep : arr, type: null }));
 }
 
-/** The rows for a traffic view, and where they're from. */
+/** The rows for a traffic look, and where they're from. */
 function useBoard(p: TrafficViewProps, max: number) {
+  const side = p.look.side;
   const origin = atOrigin(p.f, p.live);
   const ap = origin ? p.f.from : p.f.to;
   const net = useNetworkTraffic(!p.preview);
   const me = ownRow(p.f, p.live, origin, p.arrives);
   const stands = p.stands?.airport === ap.icao ? p.stands.stands : null;
   // the board's window: from a little before now, or the landing at the destination
-  const pivot = origin ? p.now : Math.max(p.now, me.t ?? p.now);
+  const pivot = origin || side === "arr" ? p.now : Math.max(p.now, me.t ?? p.now);
   const minute = Math.floor(p.now / MIN);
   const pivotMin = Math.floor(pivot / MIN);
   const { preview, towerTraffic } = p;
@@ -124,35 +107,29 @@ function useBoard(p: TrafficViewProps, max: number) {
     const tap = { icao: ap.icao, lat: ap.lat, lon: ap.lon, elevFt: ap.elevFt };
     const pv = pivotMin * MIN;
     const all = preview
-      ? sampleRows(ap.icao, pv)
+      ? sampleRows(ap.icao, pv, side)
       : mergeTraffic(fromVatsim(vatsim, tap, minute * MIN, stands), fromIvao(ivao, tap, minute * MIN, stands), fromTower(towerTraffic, tap, minute * MIN, stands));
-    return boardRows(all, "dep", pv - 15 * MIN, pv + 120 * MIN, minute * MIN, max, (cs) => cs === me.callsign);
-  }, [preview, vatsim, ivao, towerTraffic, stands, ap.icao, ap.lat, ap.lon, ap.elevFt, pivotMin, minute, max, me.callsign]);
+    return boardRows(all, side, pv - (side === "arr" ? 30 : 15) * MIN, pv + 120 * MIN, minute * MIN, max, (cs) => cs === me.callsign);
+  }, [preview, vatsim, ivao, towerTraffic, stands, ap.icao, ap.lat, ap.lon, ap.elevFt, pivotMin, minute, max, me.callsign, side]);
+  // the stream's own flight: among the departures (at the origin, or as the arrival the connections follow),
+  // and among the arrivals at the destination
   const withMe: Row[] = [...rows];
-  const at = withMe.findIndex((r) => (r.t ?? p.now) > (me.t ?? p.now));
-  withMe.splice(at < 0 ? withMe.length : at, 0, me);
+  if (side === "dep" || !origin) {
+    const at = withMe.findIndex((r) => (r.t ?? p.now) > (me.t ?? p.now));
+    withMe.splice(at < 0 ? withMe.length : at, 0, me);
+  }
   const loaded = p.preview || net.at > 0 || !!p.towerTraffic;
-  return {
-    ap,
-    origin,
-    rows: withMe,
-    me,
-    loaded,
-    none: loaded && rows.length === 0,
-  };
+  return { ap, origin, side, rows: withMe, me, loaded, none: loaded && rows.length === 0 };
 }
+
+type Board = ReturnType<typeof useBoard>;
 
 function useChip() {
   const { airlines } = useContext(TrafficPlaces);
   return (cs: string, me?: boolean): { bg: string; ink: string; code: string } => {
     // the stream's own flight: its airline's chip like any other row (green when the airline isn't known)
     const a = airlineOf(cs, airlines);
-    if (!a)
-      return {
-        bg: me ? "#3ee07a" : "#4a5263",
-        ink: me ? "#05301a" : "#ffffff",
-        code: /^[A-Z]{3}\d/.test(cs) ? cs.slice(0, 3) : "—",
-      };
+    if (!a) return { bg: me ? "#3ee07a" : "#4a5263", ink: me ? "#05301a" : "#ffffff", code: /^[A-Z]{3}\d/.test(cs) ? cs.slice(0, 3) : "—" };
     const bg = a.colors.primary;
     return { bg, ink: textOn(bg), code: a.iata ?? a.icao };
   };
@@ -163,9 +140,12 @@ function usePlace() {
   return (icao: string | null) => {
     if (!icao) return "—";
     const a = airports?.get(icao);
-    return (a ? cityName(a) ?? a.name : icao).toUpperCase();
+    return (a ? (cityName(a) ?? a.name) : icao).toUpperCase();
   };
 }
+
+/** A city in title case ("OSLO" → "Oslo"); a code with no name known ("KEWR") as it is. */
+const cap = (s: string, code = false) => (code || s === "—" ? s : s.toLowerCase().replace(/(^|[\s-])\S/g, (x) => x.toUpperCase()));
 
 const Src = ({ s, me }: { s: TrafficSource; me?: boolean }) =>
   me ? (
@@ -178,94 +158,179 @@ const Src = ({ s, me }: { s: TrafficSource; me?: boolean }) =>
     </span>
   );
 
-/* ---------- G10: the departures board ---------- */
+/** What a row says: the own flight at the destination is "landing" until it has. */
+const statusOf = (b: Board, r: Row) => (r.me && !b.origin && (r.status === "EN ROUTE" || r.status === "APPROACH") ? "LANDING" : r.status);
 
-export function DeparturesBoard(p: TrafficViewProps) {
-  const b = useBoard(p, 10);
+/** One word per split-flap: each character on its own flap, padded to the width. */
+const flaps = (text: string, n: number) => (
+  <span className="tv-flaps" aria-label={text}>
+    {text
+      .padEnd(n)
+      .slice(0, n)
+      .split("")
+      .map((c, i) => (
+        <span className="tv-flap" key={i} aria-hidden="true">
+          {c === " " ? " " : c}
+        </span>
+      ))}
+  </span>
+);
+
+/** The rows of a board in a style. `compact`: the card and the side panel (no flight column at extra small). */
+function Rows({ b, style, tz, compact }: { b: Board; style: TrafficStyle; tz: string | null; compact: boolean }) {
   const chip = useChip();
   const place = usePlace();
-  const tz = b.ap.tz;
-  const city = (cityName(b.ap) ?? b.ap.name).toUpperCase();
+  const { airports } = useContext(TrafficPlaces);
   return (
-    <div className="gv tv-fids" role="region" aria-label={`Departures, ${city}`}>
-      <div className="tv-fids-hd">
-        <span>DEPARTURES · {city}</span>
-        <small>{localClock(p.now, tz)}</small>
-      </div>
+    <div className={`tv-rows is-${style}${compact ? " is-compact" : ""}`}>
       {b.rows.map((r) => {
         const c = chip(r.callsign, r.me);
-        // the flight's own row at the destination: where it comes from, and when it lands
-        const where = r.me && !b.origin ? `${place(r.other)}` : place(r.other);
+        const time = r.t != null ? localClock(r.t, tz) : "--:--";
+        const where = place(r.other);
+        const st = statusOf(b, r);
+        const k = `${r.callsign}${r.me ? ":me" : ""}`;
+        if (style === "flap")
+          return (
+            <div className={`tv-r${r.me ? " is-me" : ""}`} key={k}>
+              <i className="tv-stripe" style={{ background: c.bg }} />
+              {flaps(time.replace(":", ""), 4)}
+              {flaps(where, compact ? 9 : 11)}
+              {!compact && flaps(r.callsign, 7)}
+              {flaps(r.gate ?? "", 3)}
+              <Src s={r.src} me={r.me} />
+              {flaps(st, compact ? 8 : 10)}
+            </div>
+          );
+        if (style === "dot")
+          return (
+            <div className={`tv-r${r.me ? " is-me" : ""}`} key={k}>
+              <span className="tv-chip" style={{ background: c.bg, color: c.ink } as CSSProperties}>
+                {c.code}
+              </span>
+              <span className="tv-dot tv-w">{time}</span>
+              <span className="tv-dot">{where}</span>
+              {!compact && (
+                <span className="tv-dot">
+                  {r.callsign.slice(0, 3)}
+                  <span className="tv-w">{r.callsign.slice(3)}</span>
+                </span>
+              )}
+              <span className="tv-dot tv-w tv-gate">{r.gate ?? "--"}</span>
+              <Src s={r.src} me={r.me} />
+              <span className="tv-dot">{st}</span>
+            </div>
+          );
+        // the airline's colours: like the other cards
         return (
-          <div className={`tv-fids-r${r.me ? " is-me" : ""}`} key={r.callsign}>
-            <span className="tv-chip" style={{ background: c.bg, color: c.ink } as CSSProperties}>
-              {c.code}
+          <div className={`tv-r${r.me ? " is-me" : ""}`} key={k}>
+            <i className="tv-stripe" style={{ background: c.bg }} />
+            <span className="tv-time mono">{time}</span>
+            <span className="tv-where">
+              <b>{cap(where, !!r.other && !airports?.get(r.other))}</b>
+              <small className="mono">
+                {r.callsign} · {cap(st)}
+              </small>
             </span>
-            <span className="tv-dot tv-w">{r.t != null ? localClock(r.t, tz) : "--:--"}</span>
-            <span className="tv-dot">{where}</span>
-            <span className="tv-dot">
-              {r.callsign.slice(0, 3)}
-              <span className="tv-w">{r.callsign.slice(3)}</span>
-            </span>
-            <span className="tv-dot tv-w tv-gate">{r.gate ?? "--"}</span>
+            <span className="tv-gate mono">{r.gate ?? "—"}</span>
             <Src s={r.src} me={r.me} />
-            <span className="tv-dot">{r.me && !b.origin ? (r.status === "EN ROUTE" || r.status === "APPROACH" ? "LANDING" : r.status) : r.status}</span>
           </div>
         );
       })}
-      {!b.loaded && <p className="tv-fids-note">Looking for traffic on VATSIM and IVAO…</p>}
-      {b.none && (
-        <p className="tv-fids-note">
-          No departures on VATSIM or IVAO in the next two hours
-          {p.towerTraffic ? "" : " · sim traffic comes with OFP Tower"}
-        </p>
-      )}
+      {!b.loaded && <p className="tv-note">Looking for traffic…</p>}
+      {b.none && <p className="tv-note">No {b.side === "arr" ? "arrivals" : "departures"} yet on VATSIM, IVAO or in the sim</p>}
     </div>
   );
 }
 
-/* ---------- G10b: the connections card ---------- */
+/** The board's colours: the airline's for its style, the airport's dark for the others. */
+function boardStyle(f: GateFlight, style: TrafficStyle): CSSProperties {
+  if (style !== "brand") return { "--gs-bg": style === "dot" ? "#11141a" : "#1a1a1a", "--gs-ink": "#f2f2f2", "--gs-accent": "#f4c430" } as CSSProperties;
+  const bg = routeColor(f.brand);
+  const ink = textOn(bg);
+  const accent = f.brand?.colors.secondary && /^#[0-9a-f]{6}$/i.test(f.brand.colors.secondary) && f.brand.colors.secondary.toLowerCase() !== bg.toLowerCase() ? f.brand.colors.secondary : ink;
+  return { "--gs-bg": bg, "--gs-ink": ink, "--gs-accent": accent } as CSSProperties;
+}
+
+function Head({ b, now, tz, children }: { b: Board; now: number; tz: string | null; children?: ReactNode }) {
+  const city = cityName(b.ap) ?? b.ap.name;
+  const code = b.ap.iata ?? b.ap.icao;
+  const what = b.side === "arr" ? "Arrivals" : b.origin ? "Departures" : "Connections";
+  return (
+    <div className="tv-head">
+      <b>
+        {what} · <span className="tv-head-city">{city}</span>
+        <span className="tv-head-code"> {code}</span>
+      </b>
+      {children}
+      <span className="mono">{localClock(now, tz)}</span>
+    </div>
+  );
+}
+
+/** The stream's own flight in a line, for the card and the side panel. */
+function MeLine({ b, tz }: { b: Board; tz: string | null }) {
+  const t = b.me.t != null ? localClock(b.me.t, tz) : null;
+  const text = b.origin ? `${b.me.callsign} departs ${t ?? "—"}` : b.me.status === "ON BLOCKS" || b.me.status === "LANDED" ? `${b.me.callsign} landed${t ? ` ${t}` : ""}` : `${b.me.callsign} lands ${t ?? "—"}`;
+  return <div className="tv-me">{text}</div>;
+}
+
+/* ---------- G10: the board, full screen ---------- */
+
+export function DeparturesBoard(p: TrafficViewProps) {
+  const b = useBoard(p, 10);
+  const tz = b.ap.tz;
+  const city = (cityName(b.ap) ?? b.ap.name).toUpperCase();
+  const style = p.look.style;
+  return (
+    <div className={`gv tv-board is-${style}`} style={boardStyle(p.f, style)} role="region" aria-label={`${b.side === "arr" ? "Arrivals" : "Departures"}, ${city}`}>
+      {style === "brand" ? (
+        <Head b={b} now={p.live?.last?.t ?? p.now} tz={tz} />
+      ) : (
+        <div className="tv-board-hd">
+          <span>
+            {b.side === "arr" ? "ARRIVALS" : "DEPARTURES"} · {city}
+          </span>
+          <small>{localClock(p.live?.last?.t ?? p.now, tz)}</small>
+        </div>
+      )}
+      <Rows b={b} style={style} tz={tz} compact={false} />
+    </div>
+  );
+}
+
+/* ---------- G10b: the card over the sim ---------- */
 
 export function ConnectionsCard(p: TrafficViewProps) {
   const b = useBoard(p, 6);
-  const place = usePlace();
-  const { airlines } = useContext(TrafficPlaces);
   const tz = b.ap.tz;
-  const code = b.ap.iata ?? b.ap.icao;
-  const others = b.rows.filter((r) => !r.me);
   const at = { "data-size": p.look.size, "data-pos": p.look.pos } as Record<string, string>;
-  // a city in title case; an ICAO code (no name known) as it is
-  const cap = (s: string) => (/^[A-Z0-9]{4}$/.test(s) ? s : s.toLowerCase().replace(/(^|[\s-])\S/g, (x) => x.toUpperCase()));
+  const style = p.look.style;
   return (
-    <div className="gv gv-over" {...at} role="region" aria-label={`${b.origin ? "Departures" : "Connections"} at ${code}`}>
-      <div className="gv-card tv-conn">
-        <div className="tv-conn-hd">
-          <b>
-            {b.origin ? "Departures" : "Connections"} · {code}
-          </b>
-          <span>{localClock(p.now, tz)}</span>
-        </div>
-        <div className="tv-conn-me">
-          {b.origin
-            ? `${b.me.callsign} departs ${b.me.t != null ? localClock(b.me.t, tz) : "—"}`
-            : b.me.status === "ON BLOCKS" || b.me.status === "LANDED"
-            ? `${b.me.callsign} landed ${b.me.t != null ? localClock(b.me.t, tz) : ""}`
-            : `${b.me.callsign} lands ${b.me.t != null ? localClock(b.me.t, tz) : "—"}`}
-        </div>
-        {others.map((r) => {
-          const a = airlineOf(r.callsign, airlines);
-          return (
-            <div className="tv-conn-r" key={r.callsign}>
-              <i style={{ background: a?.colors.primary ?? "#4a5263" }} />
-              <span className="mono">{r.t != null ? localClock(r.t, tz) : "--:--"}</span>
-              <span className="tv-conn-d">{cap(place(r.other))}</span>
-              <span className="mono">{r.gate ?? "—"}</span>
-              <Src s={r.src} />
-            </div>
-          );
-        })}
-        {!b.loaded && <div className="tv-conn-note">Looking for traffic…</div>}
-        {b.none && <div className="tv-conn-note">No departures on VATSIM or IVAO yet</div>}
+    <div className="gv gv-over" style={boardStyle(p.f, style)} {...at} role="region" aria-label={`${b.side === "arr" ? "Arrivals" : b.origin ? "Departures" : "Connections"} at ${b.ap.iata ?? b.ap.icao}`}>
+      <div className={`gv-card tv-card is-${style}`}>
+        <Head b={b} now={p.live?.last?.t ?? p.now} tz={tz} />
+        <MeLine b={b} tz={tz} />
+        <Rows b={{ ...b, rows: b.rows.filter((r) => !r.me) }} style={style} tz={tz} compact />
+      </div>
+    </div>
+  );
+}
+
+/* ---------- G10c: the board beside a window for the game ---------- */
+
+export function BoardWindow(p: TrafficViewProps) {
+  const b = useBoard(p, 9);
+  const tz = b.ap.tz;
+  const style = p.look.style;
+  return (
+    <div className={`gv tv-win is-${style}`} style={boardStyle(p.f, style)} role="region" aria-label={`${b.side === "arr" ? "Arrivals" : "Departures"} at ${b.ap.iata ?? b.ap.icao}, with the game`}>
+      <div className="gv-window" aria-hidden="true" />
+      <div className="tv-win-panel">
+        <Head b={b} now={p.live?.last?.t ?? p.now} tz={tz} />
+        <Rows b={{ ...b, rows: b.rows.filter((r) => !r.me) }} style={style} tz={tz} compact />
+      </div>
+      <div className="tv-win-me">
+        <MeLine b={b} tz={tz} />
       </div>
     </div>
   );

@@ -4,7 +4,7 @@ Written on 2026-11-11 by the two Claude sessions that built it: the Mac session 
 
 ## 1. Where things stand
 
-The live site is <https://plans.massorbit.co.uk>. The latest release is **1.17.2**. All releases are signed tags with GitHub releases, made from `main` through PRs.
+The live site is <https://plans.massorbit.co.uk>. The latest release is **1.17.3**. All releases are signed tags with GitHub releases, made from `main` through PRs.
 
 | Version | What | PR |
 |---|---|---|
@@ -34,7 +34,8 @@ The live site is <https://plans.massorbit.co.uk>. The latest release is **1.17.2
 | 1.16.7 | OFP Tower `fix_inbound_leg` (fenix_fms.py): IN-BND legs[0] latched at the last PPOS/T-P (`positionFrom`, FMS point in `fmsLat/fmsLon`; 30 nm fallback on the course); the board always draws a leg with `positionFrom` | PR #70 |
 | 1.17.0 | Traffic looks: **Departures board** (G10, `fids`, dot matrix, `--f-dot` DotGothic16) and **Connections card** (G10b, `conn`) in `TrafficViews.tsx`; `traffic.ts` reads VATSIM, IVAO (fetched by `useTraffic.ts` only while shown) and OFP Tower's coming `traffic`/`stands`; origin until take-off, then destination; the stream's flight marked LIVE; designs and source research in `docs/design/fids/` | PR #71 (deploy #72: Docker base images from mirror.gcr.io, the build server can't reach registry-1.docker.io) |
 | 1.17.1 | OFP Tower `traffic.py` sends `traffic` (sim objects: SI = FSLTL titles, AI; SKY/SI from SayIntentions' tracker, whitelisted) and `stands` (Facilities TAXI_PARKING); board airport by position on the ground (`atOriginOf`); untimed rows after timed ones | PR #73 |
-| 1.17.2 | `step`: a first reading on the ground within 5 nm of the destination (not the origin) starts as arrived (phase gate, no OUT/OFF/ON/IN made up; IN only once OFF or ON was seen); no log offer for such a feed | this release |
+| 1.17.2 | `step`: a first reading on the ground within 5 nm of the destination (not the origin) starts as arrived (phase gate, no OUT/OFF/ON/IN made up; IN only once OFF or ON was seen); no log offer for such a feed | PR #74 |
+| 1.17.3 | Review fixes: SimBrief v2 `navlog` is the list itself (route was never read); replays send recorded `plan` lines (not when refitted); cockpit strip L overlap; XS back sides/strip compact; traffic looks `side` (dep/arr) + `style` (`air`/`dot`/`flap` tokens; `brand` would parse as back sides), new G10c `fidsw`; `show=TOKEN!epochSec` (GateState.show/showUntil, relayed, sv=2) shows a look by hand (Stream → Show on stream) | this release |
 
 **Naming:** "OFP Tower" is the user-facing name, the owner's choice on 2026-11-11. In code and protocol the old name stays: `feed=link`, `linkSource`, `"app":"ofp-link"`, port 47800, `docs/OFP-LINK.md`, and the PC folder `ofp-link-recorder`. Rename both sides together or not at all.
 

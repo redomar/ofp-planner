@@ -370,7 +370,7 @@ export function boardRows(rows: TrafficRow[], side: "dep" | "arr", from: number,
   return rows
     .filter((r) => r.side === side && !skip(r.callsign))
     .map((r) => ({ r, at: r.t ?? now }))
-    .filter(({ r, at }) => at <= to && (at >= from || ["AT GATE", "BOARDING", "PUSHBACK", "TAXIING"].includes(r.status)))
+    .filter(({ r, at }) => at <= to && (at >= from || ["AT GATE", "BOARDING", "PUSHBACK", "TAXIING", "LANDED"].includes(r.status)))
     // flights with a time in time order; then those without (SI's parked traffic), moving ones first
     .sort((a, b) => (a.r.t == null ? 1 : 0) - (b.r.t == null ? 1 : 0) || (a.r.t == null ? MOVING(a.r.status) - MOVING(b.r.status) : a.at - b.at) || a.r.callsign.localeCompare(b.r.callsign))
     .slice(0, max)

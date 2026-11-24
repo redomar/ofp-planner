@@ -38,10 +38,10 @@ import type { FlightContext } from "@/lib/feed/core";
 import { useObsScene } from "@/lib/feed/obs";
 import { sendRelay, useRelay } from "@/lib/feed/relay";
 import { CLOCK_FEED, feedFromParams, useFlightFeed, type FeedConfig } from "@/lib/feed/useFlightFeed";
-import { GateViewScreen } from "./board/GateViews";
+import { GateViewScreen, shownNow } from "./board/GateViews";
 import { useShownStep } from "./board/useShownStep";
-import { overSim as overSim_ } from "@/lib/board/looks";
-import { LogArrival, REHEARSE_REC, RehearseStrip } from "./board/StreamPanel";
+import { overSim as overSim_, VIEW_INFO } from "@/lib/board/looks";
+import { LogArrival, REHEARSE_REC, RehearseStrip, ShowNow } from "./board/StreamPanel";
 import { ScenesPreview } from "./board/StreamStudio";
 import { FlightCard, SendToObs, WrittenOn } from "./board/GateDesk";
 import { logFromFeed } from "@/lib/feed/toLog";
@@ -584,7 +584,9 @@ export function BoardApp() {
   // 1.14: a stage that rotates turns through its steps from when the stage (or scene) began
   const shownStep = useShownStep(gate, live.state, obsScene, live.plan, now);
   // the views drawn over the sim are transparent outside their panels, like the overlay switch
-  const overSim = gate.overlay || overSim_(shownStep.ls);
+  // 1.17.3: with a look shown by hand, what it covers (a screen with a window for the game, say)
+  const shownBy = shownNow(gate, now);
+  const overSim = gate.overlay || overSim_(shownBy ? (VIEW_INFO[shownBy.v].kind === "screen" ? [shownBy] : [...shownStep.ls, shownBy]) : shownStep.ls);
 
   if (screen) {
     if (!ready) return null;
@@ -769,7 +771,12 @@ export function BoardApp() {
                       rehearsing={!!rehearse}
                       canRehearse={rehearseRate != null}
                       onRehearse={(play) => setRehearse(play && rehearseRate != null ? { ...CLOCK_FEED, source: "replay", rec: REHEARSE_REC, rate: rehearseRate, fit: true } : null)}
-                      rehearseStrip={<RehearseStrip gate={gate} ctx={feedCtx} rehearsing={!!rehearse} feed={live} onRate={setRehearseRate} onHold={(hold) => patch({ hold })} />}
+                      rehearseStrip={
+                        <>
+                          <RehearseStrip gate={gate} ctx={feedCtx} rehearsing={!!rehearse} feed={live} onRate={setRehearseRate} onHold={(hold) => patch({ hold })} />
+                          <ShowNow gate={gate} now={now} onShow={(show, showUntil) => patch({ show, showUntil })} />
+                        </>
+                      }
                       arrived={arrivedLog && <LogArrival entry={arrivedLog} />}
                       onPatch={patch}
                       onLook={setPreviewToken}

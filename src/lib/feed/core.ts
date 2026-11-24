@@ -89,6 +89,8 @@ export interface Recording {
   /** `quiet`: read during the sim's replay (kept, so the cockpit stays right, but no pop-ups). */
   probes: { t: number; v: Record<string, unknown>; quiet?: boolean }[];
   mcdu: { t: number; unit: number; rows: unknown }[];
+  /** 1.17.3: the FMS plan as it changed (OFP Tower's plan lines), on the samples' clock: a replay sends them too. */
+  plans: { t: number; plan: FlightPlan }[];
 }
 
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
@@ -325,6 +327,7 @@ export function parseRecording(text: string): Recording {
   // the probe and MCDU lines, on the same clock (they carry the sim zulu of the next sample)
   const probes: Recording["probes"] = [];
   const mcdu: Recording["mcdu"] = [];
+  const plans: Recording["plans"] = [];
   let z0 = -1;
   let w0 = 0;
   let inReplay = false;
@@ -339,12 +342,16 @@ export function parseRecording(text: string): Recording {
     if (z != null && z0 >= 0 && z < z0 - 43_200) w0++;
     if (z != null) z0 = z;
     if (r.type == null) inReplay = r.replay === true;
-    if (r.type !== "probe" && r.type !== "mcdu") continue;
+    if (r.type !== "probe" && r.type !== "mcdu" && r.type !== "plan") continue;
     const t = z != null ? day + w0 * 86_400_000 + Math.round(z * 1000) : (num(r.t) ?? 0);
     if (r.type === "probe" && r.v && typeof r.v === "object") probes.push({ t, v: r.v as Record<string, unknown>, ...(inReplay ? { quiet: true } : {}) });
     if (r.type === "mcdu") mcdu.push({ t, unit: num(r.unit) ?? 1, rows: r.text });
+    if (r.type === "plan") {
+      const plan = toPlan(r);
+      if (plan) plans.push({ t, plan });
+    }
   }
-  return { version, title: typeof head.title === "string" ? head.title : null, atcId: typeof head.atcId === "string" ? head.atcId : null, profile: typeof head.profile === "string" ? head.profile.slice(0, 40) : head.profile === null ? null : undefined, samples, probes, mcdu };
+  return { version, title: typeof head.title === "string" ? head.title : null, atcId: typeof head.atcId === "string" ? head.atcId : null, profile: typeof head.profile === "string" ? head.profile.slice(0, 40) : head.profile === null ? null : undefined, samples, probes, mcdu, plans };
 }
 
 /* ---------- the phase detector ---------- */
