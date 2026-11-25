@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.17.6 — 2026-11-25
+
+From Helsinki after landing, with SayIntentions traffic through OFP Tower:
+
+- **Fixed: some parked aircraft had no gate.** A stand from the sim's scenery is where the nose stops, and an aircraft's position is 15–35 m further back, so an aircraft is now on a stand within its radius plus 35 m (was 15 m). Each stand holds one aircraft: the nearest parked one, before one pushing back or taxiing past. Checked against all 32 aircraft on the ground at EFHK: every parked one on a stand gets it.
+- **Fixed: the extra small strip was squeezed** to half the screen's width, so its tiles were cramped and the V/S unit (fpm) was cut off under the status. It's centred at its own width now.
+- **Fixed: sim aircraft with only a registration and no route** (GENDD, a static or GA aircraft) showed as a departure with a blank chip. They're left out.
 ## 1.17.5 — 2026-11-25
 
 - Fixed: with OFP Tower closed (no live position), the ending screen's connections showed the origin's departures. The ending is after the flight, so they're always the destination's.

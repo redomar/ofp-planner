@@ -3210,9 +3210,10 @@ html.screen-mode body > :not(.screen-root) {
 }
 /* the strip at extra small: a compact bar in the middle, not the width of the screen with a long empty line */
 .gv-over[data-size="xs"] .gv-strip:not(.gv-cockpit) {
-  right: auto;
-  left: 50%;
-  translate: -50% 0;
+  /* 1.17.6: centred by its margins; with left: 50% it could only be half the screen wide and the
+     last tiles were squeezed under the status (V/S "fpm" cut off) */
+  width: fit-content;
+  margin-inline: auto;
   grid-template-columns: auto calc(var(--u) * 26);
 }
 /* 1.12.5: the strip at extra small keeps the same floors (its labels were 10 px at 1080p) */
