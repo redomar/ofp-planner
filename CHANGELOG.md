@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.17.10 — 2026-11-25
+
+- **Fixed: your flight read LANDING on the arrivals board for the whole flight**, even at cruise 160 nm out. It shows its real status now, like the other rows: EN ROUTE, then APPROACH within 40 nm (or once the approach phase starts), and **LANDING only on short final** (within 5 nm and 1,500 ft of the field), then LANDED and ON BLOCKS.
 ## 1.17.9 — 2026-11-25
 
 - The small dot-matrix boards' flight number is one block in the airline's colour (SAS 1424), not a coloured code with the number beside it.
