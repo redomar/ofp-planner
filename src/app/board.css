@@ -4091,7 +4091,8 @@ html.screen-mode body > :not(.screen-root) {
   color: #d9c7ff;
 }
 .tv-src.is-VAT {
-  background: #1d9a5b;
+  /* 1.17.4: white on it at AA (5:1; #1d9a5b was 3.6) */
+  background: #13804a;
 }
 .tv-src.is-IVAO {
   background: #1f5fd1;
@@ -4431,6 +4432,11 @@ html.screen-mode body > :not(.screen-root) {
   grid-template-columns: calc(var(--u) * 0.8) 3.8cqw minmax(0, 1fr) 2.8cqw auto;
   gap: 0.5cqw;
 }
+/* 1.17.4: three-letter chips at the 14 px floor */
+.gv-over[data-size="xs"] .tv-card .tv-chip {
+  font-size: var(--xs-label);
+  height: 1.5cqw;
+}
 .gv-over[data-size="xs"] .tv-card .tv-flap {
   width: 1cqw;
   height: 1.7cqw;
@@ -4440,4 +4446,337 @@ html.screen-mode body > :not(.screen-root) {
 .gv-over[data-size="xs"] .tv-card .tv-rows.is-flap .tv-r {
   height: auto;
   padding: calc(var(--u) * 0.4) 0;
+}
+
+/* ---------- 1.17.4: the ending screen, C2 (docs/design/ending): the game and the connections on the left;
+   the map (the most room), the flight as a ticket (the next stream its stub) and the landing on the right ---------- */
+.gv-end2 {
+  display: grid;
+  grid-template-columns: 50fr 45.95fr;
+  grid-template-rows: auto 1fr;
+  gap: calc(var(--u) * 1.25);
+  padding: calc(var(--u) * 1.4);
+}
+.gv-end2 > .gv-window {
+  grid-area: 1 / 1;
+  aspect-ratio: 16 / 9;
+  flex: none;
+}
+.gv-end2 > :not(.gv-window) {
+  position: relative;
+  z-index: 1;
+}
+/* the connections: a dot-matrix board as wide as the game */
+.gv-end2 .tv-end {
+  grid-area: 2 / 1;
+  min-height: 0;
+  overflow: hidden;
+  background: #11141a;
+  border-radius: calc(var(--u) * 0.8);
+  padding: calc(var(--u) * 0.8) calc(var(--u) * 1.1);
+  color: #f4c430;
+  font-family: var(--f-dot), var(--font-mono);
+}
+.gv-end2 .tv-end .tv-board-hd {
+  font-size: calc(var(--u) * 1.25);
+  margin-bottom: calc(var(--u) * 0.3);
+}
+.gv-end2 .tv-end .tv-board-hd small {
+  font-size: calc(var(--u) * 1.1);
+}
+.gv-end2 .tv-end .tv-rows.is-dot .tv-r {
+  grid-template-columns: calc(var(--u) * 2.8) calc(var(--u) * 4.6) minmax(0, 1fr) calc(var(--u) * 7.4) calc(var(--u) * 3.2) calc(var(--u) * 3.4) calc(var(--u) * 9);
+  height: calc(var(--u) * 2.35);
+  font-size: calc(var(--u) * 1.3);
+  gap: calc(var(--u) * 0.6);
+}
+.gv-end2 .tv-end .tv-chip {
+  height: calc(var(--u) * 1.7);
+  font-size: calc(var(--u) * 0.95);
+}
+.gv-end2 .tv-end .tv-src {
+  height: calc(var(--u) * 1.6);
+  min-width: 0;
+  font-size: calc(var(--u) * 0.85);
+}
+.gv-end2 .tv-end .tv-note {
+  font-size: calc(var(--u) * 1.1);
+}
+.gv-end2-side {
+  grid-area: 1 / 2 / 3 / 3;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 0.94);
+}
+/* the map: the most room; GateMap draws to this box's shape (1150 × 502), so the route fits and the land around fills it */
+.gv-end2-map {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  border-radius: calc(var(--u) * 0.8);
+  overflow: hidden;
+  outline: calc(var(--u) * 0.08) solid color-mix(in srgb, var(--gs-ink) 28%, transparent);
+}
+.gv-end2-map > :first-child {
+  width: 100%;
+  height: 100%;
+}
+.gv-end2-tag {
+  position: absolute;
+  left: calc(var(--u) * 0.9);
+  top: calc(var(--u) * 0.8);
+  font: 700 calc(var(--u) * 1) var(--font-cond);
+  letter-spacing: 0.08em;
+  padding: calc(var(--u) * 0.2) calc(var(--u) * 0.6);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--gs-bg) 80%, transparent);
+  color: var(--gs-ink);
+}
+/* the ticket: cream, the stub torn off at the dashes */
+.gv-ticket {
+  flex: none;
+  height: calc(var(--u) * 18.4);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  background: #f6f3ea;
+  color: #12193a;
+  border-radius: calc(var(--u) * 1.1);
+  overflow: hidden;
+  position: relative;
+}
+.gv-ticket.has-stub {
+  grid-template-columns: minmax(0, 1fr) calc(var(--u) * 10.9);
+}
+.gv-ticket.has-stub::before,
+.gv-ticket.has-stub::after {
+  content: "";
+  position: absolute;
+  right: calc(var(--u) * 10.9 - var(--u) * 0.86);
+  width: calc(var(--u) * 1.72);
+  height: calc(var(--u) * 1.72);
+  border-radius: 50%;
+  background: var(--gs-bg);
+}
+.gv-ticket.has-stub::before {
+  top: calc(var(--u) * -0.86);
+}
+.gv-ticket.has-stub::after {
+  bottom: calc(var(--u) * -0.86);
+}
+.gv-tk-main {
+  min-width: 0;
+  padding: calc(var(--u) * 0.86) calc(var(--u) * 1.25);
+  display: flex;
+  flex-direction: column;
+}
+.gv-ticket.has-stub .gv-tk-main {
+  border-right: calc(var(--u) * 0.16) dashed #b9b3a2;
+}
+.gv-tk-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: calc(var(--u) * 1);
+  font-weight: 700;
+  font-size: calc(var(--u) * 1.15);
+  color: var(--tk-brand, var(--gs-bg));
+}
+.gv-tk-top span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gv-tk-top em {
+  font: 700 calc(var(--u) * 0.95) var(--font-cond);
+  font-style: normal;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--tk-brand, var(--gs-bg));
+  color: var(--tk-brand-ink, #fff);
+  padding: calc(var(--u) * 0.2) calc(var(--u) * 0.7);
+  border-radius: 999px;
+}
+.gv-tk-route {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: end;
+  gap: calc(var(--u) * 0.9);
+  margin: calc(var(--u) * 0.45) 0;
+}
+.gv-tk-route > div:last-child {
+  text-align: right;
+}
+.gv-tk-route b {
+  display: block;
+  font: 700 calc(var(--u) * 3) / 0.9 var(--font-cond);
+}
+.gv-tk-route span {
+  font-size: calc(var(--u) * 1);
+  color: #59607a;
+  white-space: nowrap;
+}
+.gv-tk-route i {
+  height: calc(var(--u) * 0.16);
+  margin-bottom: calc(var(--u) * 1.7);
+  background: repeating-linear-gradient(90deg, #12193a 0 calc(var(--u) * 0.47), transparent calc(var(--u) * 0.47) calc(var(--u) * 0.86));
+}
+.gv-tk-grid {
+  margin: auto 0 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: calc(var(--u) * 0.4) calc(var(--u) * 0.9);
+  border-top: calc(var(--u) * 0.08) solid #d6d0c0;
+  padding-top: calc(var(--u) * 0.55);
+}
+.gv-tk-grid dt {
+  font: 600 calc(var(--u) * 0.85) var(--font-cond);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #565c78;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gv-tk-grid dd {
+  margin: 0;
+  font-size: calc(var(--u) * 1.25);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.gv-tk-grid dd i {
+  font-style: normal;
+  font-size: 0.7em;
+}
+.gv-tk-grid dd.is-warn {
+  color: #a35f00;
+}
+.gv-tk-grid dd.is-stop {
+  color: #b3261e;
+}
+.gv-tk-grid dd.is-go {
+  color: #1a7a43;
+}
+/* the next stream: a tear-off stub in a colour that contrasts with the airline's */
+.gv-tk-stub {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 0.3);
+  padding: calc(var(--u) * 0.86) calc(var(--u) * 0.95);
+  background: var(--tk-stub, #ffd400);
+  color: var(--tk-stub-ink, #111);
+}
+.gv-tk-stub small {
+  font: 600 calc(var(--u) * 0.85) var(--font-cond);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.gv-tk-stub b {
+  font-size: calc(var(--u) * 1.25);
+  font-weight: 700;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.gv-tk-stub b.gv-tk-day {
+  font: 700 calc(var(--u) * 2.5) / 0.95 var(--font-cond);
+}
+.gv-tk-stub span {
+  font-size: calc(var(--u) * 1);
+  font-style: italic;
+}
+/* the landing: its numbers, then the sign-off */
+.gv-end2-landing {
+  flex: none;
+  height: calc(var(--u) * 13.1);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: auto auto 1fr;
+  gap: calc(var(--u) * 0.3) calc(var(--u) * 0.8);
+  padding: calc(var(--u) * 0.8) calc(var(--u) * 1.1);
+  border-radius: calc(var(--u) * 0.8);
+  outline: calc(var(--u) * 0.08) solid color-mix(in srgb, var(--gs-ink) 35%, transparent);
+  outline-offset: calc(var(--u) * -0.08);
+}
+.gv-end2-lab {
+  grid-column: 1 / -1;
+  font: 700 calc(var(--u) * 1) var(--font-cond);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.gv-end2-lab em {
+  font-style: normal;
+}
+.gv-end2-landing > div:not(.gv-end-bye) {
+  min-width: 0;
+}
+.gv-end2-landing b {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 0.4);
+  font-size: calc(var(--u) * 1.75);
+  font-weight: 600;
+}
+.gv-end2-landing small {
+  display: block;
+  font-size: calc(var(--u) * 0.95);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gv-end2-landing .gv-end-bye {
+  grid-area: 3 / 1 / 4 / -1;
+  align-self: end;
+}
+.gv-end2-wx svg {
+  width: calc(var(--u) * 1.6);
+  height: calc(var(--u) * 1.6);
+}
+/* the verdict as a pill: readable on any airline's colour */
+.gv-end2-lab em {
+  margin-left: calc(var(--u) * 0.6);
+  padding: calc(var(--u) * 0.1) calc(var(--u) * 0.55);
+  border-radius: 999px;
+  color: #0d1a12;
+  background: #7cf0a8;
+}
+.gv-end2-lab em.is-warn {
+  background: #ffcf5a;
+  color: #2a1d00;
+}
+.gv-end2-lab em.is-stop {
+  background: #ff9c94;
+  color: #2a0503;
+}
+
+/* the sign-off in the landing box: a size that keeps two lines inside it */
+.gv-end2-landing .gv-end-bye {
+  padding: calc(var(--u) * 0.45) calc(var(--u) * 1);
+  gap: calc(var(--u) * 0.15);
+}
+.gv-end2-landing .gv-end-bye b {
+  font-size: calc(var(--u) * 1.2);
+}
+.gv-end2-landing .gv-end-bye span {
+  font-size: calc(var(--u) * 1.05);
+  line-height: 1.25;
+}
+.gv-end2-landing {
+  overflow: hidden;
+}
+/* the weather's picture on a dark tile (the ticket's ink), ringed in its cream: the icon is drawn for a dark
+   ground (white cloud, #ffd166 sun, #8ecbff rain: 9:1 to 16:1 on it), whatever the airline's colour */
+.gv-end2-wx svg {
+  box-sizing: content-box;
+  padding: calc(var(--u) * 0.25);
+  border-radius: calc(var(--u) * 0.4);
+  background: #12193a;
+  box-shadow: 0 0 0 calc(var(--u) * 0.1) #f6f3ea;
+}
+/* the ticket's COMPLETE pill: a ring around it */
+.gv-tk-top em {
+  box-shadow:
+    0 0 0 calc(var(--u) * 0.12) #f6f3ea,
+    0 0 0 calc(var(--u) * 0.26) var(--tk-brand, var(--gs-bg));
 }

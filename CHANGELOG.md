@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.17.4 — 2026-11-25
+
+- **The ending screen, redesigned** (the chosen design, C2, in docs/design/ending):
+  - On the left, the game, and under it the connections at the destination as a dot-matrix board as wide as the game (from VATSIM, IVAO and the sim through OFP Tower).
+  - On the right, the route map with the most room. It's the same map as before, drawn to its new box, so a north–south route shows more land east and west.
+  - Under the map, the flight as a ticket: from and to, off and on times, block, air, top, fastest, trip fuel, cruise burn, on blocks, and on time or late.
+  - At the bottom, the landing with its runway, rate, G and the weather, then the sign-off.
+- **Next stream, optional and off by default** (Stream → Start and end): when, the airline, the route and a title, on the ticket's tear-off stub. The stub is in a colour that contrasts with the airline's (SAS blue → yellow, easyJet orange → cyan), or the airline's own second colour when that already contrasts (Ryanair's yellow, BA's red). It reaches OBS with the other settings.
+- **Airline chips show the three-letter code** of the flight (SAS, BAW, KLM; EJU for easyJet Europe in easyJet's colours) on the traffic boards and cards.
+- Readable everywhere on it (AA): the weather's picture on a dark tile, the landing's verdict as a pill, the ticket's airline line dark when the airline's colour is too light on the cream, and the VATSIM badge a deeper green (white on it was 3.6:1).
+
 ## 1.17.3 — 2026-11-24
 
 Fixes from a review of every stream view, rendered from a real Oslo → Copenhagen flight.

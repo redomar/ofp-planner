@@ -110,7 +110,7 @@ export function FlightCard({
     }
     return out;
   }, [snap, hour]);
-  const keep = { rotate: gate.rotate, overlay: gate.overlay, view: gate.view, stages: gate.stages, scenes: gate.scenes, hold: gate.hold, go: gate.go, goFrom: gate.goFrom, bye: gate.bye };
+  const keep = { rotate: gate.rotate, overlay: gate.overlay, view: gate.view, stages: gate.stages, scenes: gate.scenes, hold: gate.hold, go: gate.go, goFrom: gate.goFrom, bye: gate.bye, nextOn: gate.nextOn, nextAt: gate.nextAt, nextAirline: gate.nextAirline, nextRoute: gate.nextRoute, nextTitle: gate.nextTitle };
   const pin = (fs: FlightSource | null) => onPatch({ fs });
   const fsOn = gate.fs;
   const wait = !flight
@@ -530,9 +530,41 @@ export function WrittenOn({
           <input className="ctl-input" value={gate.bye} maxLength={140} onChange={(e) => onPatch({ bye: e.target.value.slice(0, 140) })} placeholder="On the Ending screen, e.g. Thanks for watching!" />
         </label>
         <p className="muted small">The sign-off reaches the Ending screen live through OFP Tower, like the other settings.</p>
+        <label className="check">
+          <input type="checkbox" checked={gate.nextOn} onChange={(e) => onPatch({ nextOn: e.target.checked })} />
+          Show the next stream on the Ending screen
+        </label>
+        {gate.nextOn && (
+          <div className="dk-next">
+            <label className="jr-ctl">
+              <span className="ctl-label">When</span>
+              <input className="ctl-input" type="datetime-local" value={localInput(gate.nextAt)} onChange={(e) => onPatch({ nextAt: e.target.value ? new Date(e.target.value).getTime() : null })} />
+            </label>
+            <label className="jr-ctl">
+              <span className="ctl-label">Airline</span>
+              <input className="ctl-input" value={gate.nextAirline} maxLength={32} onChange={(e) => onPatch({ nextAirline: e.target.value.slice(0, 32) })} placeholder="e.g. Norwegian" />
+            </label>
+            <label className="jr-ctl">
+              <span className="ctl-label">Route</span>
+              <input className="ctl-input" value={gate.nextRoute} maxLength={32} onChange={(e) => onPatch({ nextRoute: e.target.value.slice(0, 32) })} placeholder="e.g. CPH → TOS" />
+            </label>
+            <label className="jr-ctl">
+              <span className="ctl-label">Title (optional)</span>
+              <input className="ctl-input" value={gate.nextTitle} maxLength={48} onChange={(e) => onPatch({ nextTitle: e.target.value.slice(0, 48) })} placeholder="e.g. Northern lights run" />
+            </label>
+          </div>
+        )}
+        <p className="muted small">On the ticket’s tear-off stub, in this PC’s time; off by default.</p>
       </Fold>
     </>
   );
+}
+
+/** A time as a datetime-local input's value, in this PC's time. */
+function localInput(ms: number | null): string {
+  if (ms == null) return "";
+  const d = new Date(ms - new Date(ms).getTimezoneOffset() * 60_000);
+  return d.toISOString().slice(0, 16);
 }
 
 /* ---------- S1: where it goes, Send to OBS ---------- */

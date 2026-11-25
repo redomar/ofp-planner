@@ -62,6 +62,15 @@ export interface GateState {
   show: string | null;
   showUntil: number | null;
   /**
+   * 1.17.4: the next stream, on the ending screen's ticket stub; off by default. When (ms), the
+   * airline and the route flown, a title. Relayed with the other settings.
+   */
+  nextOn: boolean;
+  nextAt: number | null;
+  nextAirline: string;
+  nextRoute: string;
+  nextTitle: string;
+  /**
    * 1.13: the countdown to the stream's start (view "countdown"), as written in the URL: "5m" from
    * when the page loaded, "19:30" (this PC's time) or "19:30Z", "std-30" from the flight's off-block;
    * several joined by commas, the first that gives a time wins. URL only: never relayed by OFP Tower.
@@ -152,6 +161,11 @@ export const EMPTY_GATE: GateState = {
   hold: null,
   show: null,
   showUntil: null,
+  nextOn: false,
+  nextAt: null,
+  nextAirline: "",
+  nextRoute: "",
+  nextTitle: "",
   go: null,
   goFrom: 0,
   bye: "",
@@ -161,6 +175,8 @@ export const EMPTY_GATE: GateState = {
 
 const PINS: PhaseKey[] = ["scheduled", "gate", "boarding", "final", "closed", "ready", "pushback", "lineup", "takeoff", "departed"];
 const text = (v: string | null, n: number) => (v ?? "").replace(/[^\p{L}\p{N} .,'!?:&()/+-]/gu, "").slice(0, n);
+/** 1.17.4: the next stream's words, arrows and the middle dot kept ("CPH → TOS"). */
+const textRoute = (v: string | null, n: number) => (v ?? "").replace(/[^\p{L}\p{N} .,'!?:&()/+\-→←↔·–—]/gu, "").slice(0, n);
 
 /**
  * Looks per stage, each a look token (layers joined by ~) or a rotation (1.14, steps joined by >):
@@ -252,6 +268,11 @@ export function gateFromParams(q: URLSearchParams, now: number): GateState {
     scenes: scenesFrom(q.get("sc")),
     hold: holdFrom(q.get("hold")),
     ...showFrom(q.get("show")),
+    nextOn: q.get("nx") === "1",
+    nextAt: /^\d{9,11}$/.test(q.get("nxa") ?? "") ? Number(q.get("nxa")) * 1000 : null,
+    nextAirline: textRoute(q.get("nxl"), 32),
+    nextRoute: textRoute(q.get("nxr"), 32),
+    nextTitle: textRoute(q.get("nxt"), 48),
     go: goParam(q.get("go")),
     goFrom: now,
     bye: text(q.get("bye"), 140),
@@ -267,6 +288,14 @@ function showFrom(v: string | null): Pick<GateState, "show" | "showUntil"> {
   if (!tok || !lookFrom(tok)) return { show: null, showUntil: null };
   const u = Number(until);
   return { show: tok.slice(0, 60), showUntil: Number.isFinite(u) && u > 0 ? u * 1000 : null };
+}
+/** The next stream's settings, written only when there's something in them. */
+function setNext(g: Pick<GateState, "nextOn" | "nextAt" | "nextAirline" | "nextRoute" | "nextTitle">, set: (k: string, v: string) => void) {
+  if (g.nextOn) set("nx", "1");
+  if (g.nextAt != null) set("nxa", String(Math.round(g.nextAt / 1000)));
+  if (g.nextAirline) set("nxl", g.nextAirline);
+  if (g.nextRoute) set("nxr", g.nextRoute);
+  if (g.nextTitle) set("nxt", g.nextTitle);
 }
 const showTo = (g: Pick<GateState, "show" | "showUntil">) => (g.show ? `${g.show}!${g.showUntil != null ? Math.round(g.showUntil / 1000) : 0}` : null);
 
@@ -296,6 +325,7 @@ export function gateToParams(g: GateState, now: number, extra: Record<string, st
   set("sc", sc !== scenesTo(DEFAULT_SCENES) && (sc || "-"));
   set("hold", g.hold);
   set("show", showTo(g));
+  setNext(g, (k, v) => set(k, v));
   set("go", g.go);
   set("bye", g.bye);
   set("fs", g.fs);
@@ -330,12 +360,13 @@ export function streamSettingsQuery(g: GateState, who: string | null = null): st
   if (g.fs) q.set("fs", g.fs);
   const show = showTo(g);
   if (show) q.set("show", show);
+  setNext(g, (k, v) => q.set(k, v));
   // the VATSIM callsign the board uses (a watched pilot, or the owner's own for the position)
   if (who) q.set("who", who);
   return q.toString();
 }
 
-export type StreamSettings = Pick<GateState, "stages" | "scenes" | "hold" | "delay" | "cancelled" | "gate" | "oldGate" | "reg" | "an" | "ac" | "msg" | "rotate"> & Partial<Pick<GateState, "bye" | "fs" | "anf" | "show" | "showUntil">>;
+export type StreamSettings = Pick<GateState, "stages" | "scenes" | "hold" | "delay" | "cancelled" | "gate" | "oldGate" | "reg" | "an" | "ac" | "msg" | "rotate"> & Partial<Pick<GateState, "bye" | "fs" | "anf" | "show" | "showUntil" | "nextOn" | "nextAt" | "nextAirline" | "nextRoute" | "nextTitle">>;
 
 /** A relayed settings query, or null when it isn't complete (no stage table: an old, empty or partial message). */
 export function streamSettingsFrom(q: string, now: number): StreamSettings | null {
@@ -343,7 +374,7 @@ export function streamSettingsFrom(q: string, now: number): StreamSettings | nul
   if (!p.get("st") || !p.get("sc")) return null;
   const s = gateFromParams(p, now);
   const base = { stages: s.stages, scenes: s.scenes, hold: s.hold, delay: s.delay, cancelled: s.cancelled, gate: s.gate, oldGate: s.oldGate, reg: s.reg, an: s.an, ac: s.ac, msg: s.msg, rotate: s.rotate };
-  return p.get("sv") === "2" ? { ...base, bye: s.bye, fs: s.fs, anf: s.anf, show: s.show, showUntil: s.showUntil } : base;
+  return p.get("sv") === "2" ? { ...base, bye: s.bye, fs: s.fs, anf: s.anf, show: s.show, showUntil: s.showUntil, nextOn: s.nextOn, nextAt: s.nextAt, nextAirline: s.nextAirline, nextRoute: s.nextRoute, nextTitle: s.nextTitle } : base;
 }
 
 /* ---------- what the screen shows, from a snapshot flight or a SimBrief OFP ---------- */
