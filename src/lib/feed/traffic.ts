@@ -70,14 +70,21 @@ export function dayTime(minutes: number, now: number): number {
   return [t - 86_400_000, t, t + 86_400_000].reduce((a, b) => (Math.abs(b - now) < Math.abs(a - now) ? b : a));
 }
 
-/** The stand an aircraft on the ground is parked on (within its radius, plus a little). */
+/**
+ * The stand an aircraft on the ground is parked on: the nearest within its radius plus 35 m. A sim's
+ * stand is its nose point and the aircraft's position its reference point, 15–35 m further back.
+ */
 export function snapStand(p: { lat: number; lon: number }, stands: Stand[] | null | undefined): string | null {
+  return nearestStand(p, stands)?.name ?? null;
+}
+
+function nearestStand(p: { lat: number; lon: number }, stands: Stand[] | null | undefined): { name: string; d: number } | null {
   let best: { name: string; d: number } | null = null;
   for (const s of stands ?? []) {
     const d = distNm(p, s) * NM;
-    if (d <= Math.max(10, s.radius) + 15 && (!best || d < best.d)) best = { name: s.name, d };
+    if (d <= Math.max(10, s.radius) + 35 && (!best || d < best.d)) best = { name: s.name, d };
   }
-  return best?.name ?? null;
+  return best;
 }
 
 /** On the ground at the airport: near it, slow, and low. */
@@ -258,12 +265,16 @@ export function fromTower(m: unknown, ap: TrafficAirport, now: number, stands?: 
   const msg = (m ?? {}) as Record<string, unknown>;
   if (icao(msg.airport) !== ap.icao) return [];
   const out: TrafficRow[] = [];
+  // one aircraft per stand: the nearest keeps it
+  const held = new Map<string, { row: TrafficRow; d: number }>();
   for (const raw of (Array.isArray(msg.aircraft) ? msg.aircraft : []).slice(0, 500)) {
     const a = raw as Record<string, unknown>;
     const cs = callsignOf(a.callsign);
     if (!cs) continue;
     const from = icao(a.from);
     const to = icao(a.to);
+    // a registration with no route (GENDD): a GA or static aircraft, not a flight a board lists
+    if (!from && !to && !/^[A-Z]{3}[0-9]/.test(cs)) continue;
     const pos = {
       lat: num(a.lat) ?? NaN,
       lon: num(a.lon) ?? NaN,
@@ -281,7 +292,8 @@ export function fromTower(m: unknown, ap: TrafficAirport, now: number, stands?: 
     if (!status) continue;
     const parking = str(a.parking, 40);
     const native = parking ? parkingName(parking) : null;
-    const snapped = !native && hasPos && a.onGround === true ? snapStand(pos, stands) : null;
+    const near = !native && hasPos && a.onGround === true ? nearestStand(pos, stands) : null;
+    const snapped = near?.name ?? null;
     const etd = num(a.etd);
     const eta = num(a.eta);
     const t = side === "dep" ? (etd != null ? etd * 1000 : null) : eta != null ? eta * 1000 : hasPos && a.onGround !== true ? etaFrom(pos, ap, now) : null;
@@ -297,6 +309,21 @@ export function fromTower(m: unknown, ap: TrafficAirport, now: number, stands?: 
       status,
       type: str(a.type, 8),
     });
+    if (near) {
+      const row = out[out.length - 1];
+      // a parked aircraft before one moving past (or pushing back from) the stand
+      const d = near.d + ((pos.gs ?? 0) >= 1 ? 1000 : 0);
+      const had = held.get(near.name);
+      if (!had) held.set(near.name, { row, d });
+      else if (d < had.d) {
+        had.row.gate = null;
+        had.row.snapped = false;
+        held.set(near.name, { row, d });
+      } else {
+        row.gate = null;
+        row.snapped = false;
+      }
+    }
   }
   return out;
 }

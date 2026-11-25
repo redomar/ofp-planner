@@ -631,6 +631,29 @@ async function run() {
           ? pass("gate feed: traffic: VATSIM (gate from the stand it's on, taxiing, the filed time, a prefile; ones gone and others' left out), IVAO's own states and times, OFP Tower's sim aircraft (the sim's gate, AI states, SkyNet), one row per callsign with a network over the sim, the board's window in time order (untimed last), its airport by where the aircraft sits")
           : fail(`gate feed: traffic ${JSON.stringify({ all: all.map((r) => [r.callsign, r.src, r.side, r.status, r.gate, r.t && hm(r.t)]), deps: deps.map((r) => r.callsign) })}`);
       }
+      // 1.17.6: EFHK after landing (24 Nov): a sim stand is its nose point, the aircraft's position 15–35 m behind,
+      // so a stand within its radius + 35 m; one aircraft per stand (parked before moving); a registration with no route left out
+      {
+        const tr = await import(join(process.cwd(), "src/lib/feed/traffic.ts"));
+        const ap = { icao: "EFHK", lat: 60.3172, lon: 24.9633, elevFt: 179 };
+        const m = 1 / 111_200;
+        const S = { lat: 60.318, lon: 24.964 };
+        const stands = [{ name: "30", lat: S.lat, lon: S.lon, radius: 18 }, { name: "29", lat: S.lat, lon: S.lon + 45 * m * 2, radius: 18 }];
+        const at = (dn, de, extra) => ({ src: "SI", lat: S.lat + dn * m, lon: S.lon + de * m * 2, alt: 170, onGround: true, gs: 0, ...extra });
+        const rows = tr.fromTower({ type: "traffic", airport: "EFHK", aircraft: [
+          { callsign: "FIN2PD", ...at(-45, 0) },
+          { callsign: "FIN07RT", ...at(0, 40, { gs: 3 }) },
+          { callsign: "FIN6G", ...at(-30, 45) },
+          { callsign: "FIN9XX", ...at(-200, 0) },
+          { callsign: "GENDD", ...at(-400, 0, { src: "AI" }) },
+          { callsign: "OHABC", ...at(-400, 40, { from: "EFHK", to: "EFTU" }) },
+        ] }, ap, Date.UTC(2026, 10, 24, 12, 30), stands);
+        const by = Object.fromEntries(rows.map((r) => [r.callsign, r]));
+        by.FIN2PD?.gate === "30" && by.FIN2PD.status === "AT GATE" && by.FIN6G?.gate === "29" && by.FIN07RT?.gate === null && by.FIN07RT.status === "TAXIING" &&
+        by.FIN9XX?.gate === null && !by.GENDD && by.OHABC?.side === "dep"
+          ? pass("gate feed: sim stands at EFHK: an aircraft 45 m behind its stand's nose point gets it, one aircraft per stand (the parked one over one moving past), a registration with no route left out")
+          : fail(`gate feed: sim stands ${JSON.stringify(rows.map((r) => [r.callsign, r.status, r.gate]))}`);
+      }
       // 1.17.4: the next stream's stub in a colour that contrasts with the airline's
       {
         const co = await import(join(process.cwd(), "src/lib/colors.ts"));
