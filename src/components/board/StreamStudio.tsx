@@ -12,6 +12,9 @@ import {
   MAX_STEPS,
   SHOWS_VS,
   TRAFFIC_STYLES,
+  FLIP_EVERY,
+  lookFrom,
+  lookTo,
   TRAFFIC_VIEWS,
   SIZES,
   STEP_DEFAULT_S,
@@ -122,6 +125,10 @@ export function ScenesPreview({
   const [edit, setEdit] = useState<{ scene: SceneIx; stage: ViewStage } | null>(null);
   const [all, setAll] = useState(false);
   const [menu, setMenu] = useState(false);
+  // 1.17.7: the ending screen (its own OBS source), previewed with its board's settings
+  const [endTab, setEndTab] = useState(false);
+  const endLook = useMemo(() => lookFrom(`ending.${gate.endBoard}`) ?? look("ending"), [gate.endBoard]);
+  const setEnd = (p: Partial<Look>) => onPatch({ endBoard: lookTo({ ...endLook, ...p }).replace(/^ending\.?/, "") });
   const scene = sel >= 0 && sel < gate.scenes.length ? sel : OTHER;
   const stagesOf = (i: SceneIx) => (i === OTHER ? gate.stages : gate.scenes[i][1]);
   const nameOf = (i: SceneIx) => (i === OTHER ? "Any other scene" : gate.scenes[i][0]);
@@ -176,16 +183,37 @@ export function ScenesPreview({
       <div className="dk-pv-top">
         <div className="tabs dk-scenes" role="tablist" aria-label="OBS scenes">
           {[OTHER, ...gate.scenes.map((_, i) => i)].map((i) => (
-            <button type="button" role="tab" key={i} aria-selected={i === scene} className="tab" onClick={() => setSel(i)}>
+            <button
+              type="button"
+              role="tab"
+              key={i}
+              aria-selected={!endTab && i === scene}
+              className="tab"
+              onClick={() => {
+                setSel(i);
+                setEndTab(false);
+              }}
+            >
               {nameOf(i)}
             </button>
           ))}
+          <button type="button" role="tab" aria-selected={endTab} className="tab dk-end-tab" onClick={() => setEndTab(true)} title="The ending screen, its own OBS source (Send to OBS → Ending)">
+            Ending
+          </button>
           <button type="button" className="tab dk-add" onClick={addScene} disabled={gate.scenes.length >= 8}>
             + Scene
           </button>
         </div>
-        <span className="dk-hint ctl-label">What OBS shows · click a stage to change its look</span>
+        <span className="dk-hint ctl-label">{endTab ? "The ending screen · its own OBS source" : "What OBS shows · click a stage to change its look"}</span>
       </div>
+      {endTab ? (
+        <div className="dk-scene-bar dk-end-bar">
+          <div className="st-field">
+            <BoardControls l={endLook} onChange={setEnd} id="dk-end-" ending />
+          </div>
+          <small className="muted">The board under the game: the destination’s connections (its departures), its arrivals, or both in turn. Reaches the open Ending source live with OFP Tower.</small>
+        </div>
+      ) : (
       <div className="dk-scene-bar">
         {scene === OTHER ? (
           <span className="muted small">Every OBS scene not named in a tab. Name the others exactly as in OBS.</span>
@@ -200,7 +228,8 @@ export function ScenesPreview({
           Scene ▾
         </button>
       </div>
-      {menu && (
+      )}
+      {menu && !endTab && (
         <div id="dk-scene-menu" className="dk-menu" role="group" aria-label={`${nameOf(scene)}: quick changes`}>
           <button type="button" className="btn btn-sm" onClick={() => setStages(scene, allStages(cur[pvStage]))}>
             {STAGE_INFO[pvStage].name}’s look all flight
@@ -223,19 +252,27 @@ export function ScenesPreview({
       )}
 
       <div className="gs-frame dk-screen" id="gs-preview">
+        {endTab ? (
+          <GateViewScreen flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={feed.state ?? samples.arrived} source={feed.state ? feed.using : "link"} trail={feed.state ? feed.trail : []} plan={feed.plan} summary={feed.summary} probe={null} mcdu={[]} events={[]} towerTraffic={feed.traffic} stands={feed.stands} preview={!feed.state} step={{ ls: [endLook], key: "ending", from: 0 }} />
+        ) : (
         <GateViewScreen flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={pvLive} source={isLive ? feed.using : "link"} trail={isLive ? feed.trail : []} plan={feed.plan} summary={feed.summary} probe={isNow ? feed.probe : pvDeck.probe} mcdu={isNow ? feed.mcdu : pvDeck.mcdu} events={isNow ? feed.events : pvDeck.events} towerTraffic={feed.traffic} stands={feed.stands} preview={!isLive} step={step} back={pvFlip && pvBack != null ? pvBack : undefined} />
+        )}
       </div>
       <div className="dk-under">
+        {endTab ? (
+          <p className="muted small dk-caption">Ending · {feed.state ? "this flight now" : "an example of this flight, arrived"}. Its own OBS source: Send to OBS → Ending.</p>
+        ) : (
         <p className="muted small dk-caption">
           {nameOf(scene)} · {STAGE_INFO[pvStage].name}
           {isLive ? " (now)" : liveStage ? "" : " (an example of this flight)"}: {turnsName(pvTurns)}
           {pvFlip && !pvFlip.only ? `, turning over every ${mmss(pvFlip.every)} for ${mmss(pvFlip.hold)}` : ""}. The see-through parts show your game.
         </p>
+        )}
         <button type="button" className="btn btn-sm" onClick={() => void document.getElementById("gs-preview")?.requestFullscreen?.()}>
           Full screen
         </button>
       </div>
-      {pvFlip && shownBacks(pvFlip.backs).length > 0 && (
+      {!endTab && pvFlip && shownBacks(pvFlip.backs).length > 0 && (
         <div className="seg st-pv-seg" role="radiogroup" aria-label="Which side of the flip card">
           <button type="button" role="radio" aria-checked={pvBack == null} className="seg-btn" onClick={() => setPvBack(null)}>
             As it turns
@@ -248,6 +285,7 @@ export function ScenesPreview({
         </div>
       )}
 
+      {!endTab && (
       <ol className="dk-stages" aria-label={`${nameOf(scene)}: what it shows at each stage`}>
         {STAGES.map((k) => {
           const t = cur[k];
@@ -275,6 +313,7 @@ export function ScenesPreview({
           );
         })}
       </ol>
+      )}
 
       <div className="dk-row">
         <button type="button" className="btn" disabled={!canRehearse} onClick={() => onRehearse(!rehearsing)}>
@@ -731,27 +770,7 @@ function LookEditor({
           )}
           {TRAFFIC_VIEWS.includes(cur.v) && (
             <div className="st-field">
-              <span className="ctl-label" id="st-tside">Shows</span>
-              <div className="seg" role="radiogroup" aria-labelledby="st-tside">
-                {(
-                  [
-                    ["dep", "Departures"],
-                    ["arr", "Arrivals"],
-                  ] as const
-                ).map(([k, n]) => (
-                  <button type="button" role="radio" key={k} aria-checked={cur.side === k} className="seg-btn" onClick={() => setCur({ side: k })}>
-                    {n}
-                  </button>
-                ))}
-              </div>
-              <span className="ctl-label" id="st-tstyle">Style</span>
-              <div className="seg" role="radiogroup" aria-labelledby="st-tstyle">
-                {TRAFFIC_STYLES.map(({ k, name }) => (
-                  <button type="button" role="radio" key={k} aria-checked={cur.style === k} className="seg-btn" onClick={() => setCur({ style: k })}>
-                    {name}
-                  </button>
-                ))}
-              </div>
+              <BoardControls l={cur} onChange={setCur} id="st-t" />
               <small className="muted">The airport you’re at: the origin until take-off, then the destination (departures there are your connections). From VATSIM and IVAO, and the sim’s traffic with OFP Tower.</small>
             </div>
           )}
@@ -924,5 +943,52 @@ function TurnsBar({
         {many ? "The steps take turns, round and round, from the first each time the stage starts. A step with several looks shows the next one each time round." : "One look the whole stage. Add a second to make them take turns."}
       </small>
     </div>
+  );
+}
+
+/** 1.17.7: a board's side (departures, arrivals, or both in turn on a timer) and style. */
+function BoardControls({ l, onChange, id, ending = false }: { l: Look; onChange: (p: Partial<Look>) => void; id: string; ending?: boolean }) {
+  const sides = [
+    ["dep", ending ? "Connections" : "Departures"],
+    ["arr", "Arrivals"],
+    ["flip", "Both, flipping"],
+  ] as const;
+  return (
+    <>
+      <span className="ctl-label" id={`${id}side`}>
+        Shows
+      </span>
+      <div className="seg" role="radiogroup" aria-labelledby={`${id}side`}>
+        {sides.map(([k, n]) => (
+          <button type="button" role="radio" key={k} aria-checked={l.side === k} className="seg-btn" onClick={() => onChange({ side: k })}>
+            {n}
+          </button>
+        ))}
+      </div>
+      {l.side === "flip" && (
+        <>
+          <span className="ctl-label" id={`${id}every`}>
+            Flips every
+          </span>
+          <div className="seg" role="radiogroup" aria-labelledby={`${id}every`}>
+            {FLIP_EVERY.map((sec) => (
+              <button type="button" role="radio" key={sec} aria-checked={l.flipS === sec} className="seg-btn" onClick={() => onChange({ flipS: sec })}>
+                {sec} s
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      <span className="ctl-label" id={`${id}style`}>
+        Style
+      </span>
+      <div className="seg" role="radiogroup" aria-labelledby={`${id}style`}>
+        {TRAFFIC_STYLES.map(({ k, name }) => (
+          <button type="button" role="radio" key={k} aria-checked={l.style === k} className="seg-btn" onClick={() => onChange({ style: k })}>
+            {name}
+          </button>
+        ))}
+      </div>
+    </>
   );
 }

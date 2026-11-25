@@ -8,7 +8,7 @@ import type { Airport, FlightRow } from "../data/load";
 import { blockTime, flightNo, gcNm } from "../data/flight";
 import { MIN, taxiOf, type PhaseKey } from "./board";
 import type { FlightPlan, PlanLeg, ViewStage } from "../feed/core";
-import { layers, lookFrom, turnsFrom, turnsOf, turnsTo, type Layers, type ShownView, type Turns } from "./looks";
+import { layers, lookFrom, lookTo, turnsFrom, turnsOf, turnsTo, type Layers, type ShownView, type Turns } from "./looks";
 import { goParam } from "./countdown";
 
 export interface GateState {
@@ -70,6 +70,11 @@ export interface GateState {
   nextAirline: string;
   nextRoute: string;
   nextTitle: string;
+  /**
+   * 1.17.7: the ending screen's board, as its look's options after "ending." ("" = connections in dot
+   * matrix; "arr", "flip.f30.flap"…). Relayed with the other settings.
+   */
+  endBoard: string;
   /**
    * 1.13: the countdown to the stream's start (view "countdown"), as written in the URL: "5m" from
    * when the page loaded, "19:30" (this PC's time) or "19:30Z", "std-30" from the flight's off-block;
@@ -166,6 +171,7 @@ export const EMPTY_GATE: GateState = {
   nextAirline: "",
   nextRoute: "",
   nextTitle: "",
+  endBoard: "",
   go: null,
   goFrom: 0,
   bye: "",
@@ -273,6 +279,7 @@ export function gateFromParams(q: URLSearchParams, now: number): GateState {
     nextAirline: textRoute(q.get("nxl"), 32),
     nextRoute: textRoute(q.get("nxr"), 32),
     nextTitle: textRoute(q.get("nxt"), 48),
+    endBoard: endBoardFrom(q.get("eb")),
     go: goParam(q.get("go")),
     goFrom: now,
     bye: text(q.get("bye"), 140),
@@ -289,8 +296,16 @@ function showFrom(v: string | null): Pick<GateState, "show" | "showUntil"> {
   const u = Number(until);
   return { show: tok.slice(0, 60), showUntil: Number.isFinite(u) && u > 0 ? u * 1000 : null };
 }
-/** The next stream's settings, written only when there's something in them. */
-function setNext(g: Pick<GateState, "nextOn" | "nextAt" | "nextAirline" | "nextRoute" | "nextTitle">, set: (k: string, v: string) => void) {
+/** "eb=flip.f30": the ending's board, checked and written the short way ("" for the default). */
+export function endBoardFrom(v: string | null): string {
+  if (!v || !/^[a-z0-9.]{1,32}$/.test(v)) return "";
+  const l = lookFrom(`ending.${v}`);
+  return l ? lookTo(l).replace(/^ending\.?/, "") : "";
+}
+
+/** The next stream's settings (and 1.17.7 the ending's board), written only when there's something in them. */
+function setNext(g: Pick<GateState, "nextOn" | "nextAt" | "nextAirline" | "nextRoute" | "nextTitle" | "endBoard">, set: (k: string, v: string) => void) {
+  if (g.endBoard) set("eb", g.endBoard);
   if (g.nextOn) set("nx", "1");
   if (g.nextAt != null) set("nxa", String(Math.round(g.nextAt / 1000)));
   if (g.nextAirline) set("nxl", g.nextAirline);
@@ -366,7 +381,7 @@ export function streamSettingsQuery(g: GateState, who: string | null = null): st
   return q.toString();
 }
 
-export type StreamSettings = Pick<GateState, "stages" | "scenes" | "hold" | "delay" | "cancelled" | "gate" | "oldGate" | "reg" | "an" | "ac" | "msg" | "rotate"> & Partial<Pick<GateState, "bye" | "fs" | "anf" | "show" | "showUntil" | "nextOn" | "nextAt" | "nextAirline" | "nextRoute" | "nextTitle">>;
+export type StreamSettings = Pick<GateState, "stages" | "scenes" | "hold" | "delay" | "cancelled" | "gate" | "oldGate" | "reg" | "an" | "ac" | "msg" | "rotate"> & Partial<Pick<GateState, "bye" | "fs" | "anf" | "show" | "showUntil" | "nextOn" | "nextAt" | "nextAirline" | "nextRoute" | "nextTitle" | "endBoard">>;
 
 /** A relayed settings query, or null when it isn't complete (no stage table: an old, empty or partial message). */
 export function streamSettingsFrom(q: string, now: number): StreamSettings | null {
@@ -374,7 +389,7 @@ export function streamSettingsFrom(q: string, now: number): StreamSettings | nul
   if (!p.get("st") || !p.get("sc")) return null;
   const s = gateFromParams(p, now);
   const base = { stages: s.stages, scenes: s.scenes, hold: s.hold, delay: s.delay, cancelled: s.cancelled, gate: s.gate, oldGate: s.oldGate, reg: s.reg, an: s.an, ac: s.ac, msg: s.msg, rotate: s.rotate };
-  return p.get("sv") === "2" ? { ...base, bye: s.bye, fs: s.fs, anf: s.anf, show: s.show, showUntil: s.showUntil, nextOn: s.nextOn, nextAt: s.nextAt, nextAirline: s.nextAirline, nextRoute: s.nextRoute, nextTitle: s.nextTitle } : base;
+  return p.get("sv") === "2" ? { ...base, bye: s.bye, fs: s.fs, anf: s.anf, show: s.show, showUntil: s.showUntil, nextOn: s.nextOn, nextAt: s.nextAt, nextAirline: s.nextAirline, nextRoute: s.nextRoute, nextTitle: s.nextTitle, endBoard: s.endBoard } : base;
 }
 
 /* ---------- what the screen shows, from a snapshot flight or a SimBrief OFP ---------- */

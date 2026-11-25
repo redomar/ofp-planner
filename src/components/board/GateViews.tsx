@@ -1273,7 +1273,7 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null; stepFrom?
     const at = goTarget(p.state.go, p.state.goFrom, std, p.now);
     return <GateScreen flight={p.flight} state={p.state} now={p.now} wx={p.wx} live={null} plan={p.plan ?? null} belt={false} countdown={at} />;
   }
-  if (view === "ending") return <EndingView {...p} />;
+  if (view === "ending") return <EndingView {...p} look={lk} />;
   if (view === "fids" || view === "conn" || view === "fidsw") {
     const T = view === "fids" ? DeparturesBoard : view === "conn" ? ConnectionsCard : BoardWindow;
     return <T f={p.flight} live={p.live} now={p.now} arrives={liveFacts(p.flight, p.state, p.live, p.now, p.plan ?? null).arrives} look={lk} towerTraffic={p.towerTraffic} stands={p.stands} preview={p.preview} />;
@@ -1675,8 +1675,11 @@ export const BYE = "That's the stream for today. Thanks for flying along, catch 
  * flight's numbers and the route as flown. The numbers come from OFP Tower's summary, else what this
  * page saw, else the ending a page on this PC kept (an OBS source refreshed after the flight).
  */
-function EndingView(p: ViewProps) {
+function EndingView(p: ViewProps & { look?: Look }) {
   const f = p.flight;
+  // 1.17.7: the board's side (connections, arrivals or both in turn) and style: Stream settings',
+  // else the link's own ("view=ending.flip.flap")
+  const endLook = useMemo(() => (p.state.endBoard ? (lookFrom(`ending.${p.state.endBoard}`) ?? undefined) : p.look), [p.state.endBoard, p.look]);
   const key = routeKey(f);
   const [kept, setKept] = useState<EndingRecord | null>(null);
   useEffect(() => {
@@ -1740,7 +1743,7 @@ function EndingView(p: ViewProps) {
   return (
     <div className="gv gv-end2" style={style} data-size="m" data-pos="tl" role="region" aria-label={label}>
       <div className="gv-window" aria-hidden="true" />
-      <EndConnections f={f} live={p.live} now={p.now} arrives={facts.arrives} towerTraffic={p.towerTraffic} stands={p.stands} preview={p.preview} />
+      <EndConnections f={f} live={p.live} now={p.now} arrives={facts.arrives} towerTraffic={p.towerTraffic} stands={p.stands} preview={p.preview} look={endLook} />
       <div className="gv-end2-side">
         <div className="gv-end2-map">
           <GateMap f={f} facts={facts} W={1150} H={502} label={`Map: the route flown, ${code(f.from)} to ${code(f.to)}`} trail={trail} plan={plan} />

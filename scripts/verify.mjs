@@ -654,6 +654,18 @@ async function run() {
           ? pass("gate feed: sim stands at EFHK: an aircraft 45 m behind its stand's nose point gets it, one aircraft per stand (the parked one over one moving past), a registration with no route left out")
           : fail(`gate feed: sim stands ${JSON.stringify(rows.map((r) => [r.callsign, r.status, r.gate]))}`);
       }
+      // 1.17.7: a board that flips (departures, then arrivals, every so many seconds) and the ending's board setting
+      {
+        const lk = await import(join(process.cwd(), "src/lib/board/looks.ts"));
+        const f = lk.lookFrom("conn.flip.f30");
+        const ok =
+          f.side === "flip" && f.flipS === 30 && lk.lookTo(f) === "conn.flip.f30" && lk.lookTo(lk.lookFrom("conn.flip")) === "conn.flip" && lk.lookTo(lk.lookFrom("fidsw.flip.f20")) === "fidsw.flip" &&
+          lk.lookFrom("conn.flip.f1").flipS === 5 && lk.lookTo(lk.lookFrom("ending.arr.flap")) === "ending.arr.flap" && lk.lookTo(lk.look("ending")) === "ending" && lk.look("ending").style === "dot" &&
+          lk.sideAt({ side: "flip", flipS: 20 }, 0) === "dep" && lk.sideAt({ side: "flip", flipS: 20 }, 20_000) === "arr" && lk.sideAt({ side: "flip", flipS: 20 }, 40_000) === "dep" && lk.sideAt({ side: "arr", flipS: 20 }, 0) === "arr";
+        ok
+          ? pass("gate feed: a board that flips (conn.flip.f30; 20 s by default; departures, then arrivals), the ending's board in dot matrix by default")
+          : fail(`gate feed: flip board ${JSON.stringify(f)}`);
+      }
       // 1.17.4: the next stream's stub in a colour that contrasts with the airline's
       {
         const co = await import(join(process.cwd(), "src/lib/colors.ts"));
@@ -1673,6 +1685,27 @@ async function run() {
         ? pass("gate views: the ending with no feed shows the destination's connections, not the origin's departures")
         : fail(`gate views: ending connections without a feed "${hd}"`);
     }
+    // 1.17.7: the ending's board from Stream settings (eb=): arrivals in split-flaps; the link's own (view=ending.flip) when none
+    {
+      const endHd = async (q) => {
+        const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, reducedMotion: "reduce" });
+        await ctx.addInitScript(SEED);
+        await ctx.route(/simbrief\.com\/api\/xml\.fetcher\.php/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(OFP) }));
+        await ctx.route(/data\.vatsim\.net|api\.ivao\.aero/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: "{}" }));
+        const page = await ctx.newPage();
+        await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&${q}`, { waitUntil: "networkidle" });
+        await page.waitForTimeout(1500);
+        const el = page.locator(".gv-end2 .tv-end");
+        const out = { hd: ((await el.locator(".tv-board-hd").innerText().catch(() => "")) || "").replace(/\s+/g, " "), cls: (await el.getAttribute("class").catch(() => "")) ?? "", flip: await el.locator(".tv-rows.is-flipping").count() };
+        await ctx.close();
+        return out;
+      };
+      const a = await endHd("view=ending&eb=arr.flap");
+      const b = await endHd("view=ending.flip.f10");
+      /ARRIVALS · JOHN F KENNEDY/i.test(a.hd) && /is-flap/.test(a.cls) && /(CONNECTIONS|ARRIVALS) · JOHN F KENNEDY/i.test(b.hd) && /is-dot/.test(b.cls) && b.flip === 1
+        ? pass("gate views: the ending's board from Stream settings (arrivals, split-flaps), and from the link's own look (both in turn, dot matrix)")
+        : fail(`gate views: ending board ${JSON.stringify({ a, b })}`);
+    }
     // 1.13: the ending screen fed by a stand-in OFP Tower (summary + track), then kept for a page with OFP Tower closed
     {
       const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, reducedMotion: "reduce" });
@@ -1781,11 +1814,35 @@ async function run() {
     await a.page.locator(".dk-links li", { hasText: "Main" }).getByRole("button", { name: "Copy" }).click();
     const url = await a.page.evaluate(() => navigator.clipboard.readText());
     const chip = await a.page.locator(".dk-obs-bar .st-chip").textContent();
-    chips.some((c) => /OFP Tower · not running/.test(c)) && sceneList.join("|") === "Any other scene|BRB|Map|Camera" && stageCards === 6 && previews === 1 && ovOther.join("|") === "G1|G1|G4 M|G4 M|G4 M|G1" && ovRows === 1 &&
+    chips.some((c) => /OFP Tower · not running/.test(c)) && sceneList.join("|") === "Any other scene|BRB|Map|Camera|Ending" && stageCards === 6 && previews === 1 && ovOther.join("|") === "G1|G1|G4 M|G4 M|G4 M|G1" && ovRows === 1 &&
     linkNames.join("|") === "Main|BRB|Map|Camera|Countdown|Ending|This look only|Screen window" && copies === linkNames.length && /screen=1/.test(url) && /view=auto/.test(url) && /feed=auto/.test(url) && /copy after changes/.test(chip)
       ? pass("stream panel: one preview, the OBS scenes as tabs, six stages in a strip, every scene at a glance on one row (G1 G1 G4 G4 G4 G1); Send to OBS: one copy button per link, Main follows the aircraft (view=auto, feed=auto)")
       : fail(`stream panel: ${JSON.stringify({ chips, sceneList, stageCards, previews, ovOther, ovRows, linkNames, copies, url, chip })}`);
     await checkPage("stream panel 1280 light", a.page, a.errors);
+    // 1.17.7: the Ending tab: the ending screen in the preview, its board's side and style written to the link
+    {
+      const e = await start();
+      await e.page.goto(`${base}/board?tab=gate&f=${FR}&in=30`, { waitUntil: "networkidle" });
+      await e.page.waitForSelector(".dk-stage");
+      await e.page.locator(".dk-scenes [role=tab]", { hasText: "Ending" }).click();
+      const shown = await e.page.locator("#gs-preview .gv-end2").count();
+      const stagesGone = (await e.page.locator(".dk-stage").count()) === 0;
+      await e.page.locator(".dk-end-bar").getByRole("radio", { name: "Arrivals" }).click();
+      await e.page.locator(".dk-end-bar").getByRole("radio", { name: "Split-flap" }).click();
+      await e.page.waitForTimeout(400);
+      const hd = ((await e.page.locator("#gs-preview .tv-end .tv-board-hd").innerText().catch(() => "")) || "").replace(/\s+/g, " ");
+      const u1 = new URL(e.page.url()).searchParams.get("eb");
+      await e.page.locator(".dk-end-bar").getByRole("radio", { name: "Both, flipping" }).click();
+      await e.page.locator(".dk-end-bar").getByRole("radio", { name: "30 s" }).click();
+      await e.page.waitForTimeout(400);
+      const u2 = new URL(e.page.url()).searchParams.get("eb");
+      await e.page.locator(".dk-scenes [role=tab]", { hasText: "BRB" }).click();
+      const back = (await e.page.locator(".dk-stage").count()) === 6;
+      await e.ctx.close();
+      shown === 1 && stagesGone && /^ARRIVALS/.test(hd) && u1 === "arr.flap" && u2 === "flip.f30.flap" && back && !e.errors.length
+        ? pass("stream panel: the Ending tab previews the ending screen; its board set to arrivals in split-flaps, then both in turn every 30 s, goes into the link (eb=); back to a scene, its stages")
+        : fail(`stream panel: ending tab ${JSON.stringify({ shown, stagesGone, hd, u1, u2, back, errors: e.errors.slice(0, 3) })}`);
+    }
     await shot(a.page, "stream-panel");
     // a preset, a look picked in the editor (a map corner that flips, large, top left), a layer and a renamed scene go into the link
     await a.page.getByRole("tab", { name: "Any other scene" }).click();

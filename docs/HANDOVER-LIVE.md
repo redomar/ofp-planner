@@ -4,7 +4,7 @@ Written on 2026-11-11 by the two Claude sessions that built it: the Mac session 
 
 ## 1. Where things stand
 
-The live site is <https://plans.massorbit.co.uk>. The latest release is **1.17.6**. All releases are signed tags with GitHub releases, made from `main` through PRs.
+The live site is <https://plans.massorbit.co.uk>. The latest release is **1.17.7**. All releases are signed tags with GitHub releases, made from `main` through PRs.
 
 | Version | What | PR |
 |---|---|---|
@@ -38,7 +38,8 @@ The live site is <https://plans.massorbit.co.uk>. The latest release is **1.17.6
 | 1.17.3 | Review fixes: SimBrief v2 `navlog` is the list itself (route was never read); replays send recorded `plan` lines (not when refitted); cockpit strip L overlap; XS back sides/strip compact; traffic looks `side` (dep/arr) + `style` (`air`/`dot`/`flap` tokens; `brand` would parse as back sides), new G10c `fidsw`; `show=TOKEN!epochSec` (GateState.show/showUntil, relayed, sv=2) shows a look by hand (Stream → Show on stream) | PR #75 |
 | 1.17.4 | Ending screen C2 (`gv-end2`: window + `EndConnections` dot board left; GateMap 1150×502 / ticket / landing right); next stream `nx nxa nxl nxr nxt` (GateState next*, relayed sv=2; stub colour `highlightFor`); chips use the callsign's 3-letter code | PR #76 |
 | 1.17.5 | Ending connections always the destination's (`useBoard(..., atDest)`), even with no feed | done |
-| 1.17.6 | Sim stands: snap within radius + 35 m (nose point vs reference point), one aircraft per stand (parked first); route-less registrations dropped from Tower traffic; XS strip centred by margins (was capped at half width) | this release |
+| 1.17.6 | Sim stands: snap within radius + 35 m (nose point vs reference point), one aircraft per stand (parked first); route-less registrations dropped from Tower traffic; XS strip centred by margins (was capped at half width) | done |
+| 1.17.7 | Boards flip dep/arr (`side: "flip"`, token `flip` + `f<s>`, `sideAt`); ending board setting `endBoard` (`eb=`, relayed sv=2, `view=ending.<opts>` too); stream page Ending tab (preview + BoardControls) | this release |
 
 **Naming:** "OFP Tower" is the user-facing name, the owner's choice on 2026-11-11. In code and protocol the old name stays: `feed=link`, `linkSource`, `"app":"ofp-link"`, port 47800, `docs/OFP-LINK.md`, and the PC folder `ofp-link-recorder`. Rename both sides together or not at all.
 
