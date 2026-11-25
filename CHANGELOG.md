@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.17.5 — 2026-11-25
+
+- Fixed: with OFP Tower closed (no live position), the ending screen's connections showed the origin's departures. The ending is after the flight, so they're always the destination's.
+
 ## 1.17.4 — 2026-11-25
 
 - **The ending screen, redesigned** (the chosen design, C2, in docs/design/ending):

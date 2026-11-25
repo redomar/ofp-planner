@@ -1635,6 +1635,21 @@ async function run() {
         ? pass(`gate views: countdown look (${a} · ${b} · ${c})`)
         : fail(`gate views: countdown "${a}" "${b}" "${c}"`);
     }
+    // 1.17.5: the ending with no feed at all (OFP Tower and the sim closed): its connections are the destination's
+    {
+      const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, reducedMotion: "reduce" });
+      await ctx.addInitScript(SEED);
+      await ctx.route(/simbrief\.com\/api\/xml\.fetcher\.php/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(OFP) }));
+      await ctx.route(/data\.vatsim\.net|api\.ivao\.aero/, (r) => r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: "{}" }));
+      const page = await ctx.newPage();
+      await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&view=ending`, { waitUntil: "networkidle" });
+      await page.waitForTimeout(1500);
+      const hd = ((await page.locator(".gv-end2 .tv-end .tv-board-hd").innerText().catch(() => "")) || "").replace(/\s+/g, " ");
+      await ctx.close();
+      /CONNECTIONS · JOHN F KENNEDY/i.test(hd)
+        ? pass("gate views: the ending with no feed shows the destination's connections, not the origin's departures")
+        : fail(`gate views: ending connections without a feed "${hd}"`);
+    }
     // 1.13: the ending screen fed by a stand-in OFP Tower (summary + track), then kept for a page with OFP Tower closed
     {
       const ctx = await browser.newContext({ viewport: { width: 1920, height: 1080 }, reducedMotion: "reduce" });
