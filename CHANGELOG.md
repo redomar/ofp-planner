@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.17.7 — 2026-11-25
+
+- **Departures and arrivals on one board, flipping.** Every board has a third choice under Shows: **Both, flipping**. It shows departures, then arrivals, every 10, 20, 30 or 60 s (20 by default). It works in all three styles (Airline, Dot matrix, Split-flap) and everywhere the board appears: the departures board, the card, the board with window, and Show on stream ("Both, flipping"). In a link: `conn.flip`, `fidsw.flip.f30`.
+- **The ending screen on the stream page.** A new **Ending** tab beside the scenes previews the ending screen, live after landing or as an example of the flight. Its board's settings are there too: **Connections** (the destination's departures, as before), **Arrivals**, or **Both, flipping**, in any of the three styles. They go into the links and reach an open Ending source live through OFP Tower. A link can also carry them itself: `view=ending.flip.flap`.
 ## 1.17.6 — 2026-11-25
 
 From Helsinki after landing, with SayIntentions traffic through OFP Tower:

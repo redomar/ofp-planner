@@ -205,6 +205,7 @@ const SHOW_FOR: [number | null, string][] = [
 const SHOW_LOOKS: [string, string][] = [
   ["conn", "Departures card"],
   ["conn.arr", "Arrivals card"],
+  ["conn.flip", "Both, flipping"],
   ["fidsw", "Board with window"],
   ["fids", "Departures board"],
 ];

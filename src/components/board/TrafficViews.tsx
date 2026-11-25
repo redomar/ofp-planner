@@ -14,7 +14,7 @@ import type { Airport } from "@/lib/data/load";
 import type { AirlineInfo } from "@/lib/data/types";
 import { routeColor, textOn } from "@/lib/colors";
 import type { GateFlight } from "@/lib/board/gate";
-import { look, type Look, type TrafficStyle } from "@/lib/board/looks";
+import { look, sideAt, type Look, type TrafficStyle } from "@/lib/board/looks";
 import type { FlightState } from "@/lib/feed/core";
 import { airlineOf, atOriginOf, boardRows, fromIvao, fromTower, fromVatsim, mergeTraffic, type Stand, type TrafficRow, type TrafficSource, type TrafficStatus } from "@/lib/feed/traffic";
 import { useNetworkTraffic } from "@/lib/feed/useTraffic";
@@ -90,7 +90,8 @@ function sampleRows(apIcao: string, base: number, side: "dep" | "arr"): TrafficR
 
 /** The rows for a traffic look, and where they're from. */
 function useBoard(p: TrafficViewProps, max: number, atDest = false) {
-  const side = p.look.side;
+  // 1.17.7: a board that flips shows departures, then arrivals, in turn
+  const side = sideAt(p.look, p.now);
   // the ending screen: the flight is over, so its destination whatever the feed says (none at all, OFP Tower closed)
   const origin = atDest ? false : atOrigin(p.f, p.live);
   const ap = origin ? p.f.from : p.f.to;
@@ -120,7 +121,7 @@ function useBoard(p: TrafficViewProps, max: number, atDest = false) {
     withMe.splice(at < 0 ? withMe.length : at, 0, me);
   }
   const loaded = p.preview || net.at > 0 || !!p.towerTraffic;
-  return { ap, origin, side, rows: withMe, me, loaded, none: loaded && rows.length === 0 };
+  return { ap, origin, side, flips: p.look.side === "flip", rows: withMe, me, loaded, none: loaded && rows.length === 0 };
 }
 
 type Board = ReturnType<typeof useBoard>;
@@ -184,7 +185,7 @@ function Rows({ b, style, tz, compact }: { b: Board; style: TrafficStyle; tz: st
   const place = usePlace();
   const { airports } = useContext(TrafficPlaces);
   return (
-    <div className={`tv-rows is-${style}${compact ? " is-compact" : ""}`}>
+    <div className={`tv-rows is-${style}${compact ? " is-compact" : ""}${b.flips ? " is-flipping" : ""}`} key={b.side}>
       {b.rows.map((r) => {
         const c = chip(r.callsign, r.me);
         const time = r.t != null ? localClock(r.t, tz) : "--:--";
@@ -344,18 +345,24 @@ export function BoardWindow(p: TrafficViewProps) {
  * The departures where the flight ended (its connections), as a dot-matrix board under the game on
  * the ending screen: the traffic looks' rows, without the flight's own (the ticket beside it is that).
  */
-export function EndConnections(p: Omit<TrafficViewProps, "look">) {
-  const lk = useMemo(() => ({ ...look("conn"), style: "dot" as const }), []);
-  const b = useBoard({ ...p, look: lk }, 8, true);
+export function EndConnections(p: Omit<TrafficViewProps, "look"> & { look?: Look }) {
+  // 1.17.7: its side (connections, arrivals, or both in turn) and style from the ending's settings
+  const lk = useMemo(() => p.look ?? look("ending"), [p.look]);
+  // dot matrix takes 8 rows; the airline's and split-flaps' taller rows, 6
+  const b = useBoard({ ...p, look: lk }, lk.style === "dot" ? 8 : 6, true);
   const tz = b.ap.tz;
   const city = (cityName(b.ap) ?? b.ap.name).toUpperCase();
+  const style = lk.style;
+  const what = b.side === "arr" ? "ARRIVALS" : b.origin ? "DEPARTURES" : "CONNECTIONS";
   return (
-    <div className="tv-end" role="region" aria-label={`Connections at ${city}`}>
-      <div className="tv-board-hd">
-        <span>{b.origin ? "DEPARTURES" : "CONNECTIONS"} · {city}</span>
+    <div className={`tv-end is-${style}`} style={style === "dot" ? undefined : boardStyle(p.f, style)} role="region" aria-label={`${what.toLowerCase()} at ${city}`}>
+      <div className="tv-board-hd" key={b.side}>
+        <span>
+          {what} · {city}
+        </span>
         <small>{localClock(p.live?.last?.t ?? p.now, tz)}</small>
       </div>
-      <Rows b={{ ...b, rows: b.rows.filter((r) => !r.me) }} style="dot" tz={tz} compact={false} />
+      <Rows b={{ ...b, rows: b.rows.filter((r) => !r.me) }} style={style} tz={tz} compact={style !== "dot"} />
     </div>
   );
 }

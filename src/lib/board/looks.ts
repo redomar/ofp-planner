@@ -43,6 +43,14 @@ export const isView = (v: string): v is ShownView => (VIEWS as readonly string[]
 
 /** 1.17.3: the traffic looks (departures or arrivals, in a style). */
 export const TRAFFIC_VIEWS: ShownView[] = ["fids", "conn", "fidsw"];
+/** 1.17.7: the looks with a departures/arrivals board: the traffic looks and the ending screen's connections. */
+export const BOARD_VIEWS: ShownView[] = [...TRAFFIC_VIEWS, "ending"];
+/** 1.17.7: a board that flips between departures and arrivals, every so many seconds. */
+export type BoardSide = "dep" | "arr" | "flip";
+export const FLIP_EVERY = [10, 20, 30, 60];
+export const FLIP_DEFAULT_S = 20;
+/** The side a board shows at `now`: its own, or for one that flips, departures then arrivals in turn. */
+export const sideAt = (l: Pick<Look, "side" | "flipS">, now: number): "dep" | "arr" => (l.side === "flip" ? (Math.floor(now / (l.flipS * 1000)) % 2 === 0 ? "dep" : "arr") : l.side);
 export type TrafficStyle = "brand" | "dot" | "flap";
 export const TRAFFIC_STYLES: { k: TrafficStyle; name: string }[] = [
   { k: "brand", name: "Airline" },
@@ -78,8 +86,10 @@ export interface Look {
   /** 1.16, strip and pills: cockpit changes (flaps, gear, lights, AP…) pop up for 30 s on this side. */
   notify: "r" | "l" | "off";
   /** 1.17.3, traffic looks: departures or arrivals, and the board's style. */
-  side: "dep" | "arr";
+  side: BoardSide;
   style: TrafficStyle;
+  /** 1.17.7: a board that flips: seconds on each side. */
+  flipS: number;
 }
 
 export type ViewKind = "screen" | "box" | "bar" | "pill";
@@ -155,7 +165,7 @@ export const SIZES: { k: LookSize; name: string }[] = [
 
 export function look(v: ShownView, p: Partial<Omit<Look, "v">> = {}): Look {
   const i = VIEW_INFO[v];
-  return { v, size: "m", pos: i.pos, backs: i.flip ? ["numbers", "plan"] : [], every: 180, hold: 45, belt: !i.noBelt, vs: true, only: false, notify: "r", side: "dep", style: v === "fids" ? "dot" : "brand", ...p };
+  return { v, size: "m", pos: i.pos, backs: i.flip ? ["numbers", "plan"] : [], every: 180, hold: 45, belt: !i.noBelt, vs: true, only: false, notify: "r", side: "dep", style: v === "fids" || v === "ending" ? "dot" : "brand", flipS: FLIP_DEFAULT_S, ...p };
 }
 
 /** A token as a look; null when its view isn't one. Unknown parts are skipped. */
@@ -180,7 +190,8 @@ export function lookFrom(token: string): Look | null {
     else if (p === "nl") l.notify = "l";
     else if (p === "nr") l.notify = "r";
     else if (p === "nx") l.notify = "off";
-    else if (p === "arr" || p === "dep") l.side = p;
+    else if (p === "arr" || p === "dep" || p === "flip") l.side = p;
+    else if (/^f\d{1,3}$/.test(p)) l.flipS = Math.max(5, Math.min(300, Number(p.slice(1))));
   }
   return l;
 }
@@ -204,8 +215,9 @@ export function lookTo(l: Look): string {
   if (l.belt !== d.belt) out.push(l.belt ? "wb" : "nb");
   if (!l.vs && SHOWS_VS.includes(l.v)) out.push("nvs");
   if (l.notify !== "r" && SHOWS_VS.includes(l.v)) out.push(l.notify === "l" ? "nl" : "nx");
-  if (TRAFFIC_VIEWS.includes(l.v)) {
+  if (BOARD_VIEWS.includes(l.v)) {
     if (l.side !== d.side) out.push(l.side);
+    if (l.side === "flip" && l.flipS !== d.flipS) out.push(`f${l.flipS}`);
     if (l.style !== d.style) out.push(l.style === "brand" ? "air" : l.style);
   }
   return out.join(".");

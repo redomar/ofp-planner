@@ -4781,3 +4781,73 @@ html.screen-mode body > :not(.screen-root) {
     0 0 0 calc(var(--u) * 0.12) #f6f3ea,
     0 0 0 calc(var(--u) * 0.26) var(--tk-brand, var(--gs-bg));
 }
+
+/* ---------- 1.17.7: a board that flips between departures and arrivals ---------- */
+.tv-rows.is-flipping {
+  animation: tv-flip 0.6s ease-out both;
+  transform-origin: 50% 0;
+}
+@keyframes tv-flip {
+  from {
+    opacity: 0;
+    transform: perspective(60em) rotateX(-70deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tv-rows.is-flipping {
+    animation: none;
+  }
+}
+/* the ending's board in the airline's colours or split-flaps (dot matrix is its default) */
+.gv-end2 .tv-end:is(.is-brand, .is-flap) {
+  background: var(--gs-bg);
+  color: var(--gs-ink);
+  font-family: inherit;
+}
+.gv-end2 .tv-end.is-flap {
+  background: #1a1a1a;
+}
+.gv-end2 .tv-end:is(.is-brand, .is-flap) .tv-board-hd {
+  font: 700 calc(var(--u) * 1.3) var(--font-cond);
+  letter-spacing: 0.1em;
+}
+.gv-end2 .tv-end:is(.is-brand, .is-flap) .tv-board-hd small {
+  color: inherit;
+  opacity: 0.85;
+}
+/* the stream page's Ending tab: set apart from the scenes */
+.dk-scenes .dk-end-tab {
+  margin-left: 0.6rem;
+  border-left: 1px solid var(--line, rgb(127 127 127 / 0.35));
+  padding-left: 0.9rem;
+}
+.dk-end-bar {
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+.dk-end-bar .st-field {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: start;
+  justify-items: start;
+  align-items: center;
+  gap: 0.4rem 0.8rem;
+}
+.dk-end-bar > small {
+  flex-basis: 100%;
+}
+.gv-end2 .tv-end.is-brand {
+  background: color-mix(in srgb, var(--gs-bg) 82%, #000);
+}
+.gv-end2 .tv-end .tv-rows.is-brand .tv-r {
+  height: calc(var(--u) * 3.2);
+  font-size: calc(var(--u) * 1.25);
+}
+.dk-end-bar .st-field > .seg {
+  justify-self: start;
+  margin: 0;
+}
