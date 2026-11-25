@@ -4,7 +4,7 @@ Written on 2026-11-11 by the two Claude sessions that built it: the Mac session 
 
 ## 1. Where things stand
 
-The live site is <https://plans.massorbit.co.uk>. The latest release is **1.17.9**. All releases are signed tags with GitHub releases, made from `main` through PRs.
+The live site is <https://plans.massorbit.co.uk>. The latest release is **1.17.10**. All releases are signed tags with GitHub releases, made from `main` through PRs.
 
 | Version | What | PR |
 |---|---|---|
@@ -41,7 +41,8 @@ The live site is <https://plans.massorbit.co.uk>. The latest release is **1.17.9
 | 1.17.6 | Sim stands: snap within radius + 35 m (nose point vs reference point), one aircraft per stand (parked first); route-less registrations dropped from Tower traffic; XS strip centred by margins (was capped at half width) | done |
 | 1.17.7 | Boards flip dep/arr (`side: "flip"`, token `flip` + `f<s>`, `sideAt`); ending board setting `endBoard` (`eb=`, relayed sv=2, `view=ending.<opts>` too); stream page Ending tab (preview + BoardControls) | done |
 | 1.17.8 | Small boards (compact rows) show the flight: dot `.tv-fl` chip + number, flap callsign flaps; `is-nogate` drops an all-empty gate column | done |
-| 1.17.9 | Dot compact flight `.tv-fl` is one airline-coloured block (code + number) | this release |
+| 1.17.9 | Dot compact flight `.tv-fl` is one airline-coloured block (code + number) | |
+| 1.17.10 | Own row: real status (`ownRow`), LANDING only on short final (`landing`: <5 nm, <1,500 ft AGL) | this release |
 
 **Naming:** "OFP Tower" is the user-facing name, the owner's choice on 2026-11-11. In code and protocol the old name stays: `feed=link`, `linkSource`, `"app":"ofp-link"`, port 47800, `docs/OFP-LINK.md`, and the PC folder `ofp-link-recorder`. Rename both sides together or not at all.
 

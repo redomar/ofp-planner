@@ -16,7 +16,7 @@ import { routeColor, textOn } from "@/lib/colors";
 import type { GateFlight } from "@/lib/board/gate";
 import { look, sideAt, type Look, type TrafficStyle } from "@/lib/board/looks";
 import type { FlightState } from "@/lib/feed/core";
-import { airlineOf, atOriginOf, boardRows, fromIvao, fromTower, fromVatsim, mergeTraffic, type Stand, type TrafficRow, type TrafficSource, type TrafficStatus } from "@/lib/feed/traffic";
+import { airlineOf, atOriginOf, boardRows, distNm, fromIvao, fromTower, fromVatsim, mergeTraffic, type Stand, type TrafficRow, type TrafficSource, type TrafficStatus } from "@/lib/feed/traffic";
 import { useNetworkTraffic } from "@/lib/feed/useTraffic";
 import { localClock } from "./GateScreen";
 
@@ -39,20 +39,26 @@ export interface TrafficViewProps {
   preview?: boolean;
 }
 
-type Row = TrafficRow & { me?: boolean };
+type Row = TrafficRow & { me?: boolean; landing?: boolean };
 
 /** At the origin: see `atOriginOf` (traffic.ts). */
 const atOrigin = (f: Pick<GateFlight, "from" | "to">, live: FlightState | null) => atOriginOf(f.from, f.to, live?.last ?? null, live?.stage ?? null);
 
 function ownRow(f: GateFlight, live: FlightState | null, origin: boolean, arrives: number | null): Row {
   const ph = live?.phase;
+  const p = live?.last;
   let status: TrafficStatus;
   if (origin) status = ph === "pushback" ? "PUSHBACK" : ph === "taxi" ? "TAXIING" : ph === "takeoff" ? "DEPARTED" : "BOARDING";
   else {
     // on the ground at the destination (landed, or a screen opened there afterwards)
     const parked = live?.last?.onGround === true && (live.last.gs ?? 0) < 1;
-    status = ph === "landed" || ph === "taxiIn" ? "LANDED" : ph === "gate" || live?.stage === "arrived" || parked ? "ON BLOCKS" : ph === "approach" || ph === "descent" ? "APPROACH" : "EN ROUTE";
+    // 1.17.10: the real phase, as the board shows other flights: approach within 40 nm (as VATSIM's rows), else en route
+    const nm = p ? distNm(p, f.to) : null;
+    status = ph === "landed" || ph === "taxiIn" ? "LANDED" : ph === "gate" || live?.stage === "arrived" || parked ? "ON BLOCKS" : ph === "approach" || (ph === "descent" && nm != null && nm < 40) ? "APPROACH" : "EN ROUTE";
   }
+  // "landing" only on short final: on approach, airborne, within 5 nm and 1,500 ft of the field
+  const landing =
+    !origin && status === "APPROACH" && p != null && p.onGround !== true && distNm(p, f.to) < 5 && (f.to.elevFt == null || p.alt < f.to.elevFt + 1500);
   return {
     callsign: (f.callsign ?? f.flightNo).replace(/\s+/g, "").toUpperCase(),
     src: "AI",
@@ -65,6 +71,7 @@ function ownRow(f: GateFlight, live: FlightState | null, origin: boolean, arrive
     status,
     type: f.types[0] ?? null,
     me: true,
+    landing,
   };
 }
 
@@ -161,8 +168,8 @@ const Src = ({ s, me }: { s: TrafficSource; me?: boolean }) =>
     </span>
   );
 
-/** What a row says: the own flight at the destination is "landing" until it has. */
-const statusOf = (b: Board, r: Row) => (r.me && !b.origin && (r.status === "EN ROUTE" || r.status === "APPROACH") ? "LANDING" : r.status);
+/** What a row says: the own flight reads "landing" only on short final (1.17.10: it read so all the way from the origin). */
+const statusOf = (_b: Board, r: Row) => (r.landing ? "LANDING" : r.status);
 
 /** One word per split-flap: each character on its own flap, padded to the width. */
 const flaps = (text: string, n: number) => (
