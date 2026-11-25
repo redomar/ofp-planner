@@ -212,11 +212,10 @@ function Rows({ b, style, tz, compact }: { b: Board; style: TrafficStyle; tz: st
             <div className={`tv-r${r.me ? " is-me" : ""}`} key={k}>
               {compact ? (
                 // 1.17.8: the small boards' flight number: the airline's chip is its first three letters
-                <span className="tv-fl">
-                  <span className="tv-chip" style={{ background: c.bg, color: c.ink } as CSSProperties}>
-                    {c.code}
-                  </span>
-                  <span className="tv-dot tv-w">{c.code === r.callsign.slice(0, 3) ? r.callsign.slice(3) : r.callsign}</span>
+                // 1.17.9: one block in the airline's colour, the code and the number in it
+                <span className="tv-fl" style={{ background: c.bg, color: c.ink } as CSSProperties}>
+                  <b>{c.code}</b>
+                  <span>{c.code === r.callsign.slice(0, 3) ? r.callsign.slice(3) : r.callsign}</span>
                 </span>
               ) : (
                 <span className="tv-chip" style={{ background: c.bg, color: c.ink } as CSSProperties}>

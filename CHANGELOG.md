@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.17.9 — 2026-11-25
+
+- The small dot-matrix boards' flight number is one block in the airline's colour (SAS 1424), not a coloured code with the number beside it.
 ## 1.17.8 — 2026-11-25
 
 - **The small boards show the flight number** (the card, the board with window, the ending's board). In dot matrix, the airline's chip is its first three letters, with the number after it ([SAS]1424). Split-flap has the full callsign (SAS1424) after the time. The airline style already had it.

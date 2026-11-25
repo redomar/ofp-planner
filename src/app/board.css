@@ -4866,14 +4866,29 @@ html.screen-mode body > :not(.screen-root) {
 .tv-rows.is-nogate.is-dot .tv-gate {
   visibility: hidden;
 }
-.tv-fl .tv-chip {
-  flex: none;
-  min-width: calc(var(--u) * 3.2);
-  padding: 0 calc(var(--u) * 0.3);
+/* 1.17.9: the flight as one block in the airline's colour: the code in the chip's face, the number in dot matrix */
+.tv-fl {
+  height: calc(var(--u) * 2);
+  padding: 0 calc(var(--u) * 0.45);
+  border-radius: calc(var(--u) * 0.4);
+  justify-self: start;
+  max-width: 100%;
+  overflow: hidden;
 }
-.gv-over[data-size="xs"] .tv-card .tv-fl .tv-chip {
-  min-width: 0;
-  padding: 0 0.25cqw;
+.tv-fl b {
+  font: 700 calc(var(--u) * 1) / 1 var(--font-cond);
+  letter-spacing: 0.04em;
+}
+.tv-fl span {
+  font-family: var(--f-dot), var(--font-mono);
+  letter-spacing: 0.06em;
+}
+.gv-over[data-size="xs"] .tv-card .tv-fl {
+  height: 1.5cqw;
+  padding: 0 0.3cqw;
+}
+.gv-over[data-size="xs"] .tv-card .tv-fl b {
+  font-size: var(--xs-label);
 }
 .gv-over[data-size="xs"] .tv-card .tv-rows.is-flap .tv-r {
   gap: 0.7cqw;
