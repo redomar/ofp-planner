@@ -184,8 +184,10 @@ function Rows({ b, style, tz, compact }: { b: Board; style: TrafficStyle; tz: st
   const chip = useChip();
   const place = usePlace();
   const { airports } = useContext(TrafficPlaces);
+  // 1.17.8: no gate on any row (VATSIM's traffic, mostly): the column gives its room to the flight number
+  const noGate = compact && !b.rows.some((r) => r.gate);
   return (
-    <div className={`tv-rows is-${style}${compact ? " is-compact" : ""}${b.flips ? " is-flipping" : ""}`} key={b.side}>
+    <div className={`tv-rows is-${style}${compact ? " is-compact" : ""}${noGate ? " is-nogate" : ""}${b.flips ? " is-flipping" : ""}`} key={b.side}>
       {b.rows.map((r) => {
         const c = chip(r.callsign, r.me);
         const time = r.t != null ? localClock(r.t, tz) : "--:--";
@@ -197,9 +199,10 @@ function Rows({ b, style, tz, compact }: { b: Board; style: TrafficStyle; tz: st
             <div className={`tv-r${r.me ? " is-me" : ""}`} key={k}>
               <i className="tv-stripe" style={{ background: c.bg }} />
               {flaps(time.replace(":", ""), 4)}
+              {compact && flaps(r.callsign, 7)}
               {flaps(where, compact ? 9 : 11)}
               {!compact && flaps(r.callsign, 7)}
-              {flaps(r.gate ?? "", 3)}
+              {!noGate && flaps(r.gate ?? "", 3)}
               <Src s={r.src} me={r.me} />
               {flaps(st, compact ? 8 : 10)}
             </div>
@@ -207,9 +210,19 @@ function Rows({ b, style, tz, compact }: { b: Board; style: TrafficStyle; tz: st
         if (style === "dot")
           return (
             <div className={`tv-r${r.me ? " is-me" : ""}`} key={k}>
-              <span className="tv-chip" style={{ background: c.bg, color: c.ink } as CSSProperties}>
-                {c.code}
-              </span>
+              {compact ? (
+                // 1.17.8: the small boards' flight number: the airline's chip is its first three letters
+                <span className="tv-fl">
+                  <span className="tv-chip" style={{ background: c.bg, color: c.ink } as CSSProperties}>
+                    {c.code}
+                  </span>
+                  <span className="tv-dot tv-w">{c.code === r.callsign.slice(0, 3) ? r.callsign.slice(3) : r.callsign}</span>
+                </span>
+              ) : (
+                <span className="tv-chip" style={{ background: c.bg, color: c.ink } as CSSProperties}>
+                  {c.code}
+                </span>
+              )}
               <span className="tv-dot tv-w">{time}</span>
               <span className="tv-dot">{where}</span>
               {!compact && (

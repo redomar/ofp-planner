@@ -4313,7 +4313,8 @@ html.screen-mode body > :not(.screen-root) {
 
 /* compact rows: the card and the side panel */
 .tv-rows.is-compact.is-dot .tv-r {
-  grid-template-columns: calc(var(--u) * 3.4) calc(var(--u) * 5.4) minmax(0, 1fr) calc(var(--u) * 3.6) auto calc(var(--u) * 7.8);
+  /* 1.17.8: the flight (chip + number), time, city, gate (none when no row has one), source, status */
+  grid-template-columns: calc(var(--u) * 7.6) calc(var(--u) * 5.4) minmax(0, 1fr) var(--tv-gate, calc(var(--u) * 3.6)) auto calc(var(--u) * 7.8);
   height: calc(var(--u) * 3.1);
   font-size: calc(var(--u) * 1.3);
   gap: calc(var(--u) * 0.6);
@@ -4426,7 +4427,7 @@ html.screen-mode body > :not(.screen-root) {
   display: none;
 }
 .gv-over[data-size="xs"] .tv-card .tv-rows.is-dot .tv-r {
-  grid-template-columns: calc(var(--u) * 5) calc(var(--u) * 9) minmax(0, 1fr) calc(var(--u) * 6) auto;
+  grid-template-columns: calc(var(--u) * 11) calc(var(--u) * 9) minmax(0, 1fr) var(--tv-gate, calc(var(--u) * 6)) auto;
 }
 /* the time at the 14 px floor needs its own room (it ran into the city) */
 .gv-over[data-size="xs"] .tv-card .tv-rows.is-brand .tv-r {
@@ -4850,4 +4851,33 @@ html.screen-mode body > :not(.screen-root) {
 .dk-end-bar .st-field > .seg {
   justify-self: start;
   margin: 0;
+}
+
+/* ---------- 1.17.8: the flight number on the small boards ---------- */
+.tv-fl {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 0.3);
+  white-space: nowrap;
+}
+.tv-rows.is-nogate {
+  --tv-gate: 0px;
+}
+.tv-rows.is-nogate.is-dot .tv-gate {
+  visibility: hidden;
+}
+.tv-fl .tv-chip {
+  flex: none;
+  min-width: calc(var(--u) * 3.2);
+  padding: 0 calc(var(--u) * 0.3);
+}
+.gv-over[data-size="xs"] .tv-card .tv-fl .tv-chip {
+  min-width: 0;
+  padding: 0 0.25cqw;
+}
+.gv-over[data-size="xs"] .tv-card .tv-rows.is-flap .tv-r {
+  gap: 0.7cqw;
+}
+.gv-end2 .tv-end .tv-rows.is-flap .tv-r {
+  gap: calc(var(--u) * 0.9);
 }

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.17.8 — 2026-11-25
+
+- **The small boards show the flight number** (the card, the board with window, the ending's board). In dot matrix, the airline's chip is its first three letters, with the number after it ([SAS]1424). Split-flap has the full callsign (SAS1424) after the time. The airline style already had it.
+- When no row has a gate (VATSIM's traffic, mostly), the gate column gives its room to the flight number.
 ## 1.17.7 — 2026-11-25
 
 - **Departures and arrivals on one board, flipping.** Every board has a third choice under Shows: **Both, flipping**. It shows departures, then arrivals, every 10, 20, 30 or 60 s (20 by default). It works in all three styles (Airline, Dot matrix, Split-flap) and everywhere the board appears: the departures board, the card, the board with window, and Show on stream ("Both, flipping"). In a link: `conn.flip`, `fidsw.flip.f30`.
