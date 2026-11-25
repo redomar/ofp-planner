@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ending designs</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&family=Barlow+Condensed:wght@500;600;700&family=DotGothic16&display=block" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #0b0d12; color: #e8e8e8; font-family: "IBM Plex Sans", sans-serif; }
+  #sheet { padding: 36px; width: 1352px; }
+  h1 { font: 700 34px "IBM Plex Sans"; margin: 0 0 6px; color: #fff; }
+  .lede { margin: 0 0 26px; color: #9aa3b2; font-size: 17px; }
+  .cap { display: flex; gap: 14px; align-items: baseline; margin: 22px 0 10px; }
+  .cap i { font: 700 20px "IBM Plex Mono"; color: #ffb800; font-style: normal; }
+  .cap b { font: 700 22px "IBM Plex Sans"; color: #fff; }
+  .cap span { color: #9aa3b2; font-size: 16px; }
+
+  /* the 16:9 screen, at 1280 × 720 */
+  .scr { width: 1280px; height: 720px; position: relative; overflow: hidden; border-radius: 8px;
+    --bg: #0a1aa8; --ink: #fff; --dim: rgb(255 255 255 / 0.68); --rule: rgb(255 255 255 / 0.28); --acc: #b9c2ff;
+    background: var(--bg); color: var(--ink); }
+  /* the game shows through the window */
+  .win { border-radius: 8px; outline: 2px solid rgb(255 255 255 / 0.5);
+    background: linear-gradient(180deg, #7da7d3 0%, #c9d8e6 58%, #7a7466 59%, #4d4a40 100%); position: relative; }
+  .win::after { content: "the game shows here"; position: absolute; left: 14px; bottom: 10px; font: 600 13px "IBM Plex Sans"; color: rgb(255 255 255 / 0.85); text-shadow: 0 1px 2px #000; }
+  .mono { font-family: "IBM Plex Mono", monospace; }
+  .cond { font-family: "Barlow Condensed", sans-serif; }
+  .lab { font: 600 11.5px "Barlow Condensed"; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
+  .grp { border: 1px solid var(--rule); border-radius: 10px; padding: 12px 14px; }
+  .grp > h3 { margin: 0 0 8px; font: 700 13px "Barlow Condensed"; letter-spacing: 0.08em; text-transform: uppercase; color: var(--acc); display: flex; justify-content: space-between; }
+  .kv { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 14px; }
+  .kv div b { display: block; font: 600 21px "IBM Plex Mono"; margin-top: 1px; white-space: nowrap; }
+  .kv div b small { font-size: 12px; opacity: 0.75; margin-left: 3px; }
+  .src { display: inline-block; font: 700 10px "IBM Plex Mono"; padding: 2px 5px; border-radius: 4px; color: #fff; background: #1d9a5b; }
+  .src.si { background: #7b3fe4; } .src.ai { background: #4a5263; } .src.iv { background: #1f5fd1; }
+  .stripe { width: 5px; border-radius: 2px; align-self: stretch; }
+  .tl { position: relative; display: flex; justify-content: space-between; margin: 6px 2px 0; }
+  .tl::before { content: ""; position: absolute; left: 6px; right: 6px; top: 6px; height: 2px; background: var(--rule); }
+  .tl > div { position: relative; text-align: center; width: 96px; white-space: nowrap; }
+  .tl > div:first-child { text-align: left; } .tl > div:last-child { text-align: right; }
+  .tl i { display: block; width: 12px; height: 12px; border-radius: 50%; background: var(--ink); margin: 0 auto 6px; }
+  .tl > div:first-child i { margin-left: 0; } .tl > div:last-child i { margin-right: 0; }
+  .tl b { font: 600 17px "IBM Plex Mono"; display: block; }
+  .late { color: #ffcf5a; }
+  .ok { color: #7cf0a8; }
+
+  /* ---------- A: grouped ---------- */
+  .a { display: grid; grid-template-columns: 742px 1fr; grid-template-rows: 418px 1fr; gap: 16px; padding: 18px; }
+  .a .win { grid-area: 1 / 1; }
+  .a .side { grid-area: 1 / 2 / 3 / 3; display: flex; flex-direction: column; gap: 12px; }
+  .a .head { display: flex; justify-content: space-between; align-items: baseline; }
+  .a .head b { font: 700 22px "IBM Plex Sans"; }
+  .a .route { font: 700 30px "IBM Plex Sans"; line-height: 1.05; }
+  .a .route span { color: var(--dim); font-weight: 500; }
+  .a .under { grid-area: 2 / 1; display: grid; grid-template-columns: 1.25fr 1fr; gap: 12px; }
+  .conn-r { display: grid; grid-template-columns: 5px 48px 1fr 34px 40px; gap: 8px; align-items: center; height: 36px; line-height: 1.2; border-top: 1px solid var(--rule); font-size: 14px; }
+  .conn-r .mono { font-size: 14px; font-weight: 600; }
+  .conn-r small { display: block; font-size: 10.5px; color: var(--dim); font-family: "IBM Plex Mono"; }
+  .bye { border-left: 4px solid var(--acc); padding: 8px 12px; border-radius: 6px; background: rgb(255 255 255 / 0.07); }
+  .bye b { display: block; font: 700 15px "Barlow Condensed"; letter-spacing: 0.06em; }
+  .bye span { font-size: 14px; }
+  .next { border-radius: 10px; padding: 10px 14px; background: #ffd400; color: #111; display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; align-items: center; }
+  .next .k { grid-row: 1 / 3; font: 700 13px "Barlow Condensed"; letter-spacing: 0.08em; text-transform: uppercase; line-height: 1.1; }
+  .next b { font: 700 19px "IBM Plex Sans"; }
+  .next span { font-size: 13.5px; }
+
+  /* ---------- B: a story in rows ---------- */
+  .b { display: grid; grid-template-columns: 720px 1fr; grid-template-rows: auto 405px 1fr; gap: 14px 16px; padding: 16px 18px; }
+  .b .band { grid-column: 1 / 3; display: flex; align-items: center; gap: 16px; }
+  .b .band .air { font: 700 20px "IBM Plex Sans"; display: flex; gap: 8px; align-items: center; }
+  .b .band .air svg { width: 22px; }
+  .b .band .what { font: 700 26px "IBM Plex Sans"; }
+  .b .band .what span { color: var(--dim); font-weight: 500; }
+  .b .band .done { margin-left: auto; font: 700 14px "Barlow Condensed"; letter-spacing: 0.1em; background: #7cf0a8; color: #06381c; padding: 6px 12px; border-radius: 999px; }
+  .b .win { grid-area: 2 / 1; }
+  .b .right { grid-area: 2 / 2; display: flex; flex-direction: column; gap: 12px; }
+  .b .map { height: 160px; border-radius: 8px; background: #091485; position: relative; overflow: hidden; }
+  .b .bottom { grid-column: 1 / 3; display: grid; grid-template-columns: 1.15fr 1fr 1fr 1.05fr; gap: 12px; }
+  .b .stat b { font: 600 20px "IBM Plex Mono"; }
+  .b .stat { display: grid; grid-template-columns: 1fr auto; row-gap: 5px; align-items: baseline; }
+  .b .stat .lab { font-size: 12px; }
+  .b .next2 { border-radius: 10px; padding: 12px 14px; border: 2px dashed rgb(255 255 255 / 0.55); }
+  .b .next2 b { display: block; font: 700 20px "IBM Plex Sans"; margin: 3px 0 2px; }
+  .b .next2 span { font-size: 13.5px; color: var(--dim); }
+
+  /* ---------- C: the ticket (a little wild) ---------- */
+  .c { --bg: #0a1aa8; display: grid; grid-template-columns: 640px 1fr; grid-template-rows: 360px 1fr; gap: 16px; padding: 18px; }
+  .c .win { grid-area: 1 / 1; }
+  .c .ticket { grid-area: 1 / 2 / 2 / 3; background: #f6f3ea; color: #12193a; border-radius: 14px; display: grid; grid-template-columns: 1fr 150px; position: relative; overflow: hidden; }
+  .c .ticket::before, .c .ticket::after { content: ""; position: absolute; left: calc(100% - 150px - 11px); width: 22px; height: 22px; border-radius: 50%; background: var(--bg); }
+  .c .ticket::before { top: -11px; } .c .ticket::after { bottom: -11px; }
+  .c .tk-main { padding: 16px 18px; border-right: 2px dashed #b9b3a2; }
+  .c .tk-top { display: flex; justify-content: space-between; align-items: center; font: 700 15px "IBM Plex Sans"; color: #0a1aa8; }
+  .c .tk-top em { font-style: normal; font: 700 12px "Barlow Condensed"; letter-spacing: 0.1em; background: #0a1aa8; color: #fff; padding: 3px 9px; border-radius: 999px; }
+  .c .tk-route { display: grid; grid-template-columns: auto 1fr auto; align-items: end; gap: 12px; margin: 14px 0 10px; }
+  .c .tk-route .ap b { display: block; font: 700 44px "Barlow Condensed"; line-height: 0.9; }
+  .c .tk-route .ap span { font-size: 13px; color: #59607a; }
+  .c .tk-route .line { height: 2px; background: repeating-linear-gradient(90deg, #12193a 0 6px, transparent 6px 11px); margin-bottom: 22px; position: relative; }
+  .c .tk-route .line::after { content: "✈"; position: absolute; left: 50%; top: -12px; font-size: 18px; transform: translateX(-50%); }
+  .c .tk-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px 12px; border-top: 1px solid #d6d0c0; padding-top: 10px; }
+  .c .tk-grid .lab { color: #6d7390; }
+  .c .tk-grid b { display: block; font: 600 17px "IBM Plex Mono"; }
+  .c .tk-stub { padding: 16px 14px; display: flex; flex-direction: column; gap: 8px; background: #ffd400; color: #111; }
+  .c .tk-stub .lab { color: #3d3a2a; }
+  .c .tk-stub b { font: 700 17px "IBM Plex Sans"; line-height: 1.15; }
+  .c .tk-stub .big { font: 700 34px "Barlow Condensed"; line-height: 0.95; }
+  .c .strip { grid-area: 2 / 1 / 3 / 3; display: grid; grid-template-columns: 1fr 470px; gap: 16px; }
+  .c .fids { background: #11141a; border-radius: 10px; padding: 10px 14px; font-family: "DotGothic16", monospace; color: #f4c430; }
+  .c .fids .hd { display: flex; justify-content: space-between; font-size: 16px; letter-spacing: 0.12em; margin-bottom: 4px; }
+  .c .fids .r { display: grid; grid-template-columns: 34px 62px 1fr 92px 48px 44px 120px; gap: 8px; align-items: center; height: 27px; border-top: 1px solid #1d222b; font-size: 17px; letter-spacing: 0.08em; }
+  .c .fids .chip { font: 700 11px "Barlow Condensed"; color: #fff; text-align: center; border-radius: 3px; padding: 2px 0; letter-spacing: 0.04em; }
+  .c .fids .w { color: #f2f2f2; }
+  .c .landing { border: 1px solid var(--rule); border-radius: 10px; padding: 12px 16px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .c .landing .lab { grid-column: 1 / 4; color: var(--acc); font-size: 13px; }
+  .c .landing b { font: 600 26px "IBM Plex Mono"; display: block; }
+  .c .landing small { color: var(--dim); font-size: 12.5px; }
+  .c .bye { grid-column: 1 / 4; }
+
+  /* ---------- C2: the ticket, with the map ---------- */
+  .c2 { --bg: #0a1aa8; display: grid; grid-template-columns: 640px 1fr; grid-template-rows: 360px 1fr; gap: 16px; padding: 18px; }
+  .c2 .win { grid-area: 1 / 1; }
+  .c2 .fids { grid-area: 2 / 1; background: #11141a; border-radius: 10px; padding: 10px 14px; font-family: "DotGothic16", monospace; color: #f4c430; }
+  .c2 .fids .hd { display: flex; justify-content: space-between; font-size: 16px; letter-spacing: 0.12em; margin-bottom: 4px; }
+  .c2 .fids .hd small { color: #9aa3b2; font-size: 14px; }
+  .c2 .fids .r { display: grid; grid-template-columns: 30px 58px 1fr 92px 40px 42px 112px; gap: 8px; align-items: center; height: 30px; border-top: 1px solid #1d222b; font-size: 16px; letter-spacing: 0.08em; }
+  .c2 .fids .chip { font: 700 11px "Barlow Condensed"; color: #fff; text-align: center; border-radius: 3px; padding: 2px 0; letter-spacing: 0.04em; }
+  .c2 .fids .w { color: #f2f2f2; }
+  .c2 .right { grid-area: 1 / 2 / 3 / 3; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  .c2 .map { flex: 1; min-height: 0; height: auto; border-radius: 10px; background: #091485 url(map-wide.svg) center / cover no-repeat; position: relative; outline: 1px solid var(--rule); }
+  .c2 .map span { position: absolute; left: 12px; top: 10px; font: 700 13px "Barlow Condensed"; letter-spacing: 0.08em; background: rgb(10 26 168 / 0.75); padding: 3px 8px; border-radius: 999px; }
+  .c2 .ticket { flex: none; height: 235px; background: #f6f3ea; color: #12193a; border-radius: 14px; display: grid; grid-template-columns: 1fr 140px; position: relative; overflow: hidden; }
+  .c2 .ticket::before, .c2 .ticket::after { content: ""; position: absolute; left: calc(100% - 140px - 11px); width: 22px; height: 22px; border-radius: 50%; background: var(--bg); }
+  .c2 .ticket::before { top: -11px; } .c2 .ticket::after { bottom: -11px; }
+  .c2 .tk-main { padding: 11px 16px; border-right: 2px dashed #b9b3a2; }
+  .c2 .tk-top { display: flex; justify-content: space-between; align-items: center; font: 700 15px "IBM Plex Sans"; color: #0a1aa8; }
+  .c2 .tk-top em { font-style: normal; font: 700 12px "Barlow Condensed"; letter-spacing: 0.1em; background: #0a1aa8; color: #fff; padding: 3px 9px; border-radius: 999px; }
+  .c2 .tk-route { display: grid; grid-template-columns: auto 1fr auto; align-items: end; gap: 12px; margin: 6px 0 6px; }
+  .c2 .tk-route .ap b { display: block; font: 700 38px "Barlow Condensed"; line-height: 0.9; }
+  .c2 .tk-route .ap span { font-size: 13px; color: #59607a; }
+  .c2 .tk-route .line { height: 2px; background: repeating-linear-gradient(90deg, #12193a 0 6px, transparent 6px 11px); margin-bottom: 22px; position: relative; }
+  .c2 .tk-route .line::after { content: "✈"; position: absolute; left: 50%; top: -12px; font-size: 18px; transform: translateX(-50%); }
+  .c2 .tk-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px 12px; border-top: 1px solid #d6d0c0; padding-top: 7px; }
+  .c2 .tk-grid .lab { color: #6d7390; }
+  .c2 .tk-grid b { display: block; font: 600 16px "IBM Plex Mono"; }
+  .c2 .tk-stub { padding: 11px 12px; display: flex; flex-direction: column; gap: 4px; background: #ffd400; color: #111; }
+  .c2 .tk-stub .lab { color: #3d3a2a; }
+  .c2 .tk-stub b { font: 700 16px "IBM Plex Sans"; line-height: 1.15; }
+  .c2 .tk-stub .big { font: 700 32px "Barlow Condensed"; line-height: 0.95; }
+  .c2 .landing { flex: none; height: 168px; border: 1px solid var(--rule); border-radius: 10px; padding: 10px 14px; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: auto auto 1fr; gap: 4px 10px; }
+  .c2 .landing > .lab { grid-column: 1 / 5; color: var(--acc); font-size: 13px; }
+  .c2 .landing b { font: 600 22px "IBM Plex Mono"; display: block; }
+  .c2 .landing small { color: var(--dim); font-size: 12px; }
+  .c2 .landing .bye { grid-column: 1 / 5; align-self: end; padding: 6px 12px; }
+</style>
+</head>
+<body>
+<div id="sheet">
+  <h1>Ending screen: three designs</h1>
+  <p class="lede">SK 87F Oslo → Copenhagen with this flight's numbers. The connections are made up; on the stream they come from VATSIM, IVAO and the sim (OFP Tower). “Next stream” is optional and off by default.</p>
+
+  <!-- ===================== A ===================== -->
+  <div class="cap"><i>A</i><b>Grouped</b><span>The same layout, its numbers sorted into The flight, The landing and Fuel, the day's times on one line; connections and the next stream under the game.</span></div>
+  <div class="scr a">
+    <div class="win"></div>
+    <div class="side">
+      <div class="head"><b>✈ SAS</b><span class="mono" style="font-size:17px">SK 87F · SAS87F</span></div>
+      <div class="route">Oslo <span>→</span> Copenhagen</div>
+      <div class="grp">
+        <h3>The day <span class="late">5 min late</span></h3>
+        <div class="tl">
+          <div><i></i><span class="lab">Off-block</span><b>14:05</b></div>
+          <div><i></i><span class="lab">Take-off 01L</span><b>14:18</b></div>
+          <div><i></i><span class="lab">Touchdown 30</span><b>15:25</b></div>
+          <div><i></i><span class="lab">On blocks</span><b>15:30</b></div>
+        </div>
+      </div>
+      <div class="grp">
+        <h3>The flight</h3>
+        <div class="kv">
+          <div><span class="lab">Block</span><b>1h 25m</b></div>
+          <div><span class="lab">In the air</span><b>1h 07m</b></div>
+          <div><span class="lab">Flown</span><b>379<small>nm</small></b></div>
+          <div><span class="lab">Top</span><b>FL370</b></div>
+          <div><span class="lab">Fastest</span><b>482<small>kt</small></b></div>
+          <div><span class="lab">Weather</span><b>1°C ☀</b></div>
+        </div>
+      </div>
+      <div class="grp">
+        <h3>The landing <span class="ok">Normal</span></h3>
+        <div class="kv">
+          <div><span class="lab">Rate</span><b>−212<small>fpm</small></b></div>
+          <div><span class="lab">G</span><b>1.33<small>G</small></b></div>
+          <div><span class="lab">Runway</span><b>30</b></div>
+        </div>
+      </div>
+      <div class="grp">
+        <h3>Fuel</h3>
+        <div class="kv">
+          <div><span class="lab">Trip</span><b>2,583<small>kg</small></b></div>
+          <div><span class="lab">Cruise burn</span><b>2,331<small>kg/h</small></b></div>
+          <div><span class="lab">At the gate</span><b>2,660<small>kg</small></b></div>
+        </div>
+      </div>
+    </div>
+    <div class="under">
+      <div class="grp">
+        <h3>Connections at Copenhagen <span style="color:var(--dim)">next hour</span></h3>
+        <div class="conn-r"><i class="stripe" style="background:#000e5a"></i><span class="mono">15:45</span><span>Stockholm<small>SAS1424 · Boarding</small></span><span class="mono">B7</span><span class="src si">SI</span></div>
+        <div class="conn-r"><i class="stripe" style="background:#d81939"></i><span class="mono">15:55</span><span>Bergen<small>NOZ52Z · Taxiing</small></span><span class="mono">C29</span><span class="src">VAT</span></div>
+        <div class="conn-r"><i class="stripe" style="background:#075aaa"></i><span class="mono">16:10</span><span>London<small>BAW815 · At gate</small></span><span class="mono">C33</span><span class="src ai">AI</span></div>
+        <div class="conn-r"><i class="stripe" style="background:#c6007e"></i><span class="mono">16:25</span><span>Warsaw<small>WZZ7251 · Boarding</small></span><span class="mono">D2</span><span class="src iv">IVAO</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div class="bye"><b>FLIGHT COMPLETE</b><span>That's the stream for today. Thanks for flying along, catch me next time!</span></div>
+        <div class="next"><span class="k">Next<br>stream</span><b>Thu 27 Nov · 19:00 UK</b><span>Norwegian · Copenhagen → Tromsø</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== B ===================== -->
+  <div class="cap"><i>B</i><b>A story in rows</b><span>A heading band says what happened; the game and the map with connections; the numbers in four grouped cards along the bottom, the last one the next stream.</span></div>
+  <div class="scr b">
+    <div class="band">
+      <span class="air"><svg viewBox="0 0 24 24"><path fill="#fff" d="M21 16v-2l-8-5V3.5a1.5 1.5 0 0 0-3 0V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5z"/></svg>SAS · SK 87F</span>
+      <span class="what">Oslo <span>→</span> Copenhagen</span>
+      <span class="mono" style="color:var(--dim);font-size:15px">A320 · G-ABCD</span>
+      <span class="done">FLIGHT COMPLETE · ON BLOCKS 15:30</span>
+    </div>
+    <div class="win"></div>
+    <div class="right">
+      <div class="map">
+        <svg viewBox="0 0 480 160" width="100%" height="160"><path d="M0 0 L480 0 L480 160 L0 160Z" fill="#091485"/><path d="M60 0 C120 30 180 20 230 0 Z M180 160 C200 110 260 90 330 120 L380 160 Z M300 0 C320 40 380 60 420 50 L480 20 L480 0Z" fill="#2832c8"/><path d="M215 18 Q 250 80 290 138" stroke="#fff" stroke-dasharray="3 4" stroke-width="2" fill="none"/><circle cx="215" cy="18" r="5" fill="#fff"/><circle cx="290" cy="138" r="5" fill="#fff"/><text x="190" y="22" fill="#fff" font-family="Barlow Condensed" font-weight="700" font-size="14">OSL</text><text x="300" y="142" fill="#fff" font-family="Barlow Condensed" font-weight="700" font-size="14">CPH</text></svg>
+      </div>
+      <div class="grp" style="flex:1">
+        <h3>Connections at Copenhagen <span style="color:var(--dim)">15:30–16:30</span></h3>
+        <div class="conn-r"><i class="stripe" style="background:#7a8cff"></i><span class="mono">15:45</span><span>Stockholm<small>SAS1424 · Boarding</small></span><span class="mono">B7</span><span class="src si">SI</span></div>
+        <div class="conn-r"><i class="stripe" style="background:#d81939"></i><span class="mono">15:55</span><span>Bergen<small>NOZ52Z · Taxiing</small></span><span class="mono">C29</span><span class="src">VAT</span></div>
+        <div class="conn-r"><i class="stripe" style="background:#075aaa"></i><span class="mono">16:10</span><span>London<small>BAW815 · At gate</small></span><span class="mono">C33</span><span class="src ai">AI</span></div>
+        <div class="conn-r"><i class="stripe" style="background:#c6007e"></i><span class="mono">16:25</span><span>Warsaw<small>WZZ7251 · Boarding</small></span><span class="mono">D2</span><span class="src iv">IVAO</span></div>
+        <div class="conn-r"><i class="stripe" style="background:#00a1de"></i><span class="mono">16:30</span><span>Amsterdam<small>KLM1278 · At gate</small></span><span class="mono">A12</span><span class="src">VAT</span></div>
+      </div>
+    </div>
+    <div class="bottom">
+      <div class="grp"><h3>Times <span class="late">5 min late</span></h3>
+        <div class="stat"><span class="lab">Off-block</span><b>14:05</b><span class="lab">Take-off 01L</span><b>14:18</b><span class="lab">Touchdown 30</span><b>15:25</b><span class="lab">Block · air</span><b>1h25 · 1h07</b></div></div>
+      <div class="grp"><h3>The landing <span class="ok">Normal</span></h3>
+        <div class="stat"><span class="lab">Rate</span><b>−212 fpm</b><span class="lab">G</span><b>1.33</b><span class="lab">Weather</span><b>1°C ☀</b><span class="lab">Runway</span><b>30</b></div></div>
+      <div class="grp"><h3>The flight</h3>
+        <div class="stat"><span class="lab">Flown</span><b>379 nm</b><span class="lab">Top · fastest</span><b>FL370 · 482</b><span class="lab">Trip fuel</span><b>2,583 kg</b><span class="lab">Cruise burn</span><b>2,331 kg/h</b></div></div>
+      <div class="next2"><span class="lab">Next stream</span><b>Thursday, 19:00 UK</b><span>Norwegian · Copenhagen → Tromsø<br>“Northern lights run”</span></div>
+    </div>
+  </div>
+
+  <!-- ===================== C ===================== -->
+  <div class="cap"><i>C</i><b>The ticket</b><span>A little wild: the flight as a boarding pass, the next stream as its tear-off stub, the connections on a dot-matrix board, the landing on its own.</span></div>
+  <div class="scr c">
+    <div class="win"></div>
+    <div class="ticket">
+      <div class="tk-main">
+        <div class="tk-top"><span>✈ SAS · SK 87F</span><em>COMPLETE</em></div>
+        <div class="tk-route">
+          <div class="ap"><b>OSL</b><span>Oslo · 14:18</span></div>
+          <div class="line"></div>
+          <div class="ap" style="text-align:right"><b>CPH</b><span>Copenhagen · 15:25</span></div>
+        </div>
+        <div class="tk-grid">
+          <div><span class="lab">Block</span><b>1h 25m</b></div>
+          <div><span class="lab">Air</span><b>1h 07m</b></div>
+          <div><span class="lab">Flown</span><b>379 nm</b></div>
+          <div><span class="lab">Top</span><b>FL370</b></div>
+          <div><span class="lab">Fastest</span><b>482 kt</b></div>
+          <div><span class="lab">Trip fuel</span><b>2,583</b></div>
+          <div><span class="lab">On blocks</span><b>15:30</b></div>
+          <div><span class="lab">Arrival</span><b style="color:#b36b00">+5 min</b></div>
+        </div>
+      </div>
+      <div class="tk-stub">
+        <span class="lab">Next stream</span>
+        <span class="big">THU 27</span>
+        <b>19:00 UK</b>
+        <span class="lab" style="margin-top:6px">Flying</span>
+        <b>Norwegian<br>CPH → TOS</b>
+      </div>
+    </div>
+    <div class="strip">
+      <div class="fids">
+        <div class="hd"><span>CONNECTIONS · COPENHAGEN</span><span>15:30</span></div>
+        <div class="r"><span class="chip" style="background:#000e5a">SK</span><span class="w">15:45</span><span>STOCKHOLM</span><span>SAS<span class="w">1424</span></span><span class="w">B7</span><span class="src si">SI</span><span>BOARDING</span></div>
+        <div class="r"><span class="chip" style="background:#d81939">DY</span><span class="w">15:55</span><span>BERGEN</span><span>NOZ<span class="w">52Z</span></span><span class="w">C29</span><span class="src">VAT</span><span>TAXIING</span></div>
+        <div class="r"><span class="chip" style="background:#075aaa">BA</span><span class="w">16:10</span><span>LONDON</span><span>BAW<span class="w">815</span></span><span class="w">C33</span><span class="src ai">AI</span><span>AT GATE</span></div>
+        <div class="r"><span class="chip" style="background:#c6007e">W6</span><span class="w">16:25</span><span>WARSAW</span><span>WZZ<span class="w">7251</span></span><span class="w">D2</span><span class="src iv">IVAO</span><span>BOARDING</span></div>
+        <div class="r"><span class="chip" style="background:#00a1de">KL</span><span class="w">16:30</span><span>AMSTERDAM</span><span>KLM<span class="w">1278</span></span><span class="w">A12</span><span class="src">VAT</span><span>AT GATE</span></div>
+        <div class="r"><span class="chip" style="background:#05164d">LH</span><span class="w">16:40</span><span>FRANKFURT</span><span>DLH<span class="w">2437</span></span><span class="w">A4</span><span class="src ai">AI</span><span>AT GATE</span></div>
+      </div>
+      <div class="landing">
+        <span class="lab">The landing · runway 30 · <span class="ok">Normal</span></span>
+        <div><b>−212</b><small>fpm</small></div>
+        <div><b>1.33</b><small>G</small></div>
+        <div><b>1°C</b><small>mainly clear</small></div>
+        <div class="bye"><b>FLIGHT COMPLETE</b><span>Thanks for flying along, catch me next time!</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== C2 ===================== -->
+  <div class="cap"><i>C2</i><b>The ticket, with the map</b><span>C with the route map back at the top, the ticket and its next-stream stub, the landing and runway; the connections as wide as the game.</span></div>
+  <div class="scr c2" id="c2">
+    <div class="win"></div>
+    <div class="fids">
+      <div class="hd"><span>CONNECTIONS · COPENHAGEN</span><small>15:30</small></div>
+      <div class="r"><span class="chip" style="background:#000e5a">SK</span><span class="w">15:45</span><span>STOCKHOLM</span><span>SAS<span class="w">1424</span></span><span class="w">B7</span><span class="src si">SI</span><span>BOARDING</span></div>
+      <div class="r"><span class="chip" style="background:#d81939">DY</span><span class="w">15:55</span><span>BERGEN</span><span>NOZ<span class="w">52Z</span></span><span class="w">C29</span><span class="src">VAT</span><span>TAXIING</span></div>
+      <div class="r"><span class="chip" style="background:#075aaa">BA</span><span class="w">16:10</span><span>LONDON</span><span>BAW<span class="w">815</span></span><span class="w">C33</span><span class="src ai">AI</span><span>AT GATE</span></div>
+      <div class="r"><span class="chip" style="background:#c6007e">W6</span><span class="w">16:25</span><span>WARSAW</span><span>WZZ<span class="w">7251</span></span><span class="w">D2</span><span class="src iv">IVAO</span><span>BOARDING</span></div>
+      <div class="r"><span class="chip" style="background:#00a1de">KL</span><span class="w">16:30</span><span>AMSTERDAM</span><span>KLM<span class="w">1278</span></span><span class="w">A12</span><span class="src">VAT</span><span>AT GATE</span></div>
+      <div class="r"><span class="chip" style="background:#05164d">LH</span><span class="w">16:40</span><span>FRANKFURT</span><span>DLH<span class="w">2437</span></span><span class="w">A4</span><span class="src ai">AI</span><span>AT GATE</span></div>
+      <div class="r"><span class="chip" style="background:#000e5a">SK</span><span class="w">16:55</span><span>TROMSØ</span><span>SAS<span class="w">4416</span></span><span class="w">C26</span><span class="src si">SI</span><span>SCHEDULED</span></div>
+      <div class="r"><span class="chip" style="background:#0a2c79">UX</span><span class="w">17:05</span><span>MADRID</span><span>AEA<span class="w">1081</span></span><span class="w">B3</span><span class="src">VAT</span><span>SCHEDULED</span></div>
+    </div>
+    <div class="right">
+      <div class="map"><span>OSL → CPH · 379 nm flown</span></div>
+      <div class="ticket">
+        <div class="tk-main">
+          <div class="tk-top"><span>✈ SAS · SK 87F</span><em>COMPLETE</em></div>
+          <div class="tk-route">
+            <div class="ap"><b>OSL</b><span>Oslo · off 14:18</span></div>
+            <div class="line"></div>
+            <div class="ap" style="text-align:right"><b>CPH</b><span>Copenhagen · on 15:25</span></div>
+          </div>
+          <div class="tk-grid">
+            <div><span class="lab">Block</span><b>1h 25m</b></div>
+            <div><span class="lab">Air</span><b>1h 07m</b></div>
+            <div><span class="lab">Top</span><b>FL370</b></div>
+            <div><span class="lab">Fastest</span><b>482 kt</b></div>
+            <div><span class="lab">Trip fuel</span><b>2,583 kg</b></div>
+            <div><span class="lab">Cruise burn</span><b>2,331</b></div>
+            <div><span class="lab">On blocks</span><b>15:30</b></div>
+            <div><span class="lab">Arrival</span><b style="color:#b36b00">+5 min</b></div>
+          </div>
+        </div>
+        <div class="tk-stub">
+          <span class="lab">Next stream</span>
+          <span class="big">THU 27</span>
+          <b>19:00 UK</b>
+          <span class="lab" style="margin-top:4px">Flying</span>
+          <b>Norwegian<br>CPH → TOS</b>
+        </div>
+      </div>
+      <div class="landing">
+        <span class="lab">The landing · runway 30 · <span class="ok">Normal</span></span>
+        <div><b>−212</b><small>fpm</small></div>
+        <div><b>1.33</b><small>G</small></div>
+        <div><b>30</b><small>runway, 01L out</small></div>
+        <div><b>1°C</b><small>mainly clear</small></div>
+        <div class="bye"><b>FLIGHT COMPLETE</b><span>Thanks for flying along, catch me next time!</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

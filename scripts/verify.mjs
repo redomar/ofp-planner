@@ -631,6 +631,15 @@ async function run() {
           ? pass("gate feed: traffic: VATSIM (gate from the stand it's on, taxiing, the filed time, a prefile; ones gone and others' left out), IVAO's own states and times, OFP Tower's sim aircraft (the sim's gate, AI states, SkyNet), one row per callsign with a network over the sim, the board's window in time order (untimed last), its airport by where the aircraft sits")
           : fail(`gate feed: traffic ${JSON.stringify({ all: all.map((r) => [r.callsign, r.src, r.side, r.status, r.gate, r.t && hm(r.t)]), deps: deps.map((r) => r.callsign) })}`);
       }
+      // 1.17.4: the next stream's stub in a colour that contrasts with the airline's
+      {
+        const co = await import(join(process.cwd(), "src/lib/colors.ts"));
+        const h = (p, q) => co.highlightFor(p, q);
+        const ok = h("#000DB5", "#6E7681") === "#FFD400" && h("#FF6600", "#FFFFFF") === "#22C7E8" && h("#073590", "#F1C933") === "#F1C933" && h("#075AAA", "#EB2226") === "#EB2226" && h("#00A1DE", "#003145") === "#FF8A00" && h("#FFCC00", "#4D4D4F") === "#2F6BFF" && h("#6b7a90", null) === "#FFD400";
+        ok
+          ? pass("gate feed: the next stream's stub contrasts with the airline: SAS blue → yellow, easyJet orange → cyan, Ryanair's own yellow, BA's own red, KLM → orange, Vueling yellow → blue, grey → yellow")
+          : fail(`gate feed: highlightFor ${JSON.stringify([h("#000DB5", "#6E7681"), h("#FF6600", "#FFFFFF"), h("#073590", "#F1C933"), h("#075AAA", "#EB2226"), h("#00A1DE", "#003145"), h("#FFCC00", "#4D4D4F"), h("#6b7a90", null)])}`);
+      }
       // 1.17.3: the traffic looks' options in tokens; a recording's FMS plan lines read for replays
       {
         const lk = await import(join(process.cwd(), "src/lib/board/looks.ts"));
@@ -1646,25 +1655,29 @@ async function run() {
       const errors = [];
       page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
       page.on("pageerror", (e) => errors.push(String(e)));
-      await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&feed=link&view=ending&bye=See+you+next+week`, { waitUntil: "networkidle" });
-      await page.waitForFunction(() => document.querySelectorAll(".gv-end-stats > div").length >= 10, null, { timeout: 15_000 }).catch(() => {});
-      const stats = (await page.locator(".gv-end-stats").innerText().catch(() => "")).replace(/\s+/g, " ");
-      const pax = (await page.locator(".gv-end-pax").innerText().catch(() => "")).replace(/\s+/g, " ");
+      await page.goto(`${base}/board?tab=gate&sb=example-pilot&screen=1&feed=link&view=ending&bye=See+you+next+week&nx=1&nxa=${Math.round(now / 1000) + 2 * 86400}&nxl=Norwegian&nxr=CPH+%E2%86%92+TOS&nxt=Northern+lights`, { waitUntil: "networkidle" });
+      await page.waitForFunction(() => /488 nm/.test(document.querySelector(".gv-end2")?.textContent ?? ""), null, { timeout: 15_000 }).catch(() => {});
+      // 1.17.4: the C2 layout: the ticket and the landing hold the numbers, the map's label the distance
+      const stats = (await page.locator(".gv-end2-side").innerText().catch(() => "")).replace(/\s+/g, " ");
+      const pax = (await page.locator(".gv-end2-landing").innerText().catch(() => "")).replace(/\s+/g, " ");
+      const stub = (await page.locator(".gv-tk-stub").innerText().catch(() => "")).replace(/\s+/g, " ");
+      const conn = await page.locator(".gv-end2 .tv-end").count();
       const bye = await page.locator(".gv-end-bye").innerText().catch(() => "");
       const clear = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-      const tiny = await page.evaluate(() => [...document.querySelectorAll(".gv-end *")].filter((el) => [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) && el.getBoundingClientRect().width > 0 && parseFloat(getComputedStyle(el).fontSize) < 14).length);
-      const fits = await page.evaluate(() => [...document.querySelectorAll(".gv-end-rail, .gv-end-bye")].every((el) => el.getBoundingClientRect().bottom <= window.innerHeight + 1));
+      const tiny = await page.evaluate(() => [...document.querySelectorAll(".gv-end2 *")].filter((el) => [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) && el.getBoundingClientRect().width > 0 && parseFloat(getComputedStyle(el).fontSize) < 14).length);
+      const fits = await page.evaluate(() => [...document.querySelectorAll(".gv-end2-side, .gv-end2 .tv-end, .gv-end2-landing .gv-end-bye")].every((el) => el.getBoundingClientRect().bottom <= window.innerHeight + 1) && [...document.querySelectorAll(".gv-end2-landing .gv-end-bye")].every((el) => el.getBoundingClientRect().bottom <= el.parentElement.getBoundingClientRect().bottom + 1));
       const kept = await page.evaluate(() => localStorage.getItem("ofp-planner:ending"));
       await checkPage("gate view ending 1920", page, errors.filter((e) => !/ws:\/\/localhost:47800/.test(e)));
       // OFP Tower closed, the OBS source refreshed: the kept ending
       tower = false;
       await page.reload({ waitUntil: "networkidle" });
       await page.waitForTimeout(2500);
-      const again = (await page.locator(".gv-end-stats").innerText().catch(() => "")).replace(/\s+/g, " ");
-      /BLOCK TIME 1h 58m/i.test(stats) && /-142 fpm/.test(stats) && /FL390/.test(stats) && /488 nm/.test(stats) && /4,410 kg/.test(stats) && /TAKE-OFF · 36C/i.test(stats) &&
-      /Smooth/i.test(pax) && /See you next week/.test(bye) && clear === "rgba(0, 0, 0, 0)" && !tiny && fits && kept && /-142 fpm/.test(again) && /488 nm/.test(again)
-        ? pass(`gate views: ending screen with OFP Tower's numbers (${stats.slice(0, 90)}…), passengers "${pax.slice(0, 50)}…", kept after OFP Tower closed`)
-        : fail(`gate views: ending ${JSON.stringify({ stats, pax, bye, clear, tiny, fits, kept: !!kept, again })}`);
+      const again = (await page.locator(".gv-end2-side").innerText().catch(() => "")).replace(/\s+/g, " ");
+      /BLOCK 1h 58m/i.test(stats) && /-142 fpm/.test(pax) && /FL390/.test(stats) && /488 nm/.test(stats) && /4,410 kg/.test(stats) && /36C out/.test(pax) && /RUNWAY 22L/i.test(pax) &&
+      /Smooth/i.test(pax) && /See you next week/.test(bye) && clear === "rgba(0, 0, 0, 0)" && !tiny && fits && kept && /-142/.test(again) && /488 nm/.test(again) &&
+      /NEXT STREAM/i.test(stub) && /Norwegian/.test(stub) && /CPH → TOS/.test(stub) && /Northern lights/.test(stub) && conn === 1
+        ? pass(`gate views: ending screen (C2) with OFP Tower's numbers on the ticket and the landing (${stats.slice(0, 80)}…), the next stream on its stub, the connections under the game, kept after OFP Tower closed`)
+        : fail(`gate views: ending ${JSON.stringify({ stats, pax, stub, conn, bye, clear, tiny, fits, kept: !!kept, again })}`);
       await ctx.close();
     }
     // full screen in flight: the steps run on to the arrival gate, the live source is named

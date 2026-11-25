@@ -3,7 +3,7 @@
 import { geoAzimuthalEquidistant, geoDistance, geoInterpolate, geoPath } from "d3-geo";
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { cityName, dur } from "@/lib/data/flight";
-import { routeColor, textOn } from "@/lib/colors";
+import { contrast, highlightFor, routeColor, textOn } from "@/lib/colors";
 import { MIN } from "@/lib/board/board";
 import type { GateFlight, GateState } from "@/lib/board/gate";
 import { goTarget } from "@/lib/board/countdown";
@@ -15,7 +15,7 @@ import { useOutlines } from "@/lib/outlines";
 import { useTerrain } from "@/lib/terrain";
 import { baseLayers, mapRadius } from "../RouteMap";
 import { GateScreen, localClock, PLANE, screenNow, WxPicto, type GateWx } from "./GateScreen";
-import { BoardWindow, ConnectionsCard, DeparturesBoard } from "./TrafficViews";
+import { BoardWindow, ConnectionsCard, DeparturesBoard, EndConnections } from "./TrafficViews";
 import type { Stand } from "@/lib/feed/traffic";
 
 /**
@@ -1707,90 +1707,126 @@ function EndingView(p: ViewProps) {
   const toName = cityName(f.to) ?? f.to.name;
   const t = (ms: number | null, tz: string | null) => (ms == null ? null : localClock(ms, tz));
   const kg = (n: number | null) => (n == null ? null : `${Math.round(n).toLocaleString("en-GB")}`);
-  const tiles: { k: string; v: string | null; unit?: string; wide?: boolean }[] = [
-    { k: "Block time", v: x.block != null ? dur(x.block) : null },
-    { k: "In the air", v: x.air != null ? dur(x.air) : null },
-    { k: `Take-off${x.depRunway ? ` · ${x.depRunway}` : ""}`, v: t(x.off, f.from.tz) },
-    { k: `Touchdown${x.arrRunway ? ` · ${x.arrRunway}` : ""}`, v: t(x.on, f.to.tz) },
-    { k: "Landing", v: x.fpm != null ? `${Math.round(x.fpm)}` : null, unit: "fpm" },
-    { k: x.bounces ? `G · ${x.bounces} bounce${x.bounces > 1 ? "s" : ""}` : "G", v: x.peakG != null ? x.peakG.toFixed(2) : null, unit: "G" },
-    { k: "Top", v: x.maxAltFt != null ? (x.maxAltFt >= 18_000 ? `FL${String(Math.round(x.maxAltFt / 100)).padStart(3, "0")}` : `${Math.round(x.maxAltFt).toLocaleString("en-GB")} ft`) : null },
-    { k: "Fastest", v: x.maxGsKt != null ? `${Math.round(x.maxGsKt)}` : null, unit: "kt" },
-    { k: "Flown", v: x.distanceNm != null ? `${Math.round(x.distanceNm).toLocaleString("en-GB")}` : null, unit: "nm" },
-    { k: "Trip fuel", v: kg(x.tripKg), unit: "kg" },
-    { k: "Cruise burn", v: kg(x.cruiseFfKgH), unit: "kg/h" },
-    // against the schedule's arrival (SimBrief, the Finder): on time within 2 min
-    { k: `On blocks${x.late == null ? "" : Math.abs(x.late) < 3 ? " · on time" : ` · ${x.late < 60 && x.late > -60 ? `${Math.abs(x.late)} min` : dur(Math.abs(x.late))} ${x.late > 0 ? "late" : "early"}`}`, v: t(x.in, f.to.tz) },
-  ];
-  const shown = tiles.filter((y) => y.v != null);
   // the flight as the passengers had it: the weather they stepped out into, on time or not, the landing
   const feel = landingFeel(x.fpm, x.peakG, x.bounces);
   const wx = p.wx && (p.wx.temp != null || p.wx.text) ? p.wx : null;
   const onTime = x.late == null ? null : Math.abs(x.late) < 3 ? { word: "On time", line: "Right on schedule", tone: "go" } : x.late > 0 ? { word: `${x.late < 60 ? `${x.late} min` : dur(x.late)} late`, line: x.late > 15 ? "A delay the passengers noticed" : "A little behind the schedule", tone: x.late > 15 ? "stop" : "warn" } : { word: `${-x.late < 60 ? `${-x.late} min` : dur(-x.late)} early`, line: "Ahead of the schedule", tone: "go" };
   const label = `Ending screen: ${f.flightNo}, ${fromName} to ${toName}`;
+  // 1.17.4: the C2 layout (sheet docs/design/ending): the game and the connections on the left; the map,
+  // the flight as a ticket (the next stream its stub, when on) and the landing on the right
+  const code = (a: GateFlight["from"]) => a.iata ?? a.icao;
+  const top = x.maxAltFt != null ? (x.maxAltFt >= 18_000 ? `FL${String(Math.round(x.maxAltFt / 100)).padStart(3, "0")}` : `${Math.round(x.maxAltFt).toLocaleString("en-GB")} ft`) : null;
+  const cells: { k: string; v: string | null; unit?: string; tone?: string }[] = [
+    { k: "Block", v: x.block != null ? dur(x.block) : null },
+    { k: "Air", v: x.air != null ? dur(x.air) : null },
+    { k: "Top", v: top },
+    { k: "Fastest", v: x.maxGsKt != null ? `${Math.round(x.maxGsKt)}` : null, unit: "kt" },
+    { k: "Trip fuel", v: kg(x.tripKg), unit: "kg" },
+    { k: "Cruise burn", v: kg(x.cruiseFfKgH), unit: "kg/h" },
+    { k: "On blocks", v: t(x.in, f.to.tz) },
+    { k: "Arrival", v: onTime ? onTime.word : null, tone: onTime?.tone },
+  ];
+  const nx = p.state.nextOn ? p.state : null;
+  // the stub in a colour that contrasts with the airline's (SAS blue → yellow, easyJet orange → cyan)
+  const hi = highlightFor(bg, f.brand?.colors.secondary);
+  // the ticket's airline line in the airline's colour, unless too light on the cream (SunExpress yellow)
+  const stubStyle = { "--tk-stub": hi, "--tk-stub-ink": textOn(hi) } as CSSProperties;
+  const tkBrand = contrast(bg, "#f6f3ea") >= 4.5 ? bg : "#12193a";
+  const tkStyle = { "--tk-brand": tkBrand, "--tk-brand-ink": textOn(tkBrand) } as CSSProperties;
+  const fmt = (o: Intl.DateTimeFormatOptions) => (nx?.nextAt != null ? new Intl.DateTimeFormat("en-GB", o).format(nx.nextAt) : null);
+  const nextDay = fmt({ weekday: "short", day: "numeric" })?.toUpperCase() ?? null;
+  const nextTime = fmt({ hour: "2-digit", minute: "2-digit", hourCycle: "h23", timeZoneName: "short" });
+  const nm = x.distanceNm != null ? Math.round(x.distanceNm).toLocaleString("en-GB") : null;
   return (
-    <div className="gv gv-end" style={style} data-size="m" data-pos="tl" role="region" aria-label={label}>
+    <div className="gv gv-end2" style={style} data-size="m" data-pos="tl" role="region" aria-label={label}>
       <div className="gv-window" aria-hidden="true" />
-      {(wx || onTime || feel) && (
-        <ul className="gv-end-pax" aria-label="For the passengers">
-          {wx && (
-            <li>
-              <small>Weather in {toName}</small>
-              <b>
-                <WxPicto code={wx.code} night={wx.night} />
-                {wx.temp != null ? `${Math.round(wx.temp)}°C` : ""}
-              </b>
-              <span>{wx.text ?? ""}</span>
-            </li>
-          )}
-          {onTime && (
-            <li className={`gs-${onTime.tone}`}>
-              <small>Arrival</small>
-              <b>{onTime.word}</b>
-              <span>{onTime.line}</span>
-            </li>
-          )}
-          {feel && (
-            <li className={`gs-${feel.tone}`}>
-              <small>The landing</small>
-              <b>{feel.word}</b>
-              <span>{feel.line}</span>
-            </li>
-          )}
-        </ul>
-      )}
-      <div className="gv-end-bye">
-        <b>Flight complete</b>
-        <span>{p.state.bye || BYE}</span>
-      </div>
-      <div className="gv-end-rail">
-        <div className="gv-rail-top">
-          <Brand f={f} />
-          {ident(f)}
+      <EndConnections f={f} live={p.live} now={p.now} arrives={facts.arrives} towerTraffic={p.towerTraffic} stands={p.stands} preview={p.preview} />
+      <div className="gv-end2-side">
+        <div className="gv-end2-map">
+          <GateMap f={f} facts={facts} W={1150} H={502} label={`Map: the route flown, ${code(f.from)} to ${code(f.to)}`} trail={trail} plan={plan} />
+          <span className="gv-end2-tag">
+            {code(f.from)} → {code(f.to)}
+            {nm ? ` · ${nm} nm flown` : ""}
+          </span>
         </div>
-        <div className="gv-end-route">
-          <span>{fromName}</span>
-          <i aria-hidden="true">→</i>
-          <span>{toName}</span>
-        </div>
-        <div className="gv-end-map">
-          <GateMap f={f} facts={facts} W={700} H={460} label={`Map: the route flown, ${f.from.iata ?? f.from.icao} to ${f.to.iata ?? f.to.icao}`} trail={trail} plan={plan} />
-        </div>
-        {shown.length ? (
-          <dl className="gv-end-stats">
-            {shown.map((y) => (
-              <div key={y.k}>
-                <dt>{y.k}</dt>
-                <dd className="mono">
-                  {y.v}
-                  {y.unit && <i> {y.unit}</i>}
-                </dd>
+        <div className={`gv-ticket${nx ? " has-stub" : ""}`} style={tkStyle}>
+          <div className="gv-tk-main">
+            <div className="gv-tk-top">
+              <span>
+                {f.airline} · {f.flightNo}
+              </span>
+              <em>{x.in != null ? "Complete" : x.on != null ? "Landed" : "Flight"}</em>
+            </div>
+            <div className="gv-tk-route">
+              <div>
+                <b>{code(f.from)}</b>
+                <span>
+                  {fromName}
+                  {x.off != null ? ` · off ${t(x.off, f.from.tz)}` : ""}
+                </span>
               </div>
-            ))}
-          </dl>
-        ) : (
-          <p className="gv-end-none">The flight&apos;s numbers show here once it has landed (OFP Tower).</p>
-        )}
+              <i aria-hidden="true" />
+              <div>
+                <b>{code(f.to)}</b>
+                <span>
+                  {toName}
+                  {x.on != null ? ` · on ${t(x.on, f.to.tz)}` : ""}
+                </span>
+              </div>
+            </div>
+            <dl className="gv-tk-grid">
+              {cells.map((c) => (
+                <div key={c.k}>
+                  <dt>{c.k}</dt>
+                  <dd className={`mono${c.tone ? ` is-${c.tone}` : ""}`}>
+                    {c.v ?? "—"}
+                    {c.v != null && c.unit && <i> {c.unit}</i>}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+          {nx && (
+            <div className="gv-tk-stub" style={stubStyle}>
+              <small>Next stream</small>
+              {nextDay && <b className="gv-tk-day">{nextDay}</b>}
+              {nextTime && <b>{nextTime}</b>}
+              {(nx.nextAirline || nx.nextRoute) && <small>Flying</small>}
+              {nx.nextAirline && <b>{nx.nextAirline}</b>}
+              {nx.nextRoute && <b>{nx.nextRoute}</b>}
+              {nx.nextTitle && <span>{nx.nextTitle}</span>}
+            </div>
+          )}
+        </div>
+        <div className="gv-end2-landing">
+          <span className="gv-end2-lab">
+            The landing{x.arrRunway ? ` · runway ${x.arrRunway}` : ""}
+            {feel && <em className={`is-${feel.tone}`}>{feel.word}</em>}
+          </span>
+          <div>
+            <b className="mono">{x.fpm != null ? Math.round(x.fpm) : "—"}</b>
+            <small>fpm</small>
+          </div>
+          <div>
+            <b className="mono">{x.peakG != null ? x.peakG.toFixed(2) : "—"}</b>
+            <small>G{x.bounces ? ` · ${x.bounces} bounce${x.bounces > 1 ? "s" : ""}` : ""}</small>
+          </div>
+          <div>
+            <b className="mono">{x.arrRunway ?? "—"}</b>
+            <small>{x.depRunway ? `runway, ${x.depRunway} out` : "runway"}</small>
+          </div>
+          <div>
+            <b className="mono gv-end2-wx">
+              {wx && <WxPicto code={wx.code} night={wx.night} />}
+              {wx?.temp != null ? `${Math.round(wx.temp)}°C` : "—"}
+            </b>
+            <small>{wx?.text ?? `weather in ${toName}`}</small>
+          </div>
+          <div className="gv-end-bye">
+            <b>Flight complete</b>
+            <span>{p.state.bye || BYE}</span>
+          </div>
+        </div>
       </div>
     </div>
   );

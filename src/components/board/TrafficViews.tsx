@@ -14,7 +14,7 @@ import type { Airport } from "@/lib/data/load";
 import type { AirlineInfo } from "@/lib/data/types";
 import { routeColor, textOn } from "@/lib/colors";
 import type { GateFlight } from "@/lib/board/gate";
-import type { Look, TrafficStyle } from "@/lib/board/looks";
+import { look, type Look, type TrafficStyle } from "@/lib/board/looks";
 import type { FlightState } from "@/lib/feed/core";
 import { airlineOf, atOriginOf, boardRows, fromIvao, fromTower, fromVatsim, mergeTraffic, type Stand, type TrafficRow, type TrafficSource, type TrafficStatus } from "@/lib/feed/traffic";
 import { useNetworkTraffic } from "@/lib/feed/useTraffic";
@@ -131,7 +131,8 @@ function useChip() {
     const a = airlineOf(cs, airlines);
     if (!a) return { bg: me ? "#3ee07a" : "#4a5263", ink: me ? "#05301a" : "#ffffff", code: /^[A-Z]{3}\d/.test(cs) ? cs.slice(0, 3) : "—" };
     const bg = a.colors.primary;
-    return { bg, ink: textOn(bg), code: a.iata ?? a.icao };
+    // 1.17.4: the ICAO code, three letters, as the callsign has it (EJU for easyJet Europe, in easyJet's colours)
+    return { bg, ink: textOn(bg), code: cs.match(/^[A-Z]{3}/)?.[0] ?? a.icao };
   };
 }
 
@@ -332,6 +333,28 @@ export function BoardWindow(p: TrafficViewProps) {
       <div className="tv-win-me">
         <MeLine b={b} tz={tz} />
       </div>
+    </div>
+  );
+}
+
+/* ---------- 1.17.4: the ending screen's connections ---------- */
+
+/**
+ * The departures where the flight ended (its connections), as a dot-matrix board under the game on
+ * the ending screen: the traffic looks' rows, without the flight's own (the ticket beside it is that).
+ */
+export function EndConnections(p: Omit<TrafficViewProps, "look">) {
+  const lk = useMemo(() => ({ ...look("conn"), style: "dot" as const }), []);
+  const b = useBoard({ ...p, look: lk }, 8);
+  const tz = b.ap.tz;
+  const city = (cityName(b.ap) ?? b.ap.name).toUpperCase();
+  return (
+    <div className="tv-end" role="region" aria-label={`Connections at ${city}`}>
+      <div className="tv-board-hd">
+        <span>{b.origin ? "DEPARTURES" : "CONNECTIONS"} · {city}</span>
+        <small>{localClock(p.live?.last?.t ?? p.now, tz)}</small>
+      </div>
+      <Rows b={{ ...b, rows: b.rows.filter((r) => !r.me) }} style="dot" tz={tz} compact={false} />
     </div>
   );
 }
