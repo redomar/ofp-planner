@@ -89,9 +89,10 @@ function sampleRows(apIcao: string, base: number, side: "dep" | "arr"): TrafficR
 }
 
 /** The rows for a traffic look, and where they're from. */
-function useBoard(p: TrafficViewProps, max: number) {
+function useBoard(p: TrafficViewProps, max: number, atDest = false) {
   const side = p.look.side;
-  const origin = atOrigin(p.f, p.live);
+  // the ending screen: the flight is over, so its destination whatever the feed says (none at all, OFP Tower closed)
+  const origin = atDest ? false : atOrigin(p.f, p.live);
   const ap = origin ? p.f.from : p.f.to;
   const net = useNetworkTraffic(!p.preview);
   const me = ownRow(p.f, p.live, origin, p.arrives);
@@ -345,7 +346,7 @@ export function BoardWindow(p: TrafficViewProps) {
  */
 export function EndConnections(p: Omit<TrafficViewProps, "look">) {
   const lk = useMemo(() => ({ ...look("conn"), style: "dot" as const }), []);
-  const b = useBoard({ ...p, look: lk }, 8);
+  const b = useBoard({ ...p, look: lk }, 8, true);
   const tz = b.ap.tz;
   const city = (cityName(b.ap) ?? b.ap.name).toUpperCase();
   return (
