@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.17.11 — 2026-11-25
+
+- **The stream page's preview shows the real traffic at every stage.** Picking Taxi, Climb or another stage than now showed made-up flights on the boards (BAW476, TAP1015…). The boards now show the real VATSIM, IVAO and sim traffic at any stage, with your flight at that stage.
+- **Demo traffic**, a tick box beside Full screen, swaps the example flights back in, for trying looks with a full board. OBS always shows the real traffic.
 ## 1.17.10 — 2026-11-25
 
 - **Fixed: your flight read LANDING on the arrivals board for the whole flight**, even at cruise 160 nm out. It shows its real status now, like the other rows: EN ROUTE, then APPROACH within 40 nm (or once the approach phase starts), and **LANDING only on short final** (within 5 nm and 1,500 ft of the field), then LANDED and ON BLOCKS.

@@ -3511,6 +3511,20 @@ html.screen-mode body > :not(.screen-root) {
   justify-content: space-between;
   gap: 10px;
 }
+.dk-under-acts {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.dk-demo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
 .dk-caption {
   margin: 0;
 }

@@ -127,6 +127,8 @@ export function ScenesPreview({
   const [menu, setMenu] = useState(false);
   // 1.17.7: the ending screen (its own OBS source), previewed with its board's settings
   const [endTab, setEndTab] = useState(false);
+  // 1.17.11: the boards in the preview show the real traffic at every stage; this swaps in example traffic
+  const [demo, setDemo] = useState(false);
   const endLook = useMemo(() => lookFrom(`ending.${gate.endBoard}`) ?? look("ending"), [gate.endBoard]);
   const setEnd = (p: Partial<Look>) => onPatch({ endBoard: lookTo({ ...endLook, ...p }).replace(/^ending\.?/, "") });
   const scene = sel >= 0 && sel < gate.scenes.length ? sel : OTHER;
@@ -253,9 +255,9 @@ export function ScenesPreview({
 
       <div className="gs-frame dk-screen" id="gs-preview">
         {endTab ? (
-          <GateViewScreen flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={feed.state ?? samples.arrived} source={feed.state ? feed.using : "link"} trail={feed.state ? feed.trail : []} plan={feed.plan} summary={feed.summary} probe={null} mcdu={[]} events={[]} towerTraffic={feed.traffic} stands={feed.stands} preview={!feed.state} step={{ ls: [endLook], key: "ending", from: 0 }} />
+          <GateViewScreen flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={feed.state ?? samples.arrived} source={feed.state ? feed.using : "link"} trail={feed.state ? feed.trail : []} plan={feed.plan} summary={feed.summary} probe={null} mcdu={[]} events={[]} towerTraffic={feed.traffic} stands={feed.stands} preview={demo} step={{ ls: [endLook], key: "ending", from: 0 }} />
         ) : (
-        <GateViewScreen flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={pvLive} source={isLive ? feed.using : "link"} trail={isLive ? feed.trail : []} plan={feed.plan} summary={feed.summary} probe={isNow ? feed.probe : pvDeck.probe} mcdu={isNow ? feed.mcdu : pvDeck.mcdu} events={isNow ? feed.events : pvDeck.events} towerTraffic={feed.traffic} stands={feed.stands} preview={!isLive} step={step} back={pvFlip && pvBack != null ? pvBack : undefined} />
+        <GateViewScreen flight={flight} state={{ ...gate, hold: null }} now={now} wx={wx} live={pvLive} source={isLive ? feed.using : "link"} trail={isLive ? feed.trail : []} plan={feed.plan} summary={feed.summary} probe={isNow ? feed.probe : pvDeck.probe} mcdu={isNow ? feed.mcdu : pvDeck.mcdu} events={isNow ? feed.events : pvDeck.events} towerTraffic={feed.traffic} stands={feed.stands} preview={demo} step={step} back={pvFlip && pvBack != null ? pvBack : undefined} />
         )}
       </div>
       <div className="dk-under">
@@ -268,9 +270,15 @@ export function ScenesPreview({
           {pvFlip && !pvFlip.only ? `, turning over every ${mmss(pvFlip.every)} for ${mmss(pvFlip.hold)}` : ""}. The see-through parts show your game.
         </p>
         )}
-        <button type="button" className="btn btn-sm" onClick={() => void document.getElementById("gs-preview")?.requestFullscreen?.()}>
-          Full screen
-        </button>
+        <div className="dk-under-acts">
+          <label className="dk-demo" title="The boards in this preview: example traffic instead of the real VATSIM, IVAO and sim traffic. OBS always shows the real traffic.">
+            <input type="checkbox" checked={demo} onChange={(e) => setDemo(e.target.checked)} />
+            Demo traffic
+          </label>
+          <button type="button" className="btn btn-sm" onClick={() => void document.getElementById("gs-preview")?.requestFullscreen?.()}>
+            Full screen
+          </button>
+        </div>
       </div>
       {!endTab && pvFlip && shownBacks(pvFlip.backs).length > 0 && (
         <div className="seg st-pv-seg" role="radiogroup" aria-label="Which side of the flip card">
