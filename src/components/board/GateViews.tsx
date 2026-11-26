@@ -455,8 +455,20 @@ export function GateMap({
       if (l.pseudo || l.id.startsWith(f.from.icao) || l.id.startsWith(f.to.icao)) return false;
       if (nearest < 0) return i > 0 && i < routeLegs.length - 1;
       // the whole route fits on screen (near the end, or a short FMS route): every fix ahead; else the next 5
-      return i > nearest && i <= nearest + (near || routeFits ? 24 : 5);
+      // 1.17.15: the SimBrief route (no FMS plan) is seen whole: every fix ahead, NAT points and all
+      return i > nearest && i <= nearest + (near || routeFits || route?.source === "ofp" ? 400 : 5);
     }) ?? [];
+  // a name only where it has room: close fixes (a departure's, seen across an ocean) keep their dots, one name
+  const labelled = new Set<number>();
+  {
+    const at: [number, number][] = [];
+    named.forEach((l, i) => {
+      const p = geo.proj([l.lon, l.lat]);
+      if (!p || at.some((q) => Math.abs(q[0] - p[0]) < W * 0.085 && Math.abs(q[1] - p[1]) < W * 0.03)) return;
+      at.push(p as [number, number]);
+      labelled.add(i);
+    });
+  }
   // the route with its turns (OFP Tower's turn geometry): fly-by fixes as rounded corners that start
   // leadNm early, fly-overs through the fix and then a swing outside it; straight lines otherwise
   const turnedRoute = useMemo(() => {
@@ -531,12 +543,14 @@ export function GateMap({
         return (
           <g key={`${l.id}-${i}`} className="gm-wpt">
             {overfly ? <path d={`M${p[0]},${p[1] - r * 1.6}L${p[0] + r * 1.5},${p[1] + r}L${p[0] - r * 1.5},${p[1] + r}Z`} strokeWidth={k} /> : <circle cx={p[0]} cy={p[1]} r={r} strokeWidth={k} />}
-            <text x={p[0] + r * 2.2} y={p[1] + fs * 0.35} fontSize={fs}>
-              {/* a runway fix (EGLL09R) as its runway */}
-              {l.id.startsWith(f.to.icao) && l.id.length > 4 ? l.id.slice(4) : l.id}
-              {turn}
-            </text>
-            {l.alt && (
+            {labelled.has(i) && (
+              <text x={p[0] + r * 2.2} y={p[1] + fs * 0.35} fontSize={fs}>
+                {/* a runway fix (EGLL09R) as its runway */}
+                {l.id.startsWith(f.to.icao) && l.id.length > 4 ? l.id.slice(4) : l.id}
+                {turn}
+              </text>
+            )}
+            {l.alt && labelled.has(i) && (
               <g className="gm-alt">
                 <rect x={p[0] + r * 2} y={p[1] + fs * 0.6} width={fs * 0.62 * l.alt.text.length + fs * 0.6} height={fs * 1.15} rx={fs * 0.2} />
                 <text x={p[0] + r * 2 + fs * 0.3} y={p[1] + fs * 1.48} fontSize={fs * 0.85}>

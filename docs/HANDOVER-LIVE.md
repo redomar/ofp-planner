@@ -4,7 +4,7 @@ Written on 2026-11-11 by the two Claude sessions that built it: the Mac session 
 
 ## 1. Where things stand
 
-The live site is <https://plans.massorbit.co.uk>. The latest release is **1.17.14**. All releases are signed tags with GitHub releases, made from `main` through PRs.
+The live site is <https://plans.massorbit.co.uk>. The latest release is **1.17.15**. All releases are signed tags with GitHub releases, made from `main` through PRs.
 
 | Version | What | PR |
 |---|---|---|
@@ -46,7 +46,8 @@ The live site is <https://plans.massorbit.co.uk>. The latest release is **1.17.1
 | 1.17.11 | Studio preview: `preview={demo}` (real traffic at every stage); Demo traffic tick box `.dk-demo` in `.dk-under-acts` | |
 | 1.17.12 | Tower `parse_plan_xml`: `MAPT_RE` (MA\d{2}[LRC]?) and a later `Origin` leg start the missed section; `tools/mapt_test.py` | |
 | 1.17.13 | `planOf(f, plan)` (GateViews): SimBrief navlog as the plan over a VATSIM/absent one, for map, `routeToGo`, `routeAhead`; climb ETA uses max(gs, OFP route nm / air time) | |
-| 1.17.14 | `withBurn` (useFlightFeed): ffKgH 0/absent airborne → burn from FOB drop over ≥5 min, else null | this release |
+| 1.17.14 | `withBurn` (useFlightFeed): ffKgH 0/absent airborne → burn from FOB drop over ≥5 min, else null | |
+| 1.17.15 | GateMap `named`: all fixes ahead for `route.source === "ofp"`; `labelled` set drops overlapping names | this release |
 
 **Naming:** "OFP Tower" is the user-facing name, the owner's choice on 2026-11-11. In code and protocol the old name stays: `feed=link`, `linkSource`, `"app":"ofp-link"`, port 47800, `docs/OFP-LINK.md`, and the PC folder `ofp-link-recorder`. Rename both sides together or not at all.
 
