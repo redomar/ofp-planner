@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.17.12 — 2026-11-26
+
+- **Fixed (OFP Tower): the landing time ran ~25 min late on approaches that end at a missed-approach point.** Seen at Innsbruck (LOC/DME 26): the approach ends at MA26 with no runway leg, so the go-around and hold (about 88 nm) counted as flight and the board's landing ETA said ~30 min instead of ~7. OFP Tower now ends the approach at an `MAxx` point, and at the alternate route's first leg, so everything after is the missed approach and left out of the landing time. A usual ILS is unchanged. Restart OFP Tower to get it; nothing changes on the site.
 ## 1.17.11 — 2026-11-25
 
 - **The stream page's preview shows the real traffic at every stage.** Picking Taxi, Climb or another stage than now showed made-up flights on the boards (BAW476, TAP1015…). The boards now show the real VATSIM, IVAO and sim traffic at any stage, with your flight at that stage.

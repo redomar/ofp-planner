@@ -86,6 +86,9 @@ def _note_dropped(ident, lat, lon):
               file=sys.stderr)
 
 
+MAPT_RE = re.compile(r"MA\d{2}[LRC]?")    # FMS missed-approach point named after the runway
+
+
 def parse_plan_xml(xml_text, destination=None):
     root = ET.fromstring(xml_text)
     cruise = _num(root.findtext("cruiseLevel"))
@@ -120,10 +123,14 @@ def parse_plan_xml(xml_text, destination=None):
                 leg["flags"] = flags
             if re.fullmatch(r"\d+", ident):      # altitude-terminated leg, e.g. "3000"
                 leg["pseudo"] = True
+            if ltype == "Origin" and legs:
+                past_dest = True                 # alternate route starts: the approach ended before it
             if past_dest:
                 leg["missed"] = True             # missed approach, after the destination runway
             if destination and ident.startswith(destination):
                 past_dest = True
+            elif MAPT_RE.fullmatch(ident):
+                past_dest = True                 # e.g. "MA26": non-precision approach ends at the MAPt, no runway leg
             legs.append(leg)
     return cruise, legs
 
