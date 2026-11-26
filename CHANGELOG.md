@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.17.15 — 2026-11-26
+
+- **The map names every fix ahead on the SimBrief route** (an aircraft with no FMS route from OFP Tower, the A350): NAT points and all. In flight it named only the next 5, which across an ocean are the departure's fixes bunched together, so one name showed.
+- Fix names that would overlap are left out (the dot stays), on every map.
 ## 1.17.14 — 2026-11-26
 
 - **Fixed: "Burning 0.0 t/h" and the fuel at the destination reading as all the fuel on board** (71,710 kg after 9½ h) on the iniBuilds A350, whose fuel flow reads 0. When the flow reads 0 in the air, the burn is now worked out from the fuel on board going down over 5 minutes, and the fuel at the destination from that. Until then both show "—".
