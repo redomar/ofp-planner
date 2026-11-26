@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.17.14 — 2026-11-26
+
+- **Fixed: "Burning 0.0 t/h" and the fuel at the destination reading as all the fuel on board** (71,710 kg after 9½ h) on the iniBuilds A350, whose fuel flow reads 0. When the flow reads 0 in the air, the burn is now worked out from the fuel on board going down over 5 minutes, and the fuel at the destination from that. Until then both show "—".
 ## 1.17.13 — 2026-11-26
 
 - **Fixed: the map drew a straight line when OFP Tower sends no FMS route** (the iniBuilds A350, any aircraft but the Fenix, or VATSIM's plan of just two airports). It draws the SimBrief OFP's route now, fix by fix (NAT points and all), and the distance to go and the landing time follow it. The Fenix's own FMS route still wins when it's there.

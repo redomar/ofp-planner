@@ -115,9 +115,30 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<s
     const put = (p: Partial<FlightFeed>) => setFeed((f) => ({ ...(f.key === k ? f : NO_FEED), ...p, key: k }));
     // auto: OFP Tower wins while it's sending; VATSIM fills in when it isn't
     let linkAt = 0;
-    const take = (from: FeedSource) => (s: Parameters<typeof step>[1]) => {
+    // 1.17.14: an aircraft whose fuel flow reads 0 (the iniBuilds A350): the burn from the fuel on board
+    // going down, over 5 min or more; unknown (null, "—") until then, not 0 (fuel at the destination = all of it)
+    let fuelMark: { t: number; kg: number } | null = null;
+    let burnKgH: number | null = null;
+    const withBurn = (s: Parameters<typeof step>[1]): Parameters<typeof step>[1] => {
+      if (s.onGround === true || s.fobKg == null) {
+        if (s.onGround === true) {
+          fuelMark = null;
+          burnKgH = null;
+        }
+        return s;
+      }
+      if (!fuelMark || s.fobKg > fuelMark.kg + 50 || s.t < fuelMark.t) fuelMark = { t: s.t, kg: s.fobKg };
+      else if (s.t - fuelMark.t >= 5 * MIN_MS) {
+        const r = (fuelMark.kg - s.fobKg) / ((s.t - fuelMark.t) / 3_600_000);
+        if (r > 100) burnKgH = Math.round(r);
+        fuelMark = { t: s.t, kg: s.fobKg };
+      }
+      return s.ffKgH != null && s.ffKgH > 0 ? s : { ...s, ffKgH: burnKgH };
+    };
+    const take = (from: FeedSource) => (raw: Parameters<typeof step>[1]) => {
       if (from === "link") linkAt = Date.now();
       else if (source === "auto" && Date.now() - linkAt < 10_000) return;
+      const s = withBurn(raw);
       st = step(st, s, ctxNow());
       const now = st;
       const last = trail[trail.length - 1];
@@ -238,4 +259,5 @@ export function useFlightFeed(cfg: FeedConfig, ctx: FlightContext, places: Map<s
   return feed.key === key ? feed : NO_FEED;
 }
 
+const MIN_MS = 60_000;
 const NO_FEED: FlightFeed = { state: null, status: null, using: "clock", link: null, vatsim: null, trail: [], plan: null, planAt: null, summary: null, probe: null, mcdu: [], events: [], traffic: null, stands: null };
