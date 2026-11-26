@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.17.13 — 2026-11-26
+
+- **Fixed: the map drew a straight line when OFP Tower sends no FMS route** (the iniBuilds A350, any aircraft but the Fenix, or VATSIM's plan of just two airports). It draws the SimBrief OFP's route now, fix by fix (NAT points and all), and the distance to go and the landing time follow it. The Fenix's own FMS route still wins when it's there.
+- **Fixed: the landing time in the climb was hours late without the FMS's times.** It was the distance over the ground speed, and 262 kt at 5,000 ft made Istanbul–New York 16 h 37 m. In the climb it now uses at least the OFP's planned average speed (its route over its air time).
 ## 1.17.12 — 2026-11-26
 
 - **Fixed (OFP Tower): the landing time ran ~25 min late on approaches that end at a missed-approach point.** Seen at Innsbruck (LOC/DME 26): the approach ends at MA26 with no runway leg, so the go-around and hold (about 88 nm) counted as flight and the board's landing ETA said ~30 min instead of ~7. OFP Tower now ends the approach at an `MAxx` point, and at the alternate route's first leg, so everything after is the missed approach and left out of the landing time. A usual ILS is unchanged. Restart OFP Tower to get it; nothing changes on the site.
