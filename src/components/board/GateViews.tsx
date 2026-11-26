@@ -86,13 +86,39 @@ export const altText = (s: FeedSample) => (levelFt(s) >= 10_000 ? fl(levelFt(s))
 const mins = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${String(Math.round(m % 60)).padStart(2, "0")}m` : `${Math.max(1, Math.round(m))} min`);
 
 /**
+ * 1.17.13: the route to draw and measure. OFP Tower's FMS plan when it has sent one (the Fenix); else the
+ * SimBrief OFP's navlog, airport to airport, over VATSIM's plan (just the two airports) or none at all
+ * (the A350 sends no plan): without it the map drew a straight line and the landing time was straight-line.
+ */
+export function planOf(f: GateFlight, plan: FlightPlan | null | undefined): FlightPlan | null {
+  if (plan && plan.source !== "vatsim") return plan;
+  if (!f.route || f.route.length < 1) return plan ?? null;
+  if (plan && (plan.origin !== f.from.icao || plan.destination !== f.to.icao)) return plan;
+  const leg = (id: string, x: { lat: number; lon: number }, via: string | null = null) => ({ id, lat: x.lat, lon: x.lon, via, kind: null, flags: [], alt: null, pseudo: false, missed: false, turn: null, eta: null, wind: null, passed: false });
+  return {
+    source: "ofp",
+    origin: f.from.icao,
+    destination: f.to.icao,
+    alternate: plan?.alternate ?? null,
+    flightNumber: plan?.flightNumber ?? null,
+    cruiseFt: plan?.cruiseFt ?? f.cruiseFt,
+    phase: plan?.phase ?? null,
+    runways: [],
+    active: null,
+    vSpeeds: null,
+    legs: [leg(f.from.icao, f.from), ...f.route.map((x) => leg(x.id, x, x.via)), leg(f.to.icao, f.to)],
+  };
+}
+
+/**
  * Distance left along the FMS route (OFP Tower, Fenix): to the fix flown to, then leg by leg to
  * the destination runway; null when there's no plan for this flight. The fix flown to is the FMS's
  * own (plan.active) when it says, else worked out from the position. `total` is what's been flown
  * (great circle from the departure airport) plus what's left: the Fenix drops fixes as they're
  * passed, so the plan alone can't say how long the trip was.
  */
-export function routeToGo(f: GateFlight, plan: FlightPlan | null | undefined, pos: { lat: number; lon: number }): { toGo: number; total: number } | null {
+export function routeToGo(f: GateFlight, given: FlightPlan | null | undefined, pos: { lat: number; lon: number }): { toGo: number; total: number } | null {
+  const plan = planOf(f, given);
   if (!plan || plan.origin !== f.from.icao || plan.destination !== f.to.icao) return null;
   const all = plan.legs.filter((l) => !l.missed);
   if (all.length < 2) return null;
@@ -144,7 +170,14 @@ export function liveFacts(f: GateFlight, g: GateState, live: FlightState | null,
   const around = wentAround(live);
   // held against the Fenix's minute rounding (19:57 / 19:58 every 10 s)
   const fmsOn = steadyTime(`${f.from.icao}-${f.to.icao}`, air && !around ? fmsArrival(plan, f.to, s.t) : null, s.t);
-  const minLeft = around ? null : fmsOn != null ? Math.max(0, (fmsOn - s.t) / MIN) : air && s.gs > 60 ? (toGo / s.gs) * 60 : null;
+  // 1.17.13: in the climb the ground speed is far below the cruise's (262 kt at 5,000 ft read 16 h to New York):
+  // the OFP's average speed (its distance over its air time) until the aircraft is faster
+  const airMin = f.block != null && f.block - f.taxiOut > 30 ? f.block - f.taxiOut - 5 : null;
+  const ofp = planOf(f, null);
+  const planNm = ofp ? ofp.legs.reduce((sum, l, i) => (i ? sum + distNm(ofp.legs[i - 1], l) : 0), 0) : f.nm;
+  const planGs = airMin != null && planNm ? (planNm / airMin) * 60 : null;
+  const speed = (live.phase === "takeoff" || live.phase === "climb") && planGs != null ? Math.max(s.gs, planGs) : s.gs;
+  const minLeft = around ? null : fmsOn != null ? Math.max(0, (fmsOn - s.t) / MIN) : air && s.gs > 60 ? (toGo / speed) * 60 : null;
   // no time while going round: the schedule's would read as a fresh estimate
   const arrives = live.stamps.on ?? (minLeft != null ? s.t + minLeft * MIN : around ? null : plannedEta);
   const flown = live.stage === "arrived" || !air ? (live.stamps.on != null ? 1 : 0) : Math.min(1, Math.max(0, 1 - toGo / Math.max(1, byRoute?.total ?? total)));
@@ -280,7 +313,8 @@ export function GateMap({
   // the FMS route, when it is this flight's
   const fromIcao = f.from.icao;
   const toIcao = f.to.icao;
-  const legs = useMemo(() => (plan && plan.origin === fromIcao && plan.destination === toIcao && plan.legs.length >= 2 ? plan.legs : null), [plan, fromIcao, toIcao]);
+  const route = useMemo(() => planOf(f, plan), [f, plan]);
+  const legs = useMemo(() => (route && route.origin === fromIcao && route.destination === toIcao && route.legs.length >= 2 ? route.legs : null), [route, fromIcao, toIcao]);
   const routeLegs = useMemo(() => legs?.filter((l) => !l.missed) ?? null, [legs]);
   // which leg the aircraft is nearest: the fixes after it are still ahead
   const nearest = useMemo(() => {
@@ -613,7 +647,8 @@ export interface RouteAhead {
  * route and the time over each. From the FMS (OFP Tower, Fenix: its "active" legs), else from the
  * aircraft's position on the FMS route or the SimBrief OFP's; null without a route.
  */
-export function routeAhead(f: GateFlight, plan: FlightPlan | null | undefined, s: FeedSample, count = 3): RouteAhead | null {
+export function routeAhead(f: GateFlight, given: FlightPlan | null | undefined, s: FeedSample, count = 3): RouteAhead | null {
+  const plan = planOf(f, given);
   type Fix = { id: string; lat: number; lon: number; via: string | null; eta?: string | null; hide?: boolean; alt?: string | null };
   let fixes: Fix[] = [];
   let to = -1;
