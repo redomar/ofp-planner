@@ -5,11 +5,11 @@ import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, typ
 import { cityName, dur } from "@/lib/data/flight";
 import { contrast, highlightFor, routeColor, textOn } from "@/lib/colors";
 import { MIN } from "@/lib/board/board";
-import type { GateFlight, GateState } from "@/lib/board/gate";
+import { plannedFobAt, type GateFlight, type GateState } from "@/lib/board/gate";
 import { goTarget } from "@/lib/board/countdown";
 import { ENDING_KEY, endStats, landingFeel, readEnding, routeKey, type EndingRecord } from "@/lib/board/ending";
 import { BACKS, layers, layersTo, lookFrom, SHOWS_VS, shownBacks, stepAt, turnsFrom, turnsOf, turnsTo, VIEW_INFO, type Layers, type Look, type LookBack, type ShownView, type Turns } from "@/lib/board/looks";
-import { aircraftStatus, deckPage, deckRows, fmsFigures, mcduPage, mcduRuns, showEvents, type AircraftStatus, type DeckEvent, type FmsFigures, type Light, type McduPage, type ProbeValues } from "@/lib/feed/deck";
+import { aircraftStatus, deckPage, deckRows, fmsFigures, mcduPage, mcduRuns, showEvents, type AircraftStatus, type DeckEstimates, type DeckEvent, type FmsFigures, type Light, type McduPage, type ProbeValues } from "@/lib/feed/deck";
 import { bearing, distNm, fmsArrival, routeBefore, steadyTime, landingText, levelFt, phaseLabel, utcAt, wentAround, viewStage, type ViewStage, startState, type FeedSample, type FeedSource, type FlightPlan, type FlightPhase, type FlightState, type FlightSummary, vsText, VS_HIDE_MS } from "@/lib/feed/core";
 import { useOutlines } from "@/lib/outlines";
 import { useTerrain } from "@/lib/terrain";
@@ -850,7 +850,19 @@ function BackSide({ back, f, facts, live, plan, ahead, td, dest, probe, mcdu }: 
   if (back === "aircraft") return <AircraftSide a={aircraftStatus(probe ?? null)} top={top("aircraft status")} />;
   if (back === "deck") {
     const pages = mcdu ?? [];
-    return <DeckSide a={aircraftStatus(probe ?? null)} fms={fmsFigures(pages)} pg={deckPage(pages)} top={top("flight deck")} />;
+    // 1.17.16: the board's estimates where the FMS isn't read (the A350)
+    const now = s?.t ?? null;
+    const efob = s && inAirOf(live) ? fuelAtDest(s, facts.toGo, f) : null;
+    const crz = plan?.cruiseFt ?? f.cruiseFt;
+    const est: DeckEstimates = {
+      arrival: facts.arrives != null ? zClock(facts.arrives).replace(/Z$/, "") : null,
+      efob: efob != null ? efob / 1000 : null,
+      tdUtc: td && now != null ? zClock(now + td.min * MIN).replace(/Z$/, "") : null,
+      tdNm: td?.nm ?? null,
+      fob: s?.fobKg != null ? s.fobKg / 1000 : null,
+      crzFl: crz ? `FL${String(Math.round(crz / 100)).padStart(3, "0")}` : null,
+    };
+    return <DeckSide a={aircraftStatus(probe ?? null)} fms={fmsFigures(pages)} est={est} pg={deckPage(pages)} top={top("flight deck")} />;
   }
   if (back === "plan") {
     const rows = ahead?.next.slice(0, 7) ?? [];
@@ -910,7 +922,7 @@ function BackSide({ back, f, facts, live, plan, ahead, td, dest, probe, mcdu }: 
     // the top of descent is td.nm ahead; what's left of the line (1 − flown) is facts.toGo
     const tdX = td && facts.toGo ? 14 + Math.min(1, facts.flown + (1 - facts.flown) * (td.nm / facts.toGo)) * (W - 28) : null;
     const flownMin = live?.stamps.off != null && s ? Math.round((s.t - live.stamps.off) / MIN) : null;
-    const efob = s && inAirOf(live) ? fuelAtDest(s, facts.toGo) : null;
+    const efob = s && inAirOf(live) ? fuelAtDest(s, facts.toGo, f) : null;
     return (
       <>
         {top(`${f.from.icao} → ${f.to.icao}`)}
@@ -959,7 +971,7 @@ function BackSide({ back, f, facts, live, plan, ahead, td, dest, probe, mcdu }: 
   const toNext = n0 && s ? minsTo(n0, s) : null;
   const hd = s?.wind && s.hdg != null ? Math.round(s.wind[1] * Math.cos(((s.wind[0] - s.hdg) * Math.PI) / 180)) : null;
   const drift = s?.trk != null && s.hdgMag != null ? Math.round(((s.trk - s.hdgMag + 540) % 360) - 180) : null;
-  const efob = s && inAirOf(live) ? fuelAtDest(s, facts.toGo) : null;
+  const efob = s && inAirOf(live) ? fuelAtDest(s, facts.toGo, f) : null;
   const flownNm = s ? Math.round(distNm(f.from, s)) : null;
   const inAirMin = live?.stamps.off != null && s ? Math.round((s.t - live.stamps.off) / MIN) : null;
   return (
@@ -1122,7 +1134,7 @@ function Mcdu({ pg }: { pg: McduPage }) {
   );
 }
 
-function DeckSide({ a, fms, pg, top }: { a: AircraftStatus; fms: FmsFigures; pg: McduPage | null; top: ReactNode }) {
+function DeckSide({ a, fms, est, pg, top }: { a: AircraftStatus; fms: FmsFigures; est?: DeckEstimates | null; pg: McduPage | null; top: ReactNode }) {
   const box = fmaBox;
   return (
     <>
@@ -1135,7 +1147,7 @@ function DeckSide({ a, fms, pg, top }: { a: AircraftStatus; fms: FmsFigures; pg:
       </div>
       <div className="gv-deck">
         <dl className="gv-kv gv-fms mono">
-          {deckRows(fms).map((r) => (
+          {deckRows(fms, est).map((r) => (
             <div key={r.k}>
               <dt>{r.k}</dt>
               <dd>{r.v ?? "—"}</dd>
@@ -1222,8 +1234,15 @@ function McduTd({ td, t, crz }: { td: { nm: number; min: number }; t: number; cr
 
 const inAirOf = (live: FlightState | null) => !!live && live.stage === "flying" && live.phase !== "landed" && live.phase !== "taxiIn";
 
-/** Fuel at the destination (kg), estimated: on board less the flow over the time left at this speed; null on the ground or without the figures. */
-export function fuelAtDest(s: FeedSample, toGoNm: number | null): number | null {
+/**
+ * Fuel at the destination (kg), estimated; null on the ground or without the figures. With a
+ * SimBrief OFP (1.17.16): its planned landing fuel, moved by how far the fuel on board is from
+ * the plan's at this point of the route (a long flight's burn falls as it gets lighter, which a
+ * straight line from the flow now misses). Else: on board less the flow over the time left.
+ */
+export function fuelAtDest(s: FeedSample, toGoNm: number | null, f: GateFlight | null = null): number | null {
+  const planned = f && s.fobKg != null && toGoNm != null && !s.onGround && s.gs >= 50 ? plannedFobAt(f, toGoNm) : null;
+  if (planned != null && f?.fuelPlan) return Math.max(0, Math.round((f.fuelPlan.landingKg + (s.fobKg! - planned)) / 10) * 10);
   if (s.fobKg == null || s.ffKgH == null || toGoNm == null || s.gs < 50 || s.onGround) return null;
   return Math.max(0, Math.round((s.fobKg - s.ffKgH * (toGoNm / s.gs)) / 10) * 10);
 }
@@ -1441,7 +1460,7 @@ function LookScreen(p: ViewProps & { look: Look; back?: number | null; stepFrom?
     const air = !!p.live && p.live.stage === "flying" && p.live.phase !== "landed" && p.live.phase !== "taxiIn";
     const ahead = s && p.live?.stage !== "arrived" ? routeAhead(f, p.plan, s) : null;
     const hdg = s ? (s.hdgMag ?? s.hdg) : null;
-    const efob = s && air ? fuelAtDest(s, facts.toGo) : null;
+    const efob = s && air ? fuelAtDest(s, facts.toGo, f) : null;
     return (
       <div className="gv gv-map is-route" style={style} {...at} role="region" aria-label={label}>
         <div className="gv-map-pic">

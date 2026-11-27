@@ -895,8 +895,17 @@ async function run() {
         const eveOk =
           fplB.kind === "fpln" && dk.pageFigures(fplB).destNm === 45 && dk.pageFigures(fplB).utcDest === "20:31" && P(["DATA INDEX", "s DEST"]).kind === "other" &&
           crz2.tdUtc === "20:07" && crz2.tdNm === 378 && crz2.managed === ".79" && crz2.costIndex === 47 && appr2.vapp === 135 && appr2.vls === 131 && appr2.approach === "ILS33";
+        // 1.17.16: the A350 (no FMS pages): the board's estimates, labelled, and nothing empty shown
+        const E = { arrival: "02:40", efob: 9.6, tdUtc: "02:05", tdNm: 150, fob: 41.2, crzFl: "FL360" };
+        const a350 = dk.deckRows(dk.fmsFigures([]), E).map((r) => `${r.k}=${r.v}`).join("|");
+        const a350Gap = dk.deckRows(dk.fmsFigures([]), { ...E, efob: null, tdUtc: null, tdNm: null }).map((r) => r.k).join("|");
+        const fenixKeeps = dk.deckRows(dk.fmsFigures([P(crzProg, 1), P(fuelPred, 2)]), E).every((r) => !r.k.endsWith("· est") || r.k === "Top of descent · est" || r.k === "Arrival · est");
+        const estOk =
+          a350 === "Arrival · est=02:40Z|Fuel at arrival · est=9.6 t|Top of descent · est=02:05Z · 150 nm|Levels · est=FL360" &&
+          a350Gap === "Arrival · est|Levels · est|Fuel on board" && fenixKeeps;
+        if (!estOk) console.log("  deck est:", a350, "/", a350Gap, "/", fenixKeeps);
         const ok =
-          replayOk && eveOk &&
+          estOk && replayOk && eveOk &&
           kinds === "prog,prog,fuelpred,perf,perf,perf,perf" && P(appr).title === "DEST APPR" &&
           cp.phase === "CRZ" && cp.crzFl === "FL380" && cp.optFl === "FL380" && cp.recMaxFl === "FL390" && cp.toFix === undefined &&
           dp.phase === "DES" && dp.crzFl === null && dp.vdev === 4440 && dp.toFix === "BIKF10" && dp.toNm === 101 &&

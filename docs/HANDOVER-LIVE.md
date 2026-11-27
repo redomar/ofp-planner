@@ -4,7 +4,7 @@ Written on 2026-11-11 by the two Claude sessions that built it: the Mac session 
 
 ## 1. Where things stand
 
-The live site is <https://plans.massorbit.co.uk>. The latest release is **1.17.15**. All releases are signed tags with GitHub releases, made from `main` through PRs.
+The live site is <https://plans.massorbit.co.uk>. The latest release is **1.17.16**. All releases are signed tags with GitHub releases, made from `main` through PRs.
 
 | Version | What | PR |
 |---|---|---|
@@ -47,7 +47,8 @@ The live site is <https://plans.massorbit.co.uk>. The latest release is **1.17.1
 | 1.17.12 | Tower `parse_plan_xml`: `MAPT_RE` (MA\d{2}[LRC]?) and a later `Origin` leg start the missed section; `tools/mapt_test.py` | |
 | 1.17.13 | `planOf(f, plan)` (GateViews): SimBrief navlog as the plan over a VATSIM/absent one, for map, `routeToGo`, `routeAhead`; climb ETA uses max(gs, OFP route nm / air time) | |
 | 1.17.14 | `withBurn` (useFlightFeed): ffKgH 0/absent airborne → burn from FOB drop over ≥5 min, else null | |
-| 1.17.15 | GateMap `named`: all fixes ahead for `route.source === "ofp"`; `labelled` set drops overlapping names | this release |
+| 1.17.15 | GateMap `named`: all fixes ahead for `route.source === "ofp"`; `labelled` set drops overlapping names | |
+| 1.17.16 | `fuelAtDest(s, toGo, f)`: OFP plan_landing + (FOB − `plannedFobAt`, from navlog `fuel_plan_onboard`), the flow projection as fallback; `deckRows(fms, est)` fills from `DeckEstimates`, hides empty rows when no FMS page; Tower `fuel_rate.py` + profile `fuelUsed` → ffKgH (A350) | this release |
 
 **Naming:** "OFP Tower" is the user-facing name, the owner's choice on 2026-11-11. In code and protocol the old name stays: `feed=link`, `linkSource`, `"app":"ofp-link"`, port 47800, `docs/OFP-LINK.md`, and the PC folder `ofp-link-recorder`. Rename both sides together or not at all.
 

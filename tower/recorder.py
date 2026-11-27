@@ -241,7 +241,11 @@ def main():
     door_keys = [(f"EXIT OPEN:{i}", "percent") for i in range(4)]
     std_keys = [src for src, _ in OVERRIDABLE.values() if src]
     lvar_keys = [(s["var"], s.get("unit", "number")) for s in pvars.values()]
-    full_keys = list(BASE.values()) + eng_keys + ff_keys + door_keys + std_keys + lvar_keys
+    # Aircraft whose fuel-flow SimVars read 0: flow from their fuel-used counters instead (kg)
+    used_keys = [(v, "number") for v in (profile or {}).get("fuelUsed", [])]
+    from fuel_rate import FuelRate
+    fuel_rate = FuelRate() if used_keys else None
+    full_keys = list(BASE.values()) + eng_keys + ff_keys + door_keys + std_keys + lvar_keys + used_keys
     fast_keys = [BASE["onGround"], BASE["vs"], BASE["gearAgl"], BASE["g"]]
     td_key = ("PLANE TOUCHDOWN NORMAL VELOCITY", "feet per minute")
 
@@ -365,6 +369,13 @@ def main():
                     "ffKgH": (num(sum(d[k] for k in ff_keys) * LB_TO_KG, 0)
                               if ff_keys and all(d[k] is not None for k in ff_keys) else None),
                 }
+                if fuel_rate is not None:
+                    used_kg = (sum(d[k] for k in used_keys)
+                               if all(d[k] is not None for k in used_keys) else None)
+                    rate = fuel_rate.add(time.monotonic(), used_kg)
+                    rec["fuelUsedKg"] = num(used_kg, 0) if used_kg is not None else None
+                    if rate is not None and not rec["ffKgH"]:
+                        rec["ffKgH"] = num(rate, 0)       # standard flow reads 0: use the counters
                 raw = {}
                 for field, (src, kind) in OVERRIDABLE.items():
                     std_val = std_convert(kind, d[src]) if src else None

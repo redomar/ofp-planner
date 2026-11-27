@@ -492,7 +492,49 @@ const join = (...xs: (string | null | false | undefined)[]) => xs.filter(Boolean
  * approach and the next fix. Missing ones show as a dash, but a figure that is known wins over one
  * that isn't.
  */
-export function deckRows(f: FmsFigures): DeckRow[] {
+/**
+ * 1.17.16: the board's own estimates, for an aircraft whose FMS isn't read (the A350): the
+ * arrival from the route, the fuel at arrival from the burn, the top of descent at 3 nm per
+ * 1,000 ft, the cruise level from the OFP (rows from these say "est"), and the fuel on board.
+ */
+export interface DeckEstimates {
+  arrival: string | null;
+  efob: number | null;
+  tdUtc: string | null;
+  tdNm: number | null;
+  fob: number | null;
+  crzFl: string | null;
+}
+
+/** A figure from the FMS, else the estimate (labelled "est"). */
+function fill(f: FmsFigures, e: DeckEstimates): { f: FmsFigures; est: Set<string> } {
+  const est = new Set<string>();
+  const out = { ...f };
+  const take = <K extends keyof DeckEstimates & keyof FmsFigures>(k: K, row: string) => {
+    if (out[k] == null && e[k] != null) {
+      (out as unknown as Record<string, unknown>)[k] = e[k];
+      est.add(row);
+    }
+  };
+  if (out.utcDest == null && e.arrival != null) {
+    out.utcDest = e.arrival;
+    est.add("Arrival");
+  }
+  take("efob", "Fuel at arrival");
+  if (out.tdUtc == null && e.tdUtc != null) {
+    out.tdUtc = e.tdUtc;
+    out.tdNm = e.tdNm;
+    est.add("Top of descent");
+  }
+  if (out.fob == null) out.fob = e.fob; // read from the aircraft, not an estimate
+  take("crzFl", "Levels");
+  return { f: out, est };
+}
+
+export function deckRows(fms: FmsFigures, e: DeckEstimates | null = null): DeckRow[] {
+  // without a page read from the FMS: estimates only, and rows with nothing are left out
+  const none = fms.at == null;
+  const { f, est } = e ? fill(fms, e) : { f: fms, est: new Set<string>() };
   const ground = f.phase === "PRE" || f.phase === "T/O" || (f.phase == null && f.utcDest == null && (f.trip != null || f.v1 != null));
   const late = f.phase === "DES" || f.phase === "APPR" || f.phase === "GA" || f.phase === "DONE";
   const speeds = f.v1 != null || f.vr != null || f.v2 != null ? [f.v1, f.vr, f.v2].map((x) => x ?? "—").join(" / ") : null;
@@ -522,8 +564,13 @@ export function deckRows(f: FmsFigures): DeckRow[] {
           { k: "Levels", v: f.crzFl || f.optFl || f.recMaxFl ? join(f.crzFl, f.optFl && `opt ${f.optFl}`, f.recMaxFl && `max ${f.recMaxFl}`) : null },
           { k: "Fuel on board", v: t1(f.fob) },
         ];
+  for (const r of list) {
+    if (r.k === "Arrival · FMS" && est.has("Arrival")) r.k = "Arrival · est";
+    else if (est.has(r.k)) r.k = `${r.k} · est`;
+  }
   // the first four known, then dashes in the order above
   const known = list.filter((r) => r.v != null).slice(0, 4);
+  if (none && e) return known;
   const pick = new Set([...known, ...list.filter((r) => r.v == null)].slice(0, 4));
   return list.filter((r) => pick.has(r));
 }

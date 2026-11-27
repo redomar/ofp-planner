@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.17.16 — 2026-11-27
+
+- **Fixed: "Fuel at KJFK 0.0 t" on a long flight.** The fuel at the destination was the fuel on board less today's burn for all the time left. Early in a heavy long-haul that comes out below zero, because the burn falls as the aircraft gets lighter. With a SimBrief OFP it's now the OFP's planned landing fuel, moved by how far the fuel on board is from the plan's at this point of the route. Without one it's the old estimate.
+- **The flight deck card on the iniBuilds A350** (no FMS pages): the arrival, the fuel at arrival, the top of descent and the cruise level now come from the board's own estimates, marked "est", plus the fuel on board. Rows with nothing to show are left out instead of showing "—". The Fenix's FMS figures still win where they're read.
+- **OFP Tower: a real fuel flow on the A350.** Its fuel-flow values read 0, so OFP Tower now works the flow out from the engines' fuel-used counters (`L:INI_ENG1/2_FUEL_USED`) over 30 s. Before, the board estimated it from the fuel on board over 5 minutes. Restart OFP Tower to get it.
 ## 1.17.15 — 2026-11-26
 
 - **The map names every fix ahead on the SimBrief route** (an aircraft with no FMS route from OFP Tower, the A350): NAT points and all. In flight it named only the next 5, which across an ocean are the departure's fixes bunched together, so one name showed.
