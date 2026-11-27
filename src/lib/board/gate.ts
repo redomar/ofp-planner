@@ -423,6 +423,13 @@ export interface GateFlight {
   typical: number | null;
   /** The OFP's route, fix by fix (SimBrief only): the route panel's fixes without an FMS plan. */
   route?: RouteFix[];
+  /** 1.17.16: the OFP's planned fuel on board at take-off and landing (kg; SimBrief only). */
+  fuelPlan?: FuelPlan | null;
+}
+
+export interface FuelPlan {
+  takeoffKg: number;
+  landingKg: number;
 }
 
 export interface RouteFix {
@@ -430,6 +437,8 @@ export interface RouteFix {
   lat: number;
   lon: number;
   via: string | null;
+  /** 1.17.16: the OFP's planned fuel on board over this fix (kg). */
+  fob?: number | null;
 }
 
 export function fromSnapshot(f: FlightRow, stdMs: number, airports: Map<string, Airport>, brand: AirlineInfo | null): GateFlight | null {
@@ -486,6 +495,7 @@ export interface SbOfp {
   nm: number | null;
   generated: string | null;
   route: RouteFix[];
+  fuelPlan?: FuelPlan | null;
 }
 
 const hms = (v: unknown) => {
@@ -495,7 +505,7 @@ const hms = (v: unknown) => {
 const numOr = (v: unknown) => (v == null || v === "" || !Number.isFinite(Number(v)) ? null : Number(v));
 
 /** The OFP's navlog as fixes: no TOC/TOD and other calculated points, no airports. */
-function navlogOf(v: unknown): RouteFix[] {
+function navlogOf(v: unknown, kg = 1): RouteFix[] {
   const list = Array.isArray(v) ? v : v ? [v] : [];
   return list.slice(0, 400).flatMap((raw) => {
     const x = raw as Record<string, unknown>;
@@ -504,8 +514,18 @@ function navlogOf(v: unknown): RouteFix[] {
     const id = typeof x.ident === "string" ? x.ident.trim().slice(0, 12) : "";
     if (lat == null || lon == null || (Math.abs(lat) < 1e-4 && Math.abs(lon) < 1e-4) || !id || x.type === "ltlg" || x.type === "apt" || /^(TOC|TOD)$/.test(id)) return [];
     const via = typeof x.via_airway === "string" && x.via_airway && x.via_airway !== "DCT" ? x.via_airway.slice(0, 12) : null;
-    return [{ id, lat, lon, via }];
+    const fob = numOr(x.fuel_plan_onboard);
+    return [{ id, lat, lon, via, fob: fob != null ? Math.round(fob * kg) : null }];
   });
+}
+
+/** The OFP's weights in kg: 1, or the pound's 0.4536. */
+const kgOf = (j: { params?: { units?: unknown } }) => (/^lb/i.test(String(j.params?.units ?? "")) ? 0.45359237 : 1);
+
+function fuelPlanOf(j: { params?: { units?: unknown }; fuel?: Record<string, unknown> }): FuelPlan | null {
+  const to = numOr(j.fuel?.plan_takeoff);
+  const ld = numOr(j.fuel?.plan_landing);
+  return to != null && ld != null && to > ld ? { takeoffKg: Math.round(to * kgOf(j)), landingKg: Math.round(ld * kgOf(j)) } : null;
 }
 
 export async function fetchOfp(username: string, signal?: AbortSignal): Promise<SbOfp> {
@@ -543,8 +563,25 @@ export async function fetchOfp(username: string, signal?: AbortSignal): Promise<
     nm: numOr(g.gc_distance),
     generated: j.params?.time_generated ?? null,
     // json=v2 gives the navlog as the list of fixes itself; the older shape wraps it in { fix: [...] }
-    route: navlogOf(Array.isArray(j.navlog) ? j.navlog : j.navlog?.fix),
+    route: navlogOf(Array.isArray(j.navlog) ? j.navlog : j.navlog?.fix, kgOf(j)),
+    fuelPlan: fuelPlanOf(j),
   };
+}
+
+/** The OFP's planned fuel on board (kg) with `toGoNm` left along its route; null without a full plan. */
+export function plannedFobAt(f: GateFlight, toGoNm: number): number | null {
+  const fp = f.fuelPlan;
+  const r = f.route ?? [];
+  if (!fp || r.length < 1 || r.some((x) => x.fob == null)) return null;
+  const pts = [{ lat: f.from.lat, lon: f.from.lon, fob: fp.takeoffKg }, ...r.map((x) => ({ lat: x.lat, lon: x.lon, fob: x.fob! })), { lat: f.to.lat, lon: f.to.lon, fob: fp.landingKg }];
+  const along = pts.map(() => 0);
+  for (let i = 1; i < pts.length; i++) along[i] = along[i - 1] + gcNm(pts[i - 1], pts[i]);
+  const total = along[pts.length - 1];
+  if (!(total > 0)) return null;
+  const at = Math.min(total, Math.max(0, total - toGoNm));
+  const i = Math.max(1, along.findIndex((d) => d >= at));
+  const k = along[i] > along[i - 1] ? (at - along[i - 1]) / (along[i] - along[i - 1]) : 1;
+  return pts[i - 1].fob + (pts[i].fob - pts[i - 1].fob) * k;
 }
 
 /** An OFP as the screen's flight: the brand from its airline code (an operator of a brand counts). */
@@ -575,6 +612,7 @@ export function fromOfp(o: SbOfp, airports: Map<string, Airport> | null, airline
     nm: o.nm ?? Math.round(gcNm(from, to)),
     typical: null,
     route: o.route ?? [],
+    fuelPlan: o.fuelPlan ?? null,
   };
 }
 

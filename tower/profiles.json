@@ -15,6 +15,8 @@
       "name": "iniBuilds A350",
       "match": "a350",
       "_comment": "Sign switches are 3-position, the other way round from the Fenix: 0 = ON, 1 = AUTO, 2 = OFF (confirmed 2026-11-18: all at 2 with the owner seeing OFF; flipped 2-1-0-1-2). seatbelts uses L:INI_SEATBELTS_ON, the sign the cabin actually sees (AUTO resolved by the aircraft; owner found it in dev mode: switch AUTO at the gate = 0). Same pairs exist for L:INI_NO_SMOKING_ON and L:INI_SIGNS_NO_MOBILE / L:INI_NO_PORTABLE_DEVICES_ON (no board field). Beacon, park brake, doors and lights read fine from the standard SimVars.",
+      "_fuelUsed": "Standard ENG FUEL FLOW SimVars read 0 on the A350. ffKgH = rate of change of the sum of these per-engine fuel-used counters (kg since engine start); checked 2026-11-27 in cruise: 8,750 kg/h, matching the FUEL TOTAL QUANTITY WEIGHT drop exactly.",
+      "fuelUsed": [ "L:INI_ENG1_FUEL_USED", "L:INI_ENG2_FUEL_USED" ],
       "vars": {
         "seatbelts":  { "var": "L:INI_SEATBELTS_ON",      "unit": "number", "type": "bool", "confirmed": true },
         "noSmoking":  { "var": "L:INI_NO_SMOKING_SWITCH", "unit": "number", "type": "enum", "values": { "0": "on", "1": "auto", "2": "off" }, "confirmed": true }
